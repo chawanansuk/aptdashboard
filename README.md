@@ -1,2 +1,88 @@
-# aptdashboard
-aptdashboard
+# Dashboard หอพัก
+
+เว็บ Dashboard สำหรับดูแลงานหอพัก 5 ตึก (Kl, มายทรี48, G48, มั่งมี, มีทรัพย์)
+
+## ฟีเจอร์
+
+- **KPI Cards** — งานวันนี้ / ทำสะอาดสัปดาห์นี้ / ย้ายเข้าเดือนนี้
+- **งานวันนี้** — รายการทั้งหมดพร้อมปุ่มโทรจากมือถือ
+- **แจ้งเตือนเกินกำลัง** — เมื่อทำสะอาดเกิน 2 ห้อง/วัน/ตึก
+- **Bar Chart** — ภาระทำสะอาดแต่ละตึกในสัปดาห์นี้
+- Mobile-first, Dark mode, ภาษาไทยทั้งหมด, Timezone Bangkok
+
+---
+
+## วิธีตั้งค่า URL ของ Google Sheet
+
+1. เปิด Google Sheet ของคุณ
+2. ไปที่ **File → Share → Publish to web**
+3. เลือก **Entire Document** → เลือกรูปแบบ **CSV** → กด **Publish**
+4. คัดลอก URL ที่ได้
+5. เปิดไฟล์ `.env.local` แล้ววาง URL:
+
+```env
+NEXT_PUBLIC_SHEET_CSV_URL=https://docs.google.com/spreadsheets/d/xxx/pub?output=csv
+```
+
+> **หมายเหตุ:** ถ้า Sheet มีหลาย tab ต้องเพิ่ม `&gid=0` (หรือ gid ของ tab นั้น) ต่อท้าย URL
+
+---
+
+## โครงสร้างคอลัมน์ใน Google Sheet
+
+| คอลัมน์ | ตัวอย่าง |
+|---|---|
+| วันที่ | 30/04/2026 |
+| ประเภท | ทำสะอาด / ย้ายเข้า / ย้ายออก / ชมห้อง |
+| ตึก | G48 |
+| ห้อง | 207 |
+| ลูกค้า | คุณศศิพิม |
+| เบอร์ | 098-748-8334 |
+| หมายเหตุ | เช็คตู้เย็น |
+| สถานะ | ว่าง / เสร็จ |
+
+---
+
+## วิธีรัน Local
+
+```bash
+# 1. ติดตั้ง dependencies (ครั้งแรก)
+npm install
+
+# 2. รัน dev server
+npm run dev
+
+# 3. เปิดเบราว์เซอร์ที่
+# http://localhost:3000
+```
+
+---
+
+## วิธี Deploy ขึ้น Vercel
+
+### ครั้งแรก
+1. สมัคร vercel.com (ฟรี)
+2. กด **Add New Project** → เลือก Git repo นี้
+3. ในหน้า **Environment Variables** เพิ่ม:
+   - Key: `NEXT_PUBLIC_SHEET_CSV_URL`
+   - Value: URL ของ Google Sheet CSV
+4. กด **Deploy** รอสักครู่
+
+### Deploy ซ้ำหลังแก้โค้ด
+```bash
+git add -A
+git commit -m "แก้ไข..."
+git push
+```
+
+---
+
+## วิธีแก้ปัญหาเบื้องต้น
+
+| ปัญหา | วิธีแก้ |
+|---|---|
+| หน้าจอขึ้น "โหลดข้อมูลไม่สำเร็จ" | ตรวจสอบ URL ใน .env.local ว่าถูกต้อง และ Sheet ถูก Publish แล้ว |
+| ข้อมูลไม่อัปเดต | กดปุ่ม refresh มุมบนขวา หรือรอ 5 นาที (auto-refresh) |
+| วันที่แสดงผิด | ตรวจสอบรูปแบบ DD/MM/YYYY และปีเป็น ค.ศ. (ไม่ใช่ พ.ศ.) |
+| ตัวอักษรภาษาไทยแตก | รอโหลด font IBM Plex Sans Thai จาก Google Fonts |
+| Build error | รัน npm install ก่อน แล้วลอง npm run build ใหม่ |
