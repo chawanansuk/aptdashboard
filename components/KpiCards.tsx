@@ -29,8 +29,8 @@ function Modal({ title, items, onClose }: { title: string; items: SheetRow[]; on
                                                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none"
                                               >
                                               ✕
-                                  </button>button>
-                        </div>div>
+                                  </button>
+                        </div>
                   {/* List */}
                         <div className="overflow-y-auto flex-1 px-4 py-3 flex flex-col gap-2">
                           {items.length === 0 ? (
