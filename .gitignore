@@ -1,0 +1,13 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# env (contains secrets)
+.env.local
+.env*.local
+
+# typescript
+next-env.d.ts
