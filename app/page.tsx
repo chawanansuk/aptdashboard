@@ -497,3 +497,48 @@ export default function Home() {
               <label className="ac-field">
                 <span>ผู้เช่าปัจจุบัน</span>
                 <input type="text" value={editTenant} onChange={(e) => setEditTenant(e
+                                                                                     .target.value)} placeholder="ชื่อผู้เช่า" />
+              </label>
+              <label className="ac-field">
+                <span>เบอร์ติดต่อ</span>
+                <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="08x-xxx-xxxx" />
+              </label>
+              <label className="ac-field">
+                <span>วันสัญญาหมด</span>
+                <input type="text" value={editContractEnd} onChange={(e) => setEditContractEnd(e.target.value)} placeholder="dd/MM/yyyy" />
+              </label>
+              <label className="ac-field">
+                <span>หมายเหตุ</span>
+                <input type="text" value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="บันทึกเพิ่มเติม" />
+              </label>
+
+              {selectedRoom.upcomingTasks.length > 0 && (
+                <>
+                  <div style={{borderTop:"1px solid #F1F5F9", margin:"6px 0"}} />
+                  <div style={{fontSize:12, color:"#6B7280", fontWeight:600}}>งานที่มาถึง</div>
+                  {selectedRoom.upcomingTasks.map((t, i) => (
+                    <div key={i} className="ac-modal-row">
+                      <span>{t.date} · {t.type}</span>
+                      <strong>{t.note || t.customer || "-"}</strong>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+            <footer className="ac-modal-foot">
+              <button className="ac-btn ac-btn-ghost" onClick={() => setSelectedRoom(null)} disabled={saving}>ยกเลิก</button>
+              <button className="ac-btn ac-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`ac-toast ${toast.type === "ok" ? "ac-toast-ok" : "ac-toast-err"}`}>
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+                                                                                     
