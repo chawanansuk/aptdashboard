@@ -1,128 +1,329 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { SheetRow } from "@/types";
-import KpiCards from "@/components/KpiCards";
-import TodayTasks from "@/components/TodayTasks";
-import CapacityWarning from "@/components/CapacityWarning";
-import CleaningChart from "@/components/CleaningChart";
-import { getBangkokNow } from "@/lib/dateUtils";
-import { format } from "date-fns";
+import { useEffect, useMemo, useState } from "react";
 
-const THAI_DAYS_LONG = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
-const THAI_MONTHS_LONG = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+type RoomStatus =
+  | "occupied"
+  | "ready"
+  | "pending"
+  | "moveout"
+  | "qc"
+  | "repair"
+  | "inactive";
 
-function formatTodayThai(): string {
-  const now = getBangkokNow();
-  const dow = THAI_DAYS_LONG[now.getDay()];
-  const d = now.getDate();
-  const m = THAI_MONTHS_LONG[now.getMonth()];
-  const y = now.getFullYear();
-  return `วัน${dow}ที่ ${d} ${m} ${y}`;
+type Room = {
+  number: string;
+  status: RoomStatus;
+  today?: boolean;
+};
+
+type Floor = {
+  name: string;
+  rooms: Room[];
+};
+
+const STATUS_LABEL: Record<RoomStatus, string> = {
+  occupied: "มีผู้เช่า",
+  ready: "พร้อมขาย",
+  pending: "รอสัญญา",
+  moveout: "แจ้งย้ายออก",
+  qc: "รอตรวจ/QC",
+  repair: "รอเข้าซ่อม",
+  inactive: "ไม่ได้ใช้งาน",
+};
+
+const STATUS_DOT: Record<RoomStatus, string> = {
+  occupied: "#1E293B",
+  ready: "#22C55E",
+  pending: "#A855F7",
+  moveout: "#EF4444",
+  qc: "#F97316",
+  repair: "#EAB308",
+  inactive: "#E2E8F0",
+};
+
+const PROJECTS = ["ทั้งหมด", "Project A", "Project B", "Project C"];
+
+const FILTER_CHIPS: { key: "all" | RoomStatus; label: string }[] = [
+  { key: "all", label: "ทุกสถานะ" },
+  { key: "ready", label: "ว่าง" },
+  { key: "moveout", label: "แจ้งย้ายออก" },
+  { key: "repair", label: "รอซ่อม" },
+];
+
+function genFloor(name: string, count: number, seed: number): Floor {
+  const statuses: RoomStatus[] = [
+    "occupied",
+    "ready",
+    "pending",
+    "moveout",
+    "qc",
+    "repair",
+    "inactive",
+  ];
+  const rooms: Room[] = [];
+  for (let i = 1; i <= count; i++) {
+    const idx = (i * 7 + seed * 3) % statuses.length;
+    const status = statuses[idx];
+    const today =
+      (status === "moveout" || status === "qc" || status === "repair") &&
+      (i + seed) % 4 === 0;
+    rooms.push({
+      number: `${name}${i.toString().padStart(2, "0")}`,
+      status,
+      today,
+    });
+  }
+  return { name: `ชั้น ${name}`, rooms };
 }
 
-type Status = "idle" | "loading" | "ok" | "error";
+const INITIAL_FLOORS: Floor[] = [
+  genFloor("1", 12, 1),
+  genFloor("2", 12, 2),
+  genFloor("3", 12, 3),
+  genFloor("4", 12, 4),
+  genFloor("5", 12, 5),
+];
 
 export default function Home() {
-  const [rows, setRows] = useState<SheetRow[]>([]);
-  const [status, setStatus] = useState<Status>("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [activeProject, setActiveProject] = useState(PROJECTS[0]);
+  const [activeFilter, setActiveFilter] =
+    useState<(typeof FILTER_CHIPS)[number]["key"]>("all");
+  const [search, setSearch] = useState("");
+  const [activeSidebar, setActiveSidebar] = useState("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
-  const fetchData = useCallback(async () => {
-    setStatus("loading");
-    try {
-      const res = await fetch("/api/sheet", { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok || json.error) {
-        setErrorMsg(json.error ?? "เกิดข้อผิดพลาด");
-        setStatus("error");
-        return;
-      }
-      setRows(json.rows ?? []);
-      setLastUpdated(format(new Date(), "HH:mm"));
-      setStatus("ok");
-    } catch {
-      setErrorMsg("ไม่สามารถเชื่อมต่อได้");
-      setStatus("error");
-    }
-  }, []);
+  const floors = INITIAL_FLOORS;
+
+  const stats = useMemo(() => {
+    let total = 0;
+    let ready = 0;
+    let moveout = 0;
+    let repair = 0;
+    floors.forEach((f) =>
+      f.rooms.forEach((r) => {
+        total++;
+        if (r.status === "ready") ready++;
+        if (r.status === "moveout") moveout++;
+        if (r.status === "repair" || r.status === "qc") repair++;
+      })
+    );
+    return { total, ready, moveout, repair };
+  }, [floors]);
+
+  const sidebarCounts = useMemo(() => {
+    const c: Record<string, number> = {
+      moveout: 0, qc: 0, repair: 0, ready: 0,
+      occupied: 0, pending: 0, inactive: 0, today: 0,
+    };
+    floors.forEach((f) =>
+      f.rooms.forEach((r) => {
+        c[r.status]++;
+        if (r.today) c.today++;
+      })
+    );
+    return c;
+  }, [floors]);
 
   useEffect(() => {
-    fetchData();
-    // refresh อัตโนมัติทุก 5 นาที
-    const interval = setInterval(fetchData, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    const onResize = () => {
+      if (window.innerWidth >= 1280) setSidebarOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const matchesFilter = (r: Room) => {
+    if (activeFilter !== "all" && r.status !== activeFilter) return false;
+    if (search.trim() && !r.number.toLowerCase().includes(search.toLowerCase().trim())) return false;
+    return true;
+  };
 
   return (
-    <main className="max-w-lg mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-5">
-        <div>
-          <h1 className="text-xl font-medium text-gray-900 dark:text-gray-50">Dashboard หอพัก</h1>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{formatTodayThai()}</p>
+    <div className="ac-app">
+      <header className="ac-nav">
+        <div className="ac-nav-left">
+          <button className="ac-hamburger" aria-label="เมนู" onClick={() => setSidebarOpen((v) => !v)}>
+            <span /><span /><span />
+          </button>
+          <div className="ac-logo">
+            <div className="ac-logo-icon">A</div>
+            <span className="ac-logo-text">APARTCLOUD</span>
+          </div>
+          <span className="ac-mode-badge">SALES MODE</span>
+          <div className="ac-divider" />
+          <nav className="ac-tabs">
+            {PROJECTS.map((p) => (
+              <button key={p} className={`ac-tab ${activeProject === p ? "is-active" : ""}`} onClick={() => setActiveProject(p)}>{p}</button>
+            ))}
+          </nav>
+          <select className="ac-tabs-select" value={activeProject} onChange={(e) => setActiveProject(e.target.value)}>
+            {PROJECTS.map((p) => (<option key={p} value={p}>{p}</option>))}
+          </select>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={status === "loading"}
-          className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors disabled:opacity-50 mt-1"
-          title="รีเฟรชข้อมูล"
-        >
-          <svg
-            className={`w-4 h-4 ${status === "loading" ? "animate-spin" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          {lastUpdated ? `อัปเดต ${lastUpdated}` : "โหลด"}
-        </button>
+        <div className="ac-nav-right">
+          <button className="ac-icon-btn" aria-label="แจ้งเตือน">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span className="ac-icon-dot" />
+          </button>
+          <button className="ac-summary-btn">SUMMARY</button>
+          <div className="ac-avatar">CS</div>
+        </div>
+      </header>
+
+      <div className="ac-body">
+        <aside className={`ac-side ${sidebarOpen ? "is-open" : ""}`}>
+          <div className="ac-side-group">
+            <div className="ac-side-label">วันนี้</div>
+            <button className={`ac-side-item ${activeSidebar === "overview" ? "is-active" : ""}`} onClick={() => setActiveSidebar("overview")}>
+              <span className="ac-side-icon">▦</span>
+              <span className="ac-side-text">ภาพรวม</span>
+              <span className="ac-badge ac-badge-indigo">{stats.total}</span>
+            </button>
+            <button className={`ac-side-item ${activeSidebar === "today" ? "is-active" : ""}`} onClick={() => setActiveSidebar("today")}>
+              <span className="ac-side-icon">●</span>
+              <span className="ac-side-text">งานวันนี้</span>
+              <span className="ac-badge ac-badge-red">{sidebarCounts.today}</span>
+            </button>
+          </div>
+          <div className="ac-side-group">
+            <div className="ac-side-label">สถานะห้อง</div>
+            <button className={`ac-side-item ${activeSidebar === "ready" ? "is-active" : ""}`} onClick={() => { setActiveSidebar("ready"); setActiveFilter("ready"); }}>
+              <span className="ac-side-icon" style={{ color: "#22C55E" }}>●</span>
+              <span className="ac-side-text">พร้อมขาย</span>
+              <span className="ac-badge ac-badge-green">{sidebarCounts.ready}</span>
+            </button>
+            <button className={`ac-side-item ${activeSidebar === "pending" ? "is-active" : ""}`} onClick={() => setActiveSidebar("pending")}>
+              <span className="ac-side-icon" style={{ color: "#A855F7" }}>●</span>
+              <span className="ac-side-text">รอสัญญา</span>
+              <span className="ac-badge ac-badge-indigo">{sidebarCounts.pending}</span>
+            </button>
+            <button className={`ac-side-item ${activeSidebar === "occupied" ? "is-active" : ""}`} onClick={() => setActiveSidebar("occupied")}>
+              <span className="ac-side-icon" style={{ color: "#1E293B" }}>●</span>
+              <span className="ac-side-text">มีผู้เช่า</span>
+              <span className="ac-badge ac-badge-slate">{sidebarCounts.occupied}</span>
+            </button>
+          </div>
+          <div className="ac-side-group">
+            <div className="ac-side-label">งาน</div>
+            <button className={`ac-side-item ${activeSidebar === "moveout" ? "is-active" : ""}`} onClick={() => { setActiveSidebar("moveout"); setActiveFilter("moveout"); }}>
+              <span className="ac-side-icon" style={{ color: "#EF4444" }}>●</span>
+              <span className="ac-side-text">แจ้งย้ายออก</span>
+              <span className="ac-badge ac-badge-red">{sidebarCounts.moveout}</span>
+            </button>
+            <button className={`ac-side-item ${activeSidebar === "qc" ? "is-active" : ""}`} onClick={() => setActiveSidebar("qc")}>
+              <span className="ac-side-icon" style={{ color: "#F97316" }}>●</span>
+              <span className="ac-side-text">รอตรวจ/QC</span>
+              <span className="ac-badge ac-badge-orange">{sidebarCounts.qc}</span>
+            </button>
+            <button className={`ac-side-item ${activeSidebar === "repair" ? "is-active" : ""}`} onClick={() => { setActiveSidebar("repair"); setActiveFilter("repair"); }}>
+              <span className="ac-side-icon" style={{ color: "#EAB308" }}>●</span>
+              <span className="ac-side-text">รอเข้าซ่อม</span>
+              <span className="ac-badge ac-badge-yellow">{sidebarCounts.repair}</span>
+            </button>
+            <button className={`ac-side-item ${activeSidebar === "inactive" ? "is-active" : ""}`} onClick={() => setActiveSidebar("inactive")}>
+              <span className="ac-side-icon" style={{ color: "#CBD5E1" }}>●</span>
+              <span className="ac-side-text">ไม่ได้ใช้งาน</span>
+              <span className="ac-badge ac-badge-empty">{sidebarCounts.inactive}</span>
+            </button>
+          </div>
+        </aside>
+
+        {sidebarOpen && (<div className="ac-side-backdrop" onClick={() => setSidebarOpen(false)} />)}
+
+        <main className="ac-main">
+          <section className="ac-sg">
+            <div className="ac-sc"><div className="ac-si ac-si-indigo">▦</div><div className="ac-sc-body"><div className="ac-sc-label">ทั้งหมด</div><div className="ac-sc-num">{stats.total}</div><div className="ac-sc-sub ac-sub-info">ห้องในโครงการ</div></div></div>
+            <div className="ac-sc"><div className="ac-si ac-si-green">✓</div><div className="ac-sc-body"><div className="ac-sc-label">ว่าง / พร้อมขาย</div><div className="ac-sc-num">{stats.ready}</div><div className="ac-sc-sub ac-sub-info">พร้อมเสนอลูกค้า</div></div></div>
+            <div className="ac-sc"><div className="ac-si ac-si-orange">↗</div><div className="ac-sc-body"><div className="ac-sc-label">แจ้งย้ายออก</div><div className="ac-sc-num">{stats.moveout}</div><div className="ac-sc-sub ac-sub-urgent">ต้องติดตาม</div></div></div>
+            <div className="ac-sc"><div className="ac-si ac-si-red">⚒</div><div className="ac-sc-body"><div className="ac-sc-label">ซ่อม / QC</div><div className="ac-sc-num">{stats.repair}</div><div className="ac-sc-sub ac-sub-urgent">รอดำเนินการ</div></div></div>
+          </section>
+
+          <section className="ac-fb">
+            <div className="ac-chips">
+              {FILTER_CHIPS.map((c) => (
+                <button key={c.key} className={`ac-chip ${activeFilter === c.key ? "is-active" : ""}`} onClick={() => setActiveFilter(c.key)}>{c.label}</button>
+              ))}
+            </div>
+            <div className="ac-search">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" placeholder="ค้นหาเลขห้อง..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+          </section>
+
+          <section className="ac-legend">
+            {(Object.keys(STATUS_LABEL) as RoomStatus[]).map((s) => (
+              <div key={s} className="ac-legend-item">
+                <span className="ac-legend-dot" style={{ background: STATUS_DOT[s] }} />
+                <span>{STATUS_LABEL[s]}</span>
+              </div>
+            ))}
+            <div className="ac-legend-item">
+              <span className="ac-legend-dot ac-legend-today" />
+              <span>งานวันนี้</span>
+            </div>
+          </section>
+
+          {floors.map((floor) => {
+            const filteredRooms = floor.rooms.filter(matchesFilter);
+            if (filteredRooms.length === 0) return null;
+            const counts: Record<string, number> = {};
+            floor.rooms.forEach((r) => { counts[r.status] = (counts[r.status] || 0) + 1; });
+            return (
+              <section key={floor.name} className="ac-fs">
+                <header className="ac-fs-head">
+                  <div className="ac-fs-title">{floor.name}</div>
+                  <div className="ac-fs-stats">
+                    {(Object.keys(counts) as RoomStatus[]).map((k) => (
+                      <span key={k} className="ac-fs-stat">
+                        <span className="ac-fs-stat-dot" style={{ background: STATUS_DOT[k] }} />
+                        {STATUS_LABEL[k]} {counts[k]}
+                      </span>
+                    ))}
+                  </div>
+                </header>
+                <div className="ac-rg">
+                  {filteredRooms.map((r) => (
+                    <button key={r.number} className={`ac-rc ac-rc-${r.status}`} onClick={() => setSelectedRoom(r)}>
+                      {r.today && <span className="ac-rc-today" />}
+                      <span className="ac-rc-num">{r.number}</span>
+                      <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </main>
       </div>
 
-      {/* Error state */}
-      {status === "error" && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 p-3">
-          <p className="text-sm font-medium text-red-700 dark:text-red-300">โหลดข้อมูลไม่สำเร็จ</p>
-          <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{errorMsg}</p>
-          <p className="text-xs text-red-500 dark:text-red-500 mt-1">
-            ตรวจสอบว่าตั้งค่า NEXT_PUBLIC_SHEET_CSV_URL ใน .env.local แล้ว
-          </p>
-        </div>
-      )}
-
-      {/* Loading skeleton */}
-      {status === "loading" && rows.length === 0 && (
-        <div className="flex flex-col gap-3 animate-pulse">
-          <div className="grid grid-cols-3 gap-3">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="h-16 rounded-xl bg-gray-100 dark:bg-gray-800" />
-            ))}
+      {selectedRoom && (
+        <div className="ac-modal-backdrop" onClick={() => setSelectedRoom(null)}>
+          <div className="ac-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="ac-modal-head">
+              <div>
+                <div className="ac-modal-title">ห้อง {selectedRoom.number}</div>
+                <div className="ac-modal-sub">
+                  <span className="ac-legend-dot" style={{ background: STATUS_DOT[selectedRoom.status] }} />
+                  {STATUS_LABEL[selectedRoom.status]}
+                </div>
+              </div>
+              <button className="ac-modal-close" onClick={() => setSelectedRoom(null)}>✕</button>
+            </header>
+            <div className="ac-modal-body">
+              <div className="ac-modal-row"><span>เลขห้อง</span><strong>{selectedRoom.number}</strong></div>
+              <div className="ac-modal-row"><span>สถานะ</span><strong>{STATUS_LABEL[selectedRoom.status]}</strong></div>
+              <div className="ac-modal-row"><span>งานวันนี้</span><strong>{selectedRoom.today ? "ใช่" : "ไม่มี"}</strong></div>
+              <div className="ac-modal-row"><span>โครงการ</span><strong>{activeProject}</strong></div>
+            </div>
+            <footer className="ac-modal-foot">
+              <button className="ac-btn ac-btn-ghost" onClick={() => setSelectedRoom(null)}>ปิด</button>
+              <button className="ac-btn ac-btn-primary">ดูรายละเอียด</button>
+            </footer>
           </div>
-          <div className="h-4 w-1/3 rounded bg-gray-100 dark:bg-gray-800" />
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-14 rounded-xl bg-gray-100 dark:bg-gray-800" />
-          ))}
         </div>
       )}
-
-      {/* Main content */}
-      {(status === "ok" || (status !== "idle" && rows.length > 0)) && (
-        <div className="flex flex-col gap-6">
-          <KpiCards rows={rows} />
-          <TodayTasks rows={rows} />
-          <CapacityWarning rows={rows} />
-          <CleaningChart rows={rows} />
-        </div>
-      )}
-
-      {status === "ok" && rows.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-400 dark:text-gray-500 text-sm">ยังไม่มีข้อมูลใน Sheet</p>
-        </div>
-      )}
-    </main>
+    </div>
   );
 }
