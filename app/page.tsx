@@ -58,6 +58,17 @@ export default function Home() {
   const [selectedRoom, setSelectedRoom] = useState<RoomView | null>(null);
   const [toast, setToast] = useState<{type:"ok"|"err"; msg:string} | null>(null);
 
+  // add-task state
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [savingTask, setSavingTask] = useState(false);
+  const [tDate, setTDate] = useState<string>(() => new Date().toISOString().slice(0,10));
+  const [tType, setTType] = useState<string>("ย้ายเข้า");
+  const [tBuilding, setTBuilding] = useState<string>("");
+  const [tRoom, setTRoom] = useState<string>("");
+  const [tCustomer, setTCustomer] = useState<string>("");
+  const [tPhone, setTPhone] = useState<string>("");
+  const [tNote, setTNote] = useState<string>("");
+
   // edit state for modal
   const [editStatus, setEditStatus] = useState("");
   const [editTenant, setEditTenant] = useState("");
@@ -133,6 +144,40 @@ export default function Home() {
 
   const buildingTabs = ["ทั้งหมด", ...buildings];
 
+  async function handleAddTask() {
+    if (!tBuilding || !tRoom) { setToast({type:"err", msg:"กรอกตึกและเลขห้อง"}); return; }
+    setSavingTask(true);
+    try {
+      const res = await fetch("/api/sheet/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "addTask",
+          date: tDate,
+          type: tType,
+          building: tBuilding,
+          room: tRoom,
+          customer: tCustomer,
+          phone: tPhone,
+          note: tNote,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setToast({type:"ok", msg:"เพิ่มงานแล้ว — รีเฟรชข้อมูล"});
+        setShowAddTask(false);
+        setTCustomer(""); setTPhone(""); setTNote(""); setTRoom("");
+        refresh();
+      } else {
+        setToast({type:"err", msg: data.error || "เพิ่มงานไม่สำเร็จ"});
+      }
+    } catch (e:any) {
+      setToast({type:"err", msg: e?.message || "Network error"});
+    } finally {
+      setSavingTask(false);
+    }
+  }
+
   async function handleSave() {
     if (!selectedRoom) return;
     setSaving(true);
@@ -187,6 +232,7 @@ export default function Home() {
           </select>
         </div>
         <div className="ac-nav-right">
+          <button className="ac-add-btn" onClick={() => setShowAddTask(true)} title="เพิ่มงานใหม่">+ เพิ่มงาน</button>
           <button className="ac-icon-btn" aria-label="รีเฟรช" onClick={refresh} title="รีเฟรช">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
           </button>
@@ -305,6 +351,64 @@ export default function Home() {
           })}
         </main>
       </div>
+
+      {showAddTask && (
+        <div className="ac-modal-backdrop" onClick={() => setShowAddTask(false)}>
+          <div className="ac-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="ac-modal-head">
+              <div>
+                <div className="ac-modal-title">เพิ่มงานใหม่</div>
+                <div className="ac-modal-sub">บันทึกลงชีต "งาน"</div>
+              </div>
+              <button className="ac-modal-close" onClick={() => setShowAddTask(false)}>✕</button>
+            </header>
+            <div className="ac-modal-body">
+              <div className="ac-field">
+                <label>วันที่</label>
+                <input type="date" value={tDate} onChange={(e)=>setTDate(e.target.value)} />
+              </div>
+              <div className="ac-field">
+                <label>ประเภท</label>
+                <select value={tType} onChange={(e)=>setTType(e.target.value)}>
+                  <option>ย้ายเข้า</option>
+                  <option>ย้ายออก</option>
+                  <option>ชมห้อง</option>
+                  <option>ทำสะอาด</option>
+                  <option>ซ่อม</option>
+                  <option>อื่นๆ</option>
+                </select>
+              </div>
+              <div className="ac-field">
+                <label>ตึก</label>
+                <select value={tBuilding} onChange={(e)=>setTBuilding(e.target.value)}>
+                  <option value="">— เลือกตึก —</option>
+                  {buildings.map((b)=>(<option key={b} value={b}>{b}</option>))}
+                </select>
+              </div>
+              <div className="ac-field">
+                <label>เลขห้อง</label>
+                <input type="text" value={tRoom} onChange={(e)=>setTRoom(e.target.value)} placeholder="เช่น 101" />
+              </div>
+              <div className="ac-field">
+                <label>ลูกค้า</label>
+                <input type="text" value={tCustomer} onChange={(e)=>setTCustomer(e.target.value)} />
+              </div>
+              <div className="ac-field">
+                <label>เบอร์</label>
+                <input type="tel" value={tPhone} onChange={(e)=>setTPhone(e.target.value)} />
+              </div>
+              <div className="ac-field">
+                <label>หมายเหตุ</label>
+                <textarea rows={2} value={tNote} onChange={(e)=>setTNote(e.target.value)} />
+              </div>
+            </div>
+            <footer className="ac-modal-foot">
+              <button className="ac-btn ac-btn-ghost" onClick={()=>setShowAddTask(false)} disabled={savingTask}>ยกเลิก</button>
+              <button className="ac-btn ac-btn-primary" onClick={handleAddTask} disabled={savingTask}>{savingTask ? "กำลังบันทึก..." : "บันทึก"}</button>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {selectedRoom && (
         <div className="ac-modal-backdrop" onClick={() => setSelectedRoom(null)}>
