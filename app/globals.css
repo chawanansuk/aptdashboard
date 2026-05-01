@@ -542,3 +542,50 @@ input { font-family: inherit; }
   .ac-summary-btn { padding: 6px 10px; font-size: 11px; }
   .ac-fs-stats { display: none; }
 }
+
+
+/* === Form fields in modal === */
+.ac-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #6B7280;
+}
+.ac-field > span { font-weight: 600; }
+.ac-field input,
+.ac-field select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #111827;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ac-field input:focus,
+.ac-field select:focus { border-color: #4F46E5; }
+
+/* === Toast === */
+.ac-toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  z-index: 300;
+  animation: ac-toast-in 0.2s ease-out;
+}
+.ac-toast-ok { background: #16A34A; color: #fff; }
+.ac-toast-err { background: #DC2626; color: #fff; }
+@keyframes ac-toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.ac-btn:disabled { opacity: 0.6; cursor: not-allowed; }
