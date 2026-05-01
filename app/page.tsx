@@ -2,27 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type RoomStatus =
-  | "occupied"
-  | "ready"
-  | "pending"
-  | "moveout"
-  | "qc"
-  | "repair"
-  | "inactive";
-
-type Room = {
-  number: string;
-  status: RoomStatus;
-  today?: boolean;
-};
-
-type Floor = {
-  name: string;
-  rooms: Room[];
-};
-
-const STATUS_LABEL: Record<RoomStatus, string> = {
+const STATUS_LABEL = {
   occupied: "มีผู้เช่า",
   ready: "พร้อมขาย",
   pending: "รอสัญญา",
@@ -32,7 +12,7 @@ const STATUS_LABEL: Record<RoomStatus, string> = {
   inactive: "ไม่ได้ใช้งาน",
 };
 
-const STATUS_DOT: Record<RoomStatus, string> = {
+const STATUS_DOT = {
   occupied: "#1E293B",
   ready: "#22C55E",
   pending: "#A855F7",
@@ -42,42 +22,29 @@ const STATUS_DOT: Record<RoomStatus, string> = {
   inactive: "#E2E8F0",
 };
 
+const STATUS_KEYS = ["occupied","ready","pending","moveout","qc","repair","inactive"];
+
 const PROJECTS = ["ทั้งหมด", "Project A", "Project B", "Project C"];
 
-const FILTER_CHIPS: { key: "all" | RoomStatus; label: string }[] = [
+const FILTER_CHIPS = [
   { key: "all", label: "ทุกสถานะ" },
   { key: "ready", label: "ว่าง" },
   { key: "moveout", label: "แจ้งย้ายออก" },
   { key: "repair", label: "รอซ่อม" },
 ];
 
-function genFloor(name: string, count: number, seed: number): Floor {
-  const statuses: RoomStatus[] = [
-    "occupied",
-    "ready",
-    "pending",
-    "moveout",
-    "qc",
-    "repair",
-    "inactive",
-  ];
-  const rooms: Room[] = [];
+function genFloor(name, count, seed) {
+  const rooms = [];
   for (let i = 1; i <= count; i++) {
-    const idx = (i * 7 + seed * 3) % statuses.length;
-    const status = statuses[idx];
-    const today =
-      (status === "moveout" || status === "qc" || status === "repair") &&
-      (i + seed) % 4 === 0;
-    rooms.push({
-      number: `${name}${i.toString().padStart(2, "0")}`,
-      status,
-      today,
-    });
+    const idx = (i * 7 + seed * 3) % STATUS_KEYS.length;
+    const status = STATUS_KEYS[idx];
+    const today = (status === "moveout" || status === "qc" || status === "repair") && (i + seed) % 4 === 0;
+    rooms.push({ number: `${name}${String(i).padStart(2, "0")}`, status, today });
   }
   return { name: `ชั้น ${name}`, rooms };
 }
 
-const INITIAL_FLOORS: Floor[] = [
+const INITIAL_FLOORS = [
   genFloor("1", 12, 1),
   genFloor("2", 12, 2),
   genFloor("3", 12, 3),
@@ -87,54 +54,41 @@ const INITIAL_FLOORS: Floor[] = [
 
 export default function Home() {
   const [activeProject, setActiveProject] = useState(PROJECTS[0]);
-  const [activeFilter, setActiveFilter] =
-    useState<(typeof FILTER_CHIPS)[number]["key"]>("all");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [activeSidebar, setActiveSidebar] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState(null);
 
   const floors = INITIAL_FLOORS;
 
   const stats = useMemo(() => {
-    let total = 0;
-    let ready = 0;
-    let moveout = 0;
-    let repair = 0;
-    floors.forEach((f) =>
-      f.rooms.forEach((r) => {
-        total++;
-        if (r.status === "ready") ready++;
-        if (r.status === "moveout") moveout++;
-        if (r.status === "repair" || r.status === "qc") repair++;
-      })
-    );
+    let total = 0, ready = 0, moveout = 0, repair = 0;
+    floors.forEach((f) => f.rooms.forEach((r) => {
+      total++;
+      if (r.status === "ready") ready++;
+      if (r.status === "moveout") moveout++;
+      if (r.status === "repair" || r.status === "qc") repair++;
+    }));
     return { total, ready, moveout, repair };
   }, [floors]);
 
   const sidebarCounts = useMemo(() => {
-    const c: Record<string, number> = {
-      moveout: 0, qc: 0, repair: 0, ready: 0,
-      occupied: 0, pending: 0, inactive: 0, today: 0,
-    };
-    floors.forEach((f) =>
-      f.rooms.forEach((r) => {
-        c[r.status]++;
-        if (r.today) c.today++;
-      })
-    );
+    const c = { moveout:0, qc:0, repair:0, ready:0, occupied:0, pending:0, inactive:0, today:0 };
+    floors.forEach((f) => f.rooms.forEach((r) => {
+      c[r.status]++;
+      if (r.today) c.today++;
+    }));
     return c;
   }, [floors]);
 
   useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth >= 1280) setSidebarOpen(false);
-    };
+    const onResize = () => { if (window.innerWidth >= 1280) setSidebarOpen(false); };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const matchesFilter = (r: Room) => {
+  const matchesFilter = (r) => {
     if (activeFilter !== "all" && r.status !== activeFilter) return false;
     if (search.trim() && !r.number.toLowerCase().includes(search.toLowerCase().trim())) return false;
     return true;
@@ -253,7 +207,7 @@ export default function Home() {
           </section>
 
           <section className="ac-legend">
-            {(Object.keys(STATUS_LABEL) as RoomStatus[]).map((s) => (
+            {STATUS_KEYS.map((s) => (
               <div key={s} className="ac-legend-item">
                 <span className="ac-legend-dot" style={{ background: STATUS_DOT[s] }} />
                 <span>{STATUS_LABEL[s]}</span>
@@ -268,14 +222,14 @@ export default function Home() {
           {floors.map((floor) => {
             const filteredRooms = floor.rooms.filter(matchesFilter);
             if (filteredRooms.length === 0) return null;
-            const counts: Record<string, number> = {};
+            const counts = {};
             floor.rooms.forEach((r) => { counts[r.status] = (counts[r.status] || 0) + 1; });
             return (
               <section key={floor.name} className="ac-fs">
                 <header className="ac-fs-head">
                   <div className="ac-fs-title">{floor.name}</div>
                   <div className="ac-fs-stats">
-                    {(Object.keys(counts) as RoomStatus[]).map((k) => (
+                    {Object.keys(counts).map((k) => (
                       <span key={k} className="ac-fs-stat">
                         <span className="ac-fs-stat-dot" style={{ background: STATUS_DOT[k] }} />
                         {STATUS_LABEL[k]} {counts[k]}
