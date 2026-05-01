@@ -1,3 +1,47 @@
+
+
+/* === Banner / Empty / States === */
+.ac-banner {
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ac-banner-warn {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+}
+.ac-banner a { color: #4F46E5; text-decoration: underline; }
+
+.ac-empty {
+  background: #fff;
+  border: 1px dashed #E5E7EB;
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  color: #6B7280;
+  font-size: 13px;
+}
+.ac-empty-error {
+  border-color: #FCA5A5;
+  background: #FEF2F2;
+  color: #991B1B;
+}
+
+.ac-last-updated {
+  font-size: 11px;
+  color: #9CA3AF;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .ac-last-updated { display: none; }
+}
 /* ApartCloud Design Brief - globals.css */
 
 * { box-sizing: border-box; }
