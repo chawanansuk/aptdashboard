@@ -126,6 +126,7 @@ export default function Home() {
   const [editPhone, setEditPhone] = useState("");
   const [editContractEnd, setEditContractEnd] = useState("");
   const [editNote, setEditNote] = useState("");
+  const [editPrice, setEditPrice] = useState("");
 
   useEffect(() => {
     if (selectedRoom) {
@@ -133,6 +134,7 @@ export default function Home() {
       setEditTenant(selectedRoom.tenant || "");
       setEditPhone(selectedRoom.phone || "");
       setEditContractEnd(selectedRoom.contractEnd || "");
+      setEditPrice(selectedRoom.price || "");
       setEditNote("");
     }
   }, [selectedRoom]);
@@ -270,6 +272,7 @@ export default function Home() {
           phone: editPhone,
           contractEnd: editContractEnd,
           note: editNote,
+          price: editPrice,
         }),
       });
       const data = await res.json();
@@ -512,7 +515,10 @@ export default function Home() {
               <button className="ac-modal-close" onClick={() => setSelectedRoom(null)}>✕</button>
             </header>
             <div className="ac-modal-body">
-              <div className="ac-modal-row"><span>ราคา/เดือน</span><strong>{fmtPrice(selectedRoom.price)} บาท</strong></div>
+              <label className="ac-field">
+                <span>ราคา/เดือน (บาท)</span>
+                <input type="text" inputMode="numeric" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="เช่น 3500" />
+              </label>
 
               <label className="ac-field">
                 <span>สถานะ (ในชีต)</span>
