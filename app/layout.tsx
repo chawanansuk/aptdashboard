@@ -6,7 +6,7 @@ export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "Dashboard หอพัก",
-  description: "ระบบจัดการห้อง 5 ตึก",
+  description: "ระบบจัดการห้อง 5 ตึก v2",
 };
 
 export const viewport = {
