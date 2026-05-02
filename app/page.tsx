@@ -1,4 +1,4 @@
-"use client";
+undefined"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useDashboardData } from "@/lib/useDashboardData";
@@ -69,6 +69,30 @@ const VIEW_LABEL: Record<string, string> = {
 export default function Home() {
   const { status, rooms, errors, lastUpdated, refresh, tasks } = useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
+    const prefersDark = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : false;
+    const dark = saved ? saved === 'dark' : prefersDark;
+    setIsDark(dark);
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', dark);
+    }
+  }, []);
+
+  function toggleTheme() {
+    setIsDark((prev) => {
+      const next = !prev;
+      if (typeof document !== 'undefined') {
+        document.documentElement.classList.toggle('dark', next);
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('theme', next ? 'dark' : 'light');
+      }
+      return next;
+    });
+  }
 
   const buildings = useMemo(() => {
     const set = new Set<string>();
@@ -284,11 +308,12 @@ export default function Home() {
           </select>
         </div>
         <div className="ac-nav-right">
-          <button className="ac-add-btn" onClick={() => setShowAddTask(true)} title="เพิ่มงานใหม่">+ เพิ่มงาน</button>
+          <button className="ac-add-btn" onClick={() => setShowAddTask(true)} title="เพิ่มงานใหม่"><span className="ac-add-btn-icon" style={{display:"none"}}>+</span><span className="ac-add-btn-text">+ เพิ่มงาน</span></button>
           <button className="ac-icon-btn" aria-label="รีเฟรช" onClick={refresh} title="รีเฟรช">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
           </button>
           <div className="ac-last-updated">อัปเดต: {lastUpdated || "-"}</div>
+          <button className="ac-theme-toggle" onClick={toggleTheme} aria-label="สลับโหมดมืด" title="สลับโหมดมืด">{isDark ? "☀️" : "☽"}</button>
           <button className="ac-summary-btn" onClick={() => setSummaryOpen(true)}>SUMMARY</button>
           <div className="ac-avatar">CS</div>
         </div>
