@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
+import SummaryDrawer from "@/components/SummaryDrawer";
 
 const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
@@ -67,6 +68,7 @@ const VIEW_LABEL: Record<string, string> = {
 
 export default function Home() {
   const { status, rooms, errors, lastUpdated, refresh, tasks } = useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const buildings = useMemo(() => {
     const set = new Set<string>();
@@ -287,7 +289,7 @@ export default function Home() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
           </button>
           <div className="ac-last-updated">อัปเดต: {lastUpdated || "-"}</div>
-          <button className="ac-summary-btn">SUMMARY</button>
+          <button className="ac-summary-btn" onClick={() => setSummaryOpen(true)}>SUMMARY</button>
           <div className="ac-avatar">CS</div>
         </div>
       </header>
@@ -538,7 +540,9 @@ export default function Home() {
           {toast.msg}
         </div>
       )}
-    </div>
+    
+      <SummaryDrawer open={summaryOpen} onClose={() => setSummaryOpen(false)} rooms={rooms} tasks={tasks} />
+      </div>
   );
 }
                                                                                      
