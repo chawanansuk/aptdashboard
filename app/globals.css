@@ -621,3 +621,144 @@ input { font-family: inherit; }
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+
+/* ===== TasksList ===== */
+.ac-tasks {
+  margin: 0 16px 24px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.ac-tasks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.ac-tasks-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+.ac-tasks-count {
+  color: #64748B;
+  font-weight: 500;
+  margin-left: 4px;
+}
+.ac-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ac-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  transition: background .15s ease;
+}
+.ac-task:hover {
+  background: #F1F5F9;
+}
+.ac-task.is-done {
+  opacity: 0.6;
+  background: #F1F5F9;
+}
+.ac-task.is-cancelled {
+  opacity: 0.5;
+  background: #FEF2F2;
+}
+.ac-task-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  margin-top: 6px;
+}
+.ac-task-main {
+  flex: 1;
+  min-width: 0;
+}
+.ac-task-line1 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.ac-task-type {
+  font-weight: 700;
+  color: #0F172A;
+  font-size: 14px;
+}
+.ac-task-room {
+  font-weight: 600;
+  color: #334155;
+  font-size: 14px;
+}
+.ac-task-date {
+  color: #64748B;
+  font-size: 13px;
+  margin-left: auto;
+}
+.ac-task-line2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #475569;
+  font-size: 13px;
+}
+.ac-task-note {
+  color: #6366F1;
+  font-style: italic;
+}
+.ac-task-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ac-btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+.ac-task-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #E2E8F0;
+  color: #475569;
+  margin-left: 4px;
+}
+.ac-task-status.is-done {
+  background: #DCFCE7;
+  color: #15803D;
+}
+.ac-task-status.is-cancelled {
+  background: #FEE2E2;
+  color: #B91C1C;
+}
+
+@media (max-width: 640px) {
+  .ac-task {
+    flex-wrap: wrap;
+  }
+  .ac-task-actions {
+    width: 100%;
+    justify-content: flex-start;
+    margin-top: 4px;
+  }
+  .ac-task-date {
+    margin-left: 0;
+  }
+}
