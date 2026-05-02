@@ -608,3 +608,16 @@ input { font-family: inherit; }
 .ac-add-btn:hover{ filter: brightness(1.05); }
 .ac-add-btn:active{ transform: translateY(1px); }
 .ac-add-btn[disabled]{ opacity:.6; cursor: not-allowed; }
+.ac-btn-danger {
+  background: transparent;
+  color: #EF4444;
+  border: 1px solid #EF4444;
+}
+.ac-btn-danger:hover:not(:disabled) {
+  background: #EF4444;
+  color: #fff;
+}
+.ac-btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
