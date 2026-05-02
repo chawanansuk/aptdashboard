@@ -18,16 +18,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th">
-      <body
-        className="antialiased"
-        style={{
-          fontFamily:
-            '"Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif',
-          background: "#F0F2F5",
-          color: "#111827",
-          minHeight: "100vh",
-        }}
-      >
+      <body className="antialiased" style={{ minHeight: "100vh" }}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
         {children}
       </body>
     </html>
