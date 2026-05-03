@@ -41,6 +41,10 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
   const [edit, setEdit] = useState<EditState | null>(null);
   const [confirmDel, setConfirmDel] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hideDone, setHideDone] = useState(true);
+
+  const visible = hideDone ? tasks.filter((t) => !isDone(t.status) && !isCancelled(t.status)) : tasks;
+  const hiddenCount = tasks.length - visible.length;
 
   async function postUpdate(payload: Record<string, unknown>) {
     const res = await fetch("/api/sheet/update", {
@@ -130,13 +134,21 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
     <section className="ac-tasks">
       <header className="ac-tasks-head">
         <h3 className="ac-tasks-title">
-          {title} <span className="ac-tasks-count">({tasks.length})</span>
+          {title} <span className="ac-tasks-count">({visible.length}{hideDone && hiddenCount > 0 ? ` / ${tasks.length}` : ""})</span>
         </h3>
+        <label className="ac-tasks-toggle">
+          <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
+          <span>ซ่อนงานเสร็จ/ยกเลิก{hideDone && hiddenCount > 0 ? ` (${hiddenCount})` : ""}</span>
+        </label>
       </header>
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
 
+      {visible.length === 0 && (
+        <div className="ac-empty">{emptyText || "ไม่มีงานที่ต้องทำ — งานทั้งหมดเสร็จ/ยกเลิกแล้ว"}</div>
+      )}
+
       <div className="ac-tasks-list">
-        {tasks.map((t) => {
+        {visible.map((t) => {
           const k = `${t.date}|${t.building}|${t.room}|${t.type}`;
           const done = isDone(t.status);
           const cancelled = isCancelled(t.status);

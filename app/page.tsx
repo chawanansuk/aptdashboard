@@ -181,7 +181,10 @@ export default function Home() {
       if (activeView !== "overview" && activeView !== "today" && r.status !== activeView) return false;
       if (activeFilter !== "all" && r.status !== activeFilter) return false;
       const q = search.trim().toLowerCase();
-      if (q && !r.room.toLowerCase().includes(q) && !r.building.toLowerCase().includes(q)) return false;
+      if (q) {
+        const hay = `${r.room} ${r.building} ${r.tenant || ""} ${r.phone || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
   }, [rooms, activeBuilding, activeView, activeFilter, search]);
@@ -203,7 +206,10 @@ export default function Home() {
         if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
       }
       const q = search.trim().toLowerCase();
-      if (q && !t.room.toLowerCase().includes(q) && !t.building.toLowerCase().includes(q) && !(t.customer || "").toLowerCase().includes(q)) return false;
+      if (q) {
+        const hay = `${t.room} ${t.building} ${t.customer || ""} ${t.phone || ""} ${t.note || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     }).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   }, [tasks, activeView, activeBuilding, search]);
@@ -243,6 +249,15 @@ export default function Home() {
   }, [visibleRooms]);
 
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
+
+  function openAddTaskForRoom(building: string, room: string) {
+    ensureCreator(() => {
+      setTBuilding(building);
+      setTRoom(room);
+      setSelectedRoom(null);
+      setShowAddTask(true);
+    });
+  }
 
   async function handleAddTask() {
     if (!tBuilding || !tRoom) { setToast({type:"err", msg:"กรอกตึกและเลขห้อง"}); return; }
@@ -443,7 +458,7 @@ export default function Home() {
                 </div>
                 <div className="ac-search">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                  <input type="text" placeholder="ค้นหาเลขห้อง/ตึก..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                  <input type="text" placeholder="ค้นหา ห้อง / ตึก / ผู้เช่า / เบอร์..." value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
               </section>
 
@@ -491,12 +506,20 @@ export default function Home() {
           )}
 
           {showTasksView && (
-            <TasksList
-              tasks={visibleTasks}
-              title={VIEW_LABEL[activeView as string] || "งาน"}
-              emptyText="ไม่มีงานในรายการนี้"
-              onChanged={refresh}
-            />
+            <>
+              <section className="ac-fb">
+                <div className="ac-search ac-search-full">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <input type="text" placeholder="ค้นหา ห้อง / ตึก / ลูกค้า / เบอร์ / หมายเหตุ..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+              </section>
+              <TasksList
+                tasks={visibleTasks}
+                title={VIEW_LABEL[activeView as string] || "งาน"}
+                emptyText="ไม่มีงานในรายการนี้"
+                onChanged={refresh}
+              />
+            </>
           )}
         </main>
       </div>
@@ -617,6 +640,15 @@ export default function Home() {
               )}
             </div>
             <footer className="ac-modal-foot">
+              <button
+                className="ac-btn ac-btn-ghost"
+                onClick={() => openAddTaskForRoom(selectedRoom.building, selectedRoom.room)}
+                disabled={saving}
+                style={{ marginRight: "auto" }}
+                title="เพิ่มงานใหม่สำหรับห้องนี้"
+              >
+                + เพิ่มงานที่ห้องนี้
+              </button>
               <button className="ac-btn ac-btn-ghost" onClick={() => setSelectedRoom(null)} disabled={saving}>ยกเลิก</button>
               <button className="ac-btn ac-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</button>
             </footer>

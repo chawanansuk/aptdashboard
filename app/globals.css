@@ -1366,6 +1366,24 @@ html.dark .ac-skel {
 }
 html.dark .ac-task-creator { color: #64748B; }
 
+/* === Full-width search (tasks view) === */
+.ac-search-full { flex: 1; min-width: 0; }
+
+/* === Tasks list toggle === */
+.ac-tasks-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ac-tasks-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6B7280;
+  cursor: pointer;
+  user-select: none;
+}
+.ac-tasks-toggle input { cursor: pointer; }
+html.dark .ac-tasks-toggle { color: #94A3B8; }
+
 /* === Offline bar === */
 .ac-offline-bar {
   position: sticky;
