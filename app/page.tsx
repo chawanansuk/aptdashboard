@@ -635,7 +635,20 @@ export default function Home() {
         </div>
       )}
 
-      <SummaryDrawer open={summaryOpen} onClose={() => setSummaryOpen(false)} rooms={rooms} tasks={tasks} />
+      <SummaryDrawer
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        rooms={rooms}
+        tasks={tasks}
+        onAddTask={() => {
+          const editUrl = process.env.NEXT_PUBLIC_SHEET_TASKS_EDIT_URL;
+          if (editUrl) {
+            window.open(editUrl, "_blank", "noopener,noreferrer");
+          } else {
+            setToast({ type: "ok", msg: "กำลังพัฒนา — ตอนนี้เพิ่มที่ Sheet ก่อน" });
+          }
+        }}
+      />
     </div>
   );
 }

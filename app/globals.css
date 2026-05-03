@@ -2070,3 +2070,69 @@ html.dark .ac-preset-del:hover { background: #7F1D1D; }
 @media print {
   .ac-bulk-bar { display: none !important; }
 }
+
+/* ===== Summary Drawer: Floating Action Button (FAB) ===== */
+.ac-summary-fab {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 270; /* above drawer body, below modals */
+  height: 56px;
+  padding: 0 28px;
+  border-radius: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #22C55E 0%, #06B6D4 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  border: 0;
+  cursor: pointer;
+  box-shadow:
+    0 8px 24px rgba(6, 182, 212, 0.35),
+    0 4px 8px rgba(34, 197, 94, 0.18);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 48px;
+}
+.ac-summary-fab:hover {
+  transform: scale(1.05);
+  box-shadow:
+    0 12px 32px rgba(6, 182, 212, 0.45),
+    0 6px 12px rgba(34, 197, 94, 0.24);
+}
+.ac-summary-fab:active {
+  transform: scale(0.96);
+  transition-duration: 80ms;
+}
+.ac-summary-fab:focus-visible {
+  outline: 3px solid #86EFAC;
+  outline-offset: 2px;
+}
+.ac-summary-fab-icon { flex-shrink: 0; }
+html.dark .ac-summary-fab {
+  box-shadow:
+    0 8px 24px rgba(6, 182, 212, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Mobile: shrink to circle (icon only) */
+@media (max-width: 640px) {
+  .ac-summary-fab {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    right: max(20px, env(safe-area-inset-right));
+  }
+  .ac-summary-fab-text { display: none; }
+}
+
+/* Hide on print */
+@media print {
+  .ac-summary-fab { display: none !important; }
+}
