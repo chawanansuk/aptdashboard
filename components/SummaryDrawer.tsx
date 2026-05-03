@@ -9,21 +9,28 @@ type Props = {
   rooms: RoomRow[];
   tasks: SheetRow[];
   onAddTask?: () => void;
+  onTaskClick?: (task: SheetRow) => void;
 };
 
-type RangeKey = "today" | "week" | "month";
+type RangeKey = "today" | "tomorrow" | "week" | "month" | "overdue";
 
 const RANGE_LABEL: Record<RangeKey, string> = {
   today: "วันนี้",
-  week: "7 วันข้างหน้า",
-  month: "30 วันข้างหน้า",
+  tomorrow: "พรุ่งนี้",
+  week: "7 วัน",
+  month: "30 วัน",
+  overdue: "ค้างเกินกำหนด",
 };
 
+const RANGE_ORDER: RangeKey[] = ["today", "tomorrow", "week", "month", "overdue"];
+
+// Match colors used by existing TasksList component (do NOT introduce new palette)
 const TYPE_COLOR: Record<string, string> = {
   ทำสะอาด: "#EAB308",
   ย้ายเข้า: "#22C55E",
   ย้ายออก: "#EF4444",
   ชมห้อง: "#A855F7",
+  ซ่อม: "#F97316",
 };
 
 function parseDateDMY(s: string): Date | null {
@@ -41,28 +48,18 @@ function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function fmtDateLabel(d: Date): string {
-  const days = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-  const months = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-  return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
-}
-
-function dateKey(d: Date): string {
+function fmtShort(d: Date): string {
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}/${d.getFullYear()}`;
+  return `${dd}/${mm}`;
 }
 
-const ROOM_STATUS_GROUP = (raw: string): "vacant" | "occupied" | "repair" | "er" | "other" => {
-  const s = String(raw || "").trim();
-  if (s === "ว่าง" || s === "พร้อมขาย") return "vacant";
-  if (s === "มีผู้เช่า" || s === "มีคนอยู่" || s === "อยู่") return "occupied";
-  if (s === "ปรับปรุง" || s === "รอเข้าซ่อม" || s === "รอตรวจ" || s === "QC") return "repair";
-  if (s === "ER") return "er";
-  return "other";
-};
+function isPending(status: string): boolean {
+  const s = String(status || "").trim().toLowerCase();
+  return s !== "เสร็จ" && s !== "ยกเลิก" && s !== "done" && s !== "cancelled";
+}
 
-export default function SummaryDrawer({ open, onClose, rooms, tasks, onAddTask }: Props) {
+export default function SummaryDrawer({ open, onClose, rooms, tasks, onAddTask, onTaskClick }: Props) {
   const [range, setRange] = useState<RangeKey>("today");
 
   useEffect(() => {
@@ -74,70 +71,54 @@ export default function SummaryDrawer({ open, onClose, rooms, tasks, onAddTask }
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const roomSummary = useMemo(() => {
-    const map = new Map<string, { total: number; vacant: number; occupied: number; repair: number; er: number }>();
-    for (const r of rooms) {
-      const b = String(r.building || "").trim() || "—";
-      if (!map.has(b)) map.set(b, { total: 0, vacant: 0, occupied: 0, repair: 0, er: 0 });
-      const row = map.get(b)!;
-      row.total += 1;
-      const g = ROOM_STATUS_GROUP(String(r.status || ""));
-      if (g === "vacant") row.vacant += 1;
-      else if (g === "occupied") row.occupied += 1;
-      else if (g === "repair") row.repair += 1;
-      else if (g === "er") row.er += 1;
-    }
-    const list = Array.from(map.entries()).map(([building, v]) => ({ building, ...v }));
-    list.sort((a, b) => a.building.localeCompare(b.building, "th"));
-    const totals = list.reduce(
-      (acc, x) => ({
-        total: acc.total + x.total,
-        vacant: acc.vacant + x.vacant,
-        occupied: acc.occupied + x.occupied,
-        repair: acc.repair + x.repair,
-        er: acc.er + x.er,
-      }),
-      { total: 0, vacant: 0, occupied: 0, repair: 0, er: 0 }
-    );
-    return { list, totals };
-  }, [rooms]);
-
-  const taskGroups = useMemo(() => {
+  // Pre-compute counts for every range tab so badges can show numbers
+  const rangeCounts = useMemo(() => {
     const today = startOfDay(new Date());
-    const horizon = new Date(today);
-    if (range === "today") horizon.setDate(today.getDate());
-    else if (range === "week") horizon.setDate(today.getDate() + 7);
-    else horizon.setDate(today.getDate() + 30);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const day7 = new Date(today); day7.setDate(today.getDate() + 7);
+    const day30 = new Date(today); day30.setDate(today.getDate() + 30);
+
+    const counts: Record<RangeKey, number> = { today: 0, tomorrow: 0, week: 0, month: 0, overdue: 0 };
+    for (const t of tasks) {
+      if (!isPending(String(t.status || ""))) continue;
+      const d = parseDateDMY(String(t.date || ""));
+      if (!d) continue;
+      const sd = startOfDay(d);
+      if (sd.getTime() < today.getTime()) counts.overdue++;
+      else if (sd.getTime() === today.getTime()) counts.today++;
+      else if (sd.getTime() === tomorrow.getTime()) counts.tomorrow++;
+      if (sd.getTime() >= today.getTime() && sd.getTime() <= day7.getTime()) counts.week++;
+      if (sd.getTime() >= today.getTime() && sd.getTime() <= day30.getTime()) counts.month++;
+    }
+    return counts;
+  }, [tasks]);
+
+  const visibleTasks = useMemo(() => {
+    const today = startOfDay(new Date());
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const day7 = new Date(today); day7.setDate(today.getDate() + 7);
+    const day30 = new Date(today); day30.setDate(today.getDate() + 30);
 
     const filtered = tasks.filter((t) => {
-      const status = String(t.status || "").trim().toLowerCase();
-      if (status === "เสร็จ" || status === "ยกเลิก" || status === "done" || status === "cancelled") return false;
+      if (!isPending(String(t.status || ""))) return false;
       const d = parseDateDMY(String(t.date || ""));
       if (!d) return false;
       const sd = startOfDay(d);
-      return sd >= today && sd <= horizon;
+      if (range === "today") return sd.getTime() === today.getTime();
+      if (range === "tomorrow") return sd.getTime() === tomorrow.getTime();
+      if (range === "week") return sd.getTime() >= today.getTime() && sd.getTime() <= day7.getTime();
+      if (range === "month") return sd.getTime() >= today.getTime() && sd.getTime() <= day30.getTime();
+      if (range === "overdue") return sd.getTime() < today.getTime();
+      return false;
     });
 
-    const byDate = new Map<string, SheetRow[]>();
-    for (const t of filtered) {
-      const k = String(t.date || "");
-      if (!byDate.has(k)) byDate.set(k, []);
-      byDate.get(k)!.push(t);
-    }
-    const groups = Array.from(byDate.entries()).map(([k, rows]) => {
-      const d = parseDateDMY(k)!;
-      const typeCounts = new Map<string, number>();
-      for (const r of rows) {
-        const t = String(r.type || "").trim() || "อื่นๆ";
-        typeCounts.set(t, (typeCounts.get(t) || 0) + 1);
-      }
-      return { date: d, key: k, rows, typeCounts: Array.from(typeCounts.entries()) };
+    // Sort by date asc; same date keeps original order
+    return filtered.sort((a, b) => {
+      const da = parseDateDMY(String(a.date || ""))?.getTime() ?? 0;
+      const db = parseDateDMY(String(b.date || ""))?.getTime() ?? 0;
+      return da - db;
     });
-    groups.sort((a, b) => a.date.getTime() - b.date.getTime());
-    return groups;
   }, [tasks, range]);
-
-  const totalPending = taskGroups.reduce((s, g) => s + g.rows.length, 0);
 
   return (
     <>
@@ -148,95 +129,63 @@ export default function SummaryDrawer({ open, onClose, rooms, tasks, onAddTask }
           <button className="ac-summary-close" onClick={onClose} aria-label="ปิด">×</button>
         </header>
 
-        <div className="ac-summary-body">
-          <section className="ac-summary-section">
-            <h3>สรุปห้องแยกตึก</h3>
-            <div className="ac-summary-table-wrap">
-              <table className="ac-summary-table">
-                <thead>
-                  <tr>
-                    <th>ตึก</th>
-                    <th className="num">รวม</th>
-                    <th className="num">ว่าง</th>
-                    <th className="num">มีผู้เช่า</th>
-                    <th className="num">ซ่อม</th>
-                    <th className="num">ER</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {roomSummary.list.map((r) => (
-                    <tr key={r.building}>
-                      <td>{r.building}</td>
-                      <td className="num">{r.total}</td>
-                      <td className="num"><span className="ac-pill pill-vacant">{r.vacant}</span></td>
-                      <td className="num"><span className="ac-pill pill-occupied">{r.occupied}</span></td>
-                      <td className="num"><span className="ac-pill pill-repair">{r.repair}</span></td>
-                      <td className="num"><span className="ac-pill pill-er">{r.er}</span></td>
-                    </tr>
-                  ))}
-                  <tr className="ac-summary-total">
-                    <td>รวมทั้งหมด</td>
-                    <td className="num">{roomSummary.totals.total}</td>
-                    <td className="num">{roomSummary.totals.vacant}</td>
-                    <td className="num">{roomSummary.totals.occupied}</td>
-                    <td className="num">{roomSummary.totals.repair}</td>
-                    <td className="num">{roomSummary.totals.er}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
+        <div className="ac-summary-body ac-summary-body-tasks">
           <section className="ac-summary-section">
             <div className="ac-summary-section-head">
-              <h3>งานค้าง <span className="ac-summary-count">({totalPending})</span></h3>
-              <div className="ac-summary-range">
-                {(Object.keys(RANGE_LABEL) as RangeKey[]).map((k) => (
-                  <button
-                    key={k}
-                    className={`ac-range-btn ${range === k ? "is-active" : ""}`}
-                    onClick={() => setRange(k)}
-                  >
-                    {RANGE_LABEL[k]}
-                  </button>
-                ))}
-              </div>
+              <h3>งานค้าง <span className="ac-summary-count">({rangeCounts[range]})</span></h3>
             </div>
 
-            {taskGroups.length === 0 && (
-              <div className="ac-summary-empty">ไม่มีงานค้างในช่วงนี้ 🎉</div>
-            )}
-
-            <ul className="ac-summary-day-list">
-              {taskGroups.map((g) => (
-                <li key={g.key} className="ac-summary-day">
-                  <div className="ac-summary-day-head">
-                    <span className="ac-summary-day-label">{fmtDateLabel(g.date)}</span>
-                    <span className="ac-summary-day-count">{g.rows.length} งาน</span>
-                  </div>
-                  <div className="ac-summary-day-types">
-                    {g.typeCounts.map(([t, n]) => (
-                      <span key={t} className="ac-type-chip">
-                        <span className="ac-type-dot" style={{ background: TYPE_COLOR[t] || "#94A3B8" }} />
-                        {t} <b>{n}</b>
-                      </span>
-                    ))}
-                  </div>
-                  <ul className="ac-summary-task-list">
-                    {g.rows.map((r, i) => (
-                      <li key={i} className="ac-summary-task">
-                        <span className="ac-type-dot" style={{ background: TYPE_COLOR[String(r.type)] || "#94A3B8" }} />
-                        <span className="ac-summary-task-main">
-                          <b>{String(r.type)}</b> {String(r.building)}-{String(r.room)}
-                        </span>
-                        {r.customer && <span className="ac-summary-task-sub">{String(r.customer)}</span>}
-                        {r.note && <span className="ac-summary-task-note">{String(r.note)}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </li>
+            <div className="ac-summary-range-tabs" role="tablist" aria-label="ช่วงวันที่">
+              {RANGE_ORDER.map((k) => (
+                <button
+                  key={k}
+                  role="tab"
+                  aria-selected={range === k}
+                  className={`ac-range-btn ${range === k ? "is-active" : ""} ${k === "overdue" && rangeCounts.overdue > 0 ? "has-overdue" : ""}`}
+                  onClick={() => setRange(k)}
+                >
+                  <span>{RANGE_LABEL[k]}</span>
+                  {rangeCounts[k] > 0 && <span className="ac-range-count">{rangeCounts[k]}</span>}
+                </button>
               ))}
-            </ul>
+            </div>
+
+            {visibleTasks.length === 0 ? (
+              <div className="ac-summary-empty">ไม่มีงานในช่วงนี้ 🎉</div>
+            ) : (
+              <ul className="ac-summary-task-rows">
+                {visibleTasks.map((t, i) => {
+                  const d = parseDateDMY(String(t.date || ""));
+                  const dateLabel = d ? fmtShort(d) : String(t.date || "—");
+                  const type = String(t.type || "");
+                  const room = `${String(t.building || "")}-${String(t.room || "")}`;
+                  return (
+                    <li
+                      key={`${t.date}-${t.building}-${t.room}-${t.type}-${i}`}
+                      className={`ac-summary-row ${onTaskClick ? "is-clickable" : ""}`}
+                      onClick={onTaskClick ? () => onTaskClick(t) : undefined}
+                      onKeyDown={onTaskClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTaskClick(t); } } : undefined}
+                      role={onTaskClick ? "button" : undefined}
+                      tabIndex={onTaskClick ? 0 : undefined}
+                    >
+                      <span className="ac-summary-row-date">{dateLabel}</span>
+                      <span
+                        className="ac-summary-row-type"
+                        style={{ background: (TYPE_COLOR[type] || "#94A3B8") + "22", color: TYPE_COLOR[type] || "#475569" }}
+                      >
+                        {type || "อื่นๆ"}
+                      </span>
+                      <span className="ac-summary-row-room">{room}</span>
+                      <span className="ac-summary-row-customer">
+                        {t.customer && <span>{String(t.customer)}</span>}
+                        {t.phone && <span className="ac-summary-row-phone"> · {String(t.phone)}</span>}
+                      </span>
+                      {t.note && <span className="ac-summary-row-note">{String(t.note)}</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         </div>
 
