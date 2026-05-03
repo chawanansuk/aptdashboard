@@ -11,6 +11,8 @@ const TASK_HEADER_MAP: Record<string, keyof SheetRow> = {
   เบอร์: "phone",
   หมายเหตุ: "note",
   สถานะ: "status",
+  ผู้สร้าง: "creator",
+  วันที่สร้าง: "createdAt",
 };
 
 export function parseCSV(csvText: string): SheetRow[] {

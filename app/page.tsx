@@ -5,6 +5,12 @@ import { useDashboardData } from "@/lib/useDashboardData";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
 import SummaryDrawer from "@/components/SummaryDrawer";
+import IncomeView from "@/components/IncomeView";
+import TenantsView from "@/components/TenantsView";
+import CalendarView from "@/components/CalendarView";
+import { getCreator, setCreator, creatorInitials } from "@/lib/creator";
+import { parseThaiDate } from "@/lib/dateUtils";
+import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 
 const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
@@ -67,9 +73,103 @@ const VIEW_LABEL: Record<string, string> = {
 };
 
 export default function Home() {
-  const { status, rooms, errors, lastUpdated, refresh, tasks } = useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
+  const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing } = useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [creator, setCreatorState] = useState<string>("");
+  const [creatorModal, setCreatorModal] = useState<{ open: boolean; pending?: () => void }>({ open: false });
+  const [creatorInput, setCreatorInput] = useState("");
+
+  useEffect(() => { setCreatorState(getCreator()); }, []);
+
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
+  const [presetMenuOpen, setPresetMenuOpen] = useState(false);
+  useEffect(() => { setPresets(loadPresets()); }, []);
+
+  // Bulk select state
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
+  const [bulkAddType, setBulkAddType] = useState("ทำสะอาด");
+  const [bulkAddDate, setBulkAddDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [bulkAddNote, setBulkAddNote] = useState("");
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+
+  function toggleBulkRoom(building: string, room: string) {
+    const k = `${building}|${room}`;
+    setBulkSelected((s) => {
+      const next = new Set(s);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+  }
+  function exitBulk() {
+    setBulkMode(false);
+    setBulkSelected(new Set());
+  }
+
+  async function submitBulkAdd() {
+    if (bulkSelected.size === 0) return;
+    if (!getCreator()) {
+      ensureCreator(() => {});
+      return;
+    }
+    setBulkSubmitting(true);
+    let okCount = 0;
+    let failCount = 0;
+    const items = Array.from(bulkSelected).map((k) => {
+      const [building, room] = k.split("|");
+      return { building, room };
+    });
+    // Sequential to avoid Apps Script rate limit
+    for (const item of items) {
+      try {
+        const res = await fetch("/api/sheet/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "addTask",
+            date: bulkAddDate,
+            type: bulkAddType,
+            building: item.building,
+            room: item.room,
+            note: bulkAddNote,
+            creator: getCreator(),
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) okCount++; else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+    setBulkSubmitting(false);
+    setBulkAddOpen(false);
+    if (failCount === 0) {
+      setToast({ type: "ok", msg: `เพิ่ม ${okCount} งานสำเร็จ` });
+      exitBulk();
+    } else {
+      setToast({ type: "err", msg: `สำเร็จ ${okCount}, ล้มเหลว ${failCount}` });
+    }
+    refresh();
+  }
+
+  function ensureCreator(action: () => void) {
+    const name = getCreator();
+    if (name) { action(); return; }
+    setCreatorInput("");
+    setCreatorModal({ open: true, pending: action });
+  }
+
+  function saveCreator() {
+    const v = creatorInput.trim();
+    if (!v) return;
+    setCreator(v);
+    setCreatorState(v);
+    const cb = creatorModal.pending;
+    setCreatorModal({ open: false });
+    if (cb) cb();
+  }
 
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
@@ -103,7 +203,10 @@ export default function Home() {
   const [activeBuilding, setActiveBuilding] = useState<string>("ทั้งหมด");
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus>("overview");
+  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar">("overview");
+  const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "custom">("all");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<RoomView | null>(null);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
@@ -127,6 +230,7 @@ export default function Home() {
   const [editContractEnd, setEditContractEnd] = useState("");
   const [editNote, setEditNote] = useState("");
   const [editPrice, setEditPrice] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (selectedRoom) {
@@ -136,6 +240,7 @@ export default function Home() {
       setEditContractEnd(selectedRoom.contractEnd || "");
       setEditPrice(selectedRoom.price || "");
       setEditNote("");
+      setShowHistory(false);
     }
   }, [selectedRoom]);
 
@@ -151,17 +256,106 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable;
+
+      if (e.key === "Escape") {
+        if (selectedRoom) { setSelectedRoom(null); return; }
+        if (showAddTask) { setShowAddTask(false); return; }
+        if (creatorModal.open) { setCreatorModal({ open: false }); return; }
+        if (summaryOpen) { setSummaryOpen(false); return; }
+        if (sidebarOpen) { setSidebarOpen(false); return; }
+        return;
+      }
+      if (isInput) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === "/") {
+        const input = document.querySelector<HTMLInputElement>(".ac-search input");
+        if (input) { e.preventDefault(); input.focus(); input.select(); }
+      } else if (e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        ensureCreator(() => setShowAddTask(true));
+      } else if (e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        if (!isRefreshing) refresh();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedRoom, showAddTask, creatorModal.open, summaryOpen, sidebarOpen, isRefreshing, refresh]);
+
   const visibleRooms = useMemo(() => {
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar") return [];
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
       if (activeView !== "overview" && activeView !== "today" && r.status !== activeView) return false;
       if (activeFilter !== "all" && r.status !== activeFilter) return false;
       const q = search.trim().toLowerCase();
-      if (q && !r.room.toLowerCase().includes(q) && !r.building.toLowerCase().includes(q)) return false;
+      if (q) {
+        const hay = `${r.room} ${r.building} ${r.tenant || ""} ${r.phone || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
   }, [rooms, activeBuilding, activeView, activeFilter, search]);
+
+  function applyPreset(p: FilterPreset) {
+    setActiveView(p.view as typeof activeView);
+    setActiveBuilding(p.building);
+    setDateRange(p.dateRange as typeof dateRange);
+    setCustomStart(p.customStart);
+    setCustomEnd(p.customEnd);
+    setSearch(p.search);
+    setPresetMenuOpen(false);
+  }
+  function saveCurrentAsPreset() {
+    const name = window.prompt("ตั้งชื่อชุด filter นี้:", "");
+    if (!name || !name.trim()) return;
+    const created = addPreset({
+      name: name.trim(),
+      view: String(activeView),
+      building: activeBuilding,
+      dateRange: dateRange,
+      customStart, customEnd, search,
+    });
+    setPresets((list) => [...list, created]);
+    setToast({ type: "ok", msg: `บันทึกชุด "${created.name}" แล้ว` });
+  }
+  function deletePresetById(id: string) {
+    removePreset(id);
+    setPresets((list) => list.filter((p) => p.id !== id));
+  }
+
+  // compute date range bounds (inclusive)
+  const dateBounds = useMemo<{ start: Date | null; end: Date | null }>(() => {
+    if (activeView === "today" || dateRange === "all") return { start: null, end: null };
+    const now = new Date();
+    const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    if (dateRange === "week") {
+      const day = now.getDay(); // 0=Sun..6=Sat
+      const diffToMon = (day + 6) % 7;
+      const start = startOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMon));
+      const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999);
+      return { start, end };
+    }
+    if (dateRange === "month") {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      return { start, end };
+    }
+    if (dateRange === "custom") {
+      const s = customStart ? new Date(customStart + "T00:00:00") : null;
+      const e = customEnd ? new Date(customEnd + "T23:59:59.999") : null;
+      return { start: s, end: e };
+    }
+    return { start: null, end: null };
+  }, [dateRange, customStart, customEnd, activeView]);
 
   // tasks list filtered by active view
   const visibleTasks = useMemo(() => {
@@ -179,13 +373,24 @@ export default function Home() {
         if (t.date !== today) return false;
         if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
       }
+      // date range filter (skip when on today view — already constrained)
+      if (activeView !== "today" && (dateBounds.start || dateBounds.end)) {
+        const td = parseThaiDate(t.date);
+        if (!td) return false;
+        if (dateBounds.start && td.getTime() < dateBounds.start.getTime()) return false;
+        if (dateBounds.end && td.getTime() > dateBounds.end.getTime()) return false;
+      }
       const q = search.trim().toLowerCase();
-      if (q && !t.room.toLowerCase().includes(q) && !t.building.toLowerCase().includes(q) && !(t.customer || "").toLowerCase().includes(q)) return false;
+      if (q) {
+        const hay = `${t.room} ${t.building} ${t.customer || ""} ${t.phone || ""} ${t.note || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     }).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  }, [tasks, activeView, activeBuilding, search]);
+  }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar";
 
   const stats = useMemo(() => {
     const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
@@ -221,6 +426,15 @@ export default function Home() {
 
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
 
+  function openAddTaskForRoom(building: string, room: string) {
+    ensureCreator(() => {
+      setTBuilding(building);
+      setTRoom(room);
+      setSelectedRoom(null);
+      setShowAddTask(true);
+    });
+  }
+
   async function handleAddTask() {
     if (!tBuilding || !tRoom) { setToast({type:"err", msg:"กรอกตึกและเลขห้อง"}); return; }
     setSavingTask(true);
@@ -237,6 +451,7 @@ export default function Home() {
           customer: tCustomer,
           phone: tPhone,
           note: tNote,
+          creator: getCreator(),
         }),
       });
       const data = await res.json();
@@ -273,6 +488,7 @@ export default function Home() {
           contractEnd: editContractEnd,
           note: editNote,
           price: editPrice,
+          creator: getCreator(),
         }),
       });
       const data = await res.json();
@@ -311,14 +527,20 @@ export default function Home() {
           </select>
         </div>
         <div className="ac-nav-right">
-          <button className="ac-add-btn" onClick={() => setShowAddTask(true)} title="เพิ่มงานใหม่"><span className="ac-add-btn-icon" style={{display:"none"}}>+</span><span className="ac-add-btn-text">+ เพิ่มงาน</span></button>
-          <button className="ac-icon-btn" aria-label="รีเฟรช" onClick={refresh} title="รีเฟรช">
+          <button className="ac-add-btn" onClick={() => ensureCreator(() => setShowAddTask(true))} title="เพิ่มงานใหม่"><span className="ac-add-btn-icon" style={{display:"none"}}>+</span><span className="ac-add-btn-text">+ เพิ่มงาน</span></button>
+          <button className={`ac-icon-btn ${isRefreshing ? "is-spinning" : ""}`} aria-label="รีเฟรช" onClick={refresh} title="รีเฟรช" disabled={isRefreshing}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
           </button>
           <div className="ac-last-updated">อัปเดต: {lastUpdated || "-"}</div>
           <button className="ac-theme-toggle" onClick={toggleTheme} aria-label="สลับโหมดมืด" title="สลับโหมดมืด">{isDark ? "☀️" : "☽"}</button>
           <button className="ac-summary-btn" onClick={() => setSummaryOpen(true)}>SUMMARY</button>
-          <div className="ac-avatar">CS</div>
+          <button
+            className="ac-avatar"
+            onClick={() => { setCreatorInput(creator); setCreatorModal({ open: true }); }}
+            title={creator ? `ผู้ใช้: ${creator} (คลิกเพื่อแก้ไข)` : "ตั้งชื่อผู้ใช้"}
+          >
+            {creatorInitials(creator)}
+          </button>
         </div>
       </header>
 
@@ -357,6 +579,21 @@ export default function Home() {
               </button>
             ))}
           </div>
+          <div className="ac-side-group">
+            <div className="ac-side-label">ดูข้อมูล</div>
+            <button className={`ac-side-item ${activeView === "income" ? "is-active" : ""}`} onClick={() => setActiveView("income")}>
+              <span className="ac-side-icon">฿</span>
+              <span className="ac-side-text">รายได้</span>
+            </button>
+            <button className={`ac-side-item ${activeView === "tenants" ? "is-active" : ""}`} onClick={() => setActiveView("tenants")}>
+              <span className="ac-side-icon">⚉</span>
+              <span className="ac-side-text">ผู้เช่า</span>
+            </button>
+            <button className={`ac-side-item ${activeView === "calendar" ? "is-active" : ""}`} onClick={() => setActiveView("calendar")}>
+              <span className="ac-side-icon">▦</span>
+              <span className="ac-side-text">ปฏิทิน</span>
+            </button>
+          </div>
         </aside>
 
         {sidebarOpen && <div className="ac-side-backdrop" onClick={() => setSidebarOpen(false)} />}
@@ -364,13 +601,40 @@ export default function Home() {
         <main className="ac-main">
           {errors.length > 0 && (
             <div className="ac-banner ac-banner-warn">
-              <strong>⚠ ต้องตั้งค่าชีต:</strong>{" "}
-              {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}{" "}
+              <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
+              {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}
+              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={refresh} disabled={isRefreshing} style={{ marginLeft: 8 }}>
+                {isRefreshing ? "กำลังลอง..." : "ลองอีกครั้ง"}
+              </button>
+              {" "}
               <a href="https://github.com/chawanansuk/aptdashboard/blob/main/docs/SETUP.md" target="_blank" rel="noreferrer">วิธีตั้งค่า</a>
             </div>
           )}
 
-          {!showTasksView && (
+          {isInitial && rooms.length === 0 && status !== "error" && (
+            <div className="ac-skel-wrap">
+              <div className="ac-sg">
+                {[0,1,2,3].map((i) => (
+                  <div key={i} className="ac-sc ac-skel-card">
+                    <div className="ac-skel ac-skel-icon" />
+                    <div className="ac-sc-body">
+                      <div className="ac-skel ac-skel-line" style={{width:"60%"}} />
+                      <div className="ac-skel ac-skel-line ac-skel-num" />
+                      <div className="ac-skel ac-skel-line" style={{width:"40%"}} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="ac-fs">
+                <div className="ac-skel ac-skel-line" style={{width:120, height:18, marginBottom:12}} />
+                <div className="ac-rg">
+                  {Array.from({length: 12}).map((_, i) => (<div key={i} className="ac-skel ac-skel-room" />))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!showTasksView && !showCustomView && !(isInitial && rooms.length === 0) && (
             <>
               <section className="ac-sg">
                 <div className="ac-sc"><div className="ac-si ac-si-indigo">▦</div><div className="ac-sc-body"><div className="ac-sc-label">ทั้งหมด</div><div className="ac-sc-num">{stats.total}</div><div className="ac-sc-sub ac-sub-info">{activeBuilding === "ทั้งหมด" ? "ทุกตึก" : activeBuilding}</div></div></div>
@@ -385,8 +649,13 @@ export default function Home() {
                 </div>
                 <div className="ac-search">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                  <input type="text" placeholder="ค้นหาเลขห้อง/ตึก..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                  <input type="text" placeholder="ค้นหา ห้อง / ตึก / ผู้เช่า / เบอร์..." value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
+                <button
+                  className={`ac-btn ac-btn-sm ${bulkMode ? "ac-btn-primary" : "ac-btn-ghost"}`}
+                  onClick={() => bulkMode ? exitBulk() : setBulkMode(true)}
+                  title="เลือกหลายห้องพร้อมกัน"
+                >{bulkMode ? "✕ ออกจากเลือก" : "☑ เลือกหลาย"}</button>
               </section>
 
               <section className="ac-legend">
@@ -418,13 +687,23 @@ export default function Home() {
                       </div>
                     </header>
                     <div className="ac-rg">
-                      {g.list.map((r) => (
-                        <button key={`${r.building}-${r.room}`} className={`ac-rc ac-rc-${r.status}`} onClick={() => setSelectedRoom(r)} title={`${r.building} ${r.room} • ${STATUS_LABEL[r.status]}`}>
-                          {r.today && <span className="ac-rc-today" />}
-                          <span className="ac-rc-num">{r.room}</span>
-                          <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
-                        </button>
-                      ))}
+                      {g.list.map((r) => {
+                        const k = `${r.building}|${r.room}`;
+                        const checked = bulkSelected.has(k);
+                        return (
+                          <button
+                            key={`${r.building}-${r.room}`}
+                            className={`ac-rc ac-rc-${r.status} ${bulkMode ? "is-bulk" : ""} ${checked ? "is-checked" : ""}`}
+                            onClick={() => bulkMode ? toggleBulkRoom(r.building, r.room) : setSelectedRoom(r)}
+                            title={`${r.building} ${r.room} • ${STATUS_LABEL[r.status]}`}
+                          >
+                            {r.today && <span className="ac-rc-today" />}
+                            {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
+                            <span className="ac-rc-num">{r.room}</span>
+                            <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </section>
                 );
@@ -433,12 +712,84 @@ export default function Home() {
           )}
 
           {showTasksView && (
-            <TasksList
-              tasks={visibleTasks}
-              title={VIEW_LABEL[activeView as string] || "งาน"}
-              emptyText="ไม่มีงานในรายการนี้"
-              onChanged={refresh}
-            />
+            <>
+              <section className="ac-fb">
+                <div className="ac-search ac-search-full">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <input type="text" placeholder="ค้นหา ห้อง / ตึก / ลูกค้า / เบอร์ / หมายเหตุ..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <div className="ac-preset-wrap">
+                  <button
+                    className="ac-btn ac-btn-ghost ac-btn-sm"
+                    onClick={() => setPresetMenuOpen((v) => !v)}
+                    title="ชุด filter ที่บันทึกไว้"
+                  >★ ชุด {presets.length > 0 && `(${presets.length})`}</button>
+                  {presetMenuOpen && (
+                    <>
+                      <div className="ac-preset-backdrop" onClick={() => setPresetMenuOpen(false)} />
+                      <div className="ac-preset-menu">
+                        <button className="ac-preset-item ac-preset-save" onClick={() => { saveCurrentAsPreset(); setPresetMenuOpen(false); }}>
+                          + บันทึกชุดปัจจุบัน
+                        </button>
+                        {presets.length === 0 && (
+                          <div className="ac-preset-empty">ยังไม่มีชุดที่บันทึก</div>
+                        )}
+                        {presets.map((p) => (
+                          <div key={p.id} className="ac-preset-row">
+                            <button className="ac-preset-item" onClick={() => applyPreset(p)}>
+                              <span>{p.name}</span>
+                              <small>{p.view} · {p.building} · {p.dateRange}</small>
+                            </button>
+                            <button className="ac-preset-del" onClick={() => deletePresetById(p.id)} title="ลบ">×</button>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </section>
+              {activeView !== "today" && (
+                <section className="ac-fb ac-date-range">
+                  <div className="ac-chips">
+                    {([
+                      { key: "all", label: "ทั้งหมด" },
+                      { key: "week", label: "สัปดาห์นี้" },
+                      { key: "month", label: "เดือนนี้" },
+                      { key: "custom", label: "เลือกช่วง" },
+                    ] as const).map((c) => (
+                      <button
+                        key={c.key}
+                        className={`ac-chip ${dateRange === c.key ? "is-active" : ""}`}
+                        onClick={() => setDateRange(c.key)}
+                      >{c.label}</button>
+                    ))}
+                  </div>
+                  {dateRange === "custom" && (
+                    <div className="ac-range-inputs">
+                      <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
+                      <span>—</span>
+                      <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+                    </div>
+                  )}
+                </section>
+              )}
+              <TasksList
+                tasks={visibleTasks}
+                title={VIEW_LABEL[activeView as string] || "งาน"}
+                emptyText="ไม่มีงานในรายการนี้"
+                onChanged={refresh}
+              />
+            </>
+          )}
+
+          {activeView === "income" && (
+            <IncomeView rooms={rooms} activeBuilding={activeBuilding} />
+          )}
+          {activeView === "tenants" && (
+            <TenantsView rooms={rooms} activeBuilding={activeBuilding} onSelectRoom={(r) => setSelectedRoom(r)} />
+          )}
+          {activeView === "calendar" && (
+            <CalendarView tasks={tasks} activeBuilding={activeBuilding} rooms={rooms} onSelectRoom={(r) => setSelectedRoom(r)} />
           )}
         </main>
       </div>
@@ -557,10 +908,106 @@ export default function Home() {
                   ))}
                 </>
               )}
+
+              {selectedRoom.pastTasks.length > 0 && (
+                <>
+                  <div style={{borderTop:"1px solid #F1F5F9", margin:"6px 0"}} />
+                  <button
+                    type="button"
+                    className="ac-history-toggle"
+                    onClick={() => setShowHistory((v) => !v)}
+                  >
+                    <span>{showHistory ? "▾" : "▸"} ประวัติงาน ({selectedRoom.pastTasks.length})</span>
+                  </button>
+                  {showHistory && (
+                    <div className="ac-history-list">
+                      {selectedRoom.pastTasks.map((t, i) => {
+                        const s = (t.status || "").trim();
+                        const isDone = s === "เสร็จ" || s === "done" || s === "ปิดแล้ว";
+                        const isCancel = s === "ยกเลิก" || s === "cancelled";
+                        return (
+                          <div key={i} className={`ac-modal-row ac-history-row ${isDone ? "is-done" : ""} ${isCancel ? "is-cancelled" : ""}`}>
+                            <span>{t.date} · {t.type}{t.creator ? ` · โดย ${t.creator}` : ""}</span>
+                            <span className="ac-history-meta">
+                              {t.customer && <span>{t.customer} </span>}
+                              <strong className="ac-history-status">{s || "—"}</strong>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
             <footer className="ac-modal-foot">
+              <button
+                className="ac-btn ac-btn-secondary ac-btn-foot-start"
+                onClick={() => openAddTaskForRoom(selectedRoom.building, selectedRoom.room)}
+                disabled={saving}
+                title="เพิ่มงานใหม่สำหรับห้องนี้"
+              >
+                + เพิ่มงานที่ห้องนี้
+              </button>
               <button className="ac-btn ac-btn-ghost" onClick={() => setSelectedRoom(null)} disabled={saving}>ยกเลิก</button>
               <button className="ac-btn ac-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {bulkMode && (
+        <div className="ac-bulk-bar">
+          <div className="ac-bulk-info">
+            <strong>{bulkSelected.size}</strong> ห้องถูกเลือก
+          </div>
+          <div className="ac-bulk-actions">
+            <button className="ac-btn ac-btn-ghost" onClick={() => setBulkSelected(new Set())} disabled={bulkSelected.size === 0}>ล้าง</button>
+            <button className="ac-btn ac-btn-primary" disabled={bulkSelected.size === 0} onClick={() => ensureCreator(() => setBulkAddOpen(true))}>+ เพิ่มงานทั้งหมด</button>
+            <button className="ac-btn ac-btn-ghost" onClick={exitBulk}>ออก</button>
+          </div>
+        </div>
+      )}
+
+      {bulkAddOpen && (
+        <div className="ac-modal-backdrop" onClick={() => !bulkSubmitting && setBulkAddOpen(false)}>
+          <div className="ac-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="ac-modal-head">
+              <div>
+                <div className="ac-modal-title">เพิ่มงานพร้อมกัน {bulkSelected.size} ห้อง</div>
+                <div className="ac-modal-sub">ระบบจะสร้าง 1 งาน/ห้อง</div>
+              </div>
+              <button className="ac-modal-close" onClick={() => !bulkSubmitting && setBulkAddOpen(false)}>✕</button>
+            </header>
+            <div className="ac-modal-body">
+              <div className="ac-field">
+                <label>วันที่</label>
+                <input type="date" value={bulkAddDate} onChange={(e) => setBulkAddDate(e.target.value)} />
+              </div>
+              <div className="ac-field">
+                <label>ประเภท</label>
+                <select value={bulkAddType} onChange={(e) => setBulkAddType(e.target.value)}>
+                  <option>ทำสะอาด</option>
+                  <option>ย้ายเข้า</option>
+                  <option>ย้ายออก</option>
+                  <option>ชมห้อง</option>
+                  <option>ซ่อม</option>
+                  <option>อื่นๆ</option>
+                </select>
+              </div>
+              <div className="ac-field">
+                <label>หมายเหตุ (เหมือนกันทุกงาน)</label>
+                <textarea rows={2} value={bulkAddNote} onChange={(e) => setBulkAddNote(e.target.value)} />
+              </div>
+              <div style={{ fontSize: 12, color: "#6B7280" }}>
+                ห้อง: {Array.from(bulkSelected).slice(0, 6).join(", ")}{bulkSelected.size > 6 ? ` ... +${bulkSelected.size - 6}` : ""}
+              </div>
+            </div>
+            <footer className="ac-modal-foot">
+              <button className="ac-btn ac-btn-ghost" disabled={bulkSubmitting} onClick={() => setBulkAddOpen(false)}>ยกเลิก</button>
+              <button className="ac-btn ac-btn-primary" disabled={bulkSubmitting} onClick={submitBulkAdd}>
+                {bulkSubmitting ? `กำลังเพิ่ม...` : `เพิ่ม ${bulkSelected.size} งาน`}
+              </button>
             </footer>
           </div>
         </div>
@@ -571,7 +1018,38 @@ export default function Home() {
           {toast.msg}
         </div>
       )}
-    
+
+      {creatorModal.open && (
+        <div className="ac-modal-backdrop" onClick={() => setCreatorModal({ open: false })}>
+          <div className="ac-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <header className="ac-modal-head">
+              <div>
+                <div className="ac-modal-title">{creator ? "แก้ไขชื่อผู้ใช้" : "ตั้งชื่อผู้ใช้"}</div>
+                <div className="ac-modal-sub">ใช้บันทึกในชีตว่าใครเป็นคนเพิ่ม/แก้งาน</div>
+              </div>
+              <button className="ac-modal-close" onClick={() => setCreatorModal({ open: false })}>✕</button>
+            </header>
+            <div className="ac-modal-body">
+              <div className="ac-field">
+                <label>ชื่อ</label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={creatorInput}
+                  onChange={(e) => setCreatorInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && creatorInput.trim()) saveCreator(); }}
+                  placeholder="เช่น สมชาย"
+                />
+              </div>
+            </div>
+            <footer className="ac-modal-foot">
+              <button className="ac-btn ac-btn-ghost" onClick={() => setCreatorModal({ open: false })}>ยกเลิก</button>
+              <button className="ac-btn ac-btn-primary" onClick={saveCreator} disabled={!creatorInput.trim()}>บันทึก</button>
+            </footer>
+          </div>
+        </div>
+      )}
+
       <SummaryDrawer open={summaryOpen} onClose={() => setSummaryOpen(false)} rooms={rooms} tasks={tasks} />
       </div>
   );

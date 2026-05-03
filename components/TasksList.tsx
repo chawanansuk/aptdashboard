@@ -1,6 +1,26 @@
 "use client";
 import { useState } from "react";
 import type { SheetRow } from "@/types";
+import { getCreator } from "@/lib/creator";
+import EmptyState from "./EmptyState";
+
+// dd/MM/yyyy <-> yyyy-MM-dd conversion for <input type="date">
+function dmyToIso(s: string): string {
+  if (!s) return "";
+  const m = s.trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (!m) return "";
+  const d = m[1].padStart(2, "0");
+  const mo = m[2].padStart(2, "0");
+  let y = m[3];
+  if (y.length === 2) y = (parseInt(y, 10) >= 50 ? "19" : "20") + y;
+  return `${y}-${mo}-${d}`;
+}
+function isoToDmy(s: string): string {
+  if (!s) return "";
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
 
 interface Props {
   tasks: SheetRow[];
@@ -40,12 +60,16 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
   const [edit, setEdit] = useState<EditState | null>(null);
   const [confirmDel, setConfirmDel] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hideDone, setHideDone] = useState(true);
 
-  async function postUpdate(payload: unknown) {
+  const visible = hideDone ? tasks.filter((t) => !isDone(t.status) && !isCancelled(t.status)) : tasks;
+  const hiddenCount = tasks.length - visible.length;
+
+  async function postUpdate(payload: Record<string, unknown>) {
     const res = await fetch("/api/sheet/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, creator: getCreator() }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "ไม่สำเร็จ");
@@ -120,7 +144,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
         <header className="ac-tasks-head">
           <h3 className="ac-tasks-title">{title}</h3>
         </header>
-        <div className="ac-empty">{emptyText || "ไม่มีงานในรายการนี้"}</div>
+        <EmptyState icon="tasks" title={emptyText || "ไม่มีงานในรายการนี้"} description="ลองเปลี่ยน filter / ช่วงวันที่ หรือกด + เพิ่มงาน เพื่อสร้างใหม่" />
       </section>
     );
   }
@@ -129,13 +153,21 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
     <section className="ac-tasks">
       <header className="ac-tasks-head">
         <h3 className="ac-tasks-title">
-          {title} <span className="ac-tasks-count">({tasks.length})</span>
+          {title} <span className="ac-tasks-count">({visible.length}{hideDone && hiddenCount > 0 ? ` / ${tasks.length}` : ""})</span>
         </h3>
+        <label className="ac-tasks-toggle">
+          <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
+          <span>ซ่อนงานเสร็จ/ยกเลิก{hideDone && hiddenCount > 0 ? ` (${hiddenCount})` : ""}</span>
+        </label>
       </header>
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
 
+      {visible.length === 0 && (
+        <EmptyState icon="tasks" title={hideDone ? "งานทั้งหมดเสร็จแล้ว 🎉" : (emptyText || "ไม่มีงานในรายการนี้")} description={hideDone ? "ปลดล็อก toggle ด้านบนเพื่อดูงานที่เสร็จ/ยกเลิก" : undefined} />
+      )}
+
       <div className="ac-tasks-list">
-        {tasks.map((t) => {
+        {visible.map((t) => {
           const k = `${t.date}|${t.building}|${t.room}|${t.type}`;
           const done = isDone(t.status);
           const cancelled = isCancelled(t.status);
@@ -154,6 +186,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
                   {t.customer && <span>{t.customer}</span>}
                   {t.phone && <span>· {t.phone}</span>}
                   {t.note && <span className="ac-task-note">· {t.note}</span>}
+                  {t.creator && <span className="ac-task-creator">· โดย {t.creator}</span>}
                 </div>
               </div>
               <div className="ac-task-actions">
@@ -195,9 +228,12 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
             <div className="ac-modal-body">
               <div className="ac-field">
                 <label>วันที่</label>
-                <input type="text" value={edit.date}
-                  onChange={(e) => setEdit({ ...edit, date: e.target.value })}
-                  placeholder="dd/MM/yyyy" />
+                <input
+                  type="date"
+                  value={dmyToIso(edit.date)}
+                  onChange={(e) => setEdit({ ...edit, date: isoToDmy(e.target.value) })}
+                />
+                <span style={{ fontSize: 11, color: "#9CA3AF" }}>{edit.date || "—"}</span>
               </div>
               <div className="ac-field">
                 <label>ลูกค้า</label>
