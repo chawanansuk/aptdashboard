@@ -10,6 +10,7 @@ import TenantsView from "@/components/TenantsView";
 import CalendarView from "@/components/CalendarView";
 import { getCreator, setCreator, creatorInitials } from "@/lib/creator";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 
 const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
@@ -80,6 +81,78 @@ export default function Home() {
   const [creatorInput, setCreatorInput] = useState("");
 
   useEffect(() => { setCreatorState(getCreator()); }, []);
+
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
+  const [presetMenuOpen, setPresetMenuOpen] = useState(false);
+  useEffect(() => { setPresets(loadPresets()); }, []);
+
+  // Bulk select state
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
+  const [bulkAddType, setBulkAddType] = useState("ทำสะอาด");
+  const [bulkAddDate, setBulkAddDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [bulkAddNote, setBulkAddNote] = useState("");
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+
+  function toggleBulkRoom(building: string, room: string) {
+    const k = `${building}|${room}`;
+    setBulkSelected((s) => {
+      const next = new Set(s);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+  }
+  function exitBulk() {
+    setBulkMode(false);
+    setBulkSelected(new Set());
+  }
+
+  async function submitBulkAdd() {
+    if (bulkSelected.size === 0) return;
+    if (!getCreator()) {
+      ensureCreator(() => {});
+      return;
+    }
+    setBulkSubmitting(true);
+    let okCount = 0;
+    let failCount = 0;
+    const items = Array.from(bulkSelected).map((k) => {
+      const [building, room] = k.split("|");
+      return { building, room };
+    });
+    // Sequential to avoid Apps Script rate limit
+    for (const item of items) {
+      try {
+        const res = await fetch("/api/sheet/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "addTask",
+            date: bulkAddDate,
+            type: bulkAddType,
+            building: item.building,
+            room: item.room,
+            note: bulkAddNote,
+            creator: getCreator(),
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) okCount++; else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+    setBulkSubmitting(false);
+    setBulkAddOpen(false);
+    if (failCount === 0) {
+      setToast({ type: "ok", msg: `เพิ่ม ${okCount} งานสำเร็จ` });
+      exitBulk();
+    } else {
+      setToast({ type: "err", msg: `สำเร็จ ${okCount}, ล้มเหลว ${failCount}` });
+    }
+    refresh();
+  }
 
   function ensureCreator(action: () => void) {
     const name = getCreator();
@@ -231,6 +304,33 @@ export default function Home() {
       return true;
     });
   }, [rooms, activeBuilding, activeView, activeFilter, search]);
+
+  function applyPreset(p: FilterPreset) {
+    setActiveView(p.view as typeof activeView);
+    setActiveBuilding(p.building);
+    setDateRange(p.dateRange as typeof dateRange);
+    setCustomStart(p.customStart);
+    setCustomEnd(p.customEnd);
+    setSearch(p.search);
+    setPresetMenuOpen(false);
+  }
+  function saveCurrentAsPreset() {
+    const name = window.prompt("ตั้งชื่อชุด filter นี้:", "");
+    if (!name || !name.trim()) return;
+    const created = addPreset({
+      name: name.trim(),
+      view: String(activeView),
+      building: activeBuilding,
+      dateRange: dateRange,
+      customStart, customEnd, search,
+    });
+    setPresets((list) => [...list, created]);
+    setToast({ type: "ok", msg: `บันทึกชุด "${created.name}" แล้ว` });
+  }
+  function deletePresetById(id: string) {
+    removePreset(id);
+    setPresets((list) => list.filter((p) => p.id !== id));
+  }
 
   // compute date range bounds (inclusive)
   const dateBounds = useMemo<{ start: Date | null; end: Date | null }>(() => {
@@ -551,6 +651,11 @@ export default function Home() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                   <input type="text" placeholder="ค้นหา ห้อง / ตึก / ผู้เช่า / เบอร์..." value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
+                <button
+                  className={`ac-btn ac-btn-sm ${bulkMode ? "ac-btn-primary" : "ac-btn-ghost"}`}
+                  onClick={() => bulkMode ? exitBulk() : setBulkMode(true)}
+                  title="เลือกหลายห้องพร้อมกัน"
+                >{bulkMode ? "✕ ออกจากเลือก" : "☑ เลือกหลาย"}</button>
               </section>
 
               <section className="ac-legend">
@@ -582,13 +687,23 @@ export default function Home() {
                       </div>
                     </header>
                     <div className="ac-rg">
-                      {g.list.map((r) => (
-                        <button key={`${r.building}-${r.room}`} className={`ac-rc ac-rc-${r.status}`} onClick={() => setSelectedRoom(r)} title={`${r.building} ${r.room} • ${STATUS_LABEL[r.status]}`}>
-                          {r.today && <span className="ac-rc-today" />}
-                          <span className="ac-rc-num">{r.room}</span>
-                          <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
-                        </button>
-                      ))}
+                      {g.list.map((r) => {
+                        const k = `${r.building}|${r.room}`;
+                        const checked = bulkSelected.has(k);
+                        return (
+                          <button
+                            key={`${r.building}-${r.room}`}
+                            className={`ac-rc ac-rc-${r.status} ${bulkMode ? "is-bulk" : ""} ${checked ? "is-checked" : ""}`}
+                            onClick={() => bulkMode ? toggleBulkRoom(r.building, r.room) : setSelectedRoom(r)}
+                            title={`${r.building} ${r.room} • ${STATUS_LABEL[r.status]}`}
+                          >
+                            {r.today && <span className="ac-rc-today" />}
+                            {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
+                            <span className="ac-rc-num">{r.room}</span>
+                            <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </section>
                 );
@@ -602,6 +717,35 @@ export default function Home() {
                 <div className="ac-search ac-search-full">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                   <input type="text" placeholder="ค้นหา ห้อง / ตึก / ลูกค้า / เบอร์ / หมายเหตุ..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <div className="ac-preset-wrap">
+                  <button
+                    className="ac-btn ac-btn-ghost ac-btn-sm"
+                    onClick={() => setPresetMenuOpen((v) => !v)}
+                    title="ชุด filter ที่บันทึกไว้"
+                  >★ ชุด {presets.length > 0 && `(${presets.length})`}</button>
+                  {presetMenuOpen && (
+                    <>
+                      <div className="ac-preset-backdrop" onClick={() => setPresetMenuOpen(false)} />
+                      <div className="ac-preset-menu">
+                        <button className="ac-preset-item ac-preset-save" onClick={() => { saveCurrentAsPreset(); setPresetMenuOpen(false); }}>
+                          + บันทึกชุดปัจจุบัน
+                        </button>
+                        {presets.length === 0 && (
+                          <div className="ac-preset-empty">ยังไม่มีชุดที่บันทึก</div>
+                        )}
+                        {presets.map((p) => (
+                          <div key={p.id} className="ac-preset-row">
+                            <button className="ac-preset-item" onClick={() => applyPreset(p)}>
+                              <span>{p.name}</span>
+                              <small>{p.view} · {p.building} · {p.dateRange}</small>
+                            </button>
+                            <button className="ac-preset-del" onClick={() => deletePresetById(p.id)} title="ลบ">×</button>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </section>
               {activeView !== "today" && (
@@ -807,6 +951,63 @@ export default function Home() {
               </button>
               <button className="ac-btn ac-btn-ghost" onClick={() => setSelectedRoom(null)} disabled={saving}>ยกเลิก</button>
               <button className="ac-btn ac-btn-primary" onClick={handleSave} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {bulkMode && (
+        <div className="ac-bulk-bar">
+          <div className="ac-bulk-info">
+            <strong>{bulkSelected.size}</strong> ห้องถูกเลือก
+          </div>
+          <div className="ac-bulk-actions">
+            <button className="ac-btn ac-btn-ghost" onClick={() => setBulkSelected(new Set())} disabled={bulkSelected.size === 0}>ล้าง</button>
+            <button className="ac-btn ac-btn-primary" disabled={bulkSelected.size === 0} onClick={() => ensureCreator(() => setBulkAddOpen(true))}>+ เพิ่มงานทั้งหมด</button>
+            <button className="ac-btn ac-btn-ghost" onClick={exitBulk}>ออก</button>
+          </div>
+        </div>
+      )}
+
+      {bulkAddOpen && (
+        <div className="ac-modal-backdrop" onClick={() => !bulkSubmitting && setBulkAddOpen(false)}>
+          <div className="ac-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="ac-modal-head">
+              <div>
+                <div className="ac-modal-title">เพิ่มงานพร้อมกัน {bulkSelected.size} ห้อง</div>
+                <div className="ac-modal-sub">ระบบจะสร้าง 1 งาน/ห้อง</div>
+              </div>
+              <button className="ac-modal-close" onClick={() => !bulkSubmitting && setBulkAddOpen(false)}>✕</button>
+            </header>
+            <div className="ac-modal-body">
+              <div className="ac-field">
+                <label>วันที่</label>
+                <input type="date" value={bulkAddDate} onChange={(e) => setBulkAddDate(e.target.value)} />
+              </div>
+              <div className="ac-field">
+                <label>ประเภท</label>
+                <select value={bulkAddType} onChange={(e) => setBulkAddType(e.target.value)}>
+                  <option>ทำสะอาด</option>
+                  <option>ย้ายเข้า</option>
+                  <option>ย้ายออก</option>
+                  <option>ชมห้อง</option>
+                  <option>ซ่อม</option>
+                  <option>อื่นๆ</option>
+                </select>
+              </div>
+              <div className="ac-field">
+                <label>หมายเหตุ (เหมือนกันทุกงาน)</label>
+                <textarea rows={2} value={bulkAddNote} onChange={(e) => setBulkAddNote(e.target.value)} />
+              </div>
+              <div style={{ fontSize: 12, color: "#6B7280" }}>
+                ห้อง: {Array.from(bulkSelected).slice(0, 6).join(", ")}{bulkSelected.size > 6 ? ` ... +${bulkSelected.size - 6}` : ""}
+              </div>
+            </div>
+            <footer className="ac-modal-foot">
+              <button className="ac-btn ac-btn-ghost" disabled={bulkSubmitting} onClick={() => setBulkAddOpen(false)}>ยกเลิก</button>
+              <button className="ac-btn ac-btn-primary" disabled={bulkSubmitting} onClick={submitBulkAdd}>
+                {bulkSubmitting ? `กำลังเพิ่ม...` : `เพิ่ม ${bulkSelected.size} งาน`}
+              </button>
             </footer>
           </div>
         </div>
