@@ -5,6 +5,9 @@ import { useDashboardData } from "@/lib/useDashboardData";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
 import SummaryDrawer from "@/components/SummaryDrawer";
+import IncomeView from "@/components/IncomeView";
+import TenantsView from "@/components/TenantsView";
+import CalendarView from "@/components/CalendarView";
 import { getCreator, setCreator, creatorInitials } from "@/lib/creator";
 import { parseThaiDate } from "@/lib/dateUtils";
 
@@ -127,7 +130,7 @@ export default function Home() {
   const [activeBuilding, setActiveBuilding] = useState<string>("ทั้งหมด");
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus>("overview");
+  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar">("overview");
   const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "custom">("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -181,6 +184,7 @@ export default function Home() {
   }, [toast]);
 
   const visibleRooms = useMemo(() => {
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar") return [];
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
@@ -253,6 +257,7 @@ export default function Home() {
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar";
 
   const stats = useMemo(() => {
     const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
@@ -441,6 +446,21 @@ export default function Home() {
               </button>
             ))}
           </div>
+          <div className="ac-side-group">
+            <div className="ac-side-label">ดูข้อมูล</div>
+            <button className={`ac-side-item ${activeView === "income" ? "is-active" : ""}`} onClick={() => setActiveView("income")}>
+              <span className="ac-side-icon">฿</span>
+              <span className="ac-side-text">รายได้</span>
+            </button>
+            <button className={`ac-side-item ${activeView === "tenants" ? "is-active" : ""}`} onClick={() => setActiveView("tenants")}>
+              <span className="ac-side-icon">⚉</span>
+              <span className="ac-side-text">ผู้เช่า</span>
+            </button>
+            <button className={`ac-side-item ${activeView === "calendar" ? "is-active" : ""}`} onClick={() => setActiveView("calendar")}>
+              <span className="ac-side-icon">▦</span>
+              <span className="ac-side-text">ปฏิทิน</span>
+            </button>
+          </div>
         </aside>
 
         {sidebarOpen && <div className="ac-side-backdrop" onClick={() => setSidebarOpen(false)} />}
@@ -481,7 +501,7 @@ export default function Home() {
             </div>
           )}
 
-          {!showTasksView && !(isInitial && rooms.length === 0) && (
+          {!showTasksView && !showCustomView && !(isInitial && rooms.length === 0) && (
             <>
               <section className="ac-sg">
                 <div className="ac-sc"><div className="ac-si ac-si-indigo">▦</div><div className="ac-sc-body"><div className="ac-sc-label">ทั้งหมด</div><div className="ac-sc-num">{stats.total}</div><div className="ac-sc-sub ac-sub-info">{activeBuilding === "ทั้งหมด" ? "ทุกตึก" : activeBuilding}</div></div></div>
@@ -583,6 +603,16 @@ export default function Home() {
                 onChanged={refresh}
               />
             </>
+          )}
+
+          {activeView === "income" && (
+            <IncomeView rooms={rooms} activeBuilding={activeBuilding} />
+          )}
+          {activeView === "tenants" && (
+            <TenantsView rooms={rooms} activeBuilding={activeBuilding} onSelectRoom={(r) => setSelectedRoom(r)} />
+          )}
+          {activeView === "calendar" && (
+            <CalendarView tasks={tasks} activeBuilding={activeBuilding} />
           )}
         </main>
       </div>
