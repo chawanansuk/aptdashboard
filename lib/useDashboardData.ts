@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
+import { loadCache, saveCache } from "@/lib/cacheData";
 
 const STATUS_FROM_ROOM: Record<string, RoomStatus> = {
   // occupied
@@ -146,7 +147,7 @@ export interface DashboardState {
   refresh: () => void;
 }
 
-const RETRY_DELAYS_MS = [800, 2000, 4000];
+const RETRY_DELAYS_MS = [500, 1500, 3000];
 
 async function fetchWithRetry(url: string, signal: AbortSignal): Promise<Response> {
   let lastErr: unknown = null;
@@ -179,6 +180,17 @@ export function useDashboardData(): DashboardState {
   const [isInitial, setIsInitial] = useState(true);
   const [tick, setTick] = useState(0);
 
+  // Hydrate from cache synchronously on mount → instant first render with stale data
+  useEffect(() => {
+    const cached = loadCache();
+    if (cached) {
+      setRooms(cached.rooms);
+      setTasks(cached.tasks);
+      setLastUpdated(`${new Date(cached.savedAt).toLocaleTimeString("th-TH")} (จาก cache)`);
+      setIsInitial(false);
+    }
+  }, []);
+
   useEffect(() => {
     const ctrl = new AbortController();
     let alive = true;
@@ -193,11 +205,13 @@ export function useDashboardData(): DashboardState {
 
         let rRooms: RoomRow[] = [];
         let rTasks: SheetRow[] = [];
+        let gotRooms = false;
+        let gotTasks = false;
 
         if (rResult.status === "fulfilled") {
           const j = await rResult.value.json().catch(() => ({ error: "invalid JSON" }));
           if (j.error) errs.push("rooms: " + j.error);
-          else rRooms = j.rooms || [];
+          else { rRooms = j.rooms || []; gotRooms = true; }
         } else {
           const m = rResult.reason instanceof Error ? rResult.reason.message : "unknown";
           if (m !== "aborted") errs.push("rooms: " + m);
@@ -206,29 +220,37 @@ export function useDashboardData(): DashboardState {
         if (tResult.status === "fulfilled") {
           const j = await tResult.value.json().catch(() => ({ error: "invalid JSON" }));
           if (j.error) errs.push("tasks: " + j.error);
-          else rTasks = j.rows || [];
+          else { rTasks = j.rows || []; gotTasks = true; }
         } else {
           const m = tResult.reason instanceof Error ? tResult.reason.message : "unknown";
           if (m !== "aborted") errs.push("tasks: " + m);
         }
 
         if (!alive || ctrl.signal.aborted) return;
-        // Only overwrite data we actually got — keep last-good when a fetch failed
-        if (rResult.status === "fulfilled") setRooms(rRooms);
-        if (tResult.status === "fulfilled") setTasks(rTasks);
+        if (gotRooms) setRooms(rRooms);
+        if (gotTasks) setTasks(rTasks);
         setErrors(errs);
         setLastUpdated(new Date().toLocaleTimeString("th-TH"));
-        const hasAnyData =
-          (rResult.status === "fulfilled" && rRooms.length > 0) ||
-          (tResult.status === "fulfilled" && rTasks.length > 0);
+        const hasAnyData = (gotRooms && rRooms.length > 0) || (gotTasks && rTasks.length > 0);
         setStatus(errs.length && !hasAnyData ? "error" : "ok");
         setIsInitial(false);
+
+        // Persist freshest snapshot to cache. Use newly-fetched values where
+        // available; for the half that failed, re-use the most recent cache.
+        if (gotRooms || gotTasks) {
+          const cached = loadCache();
+          const finalRooms = gotRooms ? rRooms : cached?.rooms ?? [];
+          const finalTasks = gotTasks ? rTasks : cached?.tasks ?? [];
+          if (finalRooms.length || finalTasks.length) saveCache(finalRooms, finalTasks);
+        }
       } catch (e) {
         if (!alive) return;
         const msg = e instanceof Error ? e.message : "unknown";
         if (msg !== "aborted") {
           setErrors([msg]);
-          setStatus("error");
+          // Stay in 'ok' state if we still have data shown (from cache)
+          const hasCache = !!loadCache();
+          setStatus(hasCache ? "ok" : "error");
           setIsInitial(false);
         }
       }
@@ -238,6 +260,7 @@ export function useDashboardData(): DashboardState {
       alive = false;
       ctrl.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick]);
 
   const merged = useMemo(() => mergeRoomsAndTasks(rooms, tasks), [rooms, tasks]);
