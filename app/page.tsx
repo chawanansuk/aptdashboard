@@ -635,7 +635,20 @@ export default function Home() {
         </div>
       )}
 
-      <SummaryDrawer open={summaryOpen} onClose={() => setSummaryOpen(false)} rooms={rooms} tasks={tasks} />
+      <SummaryDrawer
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        rooms={rooms}
+        tasks={tasks}
+        onAddTask={() => {
+          setSummaryOpen(false);
+          ensureCreator(() => setShowAddTask(true));
+        }}
+        onTaskClick={() => {
+          setSummaryOpen(false);
+          setActiveView("today");
+        }}
+      />
     </div>
   );
 }
