@@ -1323,3 +1323,46 @@ input { font-family: inherit; }
     width: 100vw;
   }
 }
+
+/* === Refresh spinner === */
+@keyframes ac-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.ac-icon-btn.is-spinning svg { animation: ac-spin 0.9s linear infinite; }
+.ac-icon-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* === Avatar (clickable) === */
+.ac-avatar { cursor: pointer; transition: filter 0.15s; border: 0; }
+.ac-avatar:hover { filter: brightness(0.95); }
+
+/* === Skeleton loader === */
+@keyframes ac-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.ac-skel {
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 37%, #F1F5F9 63%);
+  background-size: 800px 100%;
+  animation: ac-shimmer 1.4s linear infinite;
+  border-radius: 6px;
+}
+html.dark .ac-skel {
+  background: linear-gradient(90deg, #1E293B 25%, #334155 37%, #1E293B 63%);
+  background-size: 800px 100%;
+}
+.ac-skel-line { height: 12px; margin: 6px 0; }
+.ac-skel-num { height: 28px; width: 70%; margin: 8px 0; }
+.ac-skel-icon { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
+.ac-skel-room { height: 64px; border-radius: 10px; }
+.ac-skel-card { display: flex; gap: 12px; align-items: flex-start; }
+.ac-skel-wrap { display: flex; flex-direction: column; gap: 16px; }
+
+/* === Task creator label === */
+.ac-task-creator {
+  font-size: 12px;
+  color: #94A3B8;
+  font-style: italic;
+}
+html.dark .ac-task-creator { color: #64748B; }
+

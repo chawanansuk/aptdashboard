@@ -8,6 +8,8 @@ export interface SheetRow {
   phone: string;
   note: string;
   status: string;
+  creator?: string;
+  createdAt?: string;
 }
 
 export type TaskType = "ทำสะอาด" | "ย้ายเข้า" | "ย้ายออก" | "ชมห้อง";

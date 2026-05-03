@@ -111,7 +111,33 @@ export interface DashboardState {
   tasks: SheetRow[];
   errors: string[];
   lastUpdated: string;
+  isInitial: boolean;
+  isRefreshing: boolean;
   refresh: () => void;
+}
+
+const RETRY_DELAYS_MS = [800, 2000, 4000];
+
+async function fetchWithRetry(url: string, signal: AbortSignal): Promise<Response> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    if (signal.aborted) throw new Error("aborted");
+    try {
+      const res = await fetch(url, { cache: "no-store", signal });
+      if (res.ok) return res;
+      if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+        return res;
+      }
+      lastErr = new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      if (signal.aborted) throw e;
+      lastErr = e;
+    }
+    const delay = RETRY_DELAYS_MS[attempt];
+    if (delay == null) break;
+    await new Promise((r) => setTimeout(r, delay));
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("fetch failed");
 }
 
 export function useDashboardData(): DashboardState {
@@ -120,55 +146,67 @@ export function useDashboardData(): DashboardState {
   const [status, setStatus] = useState<DashboardState["status"]>("idle");
   const [errors, setErrors] = useState<string[]>([]);
   const [lastUpdated, setLastUpdated] = useState("");
+  const [isInitial, setIsInitial] = useState(true);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    const ctrl = new AbortController();
     let alive = true;
     const run = async () => {
       setStatus("loading");
       const errs: string[] = [];
       try {
-        const [rRes, tRes] = await Promise.all([
-          fetch("/api/sheet/rooms", { cache: "no-store" }).catch((e) => {
-            errs.push("rooms: " + e.message);
-            return null;
-          }),
-          fetch("/api/sheet", { cache: "no-store" }).catch((e) => {
-            errs.push("tasks: " + e.message);
-            return null;
-          }),
+        const [rResult, tResult] = await Promise.allSettled([
+          fetchWithRetry("/api/sheet/rooms", ctrl.signal),
+          fetchWithRetry("/api/sheet", ctrl.signal),
         ]);
 
         let rRooms: RoomRow[] = [];
         let rTasks: SheetRow[] = [];
 
-        if (rRes) {
-          const j = await rRes.json();
+        if (rResult.status === "fulfilled") {
+          const j = await rResult.value.json().catch(() => ({ error: "invalid JSON" }));
           if (j.error) errs.push("rooms: " + j.error);
           else rRooms = j.rooms || [];
-        }
-        if (tRes) {
-          const j = await tRes.json();
-          if (j.error) errs.push("tasks: " + j.error);
-          else rTasks = j.rows || [];
+        } else {
+          const m = rResult.reason instanceof Error ? rResult.reason.message : "unknown";
+          if (m !== "aborted") errs.push("rooms: " + m);
         }
 
-        if (!alive) return;
-        setRooms(rRooms);
-        setTasks(rTasks);
+        if (tResult.status === "fulfilled") {
+          const j = await tResult.value.json().catch(() => ({ error: "invalid JSON" }));
+          if (j.error) errs.push("tasks: " + j.error);
+          else rTasks = j.rows || [];
+        } else {
+          const m = tResult.reason instanceof Error ? tResult.reason.message : "unknown";
+          if (m !== "aborted") errs.push("tasks: " + m);
+        }
+
+        if (!alive || ctrl.signal.aborted) return;
+        // Only overwrite data we actually got — keep last-good when a fetch failed
+        if (rResult.status === "fulfilled") setRooms(rRooms);
+        if (tResult.status === "fulfilled") setTasks(rTasks);
         setErrors(errs);
         setLastUpdated(new Date().toLocaleTimeString("th-TH"));
-        setStatus(errs.length && rRooms.length === 0 ? "error" : "ok");
+        const hasAnyData =
+          (rResult.status === "fulfilled" && rRooms.length > 0) ||
+          (tResult.status === "fulfilled" && rTasks.length > 0);
+        setStatus(errs.length && !hasAnyData ? "error" : "ok");
+        setIsInitial(false);
       } catch (e) {
         if (!alive) return;
         const msg = e instanceof Error ? e.message : "unknown";
-        setErrors([msg]);
-        setStatus("error");
+        if (msg !== "aborted") {
+          setErrors([msg]);
+          setStatus("error");
+          setIsInitial(false);
+        }
       }
     };
     run();
     return () => {
       alive = false;
+      ctrl.abort();
     };
   }, [tick]);
 
@@ -182,6 +220,8 @@ export function useDashboardData(): DashboardState {
     tasks,
     errors,
     lastUpdated,
+    isInitial,
+    isRefreshing: status === "loading" && !isInitial,
     refresh,
   };
 }

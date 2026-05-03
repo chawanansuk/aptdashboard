@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { SheetRow } from "@/types";
+import { getCreator } from "@/lib/creator";
 
 interface Props {
   tasks: SheetRow[];
@@ -41,11 +42,11 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
   const [confirmDel, setConfirmDel] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
 
-  async function postUpdate(payload: unknown) {
+  async function postUpdate(payload: Record<string, unknown>) {
     const res = await fetch("/api/sheet/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, creator: getCreator() }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "ไม่สำเร็จ");
@@ -154,6 +155,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
                   {t.customer && <span>{t.customer}</span>}
                   {t.phone && <span>· {t.phone}</span>}
                   {t.note && <span className="ac-task-note">· {t.note}</span>}
+                  {t.creator && <span className="ac-task-creator">· โดย {t.creator}</span>}
                 </div>
               </div>
               <div className="ac-task-actions">

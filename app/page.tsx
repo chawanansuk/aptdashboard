@@ -5,6 +5,7 @@ import { useDashboardData } from "@/lib/useDashboardData";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
 import SummaryDrawer from "@/components/SummaryDrawer";
+import { getCreator, setCreator, creatorInitials } from "@/lib/creator";
 
 const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
@@ -67,9 +68,31 @@ const VIEW_LABEL: Record<string, string> = {
 };
 
 export default function Home() {
-  const { status, rooms, errors, lastUpdated, refresh, tasks } = useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
+  const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing } = useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [creator, setCreatorState] = useState<string>("");
+  const [creatorModal, setCreatorModal] = useState<{ open: boolean; pending?: () => void }>({ open: false });
+  const [creatorInput, setCreatorInput] = useState("");
+
+  useEffect(() => { setCreatorState(getCreator()); }, []);
+
+  function ensureCreator(action: () => void) {
+    const name = getCreator();
+    if (name) { action(); return; }
+    setCreatorInput("");
+    setCreatorModal({ open: true, pending: action });
+  }
+
+  function saveCreator() {
+    const v = creatorInput.trim();
+    if (!v) return;
+    setCreator(v);
+    setCreatorState(v);
+    const cb = creatorModal.pending;
+    setCreatorModal({ open: false });
+    if (cb) cb();
+  }
 
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
@@ -237,6 +260,7 @@ export default function Home() {
           customer: tCustomer,
           phone: tPhone,
           note: tNote,
+          creator: getCreator(),
         }),
       });
       const data = await res.json();
@@ -273,6 +297,7 @@ export default function Home() {
           contractEnd: editContractEnd,
           note: editNote,
           price: editPrice,
+          creator: getCreator(),
         }),
       });
       const data = await res.json();
@@ -311,14 +336,20 @@ export default function Home() {
           </select>
         </div>
         <div className="ac-nav-right">
-          <button className="ac-add-btn" onClick={() => setShowAddTask(true)} title="เพิ่มงานใหม่"><span className="ac-add-btn-icon" style={{display:"none"}}>+</span><span className="ac-add-btn-text">+ เพิ่มงาน</span></button>
-          <button className="ac-icon-btn" aria-label="รีเฟรช" onClick={refresh} title="รีเฟรช">
+          <button className="ac-add-btn" onClick={() => ensureCreator(() => setShowAddTask(true))} title="เพิ่มงานใหม่"><span className="ac-add-btn-icon" style={{display:"none"}}>+</span><span className="ac-add-btn-text">+ เพิ่มงาน</span></button>
+          <button className={`ac-icon-btn ${isRefreshing ? "is-spinning" : ""}`} aria-label="รีเฟรช" onClick={refresh} title="รีเฟรช" disabled={isRefreshing}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
           </button>
           <div className="ac-last-updated">อัปเดต: {lastUpdated || "-"}</div>
           <button className="ac-theme-toggle" onClick={toggleTheme} aria-label="สลับโหมดมืด" title="สลับโหมดมืด">{isDark ? "☀️" : "☽"}</button>
           <button className="ac-summary-btn" onClick={() => setSummaryOpen(true)}>SUMMARY</button>
-          <div className="ac-avatar">CS</div>
+          <button
+            className="ac-avatar"
+            onClick={() => { setCreatorInput(creator); setCreatorModal({ open: true }); }}
+            title={creator ? `ผู้ใช้: ${creator} (คลิกเพื่อแก้ไข)` : "ตั้งชื่อผู้ใช้"}
+          >
+            {creatorInitials(creator)}
+          </button>
         </div>
       </header>
 
@@ -364,13 +395,40 @@ export default function Home() {
         <main className="ac-main">
           {errors.length > 0 && (
             <div className="ac-banner ac-banner-warn">
-              <strong>⚠ ต้องตั้งค่าชีต:</strong>{" "}
-              {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}{" "}
+              <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
+              {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}
+              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={refresh} disabled={isRefreshing} style={{ marginLeft: 8 }}>
+                {isRefreshing ? "กำลังลอง..." : "ลองอีกครั้ง"}
+              </button>
+              {" "}
               <a href="https://github.com/chawanansuk/aptdashboard/blob/main/docs/SETUP.md" target="_blank" rel="noreferrer">วิธีตั้งค่า</a>
             </div>
           )}
 
-          {!showTasksView && (
+          {isInitial && rooms.length === 0 && status !== "error" && (
+            <div className="ac-skel-wrap">
+              <div className="ac-sg">
+                {[0,1,2,3].map((i) => (
+                  <div key={i} className="ac-sc ac-skel-card">
+                    <div className="ac-skel ac-skel-icon" />
+                    <div className="ac-sc-body">
+                      <div className="ac-skel ac-skel-line" style={{width:"60%"}} />
+                      <div className="ac-skel ac-skel-line ac-skel-num" />
+                      <div className="ac-skel ac-skel-line" style={{width:"40%"}} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="ac-fs">
+                <div className="ac-skel ac-skel-line" style={{width:120, height:18, marginBottom:12}} />
+                <div className="ac-rg">
+                  {Array.from({length: 12}).map((_, i) => (<div key={i} className="ac-skel ac-skel-room" />))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!showTasksView && !(isInitial && rooms.length === 0) && (
             <>
               <section className="ac-sg">
                 <div className="ac-sc"><div className="ac-si ac-si-indigo">▦</div><div className="ac-sc-body"><div className="ac-sc-label">ทั้งหมด</div><div className="ac-sc-num">{stats.total}</div><div className="ac-sc-sub ac-sub-info">{activeBuilding === "ทั้งหมด" ? "ทุกตึก" : activeBuilding}</div></div></div>
@@ -571,7 +629,38 @@ export default function Home() {
           {toast.msg}
         </div>
       )}
-    
+
+      {creatorModal.open && (
+        <div className="ac-modal-backdrop" onClick={() => setCreatorModal({ open: false })}>
+          <div className="ac-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <header className="ac-modal-head">
+              <div>
+                <div className="ac-modal-title">{creator ? "แก้ไขชื่อผู้ใช้" : "ตั้งชื่อผู้ใช้"}</div>
+                <div className="ac-modal-sub">ใช้บันทึกในชีตว่าใครเป็นคนเพิ่ม/แก้งาน</div>
+              </div>
+              <button className="ac-modal-close" onClick={() => setCreatorModal({ open: false })}>✕</button>
+            </header>
+            <div className="ac-modal-body">
+              <div className="ac-field">
+                <label>ชื่อ</label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={creatorInput}
+                  onChange={(e) => setCreatorInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && creatorInput.trim()) saveCreator(); }}
+                  placeholder="เช่น สมชาย"
+                />
+              </div>
+            </div>
+            <footer className="ac-modal-foot">
+              <button className="ac-btn ac-btn-ghost" onClick={() => setCreatorModal({ open: false })}>ยกเลิก</button>
+              <button className="ac-btn ac-btn-primary" onClick={saveCreator} disabled={!creatorInput.trim()}>บันทึก</button>
+            </footer>
+          </div>
+        </div>
+      )}
+
       <SummaryDrawer open={summaryOpen} onClose={() => setSummaryOpen(false)} rooms={rooms} tasks={tasks} />
       </div>
   );
