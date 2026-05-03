@@ -735,10 +735,9 @@ export default function Home() {
             </div>
             <footer className="ac-modal-foot">
               <button
-                className="ac-btn ac-btn-ghost"
+                className="ac-btn ac-btn-secondary ac-btn-foot-start"
                 onClick={() => openAddTaskForRoom(selectedRoom.building, selectedRoom.room)}
                 disabled={saving}
-                style={{ marginRight: "auto" }}
                 title="เพิ่มงานใหม่สำหรับห้องนี้"
               >
                 + เพิ่มงานที่ห้องนี้
