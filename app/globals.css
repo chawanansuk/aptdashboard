@@ -1369,6 +1369,23 @@ html.dark .ac-task-creator { color: #64748B; }
 /* === Full-width search (tasks view) === */
 .ac-search-full { flex: 1; min-width: 0; }
 
+/* === Date range filter === */
+.ac-date-range { gap: 12px; flex-wrap: wrap; align-items: center; }
+.ac-range-inputs { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #6B7280; }
+.ac-range-inputs input[type="date"] {
+  padding: 6px 8px;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+}
+html.dark .ac-range-inputs { color: #94A3B8; }
+html.dark .ac-range-inputs input[type="date"] {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E5E7EB;
+}
+
 /* === Room modal: task history === */
 .ac-history-toggle {
   background: transparent;

@@ -6,6 +6,7 @@ import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
 import SummaryDrawer from "@/components/SummaryDrawer";
 import { getCreator, setCreator, creatorInitials } from "@/lib/creator";
+import { parseThaiDate } from "@/lib/dateUtils";
 
 const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
@@ -127,6 +128,9 @@ export default function Home() {
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus>("overview");
+  const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "custom">("all");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<RoomView | null>(null);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
@@ -191,6 +195,31 @@ export default function Home() {
     });
   }, [rooms, activeBuilding, activeView, activeFilter, search]);
 
+  // compute date range bounds (inclusive)
+  const dateBounds = useMemo<{ start: Date | null; end: Date | null }>(() => {
+    if (activeView === "today" || dateRange === "all") return { start: null, end: null };
+    const now = new Date();
+    const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    if (dateRange === "week") {
+      const day = now.getDay(); // 0=Sun..6=Sat
+      const diffToMon = (day + 6) % 7;
+      const start = startOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMon));
+      const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999);
+      return { start, end };
+    }
+    if (dateRange === "month") {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      return { start, end };
+    }
+    if (dateRange === "custom") {
+      const s = customStart ? new Date(customStart + "T00:00:00") : null;
+      const e = customEnd ? new Date(customEnd + "T23:59:59.999") : null;
+      return { start: s, end: e };
+    }
+    return { start: null, end: null };
+  }, [dateRange, customStart, customEnd, activeView]);
+
   // tasks list filtered by active view
   const visibleTasks = useMemo(() => {
     const list = (tasks || []).slice();
@@ -207,6 +236,13 @@ export default function Home() {
         if (t.date !== today) return false;
         if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
       }
+      // date range filter (skip when on today view — already constrained)
+      if (activeView !== "today" && (dateBounds.start || dateBounds.end)) {
+        const td = parseThaiDate(t.date);
+        if (!td) return false;
+        if (dateBounds.start && td.getTime() < dateBounds.start.getTime()) return false;
+        if (dateBounds.end && td.getTime() > dateBounds.end.getTime()) return false;
+      }
       const q = search.trim().toLowerCase();
       if (q) {
         const hay = `${t.room} ${t.building} ${t.customer || ""} ${t.phone || ""} ${t.note || ""}`.toLowerCase();
@@ -214,7 +250,7 @@ export default function Home() {
       }
       return true;
     }).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  }, [tasks, activeView, activeBuilding, search]);
+  }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
 
@@ -515,6 +551,31 @@ export default function Home() {
                   <input type="text" placeholder="ค้นหา ห้อง / ตึก / ลูกค้า / เบอร์ / หมายเหตุ..." value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
               </section>
+              {activeView !== "today" && (
+                <section className="ac-fb ac-date-range">
+                  <div className="ac-chips">
+                    {([
+                      { key: "all", label: "ทั้งหมด" },
+                      { key: "week", label: "สัปดาห์นี้" },
+                      { key: "month", label: "เดือนนี้" },
+                      { key: "custom", label: "เลือกช่วง" },
+                    ] as const).map((c) => (
+                      <button
+                        key={c.key}
+                        className={`ac-chip ${dateRange === c.key ? "is-active" : ""}`}
+                        onClick={() => setDateRange(c.key)}
+                      >{c.label}</button>
+                    ))}
+                  </div>
+                  {dateRange === "custom" && (
+                    <div className="ac-range-inputs">
+                      <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
+                      <span>—</span>
+                      <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+                    </div>
+                  )}
+                </section>
+              )}
               <TasksList
                 tasks={visibleTasks}
                 title={VIEW_LABEL[activeView as string] || "งาน"}
