@@ -183,6 +183,39 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable;
+
+      if (e.key === "Escape") {
+        if (selectedRoom) { setSelectedRoom(null); return; }
+        if (showAddTask) { setShowAddTask(false); return; }
+        if (creatorModal.open) { setCreatorModal({ open: false }); return; }
+        if (summaryOpen) { setSummaryOpen(false); return; }
+        if (sidebarOpen) { setSidebarOpen(false); return; }
+        return;
+      }
+      if (isInput) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === "/") {
+        const input = document.querySelector<HTMLInputElement>(".ac-search input");
+        if (input) { e.preventDefault(); input.focus(); input.select(); }
+      } else if (e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        ensureCreator(() => setShowAddTask(true));
+      } else if (e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        if (!isRefreshing) refresh();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedRoom, showAddTask, creatorModal.open, summaryOpen, sidebarOpen, isRefreshing, refresh]);
+
   const visibleRooms = useMemo(() => {
     if (activeView === "income" || activeView === "tenants" || activeView === "calendar") return [];
     return rooms.filter((r) => {
@@ -612,7 +645,7 @@ export default function Home() {
             <TenantsView rooms={rooms} activeBuilding={activeBuilding} onSelectRoom={(r) => setSelectedRoom(r)} />
           )}
           {activeView === "calendar" && (
-            <CalendarView tasks={tasks} activeBuilding={activeBuilding} />
+            <CalendarView tasks={tasks} activeBuilding={activeBuilding} rooms={rooms} onSelectRoom={(r) => setSelectedRoom(r)} />
           )}
         </main>
       </div>

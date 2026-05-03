@@ -71,9 +71,12 @@ export default function IncomeView({ rooms, activeBuilding }: Props) {
 
   return (
     <div className="ac-income">
-      <header className="ac-page-head">
-        <h2 className="ac-page-title">สรุปรายได้ {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
-        <p className="ac-page-sub">ตัวเลขนี้คือ <strong>ศักยภาพ</strong> (ค่าเช่าตามสถานะห้อง) ไม่ใช่ยอดที่จ่ายจริง — ดูยอดจริงในชีต <code>มิเตอร์</code></p>
+      <header className="ac-page-head ac-page-head-row">
+        <div>
+          <h2 className="ac-page-title">สรุปรายได้ {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
+          <p className="ac-page-sub">ตัวเลขนี้คือ <strong>ศักยภาพ</strong> (ค่าเช่าตามสถานะห้อง) ไม่ใช่ยอดที่จ่ายจริง — ดูยอดจริงในชีต <code>มิเตอร์</code></p>
+        </div>
+        <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨 พิมพ์</button>
       </header>
 
       <section className="ac-income-kpi">

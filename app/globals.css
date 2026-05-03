@@ -1858,3 +1858,97 @@ html.dark .ac-cal-task-line1 { color: #F1F5F9; }
   .ac-table th, .ac-table td { padding: 8px 8px; font-size: 12px; }
   .ac-cal-month { min-width: 120px; font-size: 14px; }
 }
+
+/* ===== Empty state (with icon + CTA) ===== */
+.ac-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #94A3B8;
+}
+.ac-empty-icon {
+  display: inline-flex;
+  margin-bottom: 12px;
+  color: #CBD5E1;
+}
+.ac-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 4px;
+}
+.ac-empty-desc {
+  font-size: 13px;
+  color: #94A3B8;
+  max-width: 340px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+html.dark .ac-empty-icon { color: #475569; }
+html.dark .ac-empty-title { color: #CBD5E1; }
+html.dark .ac-empty-desc { color: #64748B; }
+
+/* ===== Page head with action button ===== */
+.ac-page-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ===== Calendar task clickable ===== */
+.ac-cal-task.is-clickable { cursor: pointer; transition: background 0.15s, transform 0.1s; }
+.ac-cal-task.is-clickable:hover { background: #EEF2FF; }
+.ac-cal-task.is-clickable:active { transform: scale(0.99); }
+html.dark .ac-cal-task.is-clickable:hover { background: #1E1B4B; }
+.ac-cal-task-arrow {
+  color: #94A3B8;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+/* ===== Print styles ===== */
+@media print {
+  /* Reset background for paper */
+  body, .ac-app, .ac-main { background: #fff !important; }
+  /* Hide chrome */
+  .ac-nav,
+  .ac-side,
+  .ac-side-backdrop,
+  .ac-toast,
+  .ac-offline-bar,
+  .ac-no-print,
+  .ac-modal-backdrop,
+  .ac-fb,
+  .ac-banner-warn,
+  .ac-summary-overlay,
+  .ac-summary-drawer { display: none !important; }
+  /* Make main fill the page */
+  .ac-body, .ac-app { display: block !important; }
+  .ac-main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  /* Tighter typography for print */
+  .ac-page-title { font-size: 18px !important; color: #000 !important; }
+  .ac-page-sub { color: #444 !important; }
+  /* Tables: print-friendly */
+  .ac-table-wrap {
+    box-shadow: none !important;
+    border: 1px solid #ccc;
+    overflow: visible !important;
+  }
+  .ac-table th { background: #F0F0F0 !important; color: #000 !important; }
+  .ac-table td, .ac-table th { border: 1px solid #ddd !important; }
+  /* KPI cards: keep on one row if possible */
+  .ac-income-kpi { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
+  .ac-kpi-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+  /* Calendar */
+  .ac-cal-grid { box-shadow: none !important; border: 1px solid #ccc; padding: 6px !important; }
+  .ac-cal-cell { border: 1px solid #eee !important; min-height: 70px !important; }
+  /* Page break hints */
+  .ac-cal-day-detail { page-break-before: always; }
+  /* Ensure colors actually print on Chrome/Safari */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}

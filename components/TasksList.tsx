@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { SheetRow } from "@/types";
 import { getCreator } from "@/lib/creator";
+import EmptyState from "./EmptyState";
 
 // dd/MM/yyyy <-> yyyy-MM-dd conversion for <input type="date">
 function dmyToIso(s: string): string {
@@ -143,7 +144,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
         <header className="ac-tasks-head">
           <h3 className="ac-tasks-title">{title}</h3>
         </header>
-        <div className="ac-empty">{emptyText || "ไม่มีงานในรายการนี้"}</div>
+        <EmptyState icon="tasks" title={emptyText || "ไม่มีงานในรายการนี้"} description="ลองเปลี่ยน filter / ช่วงวันที่ หรือกด + เพิ่มงาน เพื่อสร้างใหม่" />
       </section>
     );
   }
@@ -162,7 +163,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
 
       {visible.length === 0 && (
-        <div className="ac-empty">{emptyText || "ไม่มีงานที่ต้องทำ — งานทั้งหมดเสร็จ/ยกเลิกแล้ว"}</div>
+        <EmptyState icon="tasks" title={hideDone ? "งานทั้งหมดเสร็จแล้ว 🎉" : (emptyText || "ไม่มีงานในรายการนี้")} description={hideDone ? "ปลดล็อก toggle ด้านบนเพื่อดูงานที่เสร็จ/ยกเลิก" : undefined} />
       )}
 
       <div className="ac-tasks-list">

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { RoomView } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
+import EmptyState from "./EmptyState";
 
 interface Props {
   rooms: RoomView[];
@@ -83,9 +84,12 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
 
   return (
     <div className="ac-tenants">
-      <header className="ac-page-head">
-        <h2 className="ac-page-title">ผู้เช่า {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
-        <p className="ac-page-sub">ทั้งหมด {tenants.length} คน</p>
+      <header className="ac-page-head ac-page-head-row">
+        <div>
+          <h2 className="ac-page-title">ผู้เช่า {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
+          <p className="ac-page-sub">ทั้งหมด {tenants.length} คน</p>
+        </div>
+        <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨 พิมพ์</button>
       </header>
 
       <section className="ac-fb">
@@ -118,7 +122,9 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
           </thead>
           <tbody>
             {tenants.length === 0 && (
-              <tr><td colSpan={5} className="ac-empty" style={{ textAlign: "center" }}>ไม่พบผู้เช่าในเงื่อนไขนี้</td></tr>
+              <tr><td colSpan={5} style={{ padding: 0 }}>
+                <EmptyState icon="search" title="ไม่พบผู้เช่าในเงื่อนไขนี้" description="ลองเปลี่ยน filter หรือลบคำค้นหา" />
+              </td></tr>
             )}
             {tenants.map((r) => {
               const days = daysUntil(r.contractEnd);

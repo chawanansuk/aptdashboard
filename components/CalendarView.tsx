@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { SheetRow } from "@/types";
-import { parseThaiDate } from "@/lib/dateUtils";
+import type { SheetRow, RoomView } from "@/types";
+import EmptyState from "./EmptyState";
 
 interface Props {
   tasks: SheetRow[];
   activeBuilding: string;
+  rooms?: RoomView[];
+  onSelectRoom?: (r: RoomView) => void;
 }
 
 const TYPE_COLOR: Record<string, string> = {
@@ -30,7 +32,12 @@ function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-export default function CalendarView({ tasks, activeBuilding }: Props) {
+export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoom }: Props) {
+  const roomMap = useMemo(() => {
+    const m = new Map<string, RoomView>();
+    (rooms || []).forEach((r) => m.set(`${r.building}|${r.room}`, r));
+    return m;
+  }, [rooms]);
   const [cursor, setCursor] = useState<Date>(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
@@ -93,11 +100,12 @@ export default function CalendarView({ tasks, activeBuilding }: Props) {
     <div className="ac-calendar">
       <header className="ac-page-head ac-cal-head">
         <h2 className="ac-page-title">ปฏิทินงาน {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
-        <div className="ac-cal-nav">
+        <div className="ac-cal-nav ac-no-print">
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goPrev} aria-label="เดือนก่อน">‹</button>
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goToday}>วันนี้</button>
           <span className="ac-cal-month">{MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}</span>
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goNext} aria-label="เดือนถัดไป">›</button>
+          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨</button>
         </div>
       </header>
 
@@ -147,15 +155,25 @@ export default function CalendarView({ tasks, activeBuilding }: Props) {
             <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setSelectedDay(null)}>ปิด</button>
           </header>
           {selectedTasks.length === 0 ? (
-            <div className="ac-empty">ไม่มีงานในวันนี้</div>
+            <EmptyState icon="calendar" title="ไม่มีงานในวันนี้" />
           ) : (
             <div className="ac-cal-task-list">
-              {selectedTasks.map((t, i) => (
-                <div key={i} className="ac-cal-task">
+              {selectedTasks.map((t, i) => {
+                const room = roomMap.get(`${t.building}|${t.room}`);
+                const clickable = !!(room && onSelectRoom);
+                return (
+                <div
+                  key={i}
+                  className={`ac-cal-task ${clickable ? "is-clickable" : ""}`}
+                  onClick={() => clickable && onSelectRoom!(room!)}
+                  role={clickable ? "button" : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                >
                   <span className="ac-cal-task-dot" style={{ background: TYPE_COLOR[t.type] || "#64748B" }} />
                   <div className="ac-cal-task-main">
                     <div className="ac-cal-task-line1">
                       <strong>{t.type}</strong> · {t.building} {t.room}
+                      {clickable && <span className="ac-cal-task-arrow"> ›</span>}
                     </div>
                     {(t.customer || t.note) && (
                       <div className="ac-cal-task-line2">
@@ -169,7 +187,8 @@ export default function CalendarView({ tasks, activeBuilding }: Props) {
                     {t.status || "ว่าง"}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
