@@ -3,6 +3,24 @@ import { useState } from "react";
 import type { SheetRow } from "@/types";
 import { getCreator } from "@/lib/creator";
 
+// dd/MM/yyyy <-> yyyy-MM-dd conversion for <input type="date">
+function dmyToIso(s: string): string {
+  if (!s) return "";
+  const m = s.trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (!m) return "";
+  const d = m[1].padStart(2, "0");
+  const mo = m[2].padStart(2, "0");
+  let y = m[3];
+  if (y.length === 2) y = (parseInt(y, 10) >= 50 ? "19" : "20") + y;
+  return `${y}-${mo}-${d}`;
+}
+function isoToDmy(s: string): string {
+  if (!s) return "";
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
 interface Props {
   tasks: SheetRow[];
   title: string;
@@ -209,9 +227,12 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
             <div className="ac-modal-body">
               <div className="ac-field">
                 <label>วันที่</label>
-                <input type="text" value={edit.date}
-                  onChange={(e) => setEdit({ ...edit, date: e.target.value })}
-                  placeholder="dd/MM/yyyy" />
+                <input
+                  type="date"
+                  value={dmyToIso(edit.date)}
+                  onChange={(e) => setEdit({ ...edit, date: isoToDmy(e.target.value) })}
+                />
+                <span style={{ fontSize: 11, color: "#9CA3AF" }}>{edit.date || "—"}</span>
               </div>
               <div className="ac-field">
                 <label>ลูกค้า</label>

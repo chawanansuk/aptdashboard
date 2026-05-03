@@ -150,6 +150,7 @@ export default function Home() {
   const [editContractEnd, setEditContractEnd] = useState("");
   const [editNote, setEditNote] = useState("");
   const [editPrice, setEditPrice] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (selectedRoom) {
@@ -159,6 +160,7 @@ export default function Home() {
       setEditContractEnd(selectedRoom.contractEnd || "");
       setEditPrice(selectedRoom.price || "");
       setEditNote("");
+      setShowHistory(false);
     }
   }, [selectedRoom]);
 
@@ -636,6 +638,37 @@ export default function Home() {
                       <strong>{t.note || t.customer || "-"}</strong>
                     </div>
                   ))}
+                </>
+              )}
+
+              {selectedRoom.pastTasks.length > 0 && (
+                <>
+                  <div style={{borderTop:"1px solid #F1F5F9", margin:"6px 0"}} />
+                  <button
+                    type="button"
+                    className="ac-history-toggle"
+                    onClick={() => setShowHistory((v) => !v)}
+                  >
+                    <span>{showHistory ? "▾" : "▸"} ประวัติงาน ({selectedRoom.pastTasks.length})</span>
+                  </button>
+                  {showHistory && (
+                    <div className="ac-history-list">
+                      {selectedRoom.pastTasks.map((t, i) => {
+                        const s = (t.status || "").trim();
+                        const isDone = s === "เสร็จ" || s === "done" || s === "ปิดแล้ว";
+                        const isCancel = s === "ยกเลิก" || s === "cancelled";
+                        return (
+                          <div key={i} className={`ac-modal-row ac-history-row ${isDone ? "is-done" : ""} ${isCancel ? "is-cancelled" : ""}`}>
+                            <span>{t.date} · {t.type}{t.creator ? ` · โดย ${t.creator}` : ""}</span>
+                            <span className="ac-history-meta">
+                              {t.customer && <span>{t.customer} </span>}
+                              <strong className="ac-history-status">{s || "—"}</strong>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </>
               )}
             </div>

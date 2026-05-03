@@ -1369,6 +1369,34 @@ html.dark .ac-task-creator { color: #64748B; }
 /* === Full-width search (tasks view) === */
 .ac-search-full { flex: 1; min-width: 0; }
 
+/* === Room modal: task history === */
+.ac-history-toggle {
+  background: transparent;
+  border: 0;
+  padding: 6px 0;
+  text-align: left;
+  font-size: 13px;
+  color: #4F46E5;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+.ac-history-toggle:hover { color: #4338CA; }
+html.dark .ac-history-toggle { color: #A5B4FC; }
+html.dark .ac-history-toggle:hover { color: #C7D2FE; }
+.ac-history-list { max-height: 240px; overflow-y: auto; }
+.ac-history-row.is-done { color: #6B7280; text-decoration: line-through; }
+.ac-history-row.is-cancelled { color: #9CA3AF; }
+.ac-history-row .ac-history-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #6B7280;
+}
+.ac-history-row.is-done .ac-history-status { color: #16A34A; text-decoration: none; }
+.ac-history-row.is-cancelled .ac-history-status { color: #DC2626; text-decoration: none; }
+.ac-history-meta { display: flex; gap: 6px; align-items: center; }
+
 /* === Tasks list toggle === */
 .ac-tasks-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ac-tasks-toggle {

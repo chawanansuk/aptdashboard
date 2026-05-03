@@ -63,4 +63,5 @@ export interface RoomView {
   today: boolean;       // มีงานรอทำวันนี้
   todayTasks: SheetRow[];
   upcomingTasks: SheetRow[];
+  pastTasks: SheetRow[];
 }

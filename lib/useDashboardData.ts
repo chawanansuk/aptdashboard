@@ -66,9 +66,22 @@ export function mergeRoomsAndTasks(
       (t) => t.date === tKey && t.status !== "เสร็จ"
     );
     const upcomingTasks = all.filter((t) => {
-      if (t.status === "เสร็จ") return false;
+      const s = (t.status || "").trim();
+      if (s === "เสร็จ" || s === "done" || s === "ปิดแล้ว" || s === "ยกเลิก" || s === "cancelled") return false;
       const d = parseDateDMY(t.date);
       return d && startOfDay(d).getTime() >= today.getTime();
+    });
+    const pastTasks = all.filter((t) => {
+      const s = (t.status || "").trim();
+      const isClosed = s === "เสร็จ" || s === "done" || s === "ปิดแล้ว" || s === "ยกเลิก" || s === "cancelled";
+      if (isClosed) return true;
+      const d = parseDateDMY(t.date);
+      return d ? startOfDay(d).getTime() < today.getTime() : false;
+    }).sort((a, b) => {
+      // newest first by parsed date, fallback to string compare
+      const da = parseDateDMY(a.date)?.getTime() ?? 0;
+      const db = parseDateDMY(b.date)?.getTime() ?? 0;
+      return db - da;
     });
 
     // base status from rooms sheet
@@ -101,6 +114,7 @@ export function mergeRoomsAndTasks(
       today: todayTasks.length > 0,
       todayTasks,
       upcomingTasks,
+      pastTasks,
     };
   });
 }
