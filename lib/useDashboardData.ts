@@ -4,18 +4,34 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
 
 const STATUS_FROM_ROOM: Record<string, RoomStatus> = {
+  // occupied
   "มีคนอยู่": "occupied",
   "มีผู้เช่า": "occupied",
   "อยู่": "occupied",
+  // ready / vacant
   "ว่าง": "ready",
   "พร้อมขาย": "ready",
+  "พร้อม": "ready",
+  // repair / maintenance
   "ปรับปรุง": "repair",
   "รอเข้าซ่อม": "repair",
+  "ซ่อม": "repair",
+  "รอซ่อม": "repair",
+  // pending (waiting move-in / contract)
   "รอสัญญา": "pending",
+  "รอย้ายเข้า": "pending",
+  // moveout
   "แจ้งย้ายออก": "moveout",
+  "รอย้ายออก": "moveout",
+  // qc / cleaning
   "รอตรวจ": "qc",
   "QC": "qc",
+  "รอทำสะอาด": "qc",
+  // inactive / reserved / ER
   "ไม่ได้ใช้งาน": "inactive",
+  "ห้องสำรอง": "inactive",
+  "สำรอง": "inactive",
+  "ER": "inactive",
 };
 
 function parseDateDMY(s: string): Date | null {
