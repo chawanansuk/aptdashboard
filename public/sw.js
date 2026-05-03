@@ -1,0 +1,84 @@
+/* Apartment Dashboard service worker
+ * Strategy:
+ *  - POST / non-GET: pass-through, never cache (writes go directly to Apps Script)
+ *  - /api/sheet*  GET : network-first, fallback to cache (offline read)
+ *  - Same-origin GET HTML/CSS/JS/images : stale-while-revalidate
+ *  - Other origins: pass-through
+ */
+const CACHE_VERSION = "ac-v3";
+const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
+const API_CACHE = `api-${CACHE_VERSION}`;
+
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => k !== RUNTIME_CACHE && k !== API_CACHE)
+          .map((k) => caches.delete(k))
+      );
+      await self.clients.claim();
+    })()
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return; // never cache writes
+
+  const url = new URL(req.url);
+
+  // Cross-origin: pass-through
+  if (url.origin !== self.location.origin) return;
+
+  // API: network-first, fallback to cache
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(networkFirst(req));
+    return;
+  }
+
+  // App shell / static: stale-while-revalidate (skip Next.js build manifest hot paths)
+  if (url.pathname.startsWith("/_next/data/")) return; // pass-through
+  event.respondWith(staleWhileRevalidate(req));
+});
+
+async function networkFirst(req) {
+  const cache = await caches.open(API_CACHE);
+  try {
+    const fresh = await fetch(req);
+    if (fresh && fresh.ok) cache.put(req, fresh.clone());
+    return fresh;
+  } catch (err) {
+    const cached = await cache.match(req);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set("X-From-Cache", "1");
+      return new Response(cached.body, {
+        status: cached.status,
+        statusText: cached.statusText,
+        headers,
+      });
+    }
+    return new Response(
+      JSON.stringify({ error: "offline และไม่มีข้อมูลใน cache" }),
+      { status: 503, headers: { "Content-Type": "application/json" } }
+    );
+  }
+}
+
+async function staleWhileRevalidate(req) {
+  const cache = await caches.open(RUNTIME_CACHE);
+  const cached = await cache.match(req);
+  const fetchPromise = fetch(req)
+    .then((res) => {
+      if (res && res.ok && res.type === "basic") cache.put(req, res.clone());
+      return res;
+    })
+    .catch(() => null);
+  return cached || (await fetchPromise) || new Response("offline", { status: 503 });
+}

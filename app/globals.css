@@ -1366,3 +1366,21 @@ html.dark .ac-skel {
 }
 html.dark .ac-task-creator { color: #64748B; }
 
+/* === Offline bar === */
+.ac-offline-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: #F59E0B;
+  color: #1F2937;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  padding: 6px 12px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+}
+html.dark .ac-offline-bar {
+  background: #B45309;
+  color: #FFF7ED;
+}
+
