@@ -15,9 +15,7 @@ import RoomModal from "@/components/RoomModal";
 import AddTaskModal from "@/components/AddTaskModal";
 import BulkAddModal from "@/components/BulkAddModal";
 import BulkActionBar from "@/components/BulkActionBar";
-import CreatorModal from "@/components/CreatorModal";
 import SkeletonLoader from "@/components/SkeletonLoader";
-import { getCreator, setCreator } from "@/lib/creator";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledStatus } from "@/lib/constants";
@@ -32,27 +30,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
-  // ---- Creator (localStorage name) ----
-  const [creator, setCreatorState] = useState<string>("");
-  const [creatorModal, setCreatorModal] = useState<{ open: boolean; pending?: () => void }>({ open: false });
-  const [creatorInput, setCreatorInput] = useState("");
-  useEffect(() => { setCreatorState(getCreator()); }, []);
-
-  function ensureCreator(action: () => void) {
-    const name = getCreator();
-    if (name) { action(); return; }
-    setCreatorInput("");
-    setCreatorModal({ open: true, pending: action });
-  }
-  function saveCreator() {
-    const v = creatorInput.trim();
-    if (!v) return;
-    setCreator(v);
-    setCreatorState(v);
-    const cb = creatorModal.pending;
-    setCreatorModal({ open: false });
-    if (cb) cb();
-  }
+  // (Session/role checks happen inside each component via useSession + lib/permissions)
 
   // ---- Presets ----
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -153,7 +131,6 @@ export default function Home() {
       if (e.key === "Escape") {
         if (selectedRoom) { setSelectedRoom(null); return; }
         if (showAddTask) { setShowAddTask(false); return; }
-        if (creatorModal.open) { setCreatorModal({ open: false }); return; }
         if (summaryOpen) { setSummaryOpen(false); return; }
         if (sidebarOpen) { setSidebarOpen(false); return; }
         return;
@@ -166,7 +143,7 @@ export default function Home() {
         if (input) { e.preventDefault(); input.focus(); input.select(); }
       } else if (e.key.toLowerCase() === "n") {
         e.preventDefault();
-        ensureCreator(() => setShowAddTask(true));
+        setShowAddTask(true);
       } else if (e.key.toLowerCase() === "r") {
         e.preventDefault();
         if (!isRefreshing) refresh();
@@ -174,8 +151,7 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRoom, showAddTask, creatorModal.open, summaryOpen, sidebarOpen, isRefreshing, refresh]);
+  }, [selectedRoom, showAddTask, summaryOpen, sidebarOpen, isRefreshing, refresh]);
 
   // ---- Derived data ----
   const buildings = useMemo(() => {
@@ -292,7 +268,6 @@ export default function Home() {
 
   async function submitBulkAdd() {
     if (bulkSelected.size === 0) return;
-    if (!getCreator()) { ensureCreator(() => {}); return; }
     setBulkSubmitting(true);
     let okCount = 0, failCount = 0;
     const items = Array.from(bulkSelected).map((k) => {
@@ -308,7 +283,7 @@ export default function Home() {
             action: "addTask",
             date: bulkAddDate, type: bulkAddType,
             building: item.building, room: item.room,
-            note: bulkAddNote, creator: getCreator(),
+            note: bulkAddNote,
           }),
         });
         const data = await res.json();
@@ -328,12 +303,10 @@ export default function Home() {
 
   // ---- Add task helpers ----
   function openAddTaskForRoom(building: string, room: string) {
-    ensureCreator(() => {
-      setTBuilding(building);
-      setTRoom(room);
-      setSelectedRoom(null);
-      setShowAddTask(true);
-    });
+    setTBuilding(building);
+    setTRoom(room);
+    setSelectedRoom(null);
+    setShowAddTask(true);
   }
 
   async function handleAddTask() {
@@ -346,7 +319,7 @@ export default function Home() {
         body: JSON.stringify({
           action: "addTask",
           date: tDate, type: tType, building: tBuilding, room: tRoom,
-          customer: tCustomer, phone: tPhone, note: tNote, creator: getCreator(),
+          customer: tCustomer, phone: tPhone, note: tNote,
         }),
       });
       const data = await res.json();
@@ -375,7 +348,6 @@ export default function Home() {
           building: selectedRoom.building, room: selectedRoom.room,
           status: editStatus, tenant: editTenant, phone: editPhone,
           contractEnd: editContractEnd, note: editNote, price: editPrice,
-          creator: getCreator(),
         }),
       });
       const data = await res.json();
@@ -428,12 +400,10 @@ export default function Home() {
         isRefreshing={isRefreshing}
         lastUpdated={lastUpdated}
         isDark={isDark}
-        creator={creator}
-        onAddTask={() => ensureCreator(() => setShowAddTask(true))}
+        onAddTask={() => setShowAddTask(true)}
         onRefresh={refresh}
         onToggleTheme={toggleTheme}
         onOpenSummary={() => setSummaryOpen(true)}
-        onOpenCreator={() => { setCreatorInput(creator); setCreatorModal({ open: true }); }}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
 
@@ -603,7 +573,7 @@ export default function Home() {
         <BulkActionBar
           count={bulkSelected.size}
           onClear={() => setBulkSelected(new Set())}
-          onAdd={() => ensureCreator(() => setBulkAddOpen(true))}
+          onAdd={() => setBulkAddOpen(true)}
           onExit={exitBulk}
         />
       )}
@@ -620,15 +590,6 @@ export default function Home() {
         onSubmit={submitBulkAdd}
       />
 
-      <CreatorModal
-        open={creatorModal.open}
-        hasCreator={!!creator}
-        value={creatorInput}
-        onChange={setCreatorInput}
-        onClose={() => setCreatorModal({ open: false })}
-        onSave={saveCreator}
-      />
-
       {toast && (
         <div className={`ac-toast ${toast.type === "ok" ? "ac-toast-ok" : "ac-toast-err"}`}>
           {toast.msg}
@@ -642,7 +603,7 @@ export default function Home() {
         tasks={tasks}
         onAddTask={() => {
           setSummaryOpen(false);
-          ensureCreator(() => setShowAddTask(true));
+          setShowAddTask(true);
         }}
         onTaskClick={() => {
           setSummaryOpen(false);

@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // ไม่ cache
 
 export async function GET() {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
   const url = process.env.SHEET_WRITE_URL;
   if (!url) {
     return NextResponse.json(

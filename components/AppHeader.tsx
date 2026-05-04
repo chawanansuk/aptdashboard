@@ -1,6 +1,8 @@
 "use client";
 
-import { creatorInitials } from "@/lib/creator";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { signOut, useSession } from "next-auth/react";
 
 interface Props {
   buildings: string[]; // includes "ทั้งหมด" first
@@ -9,20 +11,42 @@ interface Props {
   isRefreshing: boolean;
   lastUpdated: string;
   isDark: boolean;
-  creator: string;
   onAddTask: () => void;
   onRefresh: () => void;
   onToggleTheme: () => void;
   onOpenSummary: () => void;
-  onOpenCreator: () => void;
   onToggleSidebar: () => void;
+}
+
+function initialsFromName(name?: string | null): string {
+  const s = (name || "").trim();
+  if (!s) return "?";
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
 export default function AppHeader({
   buildings, activeBuilding, onChangeBuilding,
-  isRefreshing, lastUpdated, isDark, creator,
-  onAddTask, onRefresh, onToggleTheme, onOpenSummary, onOpenCreator, onToggleSidebar,
+  isRefreshing, lastUpdated, isDark,
+  onAddTask, onRefresh, onToggleTheme, onOpenSummary, onToggleSidebar,
 }: Props) {
+  const { data: session } = useSession();
+  const user = session?.user;
+  const role = user?.role;
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
   return (
     <header className="ac-nav">
       <div className="ac-nav-left">
@@ -46,7 +70,13 @@ export default function AppHeader({
           <span className="ac-add-btn-icon" style={{ display: "none" }}>+</span>
           <span className="ac-add-btn-text">+ เพิ่มงาน</span>
         </button>
-        <button className={`ac-icon-btn ${isRefreshing ? "is-spinning" : ""}`} aria-label="รีเฟรช" onClick={onRefresh} title="รีเฟรช" disabled={isRefreshing}>
+        <button
+          className={`ac-icon-btn ${isRefreshing ? "is-spinning" : ""}`}
+          aria-label="รีเฟรช"
+          onClick={onRefresh}
+          title="รีเฟรช"
+          disabled={isRefreshing}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/>
           </svg>
@@ -54,13 +84,51 @@ export default function AppHeader({
         <div className="ac-last-updated">อัปเดต: {lastUpdated || "-"}</div>
         <button className="ac-theme-toggle" onClick={onToggleTheme} aria-label="สลับโหมดมืด" title="สลับโหมดมืด">{isDark ? "☀️" : "☽"}</button>
         <button className="ac-summary-btn" onClick={onOpenSummary}>SUMMARY</button>
-        <button
-          className="ac-avatar"
-          onClick={onOpenCreator}
-          title={creator ? `ผู้ใช้: ${creator} (คลิกเพื่อแก้ไข)` : "ตั้งชื่อผู้ใช้"}
-        >
-          {creatorInitials(creator)}
-        </button>
+
+        <div className="ac-user-wrap">
+          <button
+            ref={triggerRef}
+            className="ac-user-trigger"
+            onClick={() => setMenuOpen((v) => !v)}
+            title={user?.name || user?.email || "ผู้ใช้"}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <span className="ac-user-pic">
+              {user?.image ? (
+                <Image src={user.image} alt="" width={36} height={36} unoptimized />
+              ) : (
+                <span>{initialsFromName(user?.name || user?.email)}</span>
+              )}
+            </span>
+          </button>
+
+          {menuOpen && (
+            <>
+              <div className="ac-user-menu-backdrop" onClick={() => setMenuOpen(false)} />
+              <div className="ac-user-menu" role="menu">
+                <div className="ac-user-info">
+                  <div className="ac-user-name">{user?.name || "ผู้ใช้"}</div>
+                  <div className="ac-user-email">{user?.email || ""}</div>
+                  {role && (
+                    <span className={`ac-user-role ${role === "admin" ? "ac-user-role-admin" : "ac-user-role-staff"}`}>
+                      {role}
+                    </span>
+                  )}
+                </div>
+                <button
+                  className="ac-user-signout"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    signOut({ callbackUrl: "/login" });
+                  }}
+                >
+                  ออกจากระบบ
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );

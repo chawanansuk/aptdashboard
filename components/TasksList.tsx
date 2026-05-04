@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import type { SheetRow } from "@/types";
-import { getCreator } from "@/lib/creator";
+import { canDeleteTask } from "@/lib/permissions";
 import EmptyState from "./EmptyState";
 
 // dd/MM/yyyy <-> yyyy-MM-dd conversion for <input type="date">
@@ -55,6 +56,9 @@ type EditState = {
 };
 
 export default function TasksList({ tasks, title, emptyText, onChanged }: Props) {
+  const { data: session } = useSession();
+  const canDelete = canDeleteTask(session?.user?.role);
+
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [edit, setEdit] = useState<EditState | null>(null);
@@ -69,7 +73,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
     const res = await fetch("/api/sheet/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, creator: getCreator() }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "ไม่สำเร็จ");
@@ -206,8 +210,10 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
                   <button className="ac-btn ac-btn-ghost ac-btn-sm" disabled={busyKey === k}
                     onClick={() => changeStatus(t, "ว่าง")} title="ดึงกลับเป็นยังไม่เสร็จ">คืน</button>
                 )}
-                <button className="ac-btn ac-btn-danger ac-btn-sm" disabled={busyKey === k}
-                  onClick={() => setConfirmDel(t)} title="ลบงานนี้ถาวร">ลบ</button>
+                {canDelete && (
+                  <button className="ac-btn ac-btn-danger ac-btn-sm" disabled={busyKey === k}
+                    onClick={() => setConfirmDel(t)} title="ลบงานนี้ถาวร">ลบ</button>
+                )}
                 <span className={`ac-task-status ${done ? "is-done" : ""} ${cancelled ? "is-cancelled" : ""}`}>
                   {done ? "เสร็จแล้ว" : cancelled ? "ยกเลิก" : (t.status || "ว่าง")}
                 </span>
