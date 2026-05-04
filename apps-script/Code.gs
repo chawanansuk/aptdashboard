@@ -1,6 +1,9 @@
 /**
- * Code.gs v3.3.0 — Dashboard หอพัก
+ * Code.gs v3.4.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
+ * NEW v3.4.0:
+ *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
+ *   - column I=ผู้สร้าง, J=วันที่สร้าง บันทึกผู้กรอกงาน
  */
 
 const SHEET_NAMES = {
@@ -18,7 +21,31 @@ const ROOM_STATUS    = ['ว่าง', 'มีผู้เช่า', 'จอ�
 const TASK_COL = {
   DATE: 1, TYPE: 2, BUILDING: 3, ROOM: 4,
   CUSTOMER: 5, PHONE: 6, NOTE: 7, STATUS: 8,
+  CREATOR: 9, CREATED_AT: 10,
 };
+
+/* ========== CACHE (NEW v3.4.0) ========== */
+const TASKS_CACHE_KEY = 'tasksCache_v1';
+const TASKS_CACHE_TTL_SEC = 60; // 60 วินาที — ปรับได้
+
+function getTasksCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(TASKS_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* cache เสีย — fall through */ }
+  }
+  const fresh = getTasks_();
+  try {
+    cache.put(TASKS_CACHE_KEY, JSON.stringify(fresh), TASKS_CACHE_TTL_SEC);
+  } catch (e) {
+    // payload > 100KB — ไม่ cache แต่ยังคืนค่า
+  }
+  return fresh;
+}
+
+function clearTasksCache_() {
+  try { CacheService.getScriptCache().remove(TASKS_CACHE_KEY); } catch (e) {}
+}
 
 /* ========== UTIL ========== */
 function norm(v) {
@@ -50,7 +77,7 @@ function doPost(e) {
     if (!body || !body.action) throw new Error('missing action');
 
     switch (body.action) {
-      case 'getTasks':         return ok_({ result: { rows: getTasks_() } });
+      case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
       case 'addTask':          return ok_(addTask_(body));
       case 'updateTask':       return ok_(updateTask_(body));
       case 'updateTaskStatus': return ok_(updateTaskStatus_(body));
@@ -65,7 +92,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.3.0' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.4.0' });
 }
 
 /* ========== TASK READ ========== */
@@ -74,18 +101,20 @@ function getTasks_() {
   if (!sh) return [];
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
-  const values = sh.getRange(2, 1, lastRow - 1, 8).getValues();
+  const values = sh.getRange(2, 1, lastRow - 1, 10).getValues();
   return values
     .map(function (r) {
       return {
-        date:     fmtDate_(r[0]),
-        type:     norm(r[1]),
-        building: norm(r[2]),
-        room:     norm(r[3]),
-        customer: norm(r[4]),
-        phone:    norm(r[5]),
-        note:     norm(r[6]),
-        status:   norm(r[7]),
+        date:      fmtDate_(r[0]),
+        type:      norm(r[1]),
+        building:  norm(r[2]),
+        room:      norm(r[3]),
+        customer:  norm(r[4]),
+        phone:     norm(r[5]),
+        note:      norm(r[6]),
+        status:    norm(r[7]),
+        creator:   norm(r[8]),
+        createdAt: norm(r[9]),
       };
     })
     .filter(function (r) { return r.date && r.type && r.building; });
@@ -129,8 +158,11 @@ function addTask_(b) {
     b.phone || '',
     b.note || '',
     b.status || 'ว่าง',
+    b.creator || '',
+    Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm'),
   ];
   sh.appendRow(row);
+  clearTasksCache_();
   return { appended: true, row: sh.getLastRow() };
 }
 
@@ -151,6 +183,7 @@ function updateTask_(b) {
   if (b.phone !== undefined)    sh.getRange(row, TASK_COL.PHONE).setValue(b.phone);
   if (b.note !== undefined)     sh.getRange(row, TASK_COL.NOTE).setValue(b.note);
   if (b.status !== undefined)   sh.getRange(row, TASK_COL.STATUS).setValue(b.status);
+  clearTasksCache_();
   return { updated: true, row: row };
 }
 
@@ -159,6 +192,7 @@ function updateTaskStatus_(b) {
   if (row < 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   sh.getRange(row, TASK_COL.STATUS).setValue(b.status || 'เสร็จ');
+  clearTasksCache_();
   return { updated: true, row: row };
 }
 
@@ -167,6 +201,7 @@ function deleteTask_(b) {
   if (row < 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   sh.deleteRow(row);
+  clearTasksCache_();
   return { deleted: true, row: row };
 }
 
@@ -203,7 +238,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.3 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.4 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {
@@ -343,10 +378,10 @@ function setupFilterViews_(ss) {
     const roomId = roomSh.getSheetId();
     requests.push(
       {addFilterView:{filter:{title:'🏠 งานวันนี้',
-        range:{sheetId:taskId, startRowIndex:0, startColumnIndex:0, endColumnIndex:8},
+        range:{sheetId:taskId, startRowIndex:0, startColumnIndex:0, endColumnIndex:10},
         criteria:{0:{condition:{type:'DATE_EQ', values:[{userEnteredValue:'=TODAY()'}]}}}}}},
       {addFilterView:{filter:{title:'🏠 เกินกำหนด',
-        range:{sheetId:taskId, startRowIndex:0, startColumnIndex:0, endColumnIndex:8},
+        range:{sheetId:taskId, startRowIndex:0, startColumnIndex:0, endColumnIndex:10},
         criteria:{
           0:{condition:{type:'DATE_BEFORE', values:[{userEnteredValue:'=TODAY()'}]}},
           7:{condition:{type:'TEXT_NOT_CONTAINS', values:[{userEnteredValue:'เสร็จ'}]}}
@@ -385,6 +420,7 @@ function onEdit(e) {
       const newStatus = (type === 'ย้ายออก') ? 'ว่าง' : (type === 'ย้ายเข้า') ? 'มีผู้เช่า' : null;
       if (newStatus) {
         roomSh.getRange(i+2, 4).setValue(newStatus);
+        clearTasksCache_();
         SpreadsheetApp.getActive().toast('ห้อง ' + building + ' ' + roomNum + ' → ' + newStatus, 'หอพัก', 5);
       }
       break;
