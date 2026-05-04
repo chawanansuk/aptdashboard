@@ -86,3 +86,48 @@ git push
 | วันที่แสดงผิด | ตรวจสอบรูปแบบ DD/MM/YYYY และปีเป็น ค.ศ. (ไม่ใช่ พ.ศ.) |
 | ตัวอักษรภาษาไทยแตก | รอโหลด font IBM Plex Sans Thai จาก Google Fonts |
 | Build error | รัน npm install ก่อน แล้วลอง npm run build ใหม่ |
+
+---
+
+## 🔐 การ Login (Phase 3.6)
+
+ระบบล็อกอินผ่าน **Google OAuth** + allowlist ตาม email พร้อม role-based access
+
+### Setup ครั้งแรก
+
+1. **Google Cloud Console**
+   - สร้าง project ใหม่ที่ https://console.cloud.google.com/
+   - APIs & Services → Credentials → Create Credentials → OAuth client ID
+   - Application type: Web application
+   - Authorized redirect URIs:
+     - `https://<your-domain>/api/auth/callback/google`
+     - `http://localhost:3000/api/auth/callback/google` (dev)
+   - Copy Client ID + Client Secret
+
+2. **Vercel Environment Variables** (Settings → Environment Variables)
+
+   | Key | Value |
+   |---|---|
+   | `AUTH_SECRET` | `openssl rand -base64 32` |
+   | `AUTH_GOOGLE_ID` | จาก Google Console |
+   | `AUTH_GOOGLE_SECRET` | จาก Google Console |
+   | `AUTH_TRUST_HOST` | `true` |
+   | `ALLOWED_USERS` | `owner@example.com:admin,staff1@example.com:staff` |
+
+3. **Redeploy** — ตรวจให้ env vars apply ทุก environment (Production / Preview)
+
+### Roles
+
+- **admin** — ดู + เพิ่ม + แก้ + **ลบงาน** + **แก้ผู้เช่า**
+- **staff** — ดู + เพิ่ม + แก้งาน (ห้ามลบ ห้ามแก้ห้อง)
+
+ทั้ง client (ซ่อนปุ่ม) และ server (`/api/sheet/update` 403) ตรวจ role ทั้งสองด้าน
+
+### เพิ่ม / ลบ user
+
+แก้ `ALLOWED_USERS` ใน Vercel แล้ว redeploy:
+```
+ALLOWED_USERS=alice@gmail.com:admin,bob@gmail.com:staff,carol@gmail.com:staff
+```
+
+User ที่ไม่อยู่ใน list จะเห็นหน้า `/login/denied` หลัง login Google สำเร็จ

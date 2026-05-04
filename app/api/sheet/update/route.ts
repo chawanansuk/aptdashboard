@@ -1,27 +1,77 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { canAddTask, canDeleteTask, canEditTask, canEditTenant } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
+type Body = {
+  action?: string;
+  [key: string]: unknown;
+};
+
+function isAllowed(action: string, role: "admin" | "staff" | undefined): boolean {
+  switch (action) {
+    case "addTask":          return canAddTask(role);
+    case "updateTask":
+    case "updateTaskStatus": return canEditTask(role);
+    case "deleteTask":       return canDeleteTask(role);
+    case "updateRoomStatus": return canEditTenant(role);
+    case "debugFindTask":    return canEditTask(role);
+    default:                 return false;
+  }
+}
+
 export async function POST(req: Request) {
+  // 1. Auth — all writes require login
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json(
+      { ok: false, error: "unauthenticated" },
+      { status: 401 }
+    );
+  }
+  const role = session.user.role;
+  const email = session.user.email;
+
+  // 2. Parse body
+  let body: Body;
+  try {
+    body = (await req.json()) as Body;
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "invalid JSON" },
+      { status: 400 }
+    );
+  }
+
+  const action = typeof body.action === "string" ? body.action : "";
+  if (!action) {
+    return NextResponse.json(
+      { ok: false, error: "missing action" },
+      { status: 400 }
+    );
+  }
+
+  // 3. Role check
+  if (!isAllowed(action, role)) {
+    return NextResponse.json(
+      { ok: false, error: `ไม่มีสิทธิ์สำหรับการกระทำนี้ (action=${action}, role=${role || "none"})` },
+      { status: 403 }
+    );
+  }
+
+  // 4. Stamp creator from session — overrides anything client sent
+  body.creator = email;
+
+  // 5. Forward to Apps Script
   const writeUrl = process.env.SHEET_WRITE_URL;
   if (!writeUrl) {
     return NextResponse.json(
       {
         ok: false,
-        error:
-          "ยังไม่ได้ตั้งค่า SHEET_WRITE_URL (ดู docs/SETUP.md)",
+        error: "ยังไม่ได้ตั้งค่า SHEET_WRITE_URL (ดู docs/SETUP.md)",
       },
       { status: 503 }
-    );
-  }
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: "invalid JSON" },
-      { status: 400 }
     );
   }
 

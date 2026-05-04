@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { parseRoomsCSV } from "@/lib/parseSheet";
+import { auth } from "@/auth";
 
 export const revalidate = 60;
 
 export async function GET() {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
   const url = process.env.NEXT_PUBLIC_SHEET_ROOMS_CSV_URL;
   if (!url) {
     return NextResponse.json(

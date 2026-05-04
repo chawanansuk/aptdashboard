@@ -5,7 +5,7 @@
  *  - Same-origin GET HTML/CSS/JS/images : stale-while-revalidate
  *  - Other origins: pass-through
  */
-const CACHE_VERSION = "ac-v3";
+const CACHE_VERSION = "ac-v4";
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 const API_CACHE = `api-${CACHE_VERSION}`;
 
@@ -35,6 +35,15 @@ self.addEventListener("fetch", (event) => {
 
   // Cross-origin: pass-through
   if (url.origin !== self.location.origin) return;
+
+  // Auth flows: never cache, never intercept (let middleware/server handle redirects)
+  if (
+    url.pathname.startsWith("/api/auth") ||
+    url.pathname === "/login" ||
+    url.pathname.startsWith("/login/")
+  ) {
+    return;
+  }
 
   // API: network-first, fallback to cache
   if (url.pathname.startsWith("/api/")) {

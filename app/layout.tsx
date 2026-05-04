@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import PWAClient from "@/components/PWAClient";
+import SessionProviderClient from "@/components/SessionProviderClient";
+import { auth } from "@/auth";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -34,11 +36,12 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
   return (
     <html lang="th">
       <body className="antialiased" style={{ minHeight: "100vh" }}>
@@ -47,8 +50,10 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
           }}
         />
-        <PWAClient />
-        {children}
+        <SessionProviderClient session={session}>
+          <PWAClient />
+          {children}
+        </SessionProviderClient>
       </body>
     </html>
   );
