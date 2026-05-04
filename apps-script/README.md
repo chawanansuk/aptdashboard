@@ -12,7 +12,14 @@
 
 ## ไฟล์ในโฟลเดอร์
 
-- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน v3.4.0)
+- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน v3.4.2)
+
+### Version history
+
+- **v3.4.2** (current) — `addTask_` default status `'pending'` (เดิม `'ว่าง'` ผิด context — `'ว่าง'` เป็นสถานะของห้อง). `STATUS_OPTIONS` คงเดิม
+- **v3.4.1** — frontend-only fix ที่ `components/SummaryDrawer.tsx` (ISO date parser) — ไม่กระทบ Apps Script
+- **v3.4.0** — เพิ่ม `getTasksCached_` (CacheService 60s) + column I=ผู้สร้าง, J=วันที่สร้าง
+- **v3.3.0** — baseline ที่ import เข้า repo ครั้งแรก
 
 ## Sheet schema ที่ Code.gs คาดหวัง
 
@@ -33,18 +40,21 @@
 
 ชีต `ห้อง` ต้องมี header: `ตึก`, `ห้อง`, `สถานะ`, (optional) `ผู้เช่า`, `เบอร์`, `สัญญา`
 
-## Deploy v3.4.0 — ขั้นตอน (user ทำเอง)
+## Deploy — ขั้นตอน (user ทำเอง)
 
-### 1. เพิ่ม column ในชีต `งาน`
+> Path เดียวกันทุก version: paste ทับ → Save → Manage deployments → New version → Deploy
+
+### 1. เพิ่ม column ในชีต `งาน` (เฉพาะ first-time deploy v3.4.0+)
 
 - คลิกหัว column I → ใส่ `ผู้สร้าง`
 - คลิกหัว column J → ใส่ `วันที่สร้าง`
 - (ไม่ต้องกรอกข้อมูลแถวเก่า — เว้น blank ได้ Code.gs จะคืนค่าเป็น string ว่าง)
+- ถ้า deploy v3.4.2 จาก v3.4.0 ที่มี column I/J อยู่แล้ว — ข้ามขั้นนี้
 
 ### 2. สำรอง Code.gs เดิม (กันพลาด)
 
 - เปิด Apps Script editor (Extensions → Apps Script)
-- File → Make a copy → ตั้งชื่อ `Code.gs.backup-v3.3.0`
+- File → Make a copy → ตั้งชื่อตาม version ปัจจุบัน เช่น `Code.gs.backup-v3.4.0`
 
 ### 3. Paste Code.gs ใหม่
 
@@ -59,7 +69,7 @@
 - Deploy → Manage deployments
 - คลิก ✏️ (edit) ตรง Web app deployment ที่ใช้อยู่
 - Version dropdown → **New version**
-- Description: `v3.4.0 — cache + creator fields`
+- Description: ใส่ version + summary เช่น `v3.4.2 — default task status pending`
 - คลิก **Deploy**
 
 > URL `SHEET_WRITE_URL` คงเดิม — ไม่ต้องแก้ Vercel env
