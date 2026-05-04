@@ -21,6 +21,52 @@ export function parseThaiDate(dateStr: string): Date | null {
   return toZonedTime(date, TZ);
 }
 
+/**
+ * Parse a date string returned from the Google Sheet (`งาน` tab).
+ *
+ * Apps Script `fmtDate_` returns:
+ *   - "yyyy-MM-dd" when the cell is a Date object (e.g. "2026-05-04")
+ *   - the raw cell string otherwise (often "dd/MM/yyyy" typed by hand)
+ *
+ * This helper accepts both — plus DMY with `-` or `.` separators and
+ * 2-digit years — and validates day (1-31) / month (1-12) strictly.
+ * Returns `null` for any invalid input.
+ *
+ * Returned Date is a local Date (no timezone shift). Callers that need
+ * Bangkok-aware comparisons should prefer `parseThaiDate` for legacy
+ * DMY-only data; this helper is for sheet-API responses.
+ */
+export function parseSheetDate(s: string): Date | null {
+  if (!s) return null;
+  const t = String(s).trim();
+  if (!t) return null;
+
+  // ISO 8601 (year-first): yyyy-M-d  — what Apps Script emits for Date cells
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) {
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10);
+    const d = parseInt(m[3], 10);
+    if (mo < 1 || mo > 12) return null;
+    if (d < 1 || d > 31) return null;
+    return new Date(y, mo - 1, d);
+  }
+
+  // Day-first: d/M/yyyy or d-M-yyyy or d.M.yyyy (also 2-digit year)
+  m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m) {
+    const d = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10);
+    let y = parseInt(m[3], 10);
+    if (mo < 1 || mo > 12) return null;
+    if (d < 1 || d > 31) return null;
+    if (y < 100) y = 2000 + y;
+    return new Date(y, mo - 1, d);
+  }
+
+  return null;
+}
+
 export function isToday(date: Date): boolean {
   const now = getBangkokNow();
   return isSameDay(date, now);
