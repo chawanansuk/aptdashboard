@@ -1,9 +1,12 @@
 /**
- * Code.gs v3.4.0 — Dashboard หอพัก
+ * Code.gs v3.4.2 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
  *   - column I=ผู้สร้าง, J=วันที่สร้าง บันทึกผู้กรอกงาน
+ * NEW v3.4.2:
+ *   - addTask_ default status 'pending' (เดิม 'ว่าง' เป็นสถานะของห้อง ไม่ใช่งาน)
+ *     STATUS_OPTIONS ยังคง 'ว่าง' ไว้สำหรับ backward compat
  */
 
 const SHEET_NAMES = {
@@ -92,7 +95,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.4.0' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.4.2' });
 }
 
 /* ========== TASK READ ========== */
@@ -157,7 +160,7 @@ function addTask_(b) {
     b.customer || '',
     b.phone || '',
     b.note || '',
-    b.status || 'ว่าง',
+    b.status || 'pending',
     b.creator || '',
     Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm'),
   ];
@@ -238,7 +241,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.4 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.4.2 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {
