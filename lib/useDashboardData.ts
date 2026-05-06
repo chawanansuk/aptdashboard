@@ -151,12 +151,23 @@ const RETRY_DELAYS_MS = [500, 1500, 3000];
 
 async function fetchWithRetry(url: string, signal: AbortSignal): Promise<Response> {
   let lastErr: unknown = null;
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  let attempts = 0;
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    attempts = attempt + 1;
     if (signal.aborted) throw new Error("aborted");
     try {
       const res = await fetch(url, { cache: "no-store", signal });
-      if (res.ok) return res;
+      if (res.ok) {
+        const dt = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
+        // eslint-disable-next-line no-console
+        console.log(`[dashboard] ${url} ${dt}ms${attempts > 1 ? ` (attempt ${attempts})` : ""}`);
+        return res;
+      }
       if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+        const dt = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
+        // eslint-disable-next-line no-console
+        console.log(`[dashboard] ${url} ${dt}ms (status ${res.status}, no retry)`);
         return res;
       }
       lastErr = new Error(`HTTP ${res.status}`);
@@ -168,6 +179,9 @@ async function fetchWithRetry(url: string, signal: AbortSignal): Promise<Respons
     if (delay == null) break;
     await new Promise((r) => setTimeout(r, delay));
   }
+  const dt = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
+  // eslint-disable-next-line no-console
+  console.log(`[dashboard] ${url} ${dt}ms (failed after ${attempts} attempts)`);
   throw lastErr instanceof Error ? lastErr : new Error("fetch failed");
 }
 
