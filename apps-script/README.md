@@ -100,3 +100,48 @@ cache invalidate อัตโนมัติเมื่อแก้ผ่าน
 3. หลัง merge → user ทำขั้นตอน Deploy ข้างบน
 
 ห้าม push ตรงเข้า main / ห้าม Claude Code Save+Deploy แทน user
+
+---
+
+## Keep-alive (กัน Apps Script cold start)
+
+ปัญหา: Apps Script ที่ไม่มีคนใช้ ~5-15 นาที จะ cold start ครั้งแรกของวันช้า ~5-10s
+
+แก้: ตั้ง time-driven trigger ให้ runtime ตื่นตลอด
+
+### วิธีตั้ง (Apps Script editor)
+
+1. เปิด Apps Script editor (Extensions → Apps Script)
+2. เพิ่ม function ตัวนี้ที่ท้ายไฟล์ Code.gs (หรือไฟล์แยกก็ได้):
+
+```javascript
+/**
+ * Keep-alive — เรียก getTasksCached_ ทุก N นาทีเพื่อให้ Apps Script ตื่น
+ * ไม่ได้ทำอะไรนอกจากอ่าน sheet (ผ่าน cache) แล้วทิ้งผลลัพธ์
+ */
+function keepAlive() {
+  try {
+    getTasksCached_();
+  } catch (e) {
+    Logger.log('keepAlive failed: ' + e.message);
+  }
+}
+```
+
+3. เปิด **Triggers** (รูปนาฬิกาด้านซ้าย)
+4. **Add Trigger** → ตั้งค่า:
+   - Function: `keepAlive`
+   - Event source: `Time-driven`
+   - Type: `Minutes timer`
+   - Interval: `Every 5 minutes` (ถี่กว่านี้ก็ได้ แต่จะใช้ quota เร็ว)
+5. Save
+
+### ข้อจำกัด
+- Apps Script Free quota: **6 ชม./วัน** ของ runtime — ทุก 5 นาทีเรียก ใช้ ~0.05s × 288 = **15 วินาที/วัน** (ไม่กระทบ quota)
+- ถ้ามี cache hit (60s TTL): keepAlive แค่ดึง JSON จาก CacheService = แทบไม่ใช้ runtime
+
+### Verify
+
+หลังตั้งแล้ว 5 นาที ดู **Executions** — ควรเห็น `keepAlive` รันเป็น series เวลา ~5 นาทีต่อครั้ง
+
+ถ้าระบบ cold start ผ่าน trigger นี้ (ไม่ใช่ user เปิดเว็บ) → user ครั้งแรกของวันจะได้ cache hit ทันที
