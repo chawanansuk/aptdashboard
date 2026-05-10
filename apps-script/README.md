@@ -12,11 +12,12 @@
 
 ## ไฟล์ในโฟลเดอร์
 
-- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน v3.4.2)
+- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน v3.4.3)
 
 ### Version history
 
-- **v3.4.2** (current) — `addTask_` default status `'pending'` (เดิม `'ว่าง'` ผิด context — `'ว่าง'` เป็นสถานะของห้อง). `STATUS_OPTIONS` คงเดิม
+- **v3.4.3** (current) — `getRooms_/getRoomsCached_` action ใหม่: อ่านชีต `ห้อง` real-time แทน CSV publish (CSV publish มี Google cache ~5 นาที ทำให้ updateRoomStatus ไม่เห็นผลทันที). `clearRoomsCache_` ใน `updateRoomStatus_` + `onEdit`
+- **v3.4.2** — `addTask_` default status `'pending'` (เดิม `'ว่าง'` ผิด context — `'ว่าง'` เป็นสถานะของห้อง). `STATUS_OPTIONS` คงเดิม
 - **v3.4.1** — frontend-only fix ที่ `components/SummaryDrawer.tsx` (ISO date parser) — ไม่กระทบ Apps Script
 - **v3.4.0** — เพิ่ม `getTasksCached_` (CacheService 60s) + column I=ผู้สร้าง, J=วันที่สร้าง
 - **v3.3.0** — baseline ที่ import เข้า repo ครั้งแรก

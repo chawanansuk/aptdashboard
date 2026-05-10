@@ -145,6 +145,13 @@ export interface DashboardState {
   isInitial: boolean;
   isRefreshing: boolean;
   refresh: () => void;
+  /**
+   * Optimistically merge field changes into local rooms state, so the
+   * UI reflects an updateRoomStatus response immediately even when the
+   * canonical CSV publish takes minutes to refresh.
+   * Background refresh (next refresh()) overwrites with server truth.
+   */
+  optimisticUpdateRoom: (building: string, room: string, patch: Partial<RoomRow>) => void;
 }
 
 const RETRY_DELAYS_MS = [500, 1500, 3000];
@@ -281,6 +288,21 @@ export function useDashboardData(): DashboardState {
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
+  const optimisticUpdateRoom = useCallback(
+    (building: string, room: string, patch: Partial<RoomRow>) => {
+      const b = (building || "").trim();
+      const r = (room || "").trim();
+      setRooms((prev) =>
+        prev.map((row) =>
+          (row.building || "").trim() === b && (row.room || "").trim() === r
+            ? { ...row, ...patch }
+            : row
+        )
+      );
+    },
+    []
+  );
+
   return {
     status,
     rooms: merged,
@@ -290,5 +312,6 @@ export function useDashboardData(): DashboardState {
     isInitial,
     isRefreshing: status === "loading" && !isInitial,
     refresh,
+    optimisticUpdateRoom,
   };
 }

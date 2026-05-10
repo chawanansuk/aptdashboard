@@ -21,7 +21,7 @@ import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/p
 import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledStatus } from "@/lib/constants";
 
 export default function Home() {
-  const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing } =
+  const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing, optimisticUpdateRoom } =
     useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
 
   // ---- UI state ----
@@ -353,6 +353,15 @@ export default function Home() {
       const data = await res.json();
       if (data.ok) {
         setToast({ type: "ok", msg: "บันทึกแล้ว — รีเฟรชข้อมูล" });
+        // Optimistic local update — shows the change immediately even if the
+        // canonical CSV publish behind /api/sheet/rooms hasn't refreshed yet
+        optimisticUpdateRoom(selectedRoom.building, selectedRoom.room, {
+          status: editStatus,
+          tenant: editTenant,
+          phone: editPhone,
+          contractEnd: editContractEnd,
+          price: editPrice,
+        });
         setSelectedRoom(null);
         refresh();
       } else {
