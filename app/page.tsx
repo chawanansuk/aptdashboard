@@ -1,13 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
-import SummaryDrawer from "@/components/SummaryDrawer";
-import IncomeView from "@/components/IncomeView";
-import TenantsView from "@/components/TenantsView";
-import CalendarView from "@/components/CalendarView";
 import AppHeader from "@/components/AppHeader";
 import AppSidebar from "@/components/AppSidebar";
 import RoomsView from "@/components/RoomsView";
@@ -19,6 +15,16 @@ import SkeletonLoader from "@/components/SkeletonLoader";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledStatus } from "@/lib/constants";
+
+// Heavy views — lazy-loaded so the default 'overview' page ships less JS
+const IncomeView    = lazy(() => import("@/components/IncomeView"));
+const TenantsView   = lazy(() => import("@/components/TenantsView"));
+const CalendarView  = lazy(() => import("@/components/CalendarView"));
+const SummaryDrawer = lazy(() => import("@/components/SummaryDrawer"));
+
+function ViewLoading() {
+  return <div className="ac-empty" style={{ padding: 40, textAlign: "center", color: "#94A3B8" }}>กำลังโหลด...</div>;
+}
 
 export default function Home() {
   const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing, optimisticUpdateRoom } =
@@ -528,13 +534,19 @@ export default function Home() {
           )}
 
           {activeView === "income" && (
-            <IncomeView rooms={rooms} activeBuilding={activeBuilding} />
+            <Suspense fallback={<ViewLoading />}>
+              <IncomeView rooms={rooms} activeBuilding={activeBuilding} />
+            </Suspense>
           )}
           {activeView === "tenants" && (
-            <TenantsView rooms={rooms} activeBuilding={activeBuilding} onSelectRoom={(r) => setSelectedRoom(r)} />
+            <Suspense fallback={<ViewLoading />}>
+              <TenantsView rooms={rooms} activeBuilding={activeBuilding} onSelectRoom={(r) => setSelectedRoom(r)} />
+            </Suspense>
           )}
           {activeView === "calendar" && (
-            <CalendarView tasks={tasks} activeBuilding={activeBuilding} rooms={rooms} onSelectRoom={(r) => setSelectedRoom(r)} />
+            <Suspense fallback={<ViewLoading />}>
+              <CalendarView tasks={tasks} activeBuilding={activeBuilding} rooms={rooms} onSelectRoom={(r) => setSelectedRoom(r)} />
+            </Suspense>
           )}
         </main>
       </div>
@@ -605,20 +617,24 @@ export default function Home() {
         </div>
       )}
 
-      <SummaryDrawer
-        open={summaryOpen}
-        onClose={() => setSummaryOpen(false)}
-        rooms={rooms}
-        tasks={tasks}
-        onAddTask={() => {
-          setSummaryOpen(false);
-          setShowAddTask(true);
-        }}
-        onTaskClick={() => {
-          setSummaryOpen(false);
-          setActiveView("today");
-        }}
-      />
+      {summaryOpen && (
+        <Suspense fallback={null}>
+          <SummaryDrawer
+            open={summaryOpen}
+            onClose={() => setSummaryOpen(false)}
+            rooms={rooms}
+            tasks={tasks}
+            onAddTask={() => {
+              setSummaryOpen(false);
+              setShowAddTask(true);
+            }}
+            onTaskClick={() => {
+              setSummaryOpen(false);
+              setActiveView("today");
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -217,53 +217,30 @@ export function useDashboardData(): DashboardState {
     let alive = true;
     const run = async () => {
       setStatus("loading");
-      const errs: string[] = [];
       try {
-        const [rResult, tResult] = await Promise.allSettled([
-          fetchWithRetry("/api/sheet/rooms", ctrl.signal),
-          fetchWithRetry("/api/sheet", ctrl.signal),
-        ]);
-
-        let rRooms: RoomRow[] = [];
-        let rTasks: SheetRow[] = [];
-        let gotRooms = false;
-        let gotTasks = false;
-
-        if (rResult.status === "fulfilled") {
-          const j = await rResult.value.json().catch(() => ({ error: "invalid JSON" }));
-          if (j.error) errs.push("rooms: " + j.error);
-          else { rRooms = j.rooms || []; gotRooms = true; }
-        } else {
-          const m = rResult.reason instanceof Error ? rResult.reason.message : "unknown";
-          if (m !== "aborted") errs.push("rooms: " + m);
-        }
-
-        if (tResult.status === "fulfilled") {
-          const j = await tResult.value.json().catch(() => ({ error: "invalid JSON" }));
-          if (j.error) errs.push("tasks: " + j.error);
-          else { rTasks = j.rows || []; gotTasks = true; }
-        } else {
-          const m = tResult.reason instanceof Error ? tResult.reason.message : "unknown";
-          if (m !== "aborted") errs.push("tasks: " + m);
-        }
+        // Single combined call (was 2 calls /api/sheet + /api/sheet/rooms)
+        const res = await fetchWithRetry("/api/dashboard", ctrl.signal);
+        const j = await res.json().catch(() => ({ error: "invalid JSON" }));
 
         if (!alive || ctrl.signal.aborted) return;
-        if (gotRooms) setRooms(rRooms);
-        if (gotTasks) setTasks(rTasks);
+
+        const errs: string[] = [];
+        if (j.error) errs.push(String(j.error));
+        if (Array.isArray(j.errors)) for (const e of j.errors) errs.push(String(e));
+
+        const rRooms: RoomRow[] = Array.isArray(j.rooms) ? j.rooms : [];
+        const rTasks: SheetRow[] = Array.isArray(j.tasks) ? j.tasks : [];
+
+        if (rRooms.length || rTasks.length) {
+          setRooms(rRooms);
+          setTasks(rTasks);
+          if (rRooms.length || rTasks.length) saveCache(rRooms, rTasks);
+        }
         setErrors(errs);
-        setLastUpdated(new Date().toLocaleTimeString("th-TH"));
-        const hasAnyData = (gotRooms && rRooms.length > 0) || (gotTasks && rTasks.length > 0);
+        setLastUpdated(new Date().toLocaleTimeString("th-TH") + (j.cached ? " (server cache)" : ""));
+        const hasAnyData = rRooms.length > 0 || rTasks.length > 0;
         setStatus(errs.length && !hasAnyData ? "error" : "ok");
         setIsInitial(false);
-
-        // Persist freshest snapshot to cache. Use newly-fetched values where
-        // available; for the half that failed, re-use the most recent cache.
-        if (gotRooms || gotTasks) {
-          const cached = loadCache();
-          const finalRooms = gotRooms ? rRooms : cached?.rooms ?? [];
-          const finalTasks = gotTasks ? rTasks : cached?.tasks ?? [];
-          if (finalRooms.length || finalTasks.length) saveCache(finalRooms, finalTasks);
-        }
       } catch (e) {
         if (!alive) return;
         const msg = e instanceof Error ? e.message : "unknown";
