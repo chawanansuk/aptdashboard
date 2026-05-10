@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canAddTask, canDeleteTask, canEditTask, canEditTenant } from "@/lib/permissions";
+import { invalidateDashboardCache } from "@/lib/dashboardCache";
 
 export const runtime = "nodejs";
 
@@ -99,6 +100,12 @@ export async function POST(req: Request) {
         { status: 502 }
       );
     }
+    // Successful write → invalidate function-local dashboard cache so the
+    // next /api/dashboard call refetches fresh data
+    if (data && typeof data === "object" && (data as { ok?: boolean }).ok !== false) {
+      invalidateDashboardCache();
+    }
+
     return NextResponse.json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown";

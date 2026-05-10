@@ -44,6 +44,11 @@ export default async function RootLayout({
   const session = await auth();
   return (
     <html lang="th">
+      <head>
+        {/* Warm TCP+TLS to Google avatar CDN before <Image> request — saves ~50-100ms on first profile pic load */}
+        <link rel="preconnect" href="https://lh3.googleusercontent.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://lh3.googleusercontent.com" />
+      </head>
       <body className="antialiased" style={{ minHeight: "100vh" }}>
         <script
           dangerouslySetInnerHTML={{
