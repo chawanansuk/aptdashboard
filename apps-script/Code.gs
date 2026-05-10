@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.4.2 — Dashboard หอพัก
+ * Code.gs v3.4.3 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -7,6 +7,11 @@
  * NEW v3.4.2:
  *   - addTask_ default status 'pending' (เดิม 'ว่าง' เป็นสถานะของห้อง ไม่ใช่งาน)
  *     STATUS_OPTIONS ยังคง 'ว่าง' ไว้สำหรับ backward compat
+ * NEW v3.4.3:
+ *   - getRooms_/getRoomsCached_ — อ่านชีต ห้อง real-time แทน CSV publish
+ *     (CSV publish มี 5min cache จาก Google ที่ทำให้ updateRoomStatus
+ *      ไม่เห็นผลทันที)
+ *   - clearRoomsCache_ ใน updateRoomStatus_ + onEdit
  */
 
 const SHEET_NAMES = {
@@ -50,6 +55,27 @@ function clearTasksCache_() {
   try { CacheService.getScriptCache().remove(TASKS_CACHE_KEY); } catch (e) {}
 }
 
+/* ========== ROOMS CACHE (NEW v3.4.3) ========== */
+const ROOMS_CACHE_KEY = 'roomsCache_v1';
+const ROOMS_CACHE_TTL_SEC = 60;
+
+function getRoomsCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(ROOMS_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+  const fresh = getRooms_();
+  try {
+    cache.put(ROOMS_CACHE_KEY, JSON.stringify(fresh), ROOMS_CACHE_TTL_SEC);
+  } catch (e) {}
+  return fresh;
+}
+
+function clearRoomsCache_() {
+  try { CacheService.getScriptCache().remove(ROOMS_CACHE_KEY); } catch (e) {}
+}
+
 /* ========== UTIL ========== */
 function norm(v) {
   if (v === null || v === undefined) return '';
@@ -81,6 +107,7 @@ function doPost(e) {
 
     switch (body.action) {
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
+      case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
       case 'addTask':          return ok_(addTask_(body));
       case 'updateTask':       return ok_(updateTask_(body));
       case 'updateTaskStatus': return ok_(updateTaskStatus_(body));
@@ -95,7 +122,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.4.2' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.4.3' });
 }
 
 /* ========== TASK READ ========== */
@@ -121,6 +148,58 @@ function getTasks_() {
       };
     })
     .filter(function (r) { return r.date && r.type && r.building; });
+}
+
+/* ========== ROOMS READ (NEW v3.4.3) ========== */
+/**
+ * Read the ห้อง sheet and return RoomRow[] for the dashboard.
+ * Maps Thai column headers to English keys (matches lib/parseSheet
+ * ROOM_HEADER_ALIASES). Tolerates schema variations (header order,
+ * column-name aliases). Empty rows are dropped.
+ */
+function getRooms_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.ROOM);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(norm);
+
+  // Multi-alias resolver — first match wins
+  function findIdx(aliases) {
+    for (var i = 0; i < aliases.length; i++) {
+      var idx = headers.indexOf(aliases[i]);
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  }
+  var iBld    = findIdx(['ตึก', 'อาคาร']);
+  var iRoom   = findIdx(['ห้อง', 'เลขห้อง']);
+  var iFloor  = findIdx(['ชั้น']);
+  var iStatus = findIdx(['สถานะ']);
+  var iTenant = findIdx(['ผู้เช่า', 'ผู้เช่าปัจจุบัน', 'ชื่อผู้เช่า']);
+  var iPhone  = findIdx(['เบอร์', 'เบอร์ติดต่อ', 'เบอร์โทร']);
+  var iCntr   = findIdx(['สัญญา', 'วันสัญญาหมด', 'สัญญาหมด', 'วันหมดสัญญา']);
+  var iPrice  = findIdx(['ค่าเช่า', 'ราคา/เดือน', 'ราคา', 'ค่าเช่ารายเดือน']);
+
+  var rows = [];
+  for (var i = 1; i < data.length; i++) {
+    var r = data[i];
+    var building = iBld    >= 0 ? norm(r[iBld])    : '';
+    var room     = iRoom   >= 0 ? norm(r[iRoom])   : '';
+    if (!building || !room) continue;
+    rows.push({
+      building:    building,
+      room:        room,
+      floor:       iFloor  >= 0 ? norm(r[iFloor])  : '',
+      status:      iStatus >= 0 ? norm(r[iStatus]) : '',
+      tenant:      iTenant >= 0 ? norm(r[iTenant]) : '',
+      phone:       iPhone  >= 0 ? norm(r[iPhone])  : '',
+      contractEnd: iCntr   >= 0 ? fmtDate_(r[iCntr]) : '',
+      price:       iPrice  >= 0 ? norm(r[iPrice])  : '',
+    });
+  }
+  return rows;
 }
 
 /* ========== TASK FIND (composite key) ========== */
@@ -227,6 +306,7 @@ function updateRoomStatus_(b) {
       if (b.tenant      !== undefined && idxTenant >= 0) sh.getRange(i+1, idxTenant+1).setValue(b.tenant);
       if (b.phone       !== undefined && idxPhone  >= 0) sh.getRange(i+1, idxPhone+1).setValue(b.phone);
       if (b.contractEnd !== undefined && idxCntr   >= 0) sh.getRange(i+1, idxCntr+1).setValue(b.contractEnd);
+      clearRoomsCache_();
       return { updated: true, row: i+1 };
     }
   }
@@ -241,7 +321,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.4.2 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.4.3 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {
@@ -424,6 +504,7 @@ function onEdit(e) {
       if (newStatus) {
         roomSh.getRange(i+2, 4).setValue(newStatus);
         clearTasksCache_();
+        clearRoomsCache_();
         SpreadsheetApp.getActive().toast('ห้อง ' + building + ' ' + roomNum + ' → ' + newStatus, 'หอพัก', 5);
       }
       break;
