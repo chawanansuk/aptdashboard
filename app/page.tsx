@@ -328,16 +328,19 @@ export default function Home() {
           customer: tCustomer, phone: tPhone, note: tNote,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+      console.log("[write] addTask response", res.status, data);
       if (data.ok) {
         setToast({ type: "ok", msg: "เพิ่มงานแล้ว — รีเฟรชข้อมูล" });
         setShowAddTask(false);
         setTCustomer(""); setTPhone(""); setTNote(""); setTRoom("");
         refresh();
       } else {
-        setToast({ type: "err", msg: data.error || "เพิ่มงานไม่สำเร็จ" });
+        const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
+        setToast({ type: "err", msg: `เพิ่มงานไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}` });
       }
     } catch (e: unknown) {
+      console.error("[write] addTask failed", e);
       setToast({ type: "err", msg: e instanceof Error ? e.message : "Network error" });
     } finally { setSavingTask(false); }
   }
@@ -356,7 +359,8 @@ export default function Home() {
           contractEnd: editContractEnd, note: editNote, price: editPrice,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+      console.log("[write] updateRoomStatus response", res.status, data);
       if (data.ok) {
         setToast({ type: "ok", msg: "บันทึกแล้ว — รีเฟรชข้อมูล" });
         // Optimistic local update — shows the change immediately even if the
@@ -371,9 +375,11 @@ export default function Home() {
         setSelectedRoom(null);
         refresh();
       } else {
-        setToast({ type: "err", msg: data.error || "บันทึกไม่สำเร็จ" });
+        const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
+        setToast({ type: "err", msg: `บันทึกไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}` });
       }
     } catch (e) {
+      console.error("[write] updateRoomStatus failed", e);
       setToast({ type: "err", msg: e instanceof Error ? e.message : "Network error" });
     } finally { setSaving(false); }
   }

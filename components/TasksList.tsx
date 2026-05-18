@@ -75,8 +75,12 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || "ไม่สำเร็จ");
+    const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+    console.log("[write] task action", payload.action, res.status, data);
+    if (!data.ok) {
+      const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
+      throw new Error(`${data.error || "ไม่สำเร็จ"}${statusSuffix}`);
+    }
   }
 
   async function changeStatus(t: SheetRow, newStatus: string) {
