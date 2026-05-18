@@ -9,7 +9,7 @@ import type { RoomEquipment } from "@/types";
  * without an extra request.
  */
 
-const KEY_PREFIX = "roomEquipment:v1:";
+const KEY_PREFIX = "roomEquipment:v2:";
 const TTL_MS = 5 * 60 * 1000;
 
 interface CachedEntry {

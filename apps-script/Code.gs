@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.6.0 — Dashboard หอพัก
+ * Code.gs v3.7.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -16,6 +16,9 @@
  *   - tab "อุปกรณ์" auto-create + actions getRoomEquipment / addEquipment /
  *     updateEquipment (ใช้กับ Engineer mode)
  *   - cache 60s + invalidate ตอน add/update
+ * NEW v3.7.0:
+ *   - column L "รอบบำรุง(วัน)" ใน tab อุปกรณ์ (auto-expand backward compat)
+ *   - action getAllEquipment — list ทั่วโครงการ สำหรับ Maintenance view
  */
 
 const SHEET_NAMES = {
@@ -84,7 +87,7 @@ function clearRoomsCache_() {
 }
 
 /* ========== EQUIPMENT CACHE (NEW v3.6.0) ========== */
-const EQUIPMENT_CACHE_KEY = 'equipmentCache_v1';
+const EQUIPMENT_CACHE_KEY = 'equipmentCache_v2';
 const EQUIPMENT_CACHE_TTL_SEC = 60;
 
 function getAllEquipmentCached_() {
@@ -137,6 +140,7 @@ function doPost(e) {
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
       case 'getRoomEquipment': return ok_({ result: { rows: getRoomEquipment_(body.building, body.room) } });
+      case 'getAllEquipment':  return ok_({ result: { rows: getAllEquipmentCached_() } });
       case 'addTask':          return ok_(addTask_(body));
       case 'updateTask':       return ok_(updateTask_(body));
       case 'updateTaskStatus': return ok_(updateTaskStatus_(body));
@@ -153,7 +157,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.6.0' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.7.0' });
 }
 
 /* ========== TASK READ ========== */
@@ -347,7 +351,8 @@ function updateRoomStatus_(b) {
 /* ========== EQUIPMENT (NEW v3.6.0) ========== */
 /**
  * Auto-create tab 'อุปกรณ์' on first write. Returns the sheet.
- * Header is set with all 11 columns; row 1 frozen.
+ * Header has 12 columns (v3.7.0 added col L 'รอบบำรุง(วัน)'); row 1 frozen.
+ * Backward compat: if tab exists with 11 cols, add the 12th header in-place.
  */
 function getOrCreateEquipmentSheet_() {
   const ss = SpreadsheetApp.getActive();
@@ -357,10 +362,17 @@ function getOrCreateEquipmentSheet_() {
     sh.appendRow([
       'id', 'ตึก', 'ห้อง', 'ประเภท', 'ยี่ห้อ/รุ่น',
       'วันติดตั้ง', 'วันซ่อมล่าสุด', 'สถานะ', 'หมายเหตุ',
-      'ผู้บันทึก', 'วันที่บันทึก',
+      'ผู้บันทึก', 'วันที่บันทึก', 'รอบบำรุง(วัน)',
     ]);
     sh.setFrozenRows(1);
-    sh.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#FFF7ED');
+    sh.getRange(1, 1, 1, 12).setFontWeight('bold').setBackground('#FFF7ED');
+  } else {
+    // backward compat: ensure column L header exists
+    const lastCol = sh.getLastColumn();
+    if (lastCol < 12) {
+      sh.getRange(1, 12).setValue('รอบบำรุง(วัน)')
+        .setFontWeight('bold').setBackground('#FFF7ED');
+    }
   }
   return sh;
 }
@@ -370,13 +382,17 @@ function getAllEquipment_() {
   if (!sh) return [];
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
-  const data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  const lastCol = Math.max(sh.getLastColumn(), 11);
+  const cols = Math.min(lastCol, 12);
+  const data = sh.getRange(2, 1, lastRow - 1, cols).getValues();
   const rows = [];
   for (let i = 0; i < data.length; i++) {
     const r = data[i];
     const building = norm(r[1]);
     const room = norm(r[2]);
     if (!building || !room) continue;
+    const intervalRaw = cols >= 12 ? r[11] : '';
+    const intervalNum = parseInt(intervalRaw, 10);
     rows.push({
       id:           norm(r[0]),
       building:     building,
@@ -389,6 +405,7 @@ function getAllEquipment_() {
       note:         norm(r[8]),
       creator:      norm(r[9]),
       createdAt:    norm(r[10]),
+      intervalDays: isFinite(intervalNum) && intervalNum > 0 ? intervalNum : 0,
     });
   }
   return rows;
@@ -421,6 +438,7 @@ function addEquipment_(b) {
   const sh = getOrCreateEquipmentSheet_();
   const id = Utilities.getUuid();
   const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  const intervalNum = parseInt(b.intervalDays, 10);
   sh.appendRow([
     id,
     b.building,
@@ -433,6 +451,7 @@ function addEquipment_(b) {
     b.note || '',
     b.creator || '',
     createdAt,
+    isFinite(intervalNum) && intervalNum > 0 ? intervalNum : '',
   ]);
   clearEquipmentCache_();
   return { appended: true, id: id, row: sh.getLastRow() };
@@ -456,13 +475,17 @@ function updateEquipment_(b) {
   }
   if (found < 0) throw new Error('equipment not found: ' + b.id);
   // Column index map (1-based)
-  // 2:ตึก 3:ห้อง 4:ประเภท 5:ยี่ห้อ 6:วันติดตั้ง 7:วันซ่อมล่าสุด 8:สถานะ 9:หมายเหตุ
+  // 2:ตึก 3:ห้อง 4:ประเภท 5:ยี่ห้อ 6:วันติดตั้ง 7:วันซ่อมล่าสุด 8:สถานะ 9:หมายเหตุ 12:รอบบำรุง(วัน)
   if (b.type        !== undefined) sh.getRange(found, 4).setValue(b.type);
   if (b.brand       !== undefined) sh.getRange(found, 5).setValue(b.brand);
   if (b.installDate !== undefined) sh.getRange(found, 6).setValue(b.installDate);
   if (b.lastService !== undefined) sh.getRange(found, 7).setValue(b.lastService);
   if (b.status      !== undefined) sh.getRange(found, 8).setValue(b.status);
   if (b.note        !== undefined) sh.getRange(found, 9).setValue(b.note);
+  if (b.intervalDays !== undefined) {
+    const n = parseInt(b.intervalDays, 10);
+    sh.getRange(found, 12).setValue(isFinite(n) && n > 0 ? n : '');
+  }
   clearEquipmentCache_();
   return { updated: true, row: found };
 }
@@ -475,7 +498,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.6.0 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.7.0 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {

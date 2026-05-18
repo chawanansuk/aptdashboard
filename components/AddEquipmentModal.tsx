@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { EQUIPMENT_TYPES, EQUIPMENT_STATUS_LIST } from "@/lib/constants";
+import {
+  EQUIPMENT_TYPES, EQUIPMENT_STATUS_LIST,
+  INTERVAL_OPTIONS, DEFAULT_INTERVAL_DAYS,
+} from "@/lib/constants";
 import type { EquipmentType, EquipmentStatus } from "@/types";
 
 interface Props {
@@ -18,6 +21,7 @@ interface Props {
     lastService: string;
     status: string;
     note: string;
+    intervalDays?: number;
   };
   onClose: () => void;
   onSubmit: (entry: {
@@ -28,6 +32,7 @@ interface Props {
     lastService: string;
     status: EquipmentStatus;
     note: string;
+    intervalDays: number;
   }) => void;
 }
 
@@ -45,8 +50,21 @@ export default function AddEquipmentModal({
     (initial?.status as EquipmentStatus) || "ปกติ"
   );
   const [note, setNote] = useState(initial?.note || "");
+  const [intervalDays, setIntervalDays] = useState<number>(
+    typeof initial?.intervalDays === "number"
+      ? initial.intervalDays
+      : (DEFAULT_INTERVAL_DAYS[(initial?.type as string) || "แอร์"] ?? 0)
+  );
 
   if (!open) return null;
+
+  function handleTypeChange(t: EquipmentType) {
+    setType(t);
+    // Only auto-fill interval in add mode (don't clobber edit values)
+    if (!isEdit) {
+      setIntervalDays(DEFAULT_INTERVAL_DAYS[t] ?? 0);
+    }
+  }
 
   function handleSubmit() {
     onSubmit({
@@ -57,6 +75,7 @@ export default function AddEquipmentModal({
       lastService,
       status,
       note: note.trim(),
+      intervalDays,
     });
   }
 
@@ -74,7 +93,7 @@ export default function AddEquipmentModal({
         <div className="ac-modal-body">
           <div className="ac-field">
             <label>ประเภท</label>
-            <select value={type} onChange={(e) => setType(e.target.value as EquipmentType)}>
+            <select value={type} onChange={(e) => handleTypeChange(e.target.value as EquipmentType)}>
               {EQUIPMENT_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
@@ -113,6 +132,21 @@ export default function AddEquipmentModal({
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
+          </div>
+
+          <div className="ac-field">
+            <label>รอบบำรุง</label>
+            <select
+              value={intervalDays}
+              onChange={(e) => setIntervalDays(Number(e.target.value))}
+            >
+              {INTERVAL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 11, color: "#94A3B8" }}>
+              ระบบจะเตือนเมื่อใกล้ครบรอบ (นับจากวันซ่อมล่าสุด หรือวันติดตั้ง)
+            </span>
           </div>
 
           <div className="ac-field">

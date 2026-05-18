@@ -82,3 +82,38 @@ export const EQUIPMENT_STATUS_COLOR: Record<string, string> = {
   กำลังซ่อม:   "#F97316",
   ใช้ไม่ได้:   "#DC2626",
 };
+
+// ===== Maintenance schedule (v3.7.0) =====
+// Default service interval (days) per equipment type. Used to pre-fill
+// the interval dropdown when the user selects a type in AddEquipmentModal.
+export const DEFAULT_INTERVAL_DAYS: Record<string, number> = {
+  แอร์: 180,
+  เครื่องซักผ้า: 365,
+  ตู้เย็น: 365,
+  เครื่องทำน้ำอุ่น: 365,
+  โทรทัศน์: 0,
+  ไมโครเวฟ: 0,
+  อื่นๆ: 0,
+};
+
+export const INTERVAL_OPTIONS: { value: number; label: string }[] = [
+  { value: 0,   label: "ไม่กำหนด" },
+  { value: 90,  label: "ทุก 3 เดือน" },
+  { value: 180, label: "ทุก 6 เดือน" },
+  { value: 365, label: "ทุก 1 ปี" },
+  { value: 730, label: "ทุก 2 ปี" },
+];
+
+export const MAINTENANCE_STATUS_COLOR: Record<string, string> = {
+  ok:        "#16A34A",
+  "due-soon": "#EAB308",
+  overdue:   "#DC2626",
+  unknown:   "#94A3B8",
+};
+
+export const MAINTENANCE_STATUS_LABEL: Record<string, string> = {
+  ok:         "ตามรอบ",
+  "due-soon": "ใกล้ครบรอบ",
+  overdue:    "เลยกำหนด",
+  unknown:    "ไม่กำหนดรอบ",
+};
