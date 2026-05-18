@@ -2737,3 +2737,23 @@ html.dark .ac-maint-card-meta { color: #94A3B8; }
 }
 .ac-facility-group-head span { color: #94A3B8; font-weight: 500; font-size: 12px; }
 html.dark .ac-facility-group-head { color: #E2E8F0; }
+
+/* ===== Role switcher (multi-role view-as) ===== */
+.ac-role-switcher {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-left: 8px; padding: 4px 8px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 12px;
+}
+html.dark .ac-role-switcher { background: #1E293B; border-color: #334155; }
+.ac-role-switcher-label { color: #64748B; font-size: 11px; }
+html.dark .ac-role-switcher-label { color: #94A3B8; }
+.ac-role-switcher-select {
+  background: transparent; border: none; font-size: 12px; font-weight: 600;
+  color: #0F172A; cursor: pointer; padding: 0 4px;
+}
+html.dark .ac-role-switcher-select { color: #F1F5F9; }
+.ac-role-switcher-select:focus { outline: none; }
+@media (max-width: 720px) {
+  .ac-role-switcher-label { display: none; }
+}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
+import RoleSwitcher from "./RoleSwitcher";
 
 interface Props {
   buildings: string[]; // includes "ทั้งหมด" first
@@ -63,6 +64,7 @@ export default function AppHeader({
         </button>
         <div className="ac-logo"><div className="ac-logo-icon">A</div><span className="ac-logo-text">APARTCLOUD</span></div>
         <span className={`ac-mode-badge is-${primaryRole || "sales"}`}>{MODE_LABEL[primaryRole || "sales"] || "SALES MODE"}</span>
+        <RoleSwitcher />
         <div className="ac-divider" />
         <nav className="ac-tabs">
           {buildings.map((b) => (
