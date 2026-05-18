@@ -9,6 +9,7 @@ import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
 import AppHeader from "@/components/AppHeader";
 import AppSidebar from "@/components/AppSidebar";
+import OverviewCards from "@/components/OverviewCards";
 import RoomsView from "@/components/RoomsView";
 import RoomModal from "@/components/RoomModal";
 import AddTaskModal from "@/components/AddTaskModal";
@@ -498,6 +499,16 @@ export default function Home() {
           )}
 
           {isInitial && rooms.length === 0 && status !== "error" && <SkeletonLoader />}
+
+          {activeView === "overview" && rooms.length > 0 && (
+            <OverviewCards
+              rooms={rooms}
+              tasks={tasks}
+              activeBuilding={activeBuilding}
+              roles={roles}
+              onNavigate={(v) => setActiveView(v)}
+            />
+          )}
 
           {showRoomGrid && (
             <RoomsView
