@@ -53,8 +53,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
-  const role = session.user.role;
-  if (!canAddEngTask(role)) {
+  const roles = session.user.roles;
+  if (!canAddEngTask(roles)) {
     return bad("ไม่มีสิทธิ์เพิ่ม/แก้อุปกรณ์ (เฉพาะ engineer และ management)", 403);
   }
 

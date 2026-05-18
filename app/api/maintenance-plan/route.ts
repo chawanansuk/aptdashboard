@@ -23,7 +23,7 @@ function bad(msg: string, status = 400) {
 export async function GET() {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
-  if (!canAddEngTask(session.user.role)) {
+  if (!canAddEngTask(session.user.roles)) {
     return bad("ไม่มีสิทธิ์ดูแผนบำรุง (เฉพาะ engineer และ management)", 403);
   }
 

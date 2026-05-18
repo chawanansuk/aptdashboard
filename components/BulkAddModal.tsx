@@ -27,29 +27,31 @@ export default function BulkAddModal({
   onChangeDate, onChangeType, onChangeNote, onClose, onSubmit,
 }: Props) {
   const { data: session } = useSession();
-  const role = session?.user?.role;
+  const roles = session?.user?.roles;
 
   const allowedTypes = useMemo(() => {
     const list: string[] = [];
-    if (canAddSalesTask(role)) list.push(...SALES_TASK_TYPES);
-    if (canAddEngTask(role))   list.push(...ENG_TASK_TYPES);
+    if (canAddSalesTask(roles)) list.push(...SALES_TASK_TYPES);
+    if (canAddEngTask(roles))   list.push(...ENG_TASK_TYPES);
     list.push(...COMMON_TASK_TYPES);
     return list;
-  }, [role]);
+  }, [roles]);
 
   // Default type ที่เหมาะกับ role — รีเซ็ตเมื่อ allowedTypes ไม่ครอบ type ปัจจุบัน
   useEffect(() => {
     if (!open) return;
     if (!allowedTypes.includes(type)) {
-      // Bulk default คงเดิม "ทำสะอาด" สำหรับ engineer/management; "ชมห้อง" สำหรับ sales
+      // Multi-role fallback: sales-first (เพราะ bulk add ส่วนใหญ่ใช้ sale)
+      const hasSales = roles?.includes("sales") || roles?.includes("management");
+      const hasEng = roles?.includes("engineer") || roles?.includes("management");
       const fallback =
-        role === "sales" ? "ชมห้อง"
-        : role === "engineer" ? "ซ่อม"
+        hasSales ? "ชมห้อง"
+        : hasEng ? "ซ่อม"
         : "ทำสะอาด";
       onChangeType(fallback);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, role]);
+  }, [open, roles]);
 
   if (!open) return null;
   const count = selectedKeys.length;

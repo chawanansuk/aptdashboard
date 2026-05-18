@@ -39,7 +39,9 @@ export default function AppHeader({
 }: Props) {
   const { data: session } = useSession();
   const user = session?.user;
-  const role = user?.role;
+  const roles = user?.roles;
+  // Primary role for the mode badge in the header — use first role
+  const primaryRole = roles?.[0] || user?.role;
 
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -60,7 +62,7 @@ export default function AppHeader({
           <span /><span /><span />
         </button>
         <div className="ac-logo"><div className="ac-logo-icon">A</div><span className="ac-logo-text">APARTCLOUD</span></div>
-        <span className={`ac-mode-badge is-${role || "sales"}`}>{MODE_LABEL[role || "sales"] || "SALES MODE"}</span>
+        <span className={`ac-mode-badge is-${primaryRole || "sales"}`}>{MODE_LABEL[primaryRole || "sales"] || "SALES MODE"}</span>
         <div className="ac-divider" />
         <nav className="ac-tabs">
           {buildings.map((b) => (
@@ -116,9 +118,9 @@ export default function AppHeader({
                 <div className="ac-user-info">
                   <div className="ac-user-name">{user?.name || "ผู้ใช้"}</div>
                   <div className="ac-user-email">{user?.email || ""}</div>
-                  {role && (
-                    <span className={`ac-user-role ${role === "admin" ? "ac-user-role-admin" : "ac-user-role-staff"}`}>
-                      {role}
+                  {roles && roles.length > 0 && (
+                    <span className={`ac-user-role ${roles.includes("management") ? "ac-user-role-admin" : "ac-user-role-staff"}`}>
+                      {roles.join(" + ")}
                     </span>
                   )}
                 </div>

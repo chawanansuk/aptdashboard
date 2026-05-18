@@ -42,21 +42,24 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
-  // ---- Role-based access (PR #2) ----
+  // ---- Role-based access (PR #2 / multi-role v3.10) ----
   const { data: session } = useSession();
-  const role = session?.user?.role;
+  const roles = session?.user?.roles;
+  const role = session?.user?.role; // primary role, kept for components ที่ยังรับ single
   // Views that some roles can't access — used for safe-redirect guard below
   const accessibleViews = useMemo(() => {
     const v = new Set<string>(["overview", "today", "calendar"]);
-    if (role === "sales" || role === "management") {
+    const hasSales = roles?.includes("sales") || roles?.includes("management");
+    const hasEng = roles?.includes("engineer") || roles?.includes("management");
+    if (hasSales) {
       v.add("ready"); v.add("pending"); v.add("occupied"); v.add("moveout"); v.add("tenants");
     }
-    if (role === "engineer" || role === "management") {
+    if (hasEng) {
       v.add("qc"); v.add("repair"); v.add("inactive"); v.add("maintenance"); v.add("facilities");
     }
-    if (canViewFinancials(role)) v.add("income");
+    if (canViewFinancials(roles)) v.add("income");
     return v;
-  }, [role]);
+  }, [roles]);
 
   // ---- Presets ----
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -476,7 +479,7 @@ export default function Home() {
           onChangeView={setActiveView}
           counts={sidebarCounts}
           onBackdropClick={() => setSidebarOpen(false)}
-          role={role}
+          roles={roles}
         />
 
         <main className="ac-main">

@@ -45,7 +45,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
-  if (!canAddEngTask(session.user.role)) {
+  if (!canAddEngTask(session.user.roles)) {
     return bad("ไม่มีสิทธิ์เพิ่ม/แก้สาธารณูปโภค (เฉพาะ engineer และ management)", 403);
   }
 
