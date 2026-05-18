@@ -26,6 +26,12 @@ function initialsFromName(name?: string | null): string {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
+const MODE_LABEL: Record<string, string> = {
+  sales: "SALES MODE",
+  engineer: "ENGINEER MODE",
+  management: "MGMT MODE",
+};
+
 export default function AppHeader({
   buildings, activeBuilding, onChangeBuilding,
   isRefreshing, lastUpdated, isDark,
@@ -54,7 +60,7 @@ export default function AppHeader({
           <span /><span /><span />
         </button>
         <div className="ac-logo"><div className="ac-logo-icon">A</div><span className="ac-logo-text">APARTCLOUD</span></div>
-        <span className="ac-mode-badge">SALES MODE</span>
+        <span className={`ac-mode-badge is-${role || "sales"}`}>{MODE_LABEL[role || "sales"] || "SALES MODE"}</span>
         <div className="ac-divider" />
         <nav className="ac-tabs">
           {buildings.map((b) => (
