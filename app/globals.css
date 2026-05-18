@@ -2102,11 +2102,10 @@ html.dark .ac-cal-grid { background: #1E293B; }
 }
 .ac-cal-cell:hover { background: #F1F5F9; border-color: #CBD5E1; }
 .ac-cal-cell.is-out { opacity: 0.4; background: transparent; border-color: transparent; }
-.ac-cal-cell.is-today { background: #EEF2FF; border-color: #4F46E5; }
 .ac-cal-cell.is-selected { outline: 2px solid #4F46E5; outline-offset: -1px; }
 html.dark .ac-cal-cell { background: #0F172A; border-color: #334155; }
 html.dark .ac-cal-cell:hover { background: #1E293B; }
-html.dark .ac-cal-cell.is-today { background: #312E81; border-color: #6366F1; }
+/* (is-today rules consolidated below near .ac-cal-cell-top) */
 .ac-cal-date {
   font-size: 13px;
   font-weight: 700;
@@ -2114,6 +2113,47 @@ html.dark .ac-cal-cell.is-today { background: #312E81; border-color: #6366F1; }
 }
 html.dark .ac-cal-date { color: #F1F5F9; }
 .ac-cal-cell.is-out .ac-cal-date { color: #94A3B8; }
+.ac-cal-cell.is-today {
+  /* Stronger today indicator — ring instead of just border-color */
+  outline: 2px solid #2563EB;
+  outline-offset: -2px;
+  background: #EFF6FF;
+}
+html.dark .ac-cal-cell.is-today {
+  outline-color: #3B82F6;
+  background: #1E3A8A;
+}
+.ac-cal-cell-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+}
+.ac-cal-cell-count {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #1E293B;
+  color: #fff;
+  line-height: 1.3;
+  min-width: 14px;
+  text-align: center;
+}
+html.dark .ac-cal-cell-count { background: #F1F5F9; color: #0F172A; }
+.ac-cal-cell.is-today .ac-cal-cell-count {
+  background: #2563EB;
+  color: #fff;
+}
+.ac-cal-dot-more {
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748B;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #F1F5F9;
+}
+html.dark .ac-cal-dot-more { background: #1E293B; color: #94A3B8; }
+
 .ac-cal-dots {
   display: flex;
   gap: 3px;
@@ -3300,6 +3340,135 @@ html.dark .ac-role-switcher-select { color: #F1F5F9; }
 .ac-role-switcher-select:focus { outline: none; }
 @media (max-width: 720px) {
   .ac-role-switcher-label { display: none; }
+}
+
+/* ====================================================================
+ * Calendar enhancements (PR-G)
+ * ==================================================================== */
+
+/* 7-day preview strip */
+.ac-cal-week {
+  margin-bottom: 12px;
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+html.dark .ac-cal-week { background: #0F172A; border-color: #334155; }
+.ac-cal-week-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; margin-bottom: 8px;
+}
+.ac-cal-week-title {
+  font-size: 12px; font-weight: 600;
+  color: #475569;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+html.dark .ac-cal-week-title { color: #CBD5E1; }
+.ac-cal-week-total {
+  font-size: 11px; color: #94A3B8;
+}
+.ac-cal-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.ac-cal-week-day {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 8px 6px;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 120ms ease, transform 120ms ease, border-color 120ms ease;
+  min-height: 64px;
+}
+html.dark .ac-cal-week-day { background: #1E293B; border-color: #334155; }
+.ac-cal-week-day:hover {
+  background: #F1F5F9; border-color: #CBD5E1;
+  transform: translateY(-1px);
+}
+html.dark .ac-cal-week-day:hover { background: #334155; border-color: #475569; }
+.ac-cal-week-day.is-today {
+  background: #EFF6FF;
+  border-color: #2563EB;
+}
+html.dark .ac-cal-week-day.is-today {
+  background: #1E3A8A; border-color: #3B82F6;
+}
+.ac-cal-week-day.is-empty {
+  opacity: 0.65;
+}
+.ac-cal-week-day-label {
+  font-size: 10px;
+  color: #64748B;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.ac-cal-week-day.is-today .ac-cal-week-day-label { color: #2563EB; }
+html.dark .ac-cal-week-day-label { color: #94A3B8; }
+html.dark .ac-cal-week-day.is-today .ac-cal-week-day-label { color: #93C5FD; }
+.ac-cal-week-day-count {
+  font-size: 18px; font-weight: 700;
+  color: #0F172A;
+  line-height: 1;
+}
+html.dark .ac-cal-week-day-count { color: #F1F5F9; }
+.ac-cal-week-day.is-empty .ac-cal-week-day-count { color: #CBD5E1; }
+html.dark .ac-cal-week-day.is-empty .ac-cal-week-day-count { color: #475569; }
+.ac-cal-week-day-dots {
+  display: flex; justify-content: center; gap: 3px;
+  margin-top: 2px;
+}
+.ac-cal-week-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+}
+
+/* Type legend strip — always-visible color key */
+.ac-cal-legend {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  font-size: 12px;
+}
+html.dark .ac-cal-legend { background: #0F172A; border-color: #334155; }
+.ac-cal-legend-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: #475569;
+}
+html.dark .ac-cal-legend-item { color: #CBD5E1; }
+.ac-cal-legend-swatch {
+  width: 12px; height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.ac-cal-legend-label { font-weight: 500; }
+
+/* "วันนี้" pill in day-detail header */
+.ac-cal-today-pill {
+  display: inline-block;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 2px 6px;
+  background: #2563EB; color: #fff;
+  border-radius: 999px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* Cell tweaks */
+.ac-cal-cell.has-tasks { background: #FAFAFC; }
+html.dark .ac-cal-cell.has-tasks { background: #131F35; }
+
+@media (max-width: 640px) {
+  .ac-cal-week-strip { gap: 4px; }
+  .ac-cal-week-day { padding: 6px 3px; min-height: 56px; }
+  .ac-cal-week-day-label { font-size: 9px; }
+  .ac-cal-week-day-count { font-size: 16px; }
+  .ac-cal-legend { font-size: 11px; gap: 10px; }
 }
 
 /* ====================================================================
