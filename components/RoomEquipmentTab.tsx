@@ -11,6 +11,8 @@ import {
   computeNextService, getMaintenanceStatus, daysUntilService,
 } from "@/lib/maintenanceUtils";
 import { canAddEngTask } from "@/lib/permissions";
+import EmptyState from "./EmptyState";
+import LoadingState from "./LoadingState";
 import {
   loadEquipmentCache, saveEquipmentCache, invalidateEquipmentCache,
 } from "@/lib/equipmentCache";
@@ -208,13 +210,16 @@ export default function RoomEquipmentTab({ building, room }: Props) {
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
 
       {loading && !rows && (
-        <div className="ac-empty" style={{ padding: 24, color: "#94A3B8" }}>กำลังโหลดอุปกรณ์...</div>
+        <LoadingState label="กำลังโหลดอุปกรณ์..." size="compact" />
       )}
 
       {!loading && rows && filtered.length === 0 && (
-        <div className="ac-empty" style={{ padding: 24, color: "#94A3B8" }}>
-          {filter === "all" ? "ยังไม่มีอุปกรณ์ในห้องนี้" : `ไม่มีอุปกรณ์ประเภท "${filter}"`}
-        </div>
+        <EmptyState
+          icon="tasks"
+          title={filter === "all" ? "ยังไม่มีอุปกรณ์ในห้องนี้" : `ไม่มีอุปกรณ์ประเภท "${filter}"`}
+          description={filter === "all" && canWrite ? "เริ่มต้นด้วยการเพิ่มแอร์ ตู้เย็น หรือเครื่องซักผ้า" : undefined}
+          action={filter === "all" && canWrite ? { label: "+ เพิ่มอุปกรณ์", onClick: () => setAddOpen(true) } : undefined}
+        />
       )}
 
       <ul className="ac-equipment-list">
