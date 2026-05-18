@@ -1,4 +1,4 @@
-import type { RoomStatus, EquipmentType, EquipmentStatus } from "@/types";
+import type { RoomStatus, EquipmentType, EquipmentStatus, FacilityType, FacilityStatus } from "@/types";
 
 export const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
@@ -116,4 +116,41 @@ export const MAINTENANCE_STATUS_LABEL: Record<string, string> = {
   "due-soon": "ใกล้ครบรอบ",
   overdue:    "เลยกำหนด",
   unknown:    "ไม่กำหนดรอบ",
+};
+
+// ===== Facility (v3.8.0) =====
+export const FACILITY_TYPES: FacilityType[] = [
+  "ลิฟต์", "สระว่ายน้ำ", "เครื่องปั่นไฟ", "ปั๊มน้ำ",
+  "WiFi", "CCTV", "อื่นๆ",
+];
+
+export const FACILITY_STATUS_LIST: FacilityStatus[] = [
+  "ใช้งานได้", "ต้องซ่อม", "กำลังซ่อม", "ปิดใช้งาน",
+];
+
+export const FACILITY_TYPE_ICON: Record<string, string> = {
+  ลิฟต์: "🛗",
+  สระว่ายน้ำ: "🏊",
+  เครื่องปั่นไฟ: "⚡",
+  ปั๊มน้ำ: "💧",
+  WiFi: "📶",
+  CCTV: "📹",
+  อื่นๆ: "🏢",
+};
+
+export const FACILITY_STATUS_COLOR: Record<string, string> = {
+  ใช้งานได้:  "#16A34A",
+  ต้องซ่อม:    "#EAB308",
+  กำลังซ่อม:   "#F97316",
+  ปิดใช้งาน:   "#DC2626",
+};
+
+export const FACILITY_DEFAULT_INTERVAL_DAYS: Record<string, number> = {
+  ลิฟต์: 90,
+  สระว่ายน้ำ: 30,
+  เครื่องปั่นไฟ: 180,
+  ปั๊มน้ำ: 180,
+  WiFi: 0,
+  CCTV: 365,
+  อื่นๆ: 0,
 };

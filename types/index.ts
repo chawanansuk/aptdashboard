@@ -99,3 +99,33 @@ export interface RoomEquipment {
 
 // ===== Maintenance schedule (v3.7.0) =====
 export type MaintenanceStatus = "ok" | "due-soon" | "overdue" | "unknown";
+
+// ===== Facility (v3.8.0) — building-level สาธารณูปโภค =====
+export type FacilityType =
+  | "ลิฟต์"
+  | "สระว่ายน้ำ"
+  | "เครื่องปั่นไฟ"
+  | "ปั๊มน้ำ"
+  | "WiFi"
+  | "CCTV"
+  | "อื่นๆ";
+
+export type FacilityStatus =
+  | "ใช้งานได้"
+  | "ต้องซ่อม"
+  | "กำลังซ่อม"
+  | "ปิดใช้งาน";
+
+export interface Facility {
+  id: string;
+  building: string;
+  type: FacilityType | string;
+  name: string;           // ชื่อ/รุ่น เช่น "ลิฟต์ Mitsubishi #1"
+  installDate: string;    // yyyy-MM-dd
+  lastService: string;    // yyyy-MM-dd
+  status: FacilityStatus | string;
+  note: string;
+  creator: string;
+  createdAt: string;
+  intervalDays?: number;
+}

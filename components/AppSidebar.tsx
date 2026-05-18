@@ -5,7 +5,7 @@ import type { Role } from "@/auth";
 import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
 import { canViewFinancials } from "@/lib/permissions";
 
-export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance";
+export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities";
 
 interface Props {
   isOpen: boolean;
@@ -162,10 +162,16 @@ export default function AppSidebar({
             <span className="ac-side-text">ปฏิทิน</span>
           </button>
           {showMaint && (
-            <button className={`ac-side-item ${activeView === "maintenance" ? "is-active" : ""}`} onClick={() => onChangeView("maintenance")}>
-              <span className="ac-side-icon">🔧</span>
-              <span className="ac-side-text">บำรุงรักษา</span>
-            </button>
+            <>
+              <button className={`ac-side-item ${activeView === "maintenance" ? "is-active" : ""}`} onClick={() => onChangeView("maintenance")}>
+                <span className="ac-side-icon">🔧</span>
+                <span className="ac-side-text">บำรุงรักษา</span>
+              </button>
+              <button className={`ac-side-item ${activeView === "facilities" ? "is-active" : ""}`} onClick={() => onChangeView("facilities")}>
+                <span className="ac-side-icon">🏢</span>
+                <span className="ac-side-text">สาธารณูปโภค</span>
+              </button>
+            </>
           )}
         </div>
       </aside>

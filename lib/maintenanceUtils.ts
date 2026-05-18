@@ -1,6 +1,13 @@
-import type { RoomEquipment, MaintenanceStatus } from "@/types";
+import type { MaintenanceStatus } from "@/types";
 
 const DUE_SOON_DAYS = 14;
+
+/** Structural shape — works for both RoomEquipment and Facility. */
+interface Serviceable {
+  intervalDays?: number;
+  lastService: string;
+  installDate: string;
+}
 
 function parseYmd(s: string): Date | null {
   if (!s) return null;
@@ -22,7 +29,7 @@ function toYmd(d: Date): string {
  * Anchor = lastService || installDate. Returns null if no anchor or
  * intervalDays is missing/zero.
  */
-export function computeNextService(eq: RoomEquipment): string | null {
+export function computeNextService(eq: Serviceable): string | null {
   const interval = Number(eq.intervalDays || 0);
   if (!interval || interval <= 0) return null;
   const anchor = parseYmd(eq.lastService) || parseYmd(eq.installDate);
@@ -36,7 +43,7 @@ export function computeNextService(eq: RoomEquipment): string | null {
  * Days from today until next service. Negative = overdue.
  * Null if next service cannot be computed.
  */
-export function daysUntilService(eq: RoomEquipment): number | null {
+export function daysUntilService(eq: Serviceable): number | null {
   const next = computeNextService(eq);
   if (!next) return null;
   const nextDate = parseYmd(next);
@@ -47,7 +54,7 @@ export function daysUntilService(eq: RoomEquipment): number | null {
   return Math.round(diffMs / (24 * 60 * 60 * 1000));
 }
 
-export function getMaintenanceStatus(eq: RoomEquipment): MaintenanceStatus {
+export function getMaintenanceStatus(eq: Serviceable): MaintenanceStatus {
   const days = daysUntilService(eq);
   if (days === null) return "unknown";
   if (days < 0) return "overdue";

@@ -2722,3 +2722,18 @@ html.dark .ac-maint-card-meta { color: #94A3B8; }
   .ac-maint-card-actions { width: 100%; border-top: 1px solid #F1F5F9; padding-top: 8px; }
   html.dark .ac-maint-card-actions { border-top-color: #334155; }
 }
+
+/* ===== Facilities view (v3.8.0) ===== */
+.ac-facilities { display: flex; flex-direction: column; gap: 12px; }
+.ac-facilities-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.ac-facility-group { display: flex; flex-direction: column; gap: 8px; }
+.ac-facility-group-head {
+  font-size: 14px; font-weight: 600; color: #334155;
+  margin: 8px 0 0; padding: 0 4px;
+  display: flex; align-items: baseline; gap: 6px;
+}
+.ac-facility-group-head span { color: #94A3B8; font-weight: 500; font-size: 12px; }
+html.dark .ac-facility-group-head { color: #E2E8F0; }
