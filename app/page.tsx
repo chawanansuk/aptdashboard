@@ -360,6 +360,16 @@ export default function Home() {
     setShowAddTask(true);
   }
 
+  /** Quick "แจ้งซ่อม" — pre-fill AddTaskModal with type=ซ่อม for the room. */
+  function openRepairForRoom(r: { building: string; room: string }) {
+    setTType("ซ่อม");
+    setTBuilding(r.building);
+    setTRoom(r.room);
+    setTNote("");
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+
   // ---- Command palette (Cmd+K / Ctrl+K / `/`) ----
   const cmdk = useCommandPalette();
   const paletteCommands = useMemo<CommandDef[]>(() => [
@@ -544,6 +554,8 @@ export default function Home() {
               onToggleBulkMode={() => bulkMode ? exitBulk() : setBulkMode(true)}
               onToggleBulkRoom={toggleBulkRoom}
               onSelectRoom={(r) => setSelectedRoom(r)}
+              roles={roles}
+              onRepairRoom={openRepairForRoom}
             />
           )}
 
