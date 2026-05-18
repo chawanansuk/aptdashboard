@@ -65,3 +65,24 @@ export interface RoomView {
   upcomingTasks: SheetRow[];
   pastTasks: SheetRow[];
 }
+
+// ===== ROOM HISTORY sheet (ชีต "ประวัติ") =====
+export type RoomHistoryType =
+  | "ซ่อม"
+  | "เปลี่ยนผู้เช่า"
+  | "ทำสะอาด"
+  | "ตรวจสภาพ"
+  | "ปรับปรุง"
+  | "อื่นๆ";
+
+export interface RoomHistoryEntry {
+  id: string;
+  date: string;          // yyyy-MM-dd
+  building: string;
+  room: string;
+  type: RoomHistoryType | string;
+  description: string;
+  cost: string;          // free-form (digits or '')
+  photoUrl: string;
+  creator: string;       // email
+}

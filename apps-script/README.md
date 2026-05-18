@@ -12,15 +12,30 @@
 
 ## ไฟล์ในโฟลเดอร์
 
-- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน v3.4.3)
+- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน v3.5.0)
 
 ### Version history
 
-- **v3.4.3** (current) — `getRooms_/getRoomsCached_` action ใหม่: อ่านชีต `ห้อง` real-time แทน CSV publish (CSV publish มี Google cache ~5 นาที ทำให้ updateRoomStatus ไม่เห็นผลทันที). `clearRoomsCache_` ใน `updateRoomStatus_` + `onEdit`
+- **v3.5.0** (current) — ระบบบันทึก **ประวัติห้อง** (room history): tab ใหม่ `ประวัติ` (auto-create), actions `getRoomHistory`/`addRoomHistory`, cache 60s + invalidate ตอน add
+- **v3.4.3** — `getRooms_/getRoomsCached_` action ใหม่: อ่านชีต `ห้อง` real-time แทน CSV publish (CSV publish มี Google cache ~5 นาที ทำให้ updateRoomStatus ไม่เห็นผลทันที). `clearRoomsCache_` ใน `updateRoomStatus_` + `onEdit`
 - **v3.4.2** — `addTask_` default status `'pending'` (เดิม `'ว่าง'` ผิด context — `'ว่าง'` เป็นสถานะของห้อง). `STATUS_OPTIONS` คงเดิม
 - **v3.4.1** — frontend-only fix ที่ `components/SummaryDrawer.tsx` (ISO date parser) — ไม่กระทบ Apps Script
 - **v3.4.0** — เพิ่ม `getTasksCached_` (CacheService 60s) + column I=ผู้สร้าง, J=วันที่สร้าง
 - **v3.3.0** — baseline ที่ import เข้า repo ครั้งแรก
+
+### Tab `ประวัติ` schema (auto-created on first save)
+
+| Col | ชื่อ | ตัวอย่าง |
+|---|---|---|
+| A | id | UUID |
+| B | วันที่ | 2026-05-04 |
+| C | ตึก | KL |
+| D | ห้อง | 101 |
+| E | ประเภท | ซ่อม / เปลี่ยนผู้เช่า / ทำสะอาด / ตรวจสภาพ / ปรับปรุง / อื่นๆ |
+| F | รายละเอียด | (free text) |
+| G | ค่าใช้จ่าย | 2500 (number) |
+| H | รูปภาพ URL | https://drive.google.com/file/d/... |
+| I | ผู้บันทึก | email ของผู้บันทึก (จาก Google login) |
 
 ## Sheet schema ที่ Code.gs คาดหวัง
 

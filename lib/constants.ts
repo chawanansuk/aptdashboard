@@ -1,4 +1,4 @@
-import type { RoomStatus } from "@/types";
+import type { RoomStatus, RoomHistoryType } from "@/types";
 
 export const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
@@ -55,3 +55,22 @@ export function isCancelledStatus(s: string): boolean {
   const t = (s || "").trim();
   return t === "ยกเลิก" || t === "cancelled";
 }
+
+// ===== Room history (NEW v3.5.0) =====
+export const HISTORY_TYPES: RoomHistoryType[] = [
+  "ซ่อม",
+  "เปลี่ยนผู้เช่า",
+  "ทำสะอาด",
+  "ตรวจสภาพ",
+  "ปรับปรุง",
+  "อื่นๆ",
+];
+
+export const HISTORY_TYPE_COLOR: Record<string, string> = {
+  ซ่อม:           "#F97316",
+  เปลี่ยนผู้เช่า: "#A855F7",
+  ทำสะอาด:        "#EAB308",
+  ตรวจสภาพ:       "#06B6D4",
+  ปรับปรุง:       "#16A34A",
+  อื่นๆ:           "#94A3B8",
+};

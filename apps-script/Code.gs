@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.4.3 — Dashboard หอพัก
+ * Code.gs v3.5.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -12,6 +12,11 @@
  *     (CSV publish มี 5min cache จาก Google ที่ทำให้ updateRoomStatus
  *      ไม่เห็นผลทันที)
  *   - clearRoomsCache_ ใน updateRoomStatus_ + onEdit
+ * NEW v3.5.0:
+ *   - ระบบบันทึกประวัติห้อง (room history): tab ใหม่ 'ประวัติ'
+ *     auto-create เมื่อเรียก addRoomHistory ครั้งแรก
+ *   - actions ใหม่: getRoomHistory (filter per room), addRoomHistory
+ *   - cache 60s + invalidate ตอน add
  */
 
 const SHEET_NAMES = {
@@ -19,11 +24,19 @@ const SHEET_NAMES = {
   TEMPLATE: 'template_งาน',
   ROOM: 'ห้อง',
   METER: 'มิเตอร์',
+  HISTORY: 'ประวัติ',
 };
 
-const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
-const STATUS_OPTIONS = ['ว่าง', 'pending', 'กำลังทำ', 'เสร็จ', 'ยกเลิก'];
-const ROOM_STATUS    = ['ว่าง', 'มีผู้เช่า', 'จอง', 'ซ่อม'];
+const TYPE_OPTIONS    = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
+const STATUS_OPTIONS  = ['ว่าง', 'pending', 'กำลังทำ', 'เสร็จ', 'ยกเลิก'];
+const ROOM_STATUS     = ['ว่าง', 'มีผู้เช่า', 'จอง', 'ซ่อม'];
+const HISTORY_TYPES   = ['ซ่อม', 'เปลี่ยนผู้เช่า', 'ทำสะอาด', 'ตรวจสภาพ', 'ปรับปรุง', 'อื่นๆ'];
+
+// คอลัมน์ของ tab "ประวัติ" (1-based)
+const HISTORY_COL = {
+  ID: 1, DATE: 2, BUILDING: 3, ROOM: 4, TYPE: 5,
+  DESCRIPTION: 6, COST: 7, PHOTO_URL: 8, CREATOR: 9,
+};
 
 // คอลัมน์ของ tab "งาน" (1-based)
 const TASK_COL = {
@@ -76,6 +89,27 @@ function clearRoomsCache_() {
   try { CacheService.getScriptCache().remove(ROOMS_CACHE_KEY); } catch (e) {}
 }
 
+/* ========== HISTORY CACHE (NEW v3.5.0) ========== */
+const HISTORY_CACHE_KEY = 'historyCache_v1';
+const HISTORY_CACHE_TTL_SEC = 60;
+
+function getAllHistoryCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(HISTORY_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+  const fresh = getAllHistory_();
+  try {
+    cache.put(HISTORY_CACHE_KEY, JSON.stringify(fresh), HISTORY_CACHE_TTL_SEC);
+  } catch (e) {}
+  return fresh;
+}
+
+function clearHistoryCache_() {
+  try { CacheService.getScriptCache().remove(HISTORY_CACHE_KEY); } catch (e) {}
+}
+
 /* ========== UTIL ========== */
 function norm(v) {
   if (v === null || v === undefined) return '';
@@ -108,11 +142,13 @@ function doPost(e) {
     switch (body.action) {
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
+      case 'getRoomHistory':   return ok_({ result: { rows: getRoomHistory_(body.building, body.room) } });
       case 'addTask':          return ok_(addTask_(body));
       case 'updateTask':       return ok_(updateTask_(body));
       case 'updateTaskStatus': return ok_(updateTaskStatus_(body));
       case 'deleteTask':       return ok_(deleteTask_(body));
       case 'updateRoomStatus': return ok_(updateRoomStatus_(body));
+      case 'addRoomHistory':   return ok_(addRoomHistory_(body));
       case 'debugFindTask':    return ok_({ row: findTaskRow_(body) });
       default: throw new Error('unknown action: ' + body.action);
     }
@@ -122,7 +158,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.4.3' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.5.0' });
 }
 
 /* ========== TASK READ ========== */
@@ -313,6 +349,104 @@ function updateRoomStatus_(b) {
   throw new Error('room not found: ' + b.building + ' ' + b.room);
 }
 
+/* ========== ROOM HISTORY (NEW v3.5.0) ========== */
+/**
+ * Auto-create tab 'ประวัติ' on first write. Returns the sheet.
+ * Header is set with all 9 columns; row 1 frozen.
+ */
+function getOrCreateHistorySheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.HISTORY);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.HISTORY);
+    sh.appendRow([
+      'id', 'วันที่', 'ตึก', 'ห้อง', 'ประเภท',
+      'รายละเอียด', 'ค่าใช้จ่าย', 'รูปภาพ URL', 'ผู้บันทึก',
+    ]);
+    sh.setFrozenRows(1);
+    // Make header row bold for visual clarity
+    sh.getRange(1, 1, 1, 9).setFontWeight('bold').setBackground('#E0E7FF');
+  }
+  return sh;
+}
+
+/**
+ * Read entire history sheet → array of entries.
+ * Used by getAllHistoryCached_ (which then is filtered per-room).
+ */
+function getAllHistory_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.HISTORY);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getRange(2, 1, lastRow - 1, 9).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const building = norm(r[2]);
+    const room = norm(r[3]);
+    if (!building || !room) continue; // skip blank rows
+    rows.push({
+      id:          norm(r[0]),
+      date:        fmtDate_(r[1]),
+      building:    building,
+      room:        room,
+      type:        norm(r[4]),
+      description: norm(r[5]),
+      cost:        norm(r[6]),
+      photoUrl:    norm(r[7]),
+      creator:     norm(r[8]),
+    });
+  }
+  return rows;
+}
+
+/**
+ * Filter cached history by composite key (building, room).
+ * Sorts by date desc (newest first).
+ */
+function getRoomHistory_(building, room) {
+  const b = norm(building);
+  const r = norm(room);
+  if (!b || !r) return [];
+  const all = getAllHistoryCached_();
+  const filtered = [];
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].building === b && all[i].room === r) filtered.push(all[i]);
+  }
+  // newest first
+  filtered.sort(function (a, c) {
+    return (c.date || '').localeCompare(a.date || '');
+  });
+  return filtered;
+}
+
+/**
+ * Append a new history entry. Creates the sheet if missing.
+ * Required: building, room, type. Other fields optional.
+ */
+function addRoomHistory_(b) {
+  if (!b.building || !b.room) throw new Error('building/room required');
+  const sh = getOrCreateHistorySheet_();
+  const id = Utilities.getUuid();
+  const date = b.date
+    ? b.date
+    : Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
+  sh.appendRow([
+    id,
+    date,
+    b.building,
+    b.room,
+    b.type || 'อื่นๆ',
+    b.description || '',
+    b.cost || '',
+    b.photoUrl || '',
+    b.creator || '',
+  ]);
+  clearHistoryCache_();
+  return { appended: true, id: id, row: sh.getLastRow() };
+}
+
 /* ========== PHASE 1: SETUP / FORMATTING / DROPDOWNS / FILTER VIEWS ========== */
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -321,7 +455,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.4.3 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.5.0 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {
