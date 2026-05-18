@@ -1,4 +1,4 @@
-import type { RoomStatus } from "@/types";
+import type { RoomStatus, EquipmentType, EquipmentStatus } from "@/types";
 
 export const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
@@ -55,3 +55,30 @@ export function isCancelledStatus(s: string): boolean {
   const t = (s || "").trim();
   return t === "ยกเลิก" || t === "cancelled";
 }
+
+// ===== Equipment (v3.6.0) =====
+export const EQUIPMENT_TYPES: EquipmentType[] = [
+  "แอร์", "เครื่องซักผ้า", "ตู้เย็น", "เครื่องทำน้ำอุ่น",
+  "โทรทัศน์", "ไมโครเวฟ", "อื่นๆ",
+];
+
+export const EQUIPMENT_STATUS_LIST: EquipmentStatus[] = [
+  "ปกติ", "ต้องซ่อม", "กำลังซ่อม", "ใช้ไม่ได้",
+];
+
+export const EQUIPMENT_TYPE_ICON: Record<string, string> = {
+  แอร์: "❄",
+  เครื่องซักผ้า: "🌀",
+  ตู้เย็น: "🧊",
+  เครื่องทำน้ำอุ่น: "🚿",
+  โทรทัศน์: "📺",
+  ไมโครเวฟ: "🔥",
+  อื่นๆ: "🔧",
+};
+
+export const EQUIPMENT_STATUS_COLOR: Record<string, string> = {
+  ปกติ:       "#16A34A",
+  ต้องซ่อม:    "#EAB308",
+  กำลังซ่อม:   "#F97316",
+  ใช้ไม่ได้:   "#DC2626",
+};

@@ -12,11 +12,12 @@
 
 ## ไฟล์ในโฟลเดอร์
 
-- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน v3.4.3)
+- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน v3.6.0)
 
 ### Version history
 
-- **v3.4.3** (current) — `getRooms_/getRoomsCached_` action ใหม่: อ่านชีต `ห้อง` real-time แทน CSV publish (CSV publish มี Google cache ~5 นาที ทำให้ updateRoomStatus ไม่เห็นผลทันที). `clearRoomsCache_` ใน `updateRoomStatus_` + `onEdit`
+- **v3.6.0** (current) — tab `อุปกรณ์` (auto-create) สำหรับ Engineer mode: track AC / เครื่องซักผ้า / ตู้เย็น / เครื่องทำน้ำอุ่น / อื่นๆ ของแต่ละห้อง. Actions ใหม่ `getRoomEquipment` / `addEquipment` / `updateEquipment` + cache 60s
+- **v3.4.3** — `getRooms_/getRoomsCached_` action ใหม่: อ่านชีต `ห้อง` real-time แทน CSV publish (CSV publish มี Google cache ~5 นาที ทำให้ updateRoomStatus ไม่เห็นผลทันที). `clearRoomsCache_` ใน `updateRoomStatus_` + `onEdit`
 - **v3.4.2** — `addTask_` default status `'pending'` (เดิม `'ว่าง'` ผิด context — `'ว่าง'` เป็นสถานะของห้อง). `STATUS_OPTIONS` คงเดิม
 - **v3.4.1** — frontend-only fix ที่ `components/SummaryDrawer.tsx` (ISO date parser) — ไม่กระทบ Apps Script
 - **v3.4.0** — เพิ่ม `getTasksCached_` (CacheService 60s) + column I=ผู้สร้าง, J=วันที่สร้าง
@@ -40,6 +41,22 @@
 | J | **วันที่สร้าง** (NEW v3.4.0) | dd/MM/yyyy HH:mm (Asia/Bangkok) |
 
 ชีต `ห้อง` ต้องมี header: `ตึก`, `ห้อง`, `สถานะ`, (optional) `ผู้เช่า`, `เบอร์`, `สัญญา`
+
+ชีต `อุปกรณ์` (NEW v3.6.0 — auto-create เมื่อ engineer/management กด "+ เพิ่ม" ครั้งแรก):
+
+| Col | ชื่อ | ตัวอย่าง |
+|---|---|---|
+| A | id | UUID |
+| B | ตึก | KL |
+| C | ห้อง | 101 |
+| D | ประเภท | แอร์ / เครื่องซักผ้า / ตู้เย็น / เครื่องทำน้ำอุ่น / โทรทัศน์ / ไมโครเวฟ / อื่นๆ |
+| E | ยี่ห้อ/รุ่น | Mitsubishi MS-SF18VC |
+| F | วันติดตั้ง | yyyy-MM-dd |
+| G | วันซ่อมล่าสุด | yyyy-MM-dd |
+| H | สถานะ | ปกติ / ต้องซ่อม / กำลังซ่อม / ใช้ไม่ได้ |
+| I | หมายเหตุ | (free text) |
+| J | ผู้บันทึก | email |
+| K | วันที่บันทึก | yyyy-MM-dd HH:mm |
 
 ## Deploy — ขั้นตอน (user ทำเอง)
 

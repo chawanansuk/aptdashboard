@@ -2515,3 +2515,163 @@ html.dark .ac-user-signout:hover { background: #7F1D1D; color: #FECACA; }
 @media print {
   .ac-user-menu, .ac-user-menu-backdrop { display: none !important; }
 }
+
+/* ===== Room modal tabs (v3.6.0) ===== */
+.ac-modal-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #F1F5F9;
+  padding: 0 20px;
+  background: #fff;
+}
+html.dark .ac-modal-tabs { background: #1E293B; border-bottom-color: #334155; }
+.ac-modal-tab {
+  position: relative;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: color 0.15s;
+  min-height: 44px;
+}
+.ac-modal-tab:hover { color: #4F46E5; }
+.ac-modal-tab.is-active { color: #4F46E5; }
+.ac-modal-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 12px; right: 12px; bottom: -1px;
+  height: 2px;
+  background: #4F46E5;
+  border-radius: 2px 2px 0 0;
+}
+html.dark .ac-modal-tab { color: #94A3B8; }
+html.dark .ac-modal-tab:hover,
+html.dark .ac-modal-tab.is-active { color: #A5B4FC; }
+html.dark .ac-modal-tab.is-active::after { background: #A5B4FC; }
+
+/* ===== Equipment tab (RoomEquipmentTab) ===== */
+.ac-equipment-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 -8px;
+}
+.ac-equipment-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ac-equipment-chips {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+  margin: -2px 0;
+  padding: 2px 0;
+  flex: 1;
+  min-width: 0;
+}
+.ac-equipment-chips::-webkit-scrollbar { display: none; }
+.ac-equipment-chips .ac-chip {
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.ac-equipment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.ac-equipment-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  align-items: flex-start;
+}
+html.dark .ac-equipment-card { background: #0F172A; border-color: #334155; }
+.ac-equipment-card-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #FFF7ED;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+html.dark .ac-equipment-card-icon { background: #1E293B; }
+.ac-equipment-card-main {
+  flex: 1;
+  min-width: 0;
+}
+.ac-equipment-card-line1 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.ac-equipment-card-type {
+  font-weight: 700;
+  color: #0F172A;
+  font-size: 14px;
+}
+html.dark .ac-equipment-card-type { color: #F1F5F9; }
+.ac-equipment-card-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ac-equipment-card-brand {
+  font-size: 13px;
+  color: #475569;
+  margin-bottom: 4px;
+}
+html.dark .ac-equipment-card-brand { color: #CBD5E1; }
+.ac-equipment-card-meta {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-bottom: 4px;
+}
+.ac-equipment-card-note {
+  font-size: 12px;
+  color: #64748B;
+  font-style: italic;
+}
+.ac-equipment-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: flex-end;
+}
+
+@media (max-width: 480px) {
+  .ac-equipment-card { flex-wrap: wrap; }
+  .ac-equipment-card-actions {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed #E2E8F0;
+  }
+  html.dark .ac-equipment-card-actions { border-top-color: #334155; }
+}

@@ -65,3 +65,33 @@ export interface RoomView {
   upcomingTasks: SheetRow[];
   pastTasks: SheetRow[];
 }
+
+// ===== ROOM EQUIPMENT sheet (ชีต "อุปกรณ์") — v3.6.0 =====
+export type EquipmentType =
+  | "แอร์"
+  | "เครื่องซักผ้า"
+  | "ตู้เย็น"
+  | "เครื่องทำน้ำอุ่น"
+  | "โทรทัศน์"
+  | "ไมโครเวฟ"
+  | "อื่นๆ";
+
+export type EquipmentStatus =
+  | "ปกติ"
+  | "ต้องซ่อม"
+  | "กำลังซ่อม"
+  | "ใช้ไม่ได้";
+
+export interface RoomEquipment {
+  id: string;
+  building: string;
+  room: string;
+  type: EquipmentType | string;
+  brand: string;          // ยี่ห้อ/รุ่น
+  installDate: string;    // yyyy-MM-dd
+  lastService: string;    // yyyy-MM-dd
+  status: EquipmentStatus | string;
+  note: string;
+  creator: string;        // email
+  createdAt: string;
+}

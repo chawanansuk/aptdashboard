@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.4.3 — Dashboard หอพัก
+ * Code.gs v3.6.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -12,6 +12,10 @@
  *     (CSV publish มี 5min cache จาก Google ที่ทำให้ updateRoomStatus
  *      ไม่เห็นผลทันที)
  *   - clearRoomsCache_ ใน updateRoomStatus_ + onEdit
+ * NEW v3.6.0:
+ *   - tab "อุปกรณ์" auto-create + actions getRoomEquipment / addEquipment /
+ *     updateEquipment (ใช้กับ Engineer mode)
+ *   - cache 60s + invalidate ตอน add/update
  */
 
 const SHEET_NAMES = {
@@ -19,11 +23,14 @@ const SHEET_NAMES = {
   TEMPLATE: 'template_งาน',
   ROOM: 'ห้อง',
   METER: 'มิเตอร์',
+  EQUIPMENT: 'อุปกรณ์',
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
 const STATUS_OPTIONS = ['ว่าง', 'pending', 'กำลังทำ', 'เสร็จ', 'ยกเลิก'];
 const ROOM_STATUS    = ['ว่าง', 'มีผู้เช่า', 'จอง', 'ซ่อม'];
+const EQUIPMENT_TYPES  = ['แอร์', 'เครื่องซักผ้า', 'ตู้เย็น', 'เครื่องทำน้ำอุ่น', 'โทรทัศน์', 'ไมโครเวฟ', 'อื่นๆ'];
+const EQUIPMENT_STATUS = ['ปกติ', 'ต้องซ่อม', 'กำลังซ่อม', 'ใช้ไม่ได้'];
 
 // คอลัมน์ของ tab "งาน" (1-based)
 const TASK_COL = {
@@ -76,6 +83,27 @@ function clearRoomsCache_() {
   try { CacheService.getScriptCache().remove(ROOMS_CACHE_KEY); } catch (e) {}
 }
 
+/* ========== EQUIPMENT CACHE (NEW v3.6.0) ========== */
+const EQUIPMENT_CACHE_KEY = 'equipmentCache_v1';
+const EQUIPMENT_CACHE_TTL_SEC = 60;
+
+function getAllEquipmentCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(EQUIPMENT_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+  const fresh = getAllEquipment_();
+  try {
+    cache.put(EQUIPMENT_CACHE_KEY, JSON.stringify(fresh), EQUIPMENT_CACHE_TTL_SEC);
+  } catch (e) {}
+  return fresh;
+}
+
+function clearEquipmentCache_() {
+  try { CacheService.getScriptCache().remove(EQUIPMENT_CACHE_KEY); } catch (e) {}
+}
+
 /* ========== UTIL ========== */
 function norm(v) {
   if (v === null || v === undefined) return '';
@@ -108,11 +136,14 @@ function doPost(e) {
     switch (body.action) {
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
+      case 'getRoomEquipment': return ok_({ result: { rows: getRoomEquipment_(body.building, body.room) } });
       case 'addTask':          return ok_(addTask_(body));
       case 'updateTask':       return ok_(updateTask_(body));
       case 'updateTaskStatus': return ok_(updateTaskStatus_(body));
       case 'deleteTask':       return ok_(deleteTask_(body));
       case 'updateRoomStatus': return ok_(updateRoomStatus_(body));
+      case 'addEquipment':     return ok_(addEquipment_(body));
+      case 'updateEquipment':  return ok_(updateEquipment_(body));
       case 'debugFindTask':    return ok_({ row: findTaskRow_(body) });
       default: throw new Error('unknown action: ' + body.action);
     }
@@ -122,7 +153,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.4.3' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.6.0' });
 }
 
 /* ========== TASK READ ========== */
@@ -313,6 +344,129 @@ function updateRoomStatus_(b) {
   throw new Error('room not found: ' + b.building + ' ' + b.room);
 }
 
+/* ========== EQUIPMENT (NEW v3.6.0) ========== */
+/**
+ * Auto-create tab 'อุปกรณ์' on first write. Returns the sheet.
+ * Header is set with all 11 columns; row 1 frozen.
+ */
+function getOrCreateEquipmentSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.EQUIPMENT);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.EQUIPMENT);
+    sh.appendRow([
+      'id', 'ตึก', 'ห้อง', 'ประเภท', 'ยี่ห้อ/รุ่น',
+      'วันติดตั้ง', 'วันซ่อมล่าสุด', 'สถานะ', 'หมายเหตุ',
+      'ผู้บันทึก', 'วันที่บันทึก',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#FFF7ED');
+  }
+  return sh;
+}
+
+function getAllEquipment_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.EQUIPMENT);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const building = norm(r[1]);
+    const room = norm(r[2]);
+    if (!building || !room) continue;
+    rows.push({
+      id:           norm(r[0]),
+      building:     building,
+      room:         room,
+      type:         norm(r[3]),
+      brand:        norm(r[4]),
+      installDate:  fmtDate_(r[5]),
+      lastService:  fmtDate_(r[6]),
+      status:       norm(r[7]) || 'ปกติ',
+      note:         norm(r[8]),
+      creator:      norm(r[9]),
+      createdAt:    norm(r[10]),
+    });
+  }
+  return rows;
+}
+
+function getRoomEquipment_(building, room) {
+  const b = norm(building);
+  const r = norm(room);
+  if (!b || !r) return [];
+  const all = getAllEquipmentCached_();
+  const filtered = [];
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].building === b && all[i].room === r) filtered.push(all[i]);
+  }
+  // Sort by installDate desc (newest first), fall back to id for stability
+  filtered.sort(function (a, c) {
+    return (c.installDate || '').localeCompare(a.installDate || '');
+  });
+  return filtered;
+}
+
+/**
+ * Append a new equipment entry. Auto-creates the sheet if missing.
+ * Required: building, room, type. Optional: brand, installDate,
+ * lastService, status, note.
+ */
+function addEquipment_(b) {
+  if (!b.building || !b.room) throw new Error('building/room required');
+  if (!b.type) throw new Error('type required');
+  const sh = getOrCreateEquipmentSheet_();
+  const id = Utilities.getUuid();
+  const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  sh.appendRow([
+    id,
+    b.building,
+    b.room,
+    b.type,
+    b.brand || '',
+    b.installDate || '',
+    b.lastService || '',
+    b.status || 'ปกติ',
+    b.note || '',
+    b.creator || '',
+    createdAt,
+  ]);
+  clearEquipmentCache_();
+  return { appended: true, id: id, row: sh.getLastRow() };
+}
+
+/**
+ * Update an existing equipment entry by id. Only provided fields are
+ * written; others are left untouched. Commonly used to update status
+ * + lastService when an engineer marks a unit repaired.
+ */
+function updateEquipment_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.EQUIPMENT);
+  if (!sh) throw new Error('sheet "อุปกรณ์" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no equipment rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('equipment not found: ' + b.id);
+  // Column index map (1-based)
+  // 2:ตึก 3:ห้อง 4:ประเภท 5:ยี่ห้อ 6:วันติดตั้ง 7:วันซ่อมล่าสุด 8:สถานะ 9:หมายเหตุ
+  if (b.type        !== undefined) sh.getRange(found, 4).setValue(b.type);
+  if (b.brand       !== undefined) sh.getRange(found, 5).setValue(b.brand);
+  if (b.installDate !== undefined) sh.getRange(found, 6).setValue(b.installDate);
+  if (b.lastService !== undefined) sh.getRange(found, 7).setValue(b.lastService);
+  if (b.status      !== undefined) sh.getRange(found, 8).setValue(b.status);
+  if (b.note        !== undefined) sh.getRange(found, 9).setValue(b.note);
+  clearEquipmentCache_();
+  return { updated: true, row: found };
+}
+
 /* ========== PHASE 1: SETUP / FORMATTING / DROPDOWNS / FILTER VIEWS ========== */
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -321,7 +475,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.4.3 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.6.0 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {
