@@ -3,9 +3,7 @@
 import type { RoomStatus } from "@/types";
 import type { Role } from "@/auth";
 import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
-import {
-  canViewFinancials, isSales, isEngineer, isManagement,
-} from "@/lib/permissions";
+import { canAccess } from "@/lib/permissions";
 
 export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities";
 
@@ -20,49 +18,27 @@ interface Props {
 }
 
 /**
- * Sidebar items per role.
+ * Sidebar items per role — driven entirely by canAccess() so the
+ * route → role mapping lives in lib/permissions.ts (single source of
+ * truth). Group visibility is derived from whether ANY item in the
+ * group is accessible.
  *
- * sales      — โฟกัสฝั่งลูกค้า: ผังห้อง, สถานะห้องที่ขายได้, แจ้งย้ายออก, ผู้เช่า, ปฏิทิน
- * engineer   — โฟกัสฝั่งช่าง:   ผังห้อง, รอตรวจ/รอซ่อม, ไม่ได้ใช้งาน, ปฏิทิน
- * management — เห็นครบ:          ทุกอย่าง + รายได้
- *
- * Multi-role (v3.10): user เห็นการรวม section ของทุก role ที่ตนมี.
+ * View-as filter: page.tsx passes effectiveRoles (not actualRoles),
+ * so flipping the View-as dropdown changes what's visible here.
  */
-
-function showRoomStatusGroup(roles?: Role[]): boolean {
-  return isSales(roles) || isManagement(roles);
-}
-
-function showTaskGroupSales(roles?: Role[]): boolean {
-  return isSales(roles) || isManagement(roles);
-}
-
-function showTaskGroupEng(roles?: Role[]): boolean {
-  return isEngineer(roles) || isManagement(roles);
-}
-
-function showTenants(roles?: Role[]): boolean {
-  return isSales(roles) || isManagement(roles);
-}
-
-function showIncome(roles?: Role[]): boolean {
-  return canViewFinancials(roles);
-}
-
-function showMaintenance(roles?: Role[]): boolean {
-  return isEngineer(roles) || isManagement(roles);
-}
 
 export default function AppSidebar({
   isOpen, activeView, onChangeView, counts, onBackdropClick, roles,
 }: Props) {
-  const showStatuses = showRoomStatusGroup(roles);
-  const showSalesTasks = showTaskGroupSales(roles);
-  const showEngTasks = showTaskGroupEng(roles);
+  const showStatuses =
+    canAccess(roles, "ready") || canAccess(roles, "pending") || canAccess(roles, "occupied");
+  const showSalesTasks = canAccess(roles, "moveout");
+  const showEngTasks =
+    canAccess(roles, "qc") || canAccess(roles, "repair") || canAccess(roles, "inactive");
   const showAnyTaskGroup = showSalesTasks || showEngTasks;
-  const showTen = showTenants(roles);
-  const showInc = showIncome(roles);
-  const showMaint = showMaintenance(roles);
+  const showTen = canAccess(roles, "tenants");
+  const showInc = canAccess(roles, "income");
+  const showMaint = canAccess(roles, "maintenance") || canAccess(roles, "facilities");
   // กลุ่ม "ดูข้อมูล" render เสมอ เพราะปฏิทินเห็นทุก role
 
   return (

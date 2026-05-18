@@ -18,7 +18,8 @@ import SkeletonLoader from "@/components/SkeletonLoader";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledStatus } from "@/lib/constants";
-import { canViewFinancials } from "@/lib/permissions";
+import { canAccess, getDefaultRoute, type Route } from "@/lib/permissions";
+import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
@@ -42,24 +43,14 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
-  // ---- Role-based access (PR #2 / multi-role v3.10) ----
-  const { data: session } = useSession();
-  const roles = session?.user?.roles;
-  const role = session?.user?.role; // primary role, kept for components ที่ยังรับ single
-  // Views that some roles can't access — used for safe-redirect guard below
-  const accessibleViews = useMemo(() => {
-    const v = new Set<string>(["overview", "today", "calendar"]);
-    const hasSales = roles?.includes("sales") || roles?.includes("management");
-    const hasEng = roles?.includes("engineer") || roles?.includes("management");
-    if (hasSales) {
-      v.add("ready"); v.add("pending"); v.add("occupied"); v.add("moveout"); v.add("tenants");
-    }
-    if (hasEng) {
-      v.add("qc"); v.add("repair"); v.add("inactive"); v.add("maintenance"); v.add("facilities");
-    }
-    if (canViewFinancials(roles)) v.add("income");
-    return v;
-  }, [roles]);
+  // ---- Role-based access (multi-role + view-as) ----
+  useSession(); // initialize session so useEffectiveRoles can read it
+  const { actualRoles, effectiveRoles } = useEffectiveRoles();
+  // `effectiveRoles` drives UI; `actualRoles` is the server truth (used
+  // anywhere we need to know "what can this user REALLY do")
+  const roles = effectiveRoles.length ? effectiveRoles : actualRoles;
+  // primary role for components that still take a single Role (badge etc.)
+  const role = roles[0];
 
   // ---- Presets ----
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -150,14 +141,26 @@ export default function Home() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // ---- Safe redirect: ถ้า role ไม่อนุญาตให้ดู view ปัจจุบัน → กลับไป overview ----
-  // ป้องกัน URL hack / restore session ที่ activeView เป็นค่าที่ role ใหม่เข้าไม่ได้
+  // ---- Route guard: redirect + toast if user lacks access ----
+  // Fires on URL/preset hack, on role change, or after View-as switch
+  // that excludes the current view. Uses actualRoles so we don't
+  // bounce the user when they're just filtering UI via View-as
+  // (View-as = sales but real role includes engineer → still allowed
+  //  at server, but UI hides it; redirect to a route that's actually
+  //  visible to the filtered view).
   useEffect(() => {
-    if (!role) return; // ยังโหลด session
-    if (!accessibleViews.has(activeView)) {
-      setActiveView("overview");
+    if (!role) return; // session still loading
+    // Guard against the *effective* role set so View-as also redirects
+    if (!canAccess(roles, activeView as Route)) {
+      const fallback = getDefaultRoute(roles);
+      setActiveView(fallback);
+      setToast({
+        type: "err",
+        msg: "ไม่มีสิทธิ์เข้าถึงหน้านี้",
+      });
     }
-  }, [role, activeView, accessibleViews]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, activeView, roles.join("|")]);
 
   // ---- Tab-focus refresh: when user returns to the tab, refetch the
   // dashboard and invalidate caches that don't auto-revalidate. Skips if

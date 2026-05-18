@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import type { Role } from "@/auth";
-import {
-  canAddTask, canDeleteTask, canEditTask, canEditTenant,
-  canAddSalesTask, canAddEngTask,
-} from "@/lib/permissions";
+import { canPerform, type Action } from "@/lib/permissions";
 import { invalidateDashboardCache } from "@/lib/dashboardCache";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 
@@ -19,15 +16,16 @@ type Body = {
 const SALES_TYPES = new Set(["ย้ายเข้า", "ย้ายออก", "ชมห้อง"]);
 const ENG_TYPES   = new Set(["ทำสะอาด", "ซ่อม"]);
 
-function isAllowed(action: string, roles: Role[] | undefined): boolean {
+/** Map Apps Script action → permission Action. Null = not authorized. */
+function actionToPermission(action: string): Action | null {
   switch (action) {
-    case "addTask":          return canAddTask(roles);
-    case "updateTask":
-    case "updateTaskStatus": return canEditTask(roles);
-    case "deleteTask":       return canDeleteTask(roles);
-    case "updateRoomStatus": return canEditTenant(roles);
-    case "debugFindTask":    return canEditTask(roles);
-    default:                 return false;
+    case "addTask":          return "task.add";
+    case "updateTask":       return "task.edit";
+    case "updateTaskStatus": return "task.edit";
+    case "deleteTask":       return "task.delete";
+    case "updateRoomStatus": return "room.editStatus";
+    case "debugFindTask":    return "task.edit";
+    default:                 return null;
   }
 }
 
@@ -40,10 +38,10 @@ function checkTaskTypePermission(action: string, type: string | undefined, roles
   if (action !== "addTask") return null;
   if (!type) return null; // ปล่อย Apps Script ตรวจ schema เอง
   const label = (roles || []).join("+") || "none";
-  if (SALES_TYPES.has(type) && !canAddSalesTask(roles)) {
+  if (SALES_TYPES.has(type) && !canPerform(roles, "task.add.sales")) {
     return `role "${label}" ไม่มีสิทธิ์เพิ่มงานประเภท "${type}" (งานฝ่ายเซลส์)`;
   }
-  if (ENG_TYPES.has(type) && !canAddEngTask(roles)) {
+  if (ENG_TYPES.has(type) && !canPerform(roles, "task.add.eng")) {
     return `role "${label}" ไม่มีสิทธิ์เพิ่มงานประเภท "${type}" (งานฝ่ายช่าง)`;
   }
   return null;
@@ -80,8 +78,9 @@ export async function POST(req: Request) {
     );
   }
 
-  // 3. Role check (action-level)
-  if (!isAllowed(action, roles)) {
+  // 3. Role check (action-level) — via canPerform single source of truth
+  const permAction = actionToPermission(action);
+  if (!permAction || !canPerform(roles, permAction)) {
     const label = (roles || []).join("+") || "none";
     return NextResponse.json(
       { ok: false, error: `ไม่มีสิทธิ์สำหรับการกระทำนี้ (action=${action}, roles=${label})` },

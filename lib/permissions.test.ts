@@ -1,0 +1,165 @@
+import { describe, expect, it } from "vitest";
+import {
+  canAccess, canPerform, getDefaultRoute,
+  isSales, isEngineer, isManagement,
+  canAddTask, canDeleteTask, canEditTenant, canViewFinancials,
+  canAddSalesTask, canAddEngTask,
+} from "./permissions";
+
+describe("permissions: canAccess", () => {
+  it("management can access every route", () => {
+    const routes = [
+      "overview", "today", "calendar",
+      "ready", "pending", "occupied", "moveout", "tenants",
+      "qc", "repair", "inactive", "maintenance", "facilities",
+      "income",
+    ] as const;
+    for (const r of routes) {
+      expect(canAccess(["management"], r)).toBe(true);
+    }
+  });
+
+  it("sales sees rooms + tenants + calendar but NOT engineer routes or income", () => {
+    expect(canAccess(["sales"], "ready")).toBe(true);
+    expect(canAccess(["sales"], "moveout")).toBe(true);
+    expect(canAccess(["sales"], "tenants")).toBe(true);
+    expect(canAccess(["sales"], "calendar")).toBe(true);
+    expect(canAccess(["sales"], "qc")).toBe(false);
+    expect(canAccess(["sales"], "repair")).toBe(false);
+    expect(canAccess(["sales"], "maintenance")).toBe(false);
+    expect(canAccess(["sales"], "income")).toBe(false);
+  });
+
+  it("engineer sees jobs + assets but NOT tenants or income", () => {
+    expect(canAccess(["engineer"], "qc")).toBe(true);
+    expect(canAccess(["engineer"], "repair")).toBe(true);
+    expect(canAccess(["engineer"], "maintenance")).toBe(true);
+    expect(canAccess(["engineer"], "facilities")).toBe(true);
+    expect(canAccess(["engineer"], "tenants")).toBe(false);
+    expect(canAccess(["engineer"], "ready")).toBe(false);
+    expect(canAccess(["engineer"], "income")).toBe(false);
+  });
+
+  it("multi-role sales+engineer sees union (no income)", () => {
+    const roles = ["sales", "engineer"] as const;
+    expect(canAccess([...roles], "tenants")).toBe(true);    // sales side
+    expect(canAccess([...roles], "maintenance")).toBe(true); // engineer side
+    expect(canAccess([...roles], "income")).toBe(false);     // mgmt only
+  });
+
+  it("undefined / empty roles → only nothing", () => {
+    expect(canAccess(undefined, "overview")).toBe(false);
+    expect(canAccess(null, "overview")).toBe(false);
+    expect(canAccess([], "overview")).toBe(false);
+  });
+
+  it("accepts legacy single-Role input (backward compat)", () => {
+    expect(canAccess("sales", "ready")).toBe(true);
+    expect(canAccess("management", "income")).toBe(true);
+    expect(canAccess("engineer", "tenants")).toBe(false);
+  });
+});
+
+describe("permissions: canPerform", () => {
+  it("only management can delete tasks", () => {
+    expect(canPerform(["management"], "task.delete")).toBe(true);
+    expect(canPerform(["sales"], "task.delete")).toBe(false);
+    expect(canPerform(["engineer"], "task.delete")).toBe(false);
+    expect(canPerform(["sales", "engineer"], "task.delete")).toBe(false);
+  });
+
+  it("sales+engineer can add BOTH sales-side and engineer-side tasks", () => {
+    const roles = ["sales", "engineer"] as const;
+    expect(canPerform([...roles], "task.add.sales")).toBe(true);
+    expect(canPerform([...roles], "task.add.eng")).toBe(true);
+  });
+
+  it("sales alone cannot add engineer tasks (and vice versa)", () => {
+    expect(canPerform(["sales"], "task.add.eng")).toBe(false);
+    expect(canPerform(["engineer"], "task.add.sales")).toBe(false);
+  });
+
+  it("only management can view financials or edit tenants", () => {
+    expect(canPerform(["management"], "finance.view")).toBe(true);
+    expect(canPerform(["management"], "tenant.edit")).toBe(true);
+    expect(canPerform(["sales", "engineer"], "finance.view")).toBe(false);
+    expect(canPerform(["sales"], "tenant.edit")).toBe(false);
+  });
+
+  it("equipment + facility ops are engineer or management", () => {
+    expect(canPerform(["engineer"], "equipment.add")).toBe(true);
+    expect(canPerform(["engineer"], "facility.add")).toBe(true);
+    expect(canPerform(["management"], "equipment.edit")).toBe(true);
+    expect(canPerform(["sales"], "equipment.add")).toBe(false);
+    expect(canPerform(["sales"], "facility.edit")).toBe(false);
+  });
+
+  it("empty / null roles cannot perform anything", () => {
+    expect(canPerform(null, "task.add")).toBe(false);
+    expect(canPerform([], "task.add")).toBe(false);
+    expect(canPerform(undefined, "finance.view")).toBe(false);
+  });
+});
+
+describe("permissions: legacy helpers delegate to canPerform", () => {
+  it("canDeleteTask matches canPerform('task.delete')", () => {
+    const cases = [
+      ["sales"], ["engineer"], ["management"],
+      ["sales", "engineer"], [], null, undefined,
+    ] as const;
+    for (const r of cases) {
+      expect(canDeleteTask(r as never)).toBe(canPerform(r as never, "task.delete"));
+    }
+  });
+
+  it("canEditTenant + canViewFinancials match canPerform", () => {
+    expect(canEditTenant(["sales"])).toBe(false);
+    expect(canEditTenant(["management"])).toBe(true);
+    expect(canViewFinancials(["sales", "engineer"])).toBe(false);
+    expect(canViewFinancials(["management"])).toBe(true);
+  });
+
+  it("canAddTask is true for any authenticated role", () => {
+    expect(canAddTask(["sales"])).toBe(true);
+    expect(canAddTask(["engineer"])).toBe(true);
+    expect(canAddTask(["management"])).toBe(true);
+    expect(canAddTask([])).toBe(false);
+  });
+
+  it("canAddSalesTask + canAddEngTask delegate correctly", () => {
+    expect(canAddSalesTask(["sales"])).toBe(true);
+    expect(canAddSalesTask(["engineer"])).toBe(false);
+    expect(canAddSalesTask(["sales", "engineer"])).toBe(true);
+    expect(canAddEngTask(["engineer"])).toBe(true);
+    expect(canAddEngTask(["sales"])).toBe(false);
+    expect(canAddEngTask(["sales", "engineer"])).toBe(true);
+  });
+});
+
+describe("permissions: role identity helpers", () => {
+  it("isSales / isEngineer / isManagement check role membership", () => {
+    expect(isSales(["sales"])).toBe(true);
+    expect(isSales(["sales", "engineer"])).toBe(true);
+    expect(isSales(["engineer"])).toBe(false);
+    expect(isEngineer(["engineer", "management"])).toBe(true);
+    expect(isManagement(["management"])).toBe(true);
+    expect(isManagement(["sales", "engineer"])).toBe(false);
+  });
+});
+
+describe("permissions: getDefaultRoute", () => {
+  it("returns overview for any role we have today", () => {
+    expect(getDefaultRoute(["sales"])).toBe("overview");
+    expect(getDefaultRoute(["engineer"])).toBe("overview");
+    expect(getDefaultRoute(["management"])).toBe("overview");
+    expect(getDefaultRoute(["sales", "engineer"])).toBe("overview");
+  });
+
+  it("returns a routable view even for empty roles (no crash)", () => {
+    // No role can access overview → falls through to today → calendar
+    // But all of overview/today/calendar require some role, so for [] it
+    // ultimately returns "calendar" as a safe fallback even though the
+    // user can't actually render it. The route guard then handles it.
+    expect(["overview", "today", "calendar"]).toContain(getDefaultRoute([]));
+  });
+});
