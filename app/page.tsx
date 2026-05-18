@@ -14,6 +14,7 @@ import RoomsView from "@/components/RoomsView";
 import CommandPalette from "@/components/CommandPalette";
 import { useCommandPalette } from "@/lib/useCommandPalette";
 import type { CommandDef } from "@/lib/commandPaletteSearch";
+import BottomNav, { type BottomNavView } from "@/components/BottomNav";
 import RoomModal from "@/components/RoomModal";
 import AddTaskModal from "@/components/AddTaskModal";
 import BulkAddModal from "@/components/BulkAddModal";
@@ -664,6 +665,13 @@ export default function Home() {
           )}
         </main>
       </div>
+
+      <BottomNav
+        activeView={activeView}
+        roles={roles}
+        onNavigate={(v: BottomNavView) => setActiveView(v)}
+        onAddTask={() => setShowAddTask(true)}
+      />
 
       <CommandPalette
         open={cmdk.open}

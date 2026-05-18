@@ -3547,3 +3547,116 @@ html.dark .ac-maint-card:hover {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ====================================================================
+ * Mobile bottom nav
+ *
+ * Visible only on small screens. Sidebar stays available via the
+ * hamburger button in AppHeader for full nav; this is quick access
+ * to the user's most-used 4 views + an Add Task primary action.
+ *
+ * Layout: fixed bottom, full width, equal columns, safe-area-aware.
+ * Z-index 50 — above content, below modal/toast (modal z=200, toast=300).
+ * ==================================================================== */
+.ac-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: #ffffff;
+  border-top: 1px solid #E2E8F0;
+  padding: 6px 6px max(6px, env(safe-area-inset-bottom));
+  box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.06);
+}
+html.dark .ac-bottom-nav {
+  background: #0F172A;
+  border-top-color: #334155;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.4);
+}
+
+.ac-bottom-nav-tab {
+  flex: 1;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: transparent;
+  border: none;
+  color: #64748B;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 120ms ease, background 120ms ease, transform 120ms ease;
+  min-width: 0;
+}
+html.dark .ac-bottom-nav-tab { color: #94A3B8; }
+
+.ac-bottom-nav-tab:active { transform: scale(0.95); }
+
+.ac-bottom-nav-tab.is-active { color: #2563EB; }
+html.dark .ac-bottom-nav-tab.is-active { color: #60A5FA; }
+
+.ac-bottom-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+}
+
+.ac-bottom-nav-label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.ac-bottom-nav-tab.is-active .ac-bottom-nav-label { font-weight: 700; }
+
+/* Primary "+ เพิ่ม" tab — circular, lifted, accent fill */
+.ac-bottom-nav-tab.is-primary {
+  color: #fff;
+  background: #2563EB;
+  margin: 0 4px;
+  align-self: center;
+  height: 44px;
+  width: 44px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  position: relative;
+  top: -8px;
+}
+.ac-bottom-nav-tab.is-primary .ac-bottom-nav-label { display: none; }
+.ac-bottom-nav-tab.is-primary .ac-bottom-nav-icon { height: auto; }
+.ac-bottom-nav-tab.is-primary:hover { background: #1D4ED8; }
+.ac-bottom-nav-tab.is-primary:active {
+  transform: translateY(-8px) scale(0.92);
+}
+html.dark .ac-bottom-nav-tab.is-primary { background: #3B82F6; }
+html.dark .ac-bottom-nav-tab.is-primary:hover { background: #2563EB; }
+
+/* Show only on mobile / small tablets */
+@media (max-width: 768px) {
+  .ac-bottom-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+  /* Main content gets padding so the last row isn't hidden behind the bar. */
+  .ac-main {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Hidden in print — the nav is interactive chrome, not report content */
+@media print {
+  .ac-bottom-nav { display: none !important; }
+}
