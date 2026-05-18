@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   EQUIPMENT_TYPES, EQUIPMENT_STATUS_LIST,
   INTERVAL_OPTIONS, DEFAULT_INTERVAL_DAYS,
@@ -36,6 +36,20 @@ interface Props {
   }) => void;
 }
 
+type FieldKey = "type" | "installDate";
+type Errors = Partial<Record<FieldKey, string>>;
+
+function validate(values: { type: string; installDate: string }): Errors {
+  const e: Errors = {};
+  if (!values.type) e.type = "เลือกประเภทอุปกรณ์";
+  // installDate is recommended but not strictly required — allow empty
+  // (some legacy equipment has no install date). If filled, must be valid.
+  if (values.installDate && !/^\d{4}-\d{2}-\d{2}$/.test(values.installDate)) {
+    e.installDate = "รูปแบบวันที่ไม่ถูกต้อง";
+  }
+  return e;
+}
+
 export default function AddEquipmentModal({
   open, building, room, submitting, initial, onClose, onSubmit,
 }: Props) {
@@ -56,17 +70,45 @@ export default function AddEquipmentModal({
       : (DEFAULT_INTERVAL_DAYS[(initial?.type as string) || "แอร์"] ?? 0)
   );
 
-  if (!open) return null;
+  // Validation state (local to modal)
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [touched, setTouched] = useState<Set<FieldKey>>(new Set());
+  const firstFieldRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setSubmitAttempted(false);
+      setTouched(new Set());
+      const t = setTimeout(() => firstFieldRef.current?.focus(), 30);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+
+  const errors = useMemo(() => validate({ type, installDate }), [type, installDate]);
+
+  function shouldShowError(field: FieldKey): boolean {
+    if (!errors[field]) return false;
+    return submitAttempted || touched.has(field);
+  }
+  function markTouched(field: FieldKey) {
+    setTouched((prev) => {
+      if (prev.has(field)) return prev;
+      const next = new Set(prev);
+      next.add(field);
+      return next;
+    });
+  }
 
   function handleTypeChange(t: EquipmentType) {
     setType(t);
-    // Only auto-fill interval in add mode (don't clobber edit values)
     if (!isEdit) {
       setIntervalDays(DEFAULT_INTERVAL_DAYS[t] ?? 0);
     }
   }
 
-  function handleSubmit() {
+  function attemptSubmit() {
+    setSubmitAttempted(true);
+    if (Object.keys(errors).length > 0) return;
     onSubmit({
       id: initial?.id,
       type,
@@ -79,88 +121,177 @@ export default function AddEquipmentModal({
     });
   }
 
+  // Keyboard: Esc closes, Cmd/Ctrl+Enter submits
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        if (!submitting) onClose();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        attemptSubmit();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, submitting, errors]);
+
+  if (!open) return null;
+
+  const intervalHint = intervalDays > 0
+    ? "ระบบจะเตือนเมื่อใกล้ครบรอบ (นับจากวันซ่อมล่าสุด หรือวันติดตั้ง)"
+    : "ไม่ติดตามรอบบำรุงสำหรับอุปกรณ์ชิ้นนี้";
+
   return (
-    <div className="ac-modal-backdrop" onClick={() => !submitting && onClose()}>
-      <div className="ac-modal" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="ac-modal-backdrop"
+      onClick={() => !submitting && onClose()}
+    >
+      <div
+        className="ac-modal ac-modal-form"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ac-addeq-title"
+      >
         <header className="ac-modal-head">
           <div>
-            <div className="ac-modal-title">{isEdit ? "แก้ไขอุปกรณ์" : "เพิ่มอุปกรณ์"}</div>
+            <div className="ac-modal-title" id="ac-addeq-title">
+              {isEdit ? "แก้ไขอุปกรณ์" : "เพิ่มอุปกรณ์"}
+            </div>
             <div className="ac-modal-sub">{building} {room}</div>
           </div>
-          <button className="ac-modal-close" onClick={() => !submitting && onClose()}>✕</button>
+          <button
+            className="ac-modal-close"
+            onClick={() => !submitting && onClose()}
+            aria-label="ปิด"
+          >✕</button>
         </header>
 
         <div className="ac-modal-body">
-          <div className="ac-field">
-            <label>ประเภท</label>
-            <select value={type} onChange={(e) => handleTypeChange(e.target.value as EquipmentType)}>
-              {EQUIPMENT_TYPES.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+          {/* SECTION 1 — ประเภท · ยี่ห้อ */}
+          <div className="ac-form-section">
+            <div className="ac-form-section-label">ประเภท · ยี่ห้อ</div>
+            <div className="ac-form-row">
+              <div className={`ac-field ${shouldShowError("type") ? "has-error" : ""}`}>
+                <label htmlFor="ac-addeq-type">
+                  ประเภท <span className="ac-required" aria-hidden>*</span>
+                </label>
+                <select
+                  id="ac-addeq-type"
+                  ref={firstFieldRef}
+                  value={type}
+                  onChange={(e) => handleTypeChange(e.target.value as EquipmentType)}
+                  onBlur={() => markTouched("type")}
+                  aria-invalid={shouldShowError("type") ? "true" : "false"}
+                >
+                  {EQUIPMENT_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                {shouldShowError("type") && (
+                  <span className="ac-field-error">{errors.type}</span>
+                )}
+              </div>
+              <div className="ac-field">
+                <label htmlFor="ac-addeq-brand">ยี่ห้อ / รุ่น</label>
+                <input
+                  id="ac-addeq-brand"
+                  type="text"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  placeholder="เช่น Mitsubishi MS-SF18VC"
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="ac-field">
-            <label>ยี่ห้อ / รุ่น</label>
-            <input
-              type="text"
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-              placeholder="เช่น Mitsubishi MS-SF18VC"
-            />
+          {/* SECTION 2 — ติดตั้ง */}
+          <div className="ac-form-section">
+            <div className="ac-form-section-label">
+              ติดตั้ง <span className="ac-form-section-optional">(ไม่บังคับ)</span>
+            </div>
+            <div className="ac-form-row">
+              <div className={`ac-field ${shouldShowError("installDate") ? "has-error" : ""}`}>
+                <label htmlFor="ac-addeq-install">วันติดตั้ง</label>
+                <input
+                  id="ac-addeq-install"
+                  type="date"
+                  value={installDate}
+                  onChange={(e) => setInstallDate(e.target.value)}
+                  onBlur={() => markTouched("installDate")}
+                  aria-invalid={shouldShowError("installDate") ? "true" : "false"}
+                />
+                {shouldShowError("installDate") && (
+                  <span className="ac-field-error">{errors.installDate}</span>
+                )}
+              </div>
+              <div className="ac-field">
+                <label htmlFor="ac-addeq-lastservice">วันซ่อมล่าสุด</label>
+                <input
+                  id="ac-addeq-lastservice"
+                  type="date"
+                  value={lastService}
+                  onChange={(e) => setLastService(e.target.value)}
+                />
+                <span className="ac-field-hint">เว้นว่างถ้ายังไม่เคยซ่อม</span>
+              </div>
+            </div>
           </div>
 
-          <div className="ac-field">
-            <label>วันติดตั้ง</label>
-            <input type="date" value={installDate} onChange={(e) => setInstallDate(e.target.value)} />
+          {/* SECTION 3 — สถานะ · รอบบำรุง */}
+          <div className="ac-form-section">
+            <div className="ac-form-section-label">สถานะ · รอบบำรุง</div>
+            <div className="ac-form-row">
+              <div className="ac-field">
+                <label htmlFor="ac-addeq-status">สถานะ</label>
+                <select
+                  id="ac-addeq-status"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as EquipmentStatus)}
+                >
+                  {EQUIPMENT_STATUS_LIST.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="ac-field">
+                <label htmlFor="ac-addeq-interval">รอบบำรุง</label>
+                <select
+                  id="ac-addeq-interval"
+                  value={intervalDays}
+                  onChange={(e) => setIntervalDays(Number(e.target.value))}
+                >
+                  {INTERVAL_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <span className="ac-field-hint">{intervalHint}</span>
           </div>
 
-          <div className="ac-field">
-            <label>วันซ่อมล่าสุด</label>
-            <input
-              type="date"
-              value={lastService}
-              onChange={(e) => setLastService(e.target.value)}
-            />
-            <span style={{ fontSize: 11, color: "#94A3B8" }}>เว้นว่างถ้ายังไม่เคยซ่อม</span>
-          </div>
-
-          <div className="ac-field">
-            <label>สถานะ</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value as EquipmentStatus)}>
-              {EQUIPMENT_STATUS_LIST.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="ac-field">
-            <label>รอบบำรุง</label>
-            <select
-              value={intervalDays}
-              onChange={(e) => setIntervalDays(Number(e.target.value))}
-            >
-              {INTERVAL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <span style={{ fontSize: 11, color: "#94A3B8" }}>
-              ระบบจะเตือนเมื่อใกล้ครบรอบ (นับจากวันซ่อมล่าสุด หรือวันติดตั้ง)
-            </span>
-          </div>
-
-          <div className="ac-field">
-            <label>หมายเหตุ (optional)</label>
-            <textarea
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="เช่น ติดตั้งใหม่ใน 5/2024, รับประกัน 2 ปี"
-            />
+          {/* SECTION 4 — หมายเหตุ */}
+          <div className="ac-form-section">
+            <div className="ac-form-section-label">
+              หมายเหตุ <span className="ac-form-section-optional">(ไม่บังคับ)</span>
+            </div>
+            <div className="ac-field">
+              <textarea
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="เช่น ติดตั้งใหม่ใน 5/2024, รับประกัน 2 ปี"
+              />
+            </div>
           </div>
         </div>
 
-        <footer className="ac-modal-foot">
+        <footer className="ac-modal-foot ac-modal-foot-sticky">
+          <span className="ac-modal-foot-hint" aria-hidden>
+            <kbd>⌘</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
+          </span>
           <button
             className="ac-btn ac-btn-ghost"
             disabled={submitting}
@@ -169,8 +300,11 @@ export default function AddEquipmentModal({
           <button
             className="ac-btn ac-btn-primary"
             disabled={submitting}
-            onClick={handleSubmit}
-          >{submitting ? "กำลังบันทึก..." : "บันทึก"}</button>
+            onClick={attemptSubmit}
+          >
+            {submitting && <span className="ac-btn-spinner" aria-hidden />}
+            {submitting ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
         </footer>
       </div>
     </div>
