@@ -2738,6 +2738,95 @@ html.dark .ac-maint-card-meta { color: #94A3B8; }
 .ac-facility-group-head span { color: #94A3B8; font-weight: 500; font-size: 12px; }
 html.dark .ac-facility-group-head { color: #E2E8F0; }
 
+/* ===== Command palette (Cmd+K) ===== */
+.ac-cmdk-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 80px 16px 16px;
+  animation: ac-cmdk-fade 0.12s ease-out;
+}
+@keyframes ac-cmdk-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.ac-cmdk {
+  width: 100%; max-width: 600px;
+  background: #fff; border: 1px solid #E2E8F0;
+  border-radius: 12px; overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+  display: flex; flex-direction: column;
+  max-height: 70vh;
+}
+html.dark .ac-cmdk { background: #0F172A; border-color: #334155; }
+
+.ac-cmdk-search {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #F1F5F9;
+}
+html.dark .ac-cmdk-search { border-bottom-color: #1E293B; }
+.ac-cmdk-icon { font-size: 16px; opacity: 0.6; }
+.ac-cmdk-search input {
+  flex: 1; border: none; outline: none; background: transparent;
+  font-size: 15px; font-family: inherit; color: inherit;
+  padding: 4px 0;
+}
+.ac-cmdk-esc {
+  font-size: 10px; padding: 2px 6px;
+  background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 4px;
+  color: #64748B; font-family: ui-monospace, monospace;
+}
+html.dark .ac-cmdk-esc { background: #1E293B; border-color: #334155; color: #94A3B8; }
+
+.ac-cmdk-list {
+  list-style: none; margin: 0; padding: 4px 0;
+  overflow-y: auto; flex: 1;
+}
+.ac-cmdk-group-head {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: #94A3B8; padding: 8px 14px 4px;
+  font-weight: 600;
+}
+.ac-cmdk-item {
+  display: flex; flex-direction: column; gap: 2px;
+  width: 100%; padding: 8px 14px;
+  background: transparent; border: none; cursor: pointer;
+  text-align: left; font: inherit; color: inherit;
+}
+.ac-cmdk-item.is-selected {
+  background: #F1F5F9;
+}
+html.dark .ac-cmdk-item.is-selected { background: #1E293B; }
+.ac-cmdk-item-label { font-size: 14px; font-weight: 500; }
+.ac-cmdk-item-hint { font-size: 12px; color: #64748B; }
+html.dark .ac-cmdk-item-hint { color: #94A3B8; }
+
+.ac-cmdk-empty {
+  padding: 40px 14px; text-align: center; color: #94A3B8; font-size: 13px;
+}
+
+.ac-cmdk-foot {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 14px; border-top: 1px solid #F1F5F9;
+  font-size: 11px; color: #64748B;
+}
+html.dark .ac-cmdk-foot { border-top-color: #1E293B; color: #94A3B8; }
+.ac-cmdk-foot kbd {
+  display: inline-block; padding: 1px 4px;
+  background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 3px;
+  font-family: ui-monospace, monospace; font-size: 10px;
+  margin-right: 2px;
+}
+html.dark .ac-cmdk-foot kbd { background: #1E293B; border-color: #334155; }
+.ac-cmdk-foot-count { margin-left: auto; }
+
+@media (max-width: 600px) {
+  .ac-cmdk-backdrop { padding-top: 40px; }
+  .ac-cmdk-foot-count { display: none; }
+}
+
 /* ===== Overview dashboard cards ===== */
 .ac-overview-cards {
   display: grid;

@@ -11,6 +11,9 @@ import AppHeader from "@/components/AppHeader";
 import AppSidebar from "@/components/AppSidebar";
 import OverviewCards from "@/components/OverviewCards";
 import RoomsView from "@/components/RoomsView";
+import CommandPalette from "@/components/CommandPalette";
+import { useCommandPalette } from "@/lib/useCommandPalette";
+import type { CommandDef } from "@/lib/commandPaletteSearch";
 import RoomModal from "@/components/RoomModal";
 import AddTaskModal from "@/components/AddTaskModal";
 import BulkAddModal from "@/components/BulkAddModal";
@@ -357,6 +360,36 @@ export default function Home() {
     setShowAddTask(true);
   }
 
+  // ---- Command palette (Cmd+K / Ctrl+K / `/`) ----
+  const cmdk = useCommandPalette();
+  const paletteCommands = useMemo<CommandDef[]>(() => [
+    {
+      id: "addTask",
+      label: "เพิ่มงานใหม่",
+      hint: "Add task",
+      requires: { action: "task.add" },
+      run: () => setShowAddTask(true),
+    },
+    {
+      id: "refresh",
+      label: "Refresh ข้อมูล",
+      hint: "ดึงข้อมูลใหม่จากชีต",
+      run: () => refresh(),
+    },
+    {
+      id: "toggleTheme",
+      label: isDark ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด",
+      hint: "Dark mode toggle",
+      run: () => toggleTheme(),
+    },
+    {
+      id: "openSummary",
+      label: "เปิด Summary",
+      hint: "สรุปภาพรวมทั้งหมด",
+      run: () => setSummaryOpen(true),
+    },
+  ], [isDark]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleAddTask() {
     if (!tBuilding || !tRoom) { setToast({ type: "err", msg: "กรอกตึกและเลขห้อง" }); return; }
     setSavingTask(true);
@@ -462,6 +495,7 @@ export default function Home() {
         onToggleTheme={toggleTheme}
         onOpenSummary={() => setSummaryOpen(true)}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        onOpenSearch={() => cmdk.setOpen(true)}
       />
 
       <div className="ac-body">
@@ -618,6 +652,16 @@ export default function Home() {
           )}
         </main>
       </div>
+
+      <CommandPalette
+        open={cmdk.open}
+        onClose={() => cmdk.setOpen(false)}
+        rooms={rooms}
+        roles={roles}
+        commands={paletteCommands}
+        onSelectRoom={(r) => setSelectedRoom(r)}
+        onChangeView={(v) => setActiveView(v)}
+      />
 
       <AddTaskModal
         open={showAddTask}

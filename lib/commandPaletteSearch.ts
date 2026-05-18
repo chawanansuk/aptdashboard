@@ -1,0 +1,222 @@
+import type { Role } from "@/auth";
+import type { RoomView } from "@/types";
+import { canAccess, canPerform, type Route } from "@/lib/permissions";
+import { STATUS_LABEL } from "@/lib/constants";
+
+/**
+ * Command palette search — pure functions, no React.
+ *
+ * The palette has three result groups:
+ *   - room    : open RoomModal for a specific room
+ *   - view    : navigate to a sidebar view
+ *   - command : execute an arbitrary action (add task, toggle theme, ...)
+ *
+ * Results are ranked: exact > prefix > substring. Permissions are
+ * applied here so the UI never has to think about role gating — every
+ * result returned is something the user can actually act on.
+ */
+
+export type ActionType = "room" | "view" | "command";
+
+export interface PaletteAction {
+  type: ActionType;
+  /** Stable id for React keying + selected state. */
+  id: string;
+  label: string;
+  /** Secondary line under label (e.g. "ตึก Kl · ผู้เช่า สมชาย"). */
+  hint?: string;
+  /** Sort group prefix (rooms first, then views, then commands). */
+  groupOrder: number;
+  /** Computed rank against the query — lower = better. */
+  rank: number;
+}
+
+function norm(s: string): string {
+  return (s || "").toLowerCase().trim();
+}
+
+/** Return rank: 0 = exact, 1 = prefix, 2 = substring, -1 = no match. */
+export function matchRank(haystack: string, needle: string): number {
+  if (!needle) return 0; // empty query matches everything (lowest rank)
+  const h = norm(haystack);
+  const n = norm(needle);
+  if (!h) return -1;
+  if (h === n) return 0;
+  if (h.startsWith(n)) return 1;
+  if (h.includes(n)) return 2;
+  return -1;
+}
+
+/** Pick best rank across multiple haystack fields. -1 if none match. */
+function bestRank(fields: string[], needle: string): number {
+  let best = -1;
+  for (const f of fields) {
+    const r = matchRank(f, needle);
+    if (r === -1) continue;
+    if (best === -1 || r < best) best = r;
+  }
+  return best;
+}
+
+/* ====================================================================
+ * Room search
+ * ==================================================================== */
+
+export function searchRooms(
+  rooms: RoomView[],
+  query: string,
+  limit = 8
+): Array<{ room: RoomView; rank: number }> {
+  const out: Array<{ room: RoomView; rank: number }> = [];
+  for (const r of rooms) {
+    const rank = bestRank(
+      [r.room, r.building, r.tenant, r.phone],
+      query
+    );
+    if (rank !== -1) out.push({ room: r, rank });
+  }
+  out.sort((a, b) => a.rank - b.rank || a.room.building.localeCompare(b.room.building) || a.room.room.localeCompare(b.room.room, undefined, { numeric: true }));
+  return out.slice(0, limit);
+}
+
+/* ====================================================================
+ * View navigation
+ * ==================================================================== */
+
+interface ViewDef {
+  route: Route;
+  label: string;
+  hint?: string;
+}
+
+const VIEW_CATALOG: ViewDef[] = [
+  { route: "overview",    label: "ภาพรวม",        hint: "หน้าหลัก / Dashboard" },
+  { route: "today",       label: "งานวันนี้",      hint: "งานที่นัดวันนี้" },
+  { route: "calendar",    label: "ปฏิทิน",         hint: "ตารางงานรายเดือน" },
+  { route: "ready",       label: "ห้องว่าง",        hint: STATUS_LABEL.ready },
+  { route: "pending",     label: "ห้องรอสัญญา",    hint: STATUS_LABEL.pending },
+  { route: "occupied",    label: "ห้องมีผู้เช่า",    hint: STATUS_LABEL.occupied },
+  { route: "moveout",     label: "แจ้งย้ายออก",    hint: STATUS_LABEL.moveout },
+  { route: "qc",          label: "งานทำสะอาด/QC",  hint: STATUS_LABEL.qc },
+  { route: "repair",      label: "งานซ่อม",        hint: STATUS_LABEL.repair },
+  { route: "inactive",    label: "ห้องไม่ใช้งาน",   hint: STATUS_LABEL.inactive },
+  { route: "tenants",     label: "ผู้เช่า",         hint: "รายการผู้เช่า + สัญญาหมด" },
+  { route: "maintenance", label: "บำรุงรักษา",     hint: "อุปกรณ์ในห้อง + รอบบำรุง" },
+  { route: "facilities",  label: "สาธารณูปโภค",   hint: "ลิฟต์ / สระ / ปั๊ม / WiFi" },
+  { route: "income",      label: "รายได้",         hint: "สรุปรายได้รายเดือน" },
+];
+
+export function searchViews(
+  roles: Role[] | undefined,
+  query: string
+): Array<{ def: ViewDef; rank: number }> {
+  const out: Array<{ def: ViewDef; rank: number }> = [];
+  for (const def of VIEW_CATALOG) {
+    if (!canAccess(roles, def.route)) continue;
+    const rank = bestRank([def.label, def.route, def.hint || ""], query);
+    if (rank !== -1) out.push({ def, rank });
+  }
+  out.sort((a, b) => a.rank - b.rank || a.def.label.localeCompare(b.def.label));
+  return out;
+}
+
+/* ====================================================================
+ * Commands (actions that aren't navigation)
+ * ==================================================================== */
+
+export interface CommandDef {
+  id: string;
+  label: string;
+  hint?: string;
+  /** Optional permission gate — if set, command hidden unless user can. */
+  requires?: { route?: Route; action?: import("@/lib/permissions").Action };
+  run: () => void;
+}
+
+export function searchCommands(
+  roles: Role[] | undefined,
+  commands: CommandDef[],
+  query: string
+): Array<{ cmd: CommandDef; rank: number }> {
+  const out: Array<{ cmd: CommandDef; rank: number }> = [];
+  for (const cmd of commands) {
+    if (cmd.requires?.route && !canAccess(roles, cmd.requires.route)) continue;
+    if (cmd.requires?.action && !canPerform(roles, cmd.requires.action)) continue;
+    const rank = bestRank([cmd.label, cmd.id, cmd.hint || ""], query);
+    if (rank !== -1) out.push({ cmd, rank });
+  }
+  out.sort((a, b) => a.rank - b.rank || a.cmd.label.localeCompare(b.cmd.label));
+  return out;
+}
+
+/* ====================================================================
+ * Build final flat action list for the palette UI.
+ * groupOrder: 0 = rooms, 1 = views, 2 = commands
+ * ==================================================================== */
+
+export function buildActions(params: {
+  rooms: RoomView[];
+  roles: Role[] | undefined;
+  commands: CommandDef[];
+  query: string;
+  onSelectRoom: (r: RoomView) => void;
+  onChangeView: (v: Route) => void;
+}): PaletteAction[] {
+  const { rooms, roles, commands, query, onSelectRoom, onChangeView } = params;
+
+  const roomHits = searchRooms(rooms, query);
+  const viewHits = searchViews(roles, query);
+  const cmdHits  = searchCommands(roles, commands, query);
+
+  const actions: PaletteAction[] = [];
+
+  for (const { room: r, rank } of roomHits) {
+    actions.push({
+      type: "room",
+      id: `room:${r.building}:${r.room}`,
+      label: `${r.building} ${r.room}`,
+      hint: [
+        STATUS_LABEL[r.status],
+        r.tenant && `ผู้เช่า ${r.tenant}`,
+        r.phone && r.phone,
+      ].filter(Boolean).join(" · "),
+      groupOrder: 0,
+      rank,
+    });
+  }
+
+  for (const { def, rank } of viewHits) {
+    actions.push({
+      type: "view",
+      id: `view:${def.route}`,
+      label: def.label,
+      hint: def.hint,
+      groupOrder: 1,
+      rank,
+    });
+  }
+
+  for (const { cmd, rank } of cmdHits) {
+    actions.push({
+      type: "command",
+      id: `cmd:${cmd.id}`,
+      label: cmd.label,
+      hint: cmd.hint,
+      groupOrder: 2,
+      rank,
+    });
+  }
+
+  // Stable: group order, then rank within group, then alpha
+  actions.sort((a, b) =>
+    a.groupOrder - b.groupOrder ||
+    a.rank - b.rank ||
+    a.label.localeCompare(b.label)
+  );
+
+  // Return a flat list — UI separates groups by groupOrder
+  // We attach the runners via a separate Map (kept here for testability)
+  // But for simplicity callers reconstruct by id.
+  void onSelectRoom; void onChangeView;
+  return actions;
+}
