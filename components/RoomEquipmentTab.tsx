@@ -92,8 +92,33 @@ export default function RoomEquipmentTab({ building, room }: Props) {
   }) {
     setSubmitting(true);
     setErr(null);
+    const isEdit = !!entry.id;
+    // ----- Optimistic update -----
+    const snapshot = rows;
+    const optimistic: RoomEquipment = {
+      id: entry.id || `tmp-${Date.now()}`,
+      building, room,
+      type: entry.type,
+      brand: entry.brand,
+      installDate: entry.installDate,
+      lastService: entry.lastService,
+      status: entry.status,
+      note: entry.note,
+      creator: "",
+      createdAt: "",
+      intervalDays: entry.intervalDays,
+    };
+    setRows((prev) => {
+      if (!prev) return prev;
+      if (isEdit) {
+        return prev.map((r) => (r.id === entry.id ? { ...r, ...optimistic, id: r.id, creator: r.creator, createdAt: r.createdAt } : r));
+      }
+      return [...prev, optimistic];
+    });
+    if (isEdit) setEditTarget(null); else setAddOpen(false);
+
     try {
-      const action = entry.id ? "update" : "add";
+      const action = isEdit ? "update" : "add";
       const res = await fetch("/api/room-equipment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -103,12 +128,14 @@ export default function RoomEquipmentTab({ building, room }: Props) {
       if (!res.ok || !j.ok) {
         throw new Error(j.error || `HTTP ${res.status}`);
       }
-      setAddOpen(false);
-      setEditTarget(null);
       invalidateEquipmentCache(building, room);
+      // Reconcile with canonical data (gets real id, createdAt, creator)
       await load({ force: true });
     } catch (e) {
+      // Rollback
+      setRows(snapshot);
       setErr(e instanceof Error ? e.message : "Network error");
+      if (isEdit) setEditTarget(optimistic); else setAddOpen(true);
     } finally {
       setSubmitting(false);
     }
@@ -120,6 +147,13 @@ export default function RoomEquipmentTab({ building, room }: Props) {
     const today = new Date().toISOString().slice(0, 10);
     setSubmitting(true);
     setErr(null);
+    // Optimistic
+    const snapshot = rows;
+    setRows((prev) =>
+      prev ? prev.map((r) =>
+        r.id === eq.id ? { ...r, status: "ปกติ", lastService: today } : r
+      ) : prev
+    );
     try {
       const res = await fetch("/api/room-equipment", {
         method: "POST",
@@ -137,6 +171,7 @@ export default function RoomEquipmentTab({ building, room }: Props) {
       invalidateEquipmentCache(building, room);
       await load({ force: true });
     } catch (e) {
+      setRows(snapshot);
       setErr(e instanceof Error ? e.message : "Network error");
     } finally {
       setSubmitting(false);

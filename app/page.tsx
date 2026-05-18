@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
+import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
+import { invalidateFacilityCache } from "@/lib/facilityCache";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
 import AppHeader from "@/components/AppHeader";
@@ -153,6 +155,14 @@ export default function Home() {
       setActiveView("overview");
     }
   }, [role, activeView, accessibleViews]);
+
+  // ---- Tab-focus refresh: when user returns to the tab, refetch the
+  // dashboard and invalidate caches that don't auto-revalidate. Skips if
+  // we refreshed within the last 30s.
+  useTabFocusRefresh(() => {
+    invalidateFacilityCache();
+    refresh();
+  });
 
   // ---- Keyboard shortcuts ----
   useEffect(() => {
