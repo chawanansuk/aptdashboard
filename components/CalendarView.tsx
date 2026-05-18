@@ -19,8 +19,11 @@ const TYPE_COLOR: Record<string, string> = {
   "ซ่อม": "#F97316",
 };
 
+const TYPE_ORDER = ["ทำสะอาด", "ย้ายเข้า", "ย้ายออก", "ชมห้อง", "ซ่อม"];
+
 const DAY_NAMES = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"];
 const MONTH_NAMES = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+const MONTH_NAMES_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
 function dmyKey(d: Date): string {
   const dd = String(d.getDate()).padStart(2, "0");
@@ -30,6 +33,17 @@ function dmyKey(d: Date): string {
 
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function dayLabelShort(d: Date): string {
+  // "จ 12 พ.ค."
+  const dowIdx = (d.getDay() + 6) % 7;
+  return `${DAY_NAMES[dowIdx]} ${d.getDate()} ${MONTH_NAMES_SHORT[d.getMonth()]}`;
+}
+
+function isClosedStatus(s: string): boolean {
+  const t = (s || "").trim();
+  return t === "เสร็จ" || t === "done" || t === "ปิดแล้ว" || t === "ยกเลิก" || t === "cancelled";
 }
 
 export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoom }: Props) {
@@ -49,7 +63,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
     return new Date(n.getFullYear(), n.getMonth(), n.getDate());
   }, []);
 
-  // group tasks by dmy key
+  // group tasks by dmy key (filtered by activeBuilding)
   const tasksByDay = useMemo(() => {
     const m = new Map<string, SheetRow[]>();
     const filtered = activeBuilding === "ทั้งหมด" ? tasks : tasks.filter((t) => t.building === activeBuilding);
@@ -62,25 +76,54 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
     return m;
   }, [tasks, activeBuilding]);
 
+  // Next 7 days (today + 6) preview — built once per render
+  const week = useMemo(() => {
+    const days: { date: Date; tasks: SheetRow[] }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      const list = (tasksByDay.get(dmyKey(d)) || [])
+        .filter((t) => !isClosedStatus(t.status));
+      days.push({ date: d, tasks: list });
+    }
+    return days;
+  }, [today, tasksByDay]);
+
+  // Detect which task types actually appear this month — show only those
+  // in the legend so we don't render colors that aren't relevant.
+  const visibleTypes = useMemo(() => {
+    const present = new Set<string>();
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth();
+    for (const [key, list] of tasksByDay.entries()) {
+      // key = dd/mm/yyyy
+      const parts = key.split("/");
+      if (parts.length !== 3) continue;
+      const mm = parseInt(parts[1], 10) - 1;
+      const yy = parseInt(parts[2], 10);
+      if (mm !== month || yy !== year) continue;
+      for (const t of list) present.add(t.type);
+    }
+    return TYPE_ORDER.filter((t) => present.has(t));
+  }, [tasksByDay, cursor]);
+
   // build month grid (Mon-Sun rows)
   const grid = useMemo(() => {
     const year = cursor.getFullYear();
     const month = cursor.getMonth();
     const first = new Date(year, month, 1);
     const last = new Date(year, month + 1, 0);
-    // start = Monday of week containing first day
-    const startDow = (first.getDay() + 6) % 7; // 0=Mon
+    const startDow = (first.getDay() + 6) % 7;
     const start = new Date(year, month, 1 - startDow);
 
     const rows: { date: Date; inMonth: boolean }[][] = [];
     const cur = new Date(start);
     while (cur <= last || rows.length < 6) {
-      const week: { date: Date; inMonth: boolean }[] = [];
+      const w: { date: Date; inMonth: boolean }[] = [];
       for (let i = 0; i < 7; i++) {
-        week.push({ date: new Date(cur), inMonth: cur.getMonth() === month });
+        w.push({ date: new Date(cur), inMonth: cur.getMonth() === month });
         cur.setDate(cur.getDate() + 1);
       }
-      rows.push(week);
+      rows.push(w);
       if (rows.length >= 6 && cur > last) break;
     }
     return rows;
@@ -95,6 +138,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
   }
 
   const selectedTasks = selectedDay ? (tasksByDay.get(dmyKey(selectedDay)) || []) : [];
+  const weekTotal = week.reduce((acc, d) => acc + d.tasks.length, 0);
 
   return (
     <div className="ac-calendar">
@@ -109,33 +153,107 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
         </div>
       </header>
 
+      {/* 7-day preview strip — instant context for "what's coming up this week" */}
+      <section className="ac-cal-week ac-no-print" aria-label="งาน 7 วันถัดไป">
+        <div className="ac-cal-week-head">
+          <span className="ac-cal-week-title">งาน 7 วันถัดไป</span>
+          <span className="ac-cal-week-total">{weekTotal} รายการ</span>
+        </div>
+        <div className="ac-cal-week-strip">
+          {week.map(({ date, tasks }, i) => {
+            const isTodayDay = i === 0;
+            return (
+              <button
+                key={dmyKey(date)}
+                type="button"
+                className={`ac-cal-week-day ${isTodayDay ? "is-today" : ""} ${tasks.length === 0 ? "is-empty" : ""}`}
+                onClick={() => {
+                  setCursor(new Date(date.getFullYear(), date.getMonth(), 1));
+                  setSelectedDay(date);
+                }}
+                title={`${dayLabelShort(date)} — ${tasks.length} งาน`}
+              >
+                <div className="ac-cal-week-day-label">{isTodayDay ? "วันนี้" : dayLabelShort(date)}</div>
+                <div className="ac-cal-week-day-count">{tasks.length}</div>
+                {tasks.length > 0 && (
+                  <div className="ac-cal-week-day-dots">
+                    {TYPE_ORDER
+                      .filter((t) => tasks.some((task) => task.type === t))
+                      .slice(0, 5)
+                      .map((t) => (
+                        <span
+                          key={t}
+                          className="ac-cal-week-dot"
+                          style={{ background: TYPE_COLOR[t] || "#64748B" }}
+                        />
+                      ))}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Type legend — always visible so user knows what each color means */}
+      {visibleTypes.length > 0 && (
+        <section className="ac-cal-legend ac-no-print" aria-label="คำอธิบายสี">
+          {visibleTypes.map((t) => (
+            <span key={t} className="ac-cal-legend-item">
+              <span className="ac-cal-legend-swatch" style={{ background: TYPE_COLOR[t] || "#64748B" }} />
+              <span className="ac-cal-legend-label">{t}</span>
+            </span>
+          ))}
+        </section>
+      )}
+
       <section className="ac-cal-grid">
         <div className="ac-cal-row ac-cal-dow">
           {DAY_NAMES.map((n) => (<div key={n} className="ac-cal-dow-cell">{n}</div>))}
         </div>
-        {grid.map((week, wi) => (
+        {grid.map((weekRow, wi) => (
           <div key={wi} className="ac-cal-row">
-            {week.map(({ date, inMonth }, di) => {
+            {weekRow.map(({ date, inMonth }, di) => {
               const k = dmyKey(date);
               const dayTasks = tasksByDay.get(k) || [];
+              const openCount = dayTasks.filter((t) => !isClosedStatus(t.status)).length;
               const isToday = isSameDay(date, today);
               const isSelected = selectedDay && isSameDay(date, selectedDay);
               const typeCounts: Record<string, number> = {};
               dayTasks.forEach((t) => { typeCounts[t.type] = (typeCounts[t.type] || 0) + 1; });
+              const orderedTypes = TYPE_ORDER.filter((t) => typeCounts[t]);
+              const extra = orderedTypes.length > 4 ? orderedTypes.length - 4 : 0;
               return (
                 <button
                   key={di}
-                  className={`ac-cal-cell ${!inMonth ? "is-out" : ""} ${isToday ? "is-today" : ""} ${isSelected ? "is-selected" : ""}`}
+                  className={`ac-cal-cell ${!inMonth ? "is-out" : ""} ${isToday ? "is-today" : ""} ${isSelected ? "is-selected" : ""} ${dayTasks.length > 0 ? "has-tasks" : ""}`}
                   onClick={() => setSelectedDay(date)}
+                  aria-label={`${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${dayTasks.length ? `— ${dayTasks.length} งาน` : ""}`}
                 >
-                  <div className="ac-cal-date">{date.getDate()}</div>
+                  <div className="ac-cal-cell-top">
+                    <span className="ac-cal-date">{date.getDate()}</span>
+                    {openCount > 0 && (
+                      <span className="ac-cal-cell-count" aria-hidden>{openCount}</span>
+                    )}
+                  </div>
                   {dayTasks.length > 0 && (
                     <div className="ac-cal-dots">
-                      {Object.entries(typeCounts).slice(0, 4).map(([type, count]) => (
-                        <span key={type} className="ac-cal-dot" style={{ background: TYPE_COLOR[type] || "#64748B" }} title={`${type} (${count})`}>
-                          {count > 1 && <span className="ac-cal-dot-count">{count}</span>}
-                        </span>
-                      ))}
+                      {orderedTypes.slice(0, 4).map((type) => {
+                        const count = typeCounts[type];
+                        return (
+                          <span
+                            key={type}
+                            className="ac-cal-dot"
+                            style={{ background: TYPE_COLOR[type] || "#64748B" }}
+                            title={`${type} (${count})`}
+                          >
+                            {count > 1 && <span className="ac-cal-dot-count">{count}</span>}
+                          </span>
+                        );
+                      })}
+                      {extra > 0 && (
+                        <span className="ac-cal-dot-more" title={`+${extra} ประเภทอื่น`}>+{extra}</span>
+                      )}
                     </div>
                   )}
                 </button>
@@ -151,6 +269,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
             <h3 className="ac-tasks-title">
               {selectedDay.getDate()} {MONTH_NAMES[selectedDay.getMonth()]} {selectedDay.getFullYear()}
               <span className="ac-tasks-count">({selectedTasks.length})</span>
+              {isSameDay(selectedDay, today) && <span className="ac-cal-today-pill">วันนี้</span>}
             </h3>
             <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setSelectedDay(null)}>ปิด</button>
           </header>
