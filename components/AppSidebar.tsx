@@ -3,7 +3,9 @@
 import type { RoomStatus } from "@/types";
 import type { Role } from "@/auth";
 import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
-import { canViewFinancials } from "@/lib/permissions";
+import {
+  canViewFinancials, isSales, isEngineer, isManagement,
+} from "@/lib/permissions";
 
 export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities";
 
@@ -14,7 +16,7 @@ interface Props {
   counts: { total: number; today: number } & Partial<Record<RoomStatus, number>>;
   onBackdropClick: () => void;
   /** ผู้ใช้ปัจจุบัน — ถ้า undefined (loading) ให้แสดง safe default: overview + today เท่านั้น */
-  role?: Role;
+  roles?: Role[];
 }
 
 /**
@@ -23,46 +25,44 @@ interface Props {
  * sales      — โฟกัสฝั่งลูกค้า: ผังห้อง, สถานะห้องที่ขายได้, แจ้งย้ายออก, ผู้เช่า, ปฏิทิน
  * engineer   — โฟกัสฝั่งช่าง:   ผังห้อง, รอตรวจ/รอซ่อม, ไม่ได้ใช้งาน, ปฏิทิน
  * management — เห็นครบ:          ทุกอย่าง + รายได้
+ *
+ * Multi-role (v3.10): user เห็นการรวม section ของทุก role ที่ตนมี.
  */
 
-function showRoomStatusGroup(role?: Role): boolean {
-  // ready / pending / occupied — sales จัดการ ลูกค้า, management ดูภาพรวม
-  return role === "sales" || role === "management";
+function showRoomStatusGroup(roles?: Role[]): boolean {
+  return isSales(roles) || isManagement(roles);
 }
 
-function showTaskGroupSales(role?: Role): boolean {
-  // moveout — sales handles
-  return role === "sales" || role === "management";
+function showTaskGroupSales(roles?: Role[]): boolean {
+  return isSales(roles) || isManagement(roles);
 }
 
-function showTaskGroupEng(role?: Role): boolean {
-  // qc / repair / inactive — engineer handles
-  return role === "engineer" || role === "management";
+function showTaskGroupEng(roles?: Role[]): boolean {
+  return isEngineer(roles) || isManagement(roles);
 }
 
-function showTenants(role?: Role): boolean {
-  return role === "sales" || role === "management";
+function showTenants(roles?: Role[]): boolean {
+  return isSales(roles) || isManagement(roles);
 }
 
-function showIncome(role?: Role): boolean {
-  return canViewFinancials(role);
+function showIncome(roles?: Role[]): boolean {
+  return canViewFinancials(roles);
 }
 
-function showMaintenance(role?: Role): boolean {
-  // engineer + management — sales ไม่เห็น (v3.7.0)
-  return role === "engineer" || role === "management";
+function showMaintenance(roles?: Role[]): boolean {
+  return isEngineer(roles) || isManagement(roles);
 }
 
 export default function AppSidebar({
-  isOpen, activeView, onChangeView, counts, onBackdropClick, role,
+  isOpen, activeView, onChangeView, counts, onBackdropClick, roles,
 }: Props) {
-  const showStatuses = showRoomStatusGroup(role);
-  const showSalesTasks = showTaskGroupSales(role);
-  const showEngTasks = showTaskGroupEng(role);
+  const showStatuses = showRoomStatusGroup(roles);
+  const showSalesTasks = showTaskGroupSales(roles);
+  const showEngTasks = showTaskGroupEng(roles);
   const showAnyTaskGroup = showSalesTasks || showEngTasks;
-  const showTen = showTenants(role);
-  const showInc = showIncome(role);
-  const showMaint = showMaintenance(role);
+  const showTen = showTenants(roles);
+  const showInc = showIncome(roles);
+  const showMaint = showMaintenance(roles);
   // กลุ่ม "ดูข้อมูล" render เสมอ เพราะปฏิทินเห็นทุก role
 
   return (

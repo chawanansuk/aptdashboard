@@ -29,19 +29,30 @@ function normalizeRole(raw: string): Role | null {
 }
 
 /**
- * Parse ALLOWED_USERS env: "email:role,email:role,..."
- * Returns Map<lowercased email, role>. Invalid entries are dropped.
+ * Parse ALLOWED_USERS env: "email:role,email:role+role,..."
+ *
+ * Single-role syntax (legacy, still supported):
+ *   "alice@x.com:sales"          → [sales]
+ *
+ * Multi-role syntax (v3.10):
+ *   "bob@x.com:sales+engineer"   → [sales, engineer]
+ *
+ * Returns Map<lowercased email, Role[]>. Invalid entries are dropped.
  * Accepts both new roles (sales/engineer/management) and legacy
  * (admin/staff) — legacy values are mapped to the new vocabulary.
  */
-function parseAllowed(raw: string): Map<string, Role> {
-  const m = new Map<string, Role>();
+function parseAllowed(raw: string): Map<string, Role[]> {
+  const m = new Map<string, Role[]>();
   for (const part of (raw || "").split(",")) {
     const [emailRaw, roleRaw] = part.split(":").map((x) => (x || "").trim());
     if (!emailRaw || !roleRaw) continue;
-    const role = normalizeRole(roleRaw);
-    if (!role) continue;
-    m.set(emailRaw.toLowerCase(), role);
+    const roles: Role[] = [];
+    for (const r of roleRaw.split("+")) {
+      const role = normalizeRole(r);
+      if (role && !roles.includes(role)) roles.push(role);
+    }
+    if (roles.length === 0) continue;
+    m.set(emailRaw.toLowerCase(), roles);
   }
   return m;
 }
@@ -63,19 +74,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user }) {
-      // On first sign-in, `user` is set; populate role from allowlist.
+      // On first sign-in, `user` is set; populate roles from allowlist.
       const emailFromUser = user?.email ? user.email.toLowerCase() : null;
       const emailFromToken = token.email ? String(token.email).toLowerCase() : null;
       const email = emailFromUser || emailFromToken;
       if (email) {
-        const role = ALLOWED.get(email);
-        if (role) token.role = role;
+        const roles = ALLOWED.get(email);
+        if (roles && roles.length) {
+          token.roles = roles;
+          token.role = roles[0]; // primary role (backward compat)
+        }
       }
       return token;
     },
     async session({ session, token }) {
-      if (session.user && token.role) {
-        session.user.role = token.role as Role;
+      if (session.user) {
+        if (token.role) session.user.role = token.role as Role;
+        if (Array.isArray(token.roles)) {
+          session.user.roles = token.roles as Role[];
+        } else if (token.role) {
+          session.user.roles = [token.role as Role];
+        }
       }
       return session;
     },
