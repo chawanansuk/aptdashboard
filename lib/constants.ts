@@ -1,4 +1,5 @@
 import type { RoomStatus, EquipmentType, EquipmentStatus, FacilityType, FacilityStatus } from "@/types";
+import { TOKEN } from "@/lib/statusTokens";
 
 export const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
@@ -11,13 +12,13 @@ export const STATUS_LABEL: Record<RoomStatus, string> = {
 };
 
 export const STATUS_DOT: Record<RoomStatus, string> = {
-  occupied: "#1E293B",
-  ready: "#22C55E",
-  pending: "#A855F7",
-  moveout: "#EF4444",
-  qc: "#F97316",
-  repair: "#EAB308",
-  inactive: "#E2E8F0",
+  occupied: TOKEN.occupied,
+  ready:    TOKEN.okBright,
+  pending:  TOKEN.info,
+  moveout:  TOKEN.alert,
+  qc:       TOKEN.action,
+  repair:   TOKEN.warn,
+  inactive: TOKEN.inactive,
 };
 
 export const STATUS_KEYS: RoomStatus[] = [
@@ -77,10 +78,10 @@ export const EQUIPMENT_TYPE_ICON: Record<string, string> = {
 };
 
 export const EQUIPMENT_STATUS_COLOR: Record<string, string> = {
-  ปกติ:       "#16A34A",
-  ต้องซ่อม:    "#EAB308",
-  กำลังซ่อม:   "#F97316",
-  ใช้ไม่ได้:   "#DC2626",
+  ปกติ:       TOKEN.ok,
+  ต้องซ่อม:    TOKEN.warn,
+  กำลังซ่อม:   TOKEN.action,
+  ใช้ไม่ได้:   TOKEN.danger,
 };
 
 // ===== Maintenance schedule (v3.7.0) =====
@@ -105,10 +106,10 @@ export const INTERVAL_OPTIONS: { value: number; label: string }[] = [
 ];
 
 export const MAINTENANCE_STATUS_COLOR: Record<string, string> = {
-  ok:        "#16A34A",
-  "due-soon": "#EAB308",
-  overdue:   "#DC2626",
-  unknown:   "#94A3B8",
+  ok:        TOKEN.ok,
+  "due-soon": TOKEN.warn,
+  overdue:   TOKEN.danger,
+  unknown:   TOKEN.neutral,
 };
 
 export const MAINTENANCE_STATUS_LABEL: Record<string, string> = {
@@ -139,10 +140,10 @@ export const FACILITY_TYPE_ICON: Record<string, string> = {
 };
 
 export const FACILITY_STATUS_COLOR: Record<string, string> = {
-  ใช้งานได้:  "#16A34A",
-  ต้องซ่อม:    "#EAB308",
-  กำลังซ่อม:   "#F97316",
-  ปิดใช้งาน:   "#DC2626",
+  ใช้งานได้:  TOKEN.ok,
+  ต้องซ่อม:    TOKEN.warn,
+  กำลังซ่อม:   TOKEN.action,
+  ปิดใช้งาน:   TOKEN.danger,
 };
 
 export const FACILITY_DEFAULT_INTERVAL_DAYS: Record<string, number> = {
