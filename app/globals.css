@@ -3660,3 +3660,129 @@ html.dark .ac-bottom-nav-tab.is-primary:hover { background: #2563EB; }
 @media print {
   .ac-bottom-nav { display: none !important; }
 }
+
+/* ====================================================================
+ * Form modal — section-based layout, inline validation, sticky footer
+ * ==================================================================== */
+
+.ac-modal-form {
+  /* Slightly wider than the default modal — sections need breathing room */
+  max-width: 460px;
+}
+
+/* Section grouping */
+.ac-form-section {
+  display: flex; flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+.ac-form-section + .ac-form-section {
+  border-top: 1px solid #F1F5F9;
+  padding-top: 12px;
+  margin-top: 4px;
+}
+html.dark .ac-form-section + .ac-form-section { border-top-color: #1E293B; }
+
+.ac-form-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+}
+html.dark .ac-form-section-label { color: #CBD5E1; }
+.ac-form-section-optional {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: #94A3B8;
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+/* Two-column row inside a section */
+.ac-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 480px) {
+  .ac-form-row { grid-template-columns: 1fr; }
+}
+
+/* Required marker */
+.ac-required {
+  color: #DC2626;
+  font-weight: 700;
+  margin-left: 2px;
+}
+html.dark .ac-required { color: #F87171; }
+
+/* Inline field error */
+.ac-field.has-error input,
+.ac-field.has-error select,
+.ac-field.has-error textarea {
+  border-color: #DC2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
+}
+html.dark .ac-field.has-error input,
+html.dark .ac-field.has-error select,
+html.dark .ac-field.has-error textarea {
+  border-color: #F87171;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.18);
+}
+.ac-field-error {
+  font-size: 11px;
+  color: #DC2626;
+  font-weight: 500;
+  margin-top: 2px;
+  display: flex; align-items: center; gap: 4px;
+}
+.ac-field-error::before {
+  content: "⚠";
+  font-size: 10px;
+}
+html.dark .ac-field-error { color: #F87171; }
+
+/* Modal footer enhancements — safe-area padding + align for kbd hint */
+.ac-modal-foot-sticky {
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  align-items: center;
+}
+
+/* Keyboard hint in footer (desktop only — too cramped on mobile) */
+.ac-modal-foot-hint {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-right: auto;
+  display: flex; align-items: center; gap: 2px;
+}
+.ac-modal-foot-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 10px;
+  color: #475569;
+  margin: 0 1px;
+}
+html.dark .ac-modal-foot-hint kbd {
+  background: #1E293B; border-color: #334155; color: #CBD5E1;
+}
+@media (max-width: 600px) {
+  .ac-modal-foot-hint { display: none; }
+}
+
+/* Spinner inside primary submit button */
+.ac-btn-spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ac-spin 0.7s linear infinite;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
