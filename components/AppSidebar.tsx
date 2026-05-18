@@ -1,7 +1,9 @@
 "use client";
 
 import type { RoomStatus } from "@/types";
+import type { Role } from "@/auth";
 import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
+import { canViewFinancials } from "@/lib/permissions";
 
 export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar";
 
@@ -11,9 +13,52 @@ interface Props {
   onChangeView: (v: SidebarView) => void;
   counts: { total: number; today: number } & Partial<Record<RoomStatus, number>>;
   onBackdropClick: () => void;
+  /** ผู้ใช้ปัจจุบัน — ถ้า undefined (loading) ให้แสดง safe default: overview + today เท่านั้น */
+  role?: Role;
 }
 
-export default function AppSidebar({ isOpen, activeView, onChangeView, counts, onBackdropClick }: Props) {
+/**
+ * Sidebar items per role.
+ *
+ * sales      — โฟกัสฝั่งลูกค้า: ผังห้อง, สถานะห้องที่ขายได้, แจ้งย้ายออก, ผู้เช่า, ปฏิทิน
+ * engineer   — โฟกัสฝั่งช่าง:   ผังห้อง, รอตรวจ/รอซ่อม, ไม่ได้ใช้งาน, ปฏิทิน
+ * management — เห็นครบ:          ทุกอย่าง + รายได้
+ */
+
+function showRoomStatusGroup(role?: Role): boolean {
+  // ready / pending / occupied — sales จัดการ ลูกค้า, management ดูภาพรวม
+  return role === "sales" || role === "management";
+}
+
+function showTaskGroupSales(role?: Role): boolean {
+  // moveout — sales handles
+  return role === "sales" || role === "management";
+}
+
+function showTaskGroupEng(role?: Role): boolean {
+  // qc / repair / inactive — engineer handles
+  return role === "engineer" || role === "management";
+}
+
+function showTenants(role?: Role): boolean {
+  return role === "sales" || role === "management";
+}
+
+function showIncome(role?: Role): boolean {
+  return canViewFinancials(role);
+}
+
+export default function AppSidebar({
+  isOpen, activeView, onChangeView, counts, onBackdropClick, role,
+}: Props) {
+  const showStatuses = showRoomStatusGroup(role);
+  const showSalesTasks = showTaskGroupSales(role);
+  const showEngTasks = showTaskGroupEng(role);
+  const showAnyTaskGroup = showSalesTasks || showEngTasks;
+  const showTen = showTenants(role);
+  const showInc = showIncome(role);
+  // กลุ่ม "ดูข้อมูล" render เสมอ เพราะปฏิทินเห็นทุก role
+
   return (
     <>
       <aside className={`ac-side ${isOpen ? "is-open" : ""}`}>
@@ -30,36 +75,82 @@ export default function AppSidebar({ isOpen, activeView, onChangeView, counts, o
             <span className="ac-badge ac-badge-red">{counts.today}</span>
           </button>
         </div>
-        <div className="ac-side-group">
-          <div className="ac-side-label">สถานะห้อง</div>
-          {(["ready", "pending", "occupied"] as RoomStatus[]).map((s) => (
-            <button key={s} className={`ac-side-item ${activeView === s ? "is-active" : ""}`} onClick={() => onChangeView(s)}>
-              <span className="ac-side-icon" style={{ color: STATUS_DOT[s] }}>●</span>
-              <span className="ac-side-text">{STATUS_LABEL[s]}</span>
-              <span className={`ac-badge ${s === "ready" ? "ac-badge-green" : s === "pending" ? "ac-badge-indigo" : "ac-badge-slate"}`}>{counts[s] || 0}</span>
-            </button>
-          ))}
-        </div>
-        <div className="ac-side-group">
-          <div className="ac-side-label">งาน</div>
-          {(["moveout", "qc", "repair", "inactive"] as RoomStatus[]).map((s) => (
-            <button key={s} className={`ac-side-item ${activeView === s ? "is-active" : ""}`} onClick={() => onChangeView(s)}>
-              <span className="ac-side-icon" style={{ color: STATUS_DOT[s] }}>●</span>
-              <span className="ac-side-text">{STATUS_LABEL[s]}</span>
-              <span className={`ac-badge ${s === "moveout" ? "ac-badge-red" : s === "qc" ? "ac-badge-orange" : s === "repair" ? "ac-badge-yellow" : "ac-badge-empty"}`}>{counts[s] || 0}</span>
-            </button>
-          ))}
-        </div>
+
+        {showStatuses && (
+          <div className="ac-side-group">
+            <div className="ac-side-label">สถานะห้อง</div>
+            {(["ready", "pending", "occupied"] as RoomStatus[]).map((s) => (
+              <button key={s} className={`ac-side-item ${activeView === s ? "is-active" : ""}`} onClick={() => onChangeView(s)}>
+                <span className="ac-side-icon" style={{ color: STATUS_DOT[s] }}>●</span>
+                <span className="ac-side-text">{STATUS_LABEL[s]}</span>
+                <span className={`ac-badge ${s === "ready" ? "ac-badge-green" : s === "pending" ? "ac-badge-indigo" : "ac-badge-slate"}`}>{counts[s] || 0}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showAnyTaskGroup && (
+          <div className="ac-side-group">
+            <div className="ac-side-label">งาน</div>
+            {showSalesTasks && (
+              <button
+                key="moveout"
+                className={`ac-side-item ${activeView === "moveout" ? "is-active" : ""}`}
+                onClick={() => onChangeView("moveout")}
+              >
+                <span className="ac-side-icon" style={{ color: STATUS_DOT.moveout }}>●</span>
+                <span className="ac-side-text">{STATUS_LABEL.moveout}</span>
+                <span className="ac-badge ac-badge-red">{counts.moveout || 0}</span>
+              </button>
+            )}
+            {showEngTasks && (
+              <>
+                <button
+                  key="qc"
+                  className={`ac-side-item ${activeView === "qc" ? "is-active" : ""}`}
+                  onClick={() => onChangeView("qc")}
+                >
+                  <span className="ac-side-icon" style={{ color: STATUS_DOT.qc }}>●</span>
+                  <span className="ac-side-text">{STATUS_LABEL.qc}</span>
+                  <span className="ac-badge ac-badge-orange">{counts.qc || 0}</span>
+                </button>
+                <button
+                  key="repair"
+                  className={`ac-side-item ${activeView === "repair" ? "is-active" : ""}`}
+                  onClick={() => onChangeView("repair")}
+                >
+                  <span className="ac-side-icon" style={{ color: STATUS_DOT.repair }}>●</span>
+                  <span className="ac-side-text">{STATUS_LABEL.repair}</span>
+                  <span className="ac-badge ac-badge-yellow">{counts.repair || 0}</span>
+                </button>
+                <button
+                  key="inactive"
+                  className={`ac-side-item ${activeView === "inactive" ? "is-active" : ""}`}
+                  onClick={() => onChangeView("inactive")}
+                >
+                  <span className="ac-side-icon" style={{ color: STATUS_DOT.inactive }}>●</span>
+                  <span className="ac-side-text">{STATUS_LABEL.inactive}</span>
+                  <span className="ac-badge ac-badge-empty">{counts.inactive || 0}</span>
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="ac-side-group">
           <div className="ac-side-label">ดูข้อมูล</div>
-          <button className={`ac-side-item ${activeView === "income" ? "is-active" : ""}`} onClick={() => onChangeView("income")}>
-            <span className="ac-side-icon">฿</span>
-            <span className="ac-side-text">รายได้</span>
-          </button>
-          <button className={`ac-side-item ${activeView === "tenants" ? "is-active" : ""}`} onClick={() => onChangeView("tenants")}>
-            <span className="ac-side-icon">⚉</span>
-            <span className="ac-side-text">ผู้เช่า</span>
-          </button>
+          {showInc && (
+            <button className={`ac-side-item ${activeView === "income" ? "is-active" : ""}`} onClick={() => onChangeView("income")}>
+              <span className="ac-side-icon">฿</span>
+              <span className="ac-side-text">รายได้</span>
+            </button>
+          )}
+          {showTen && (
+            <button className={`ac-side-item ${activeView === "tenants" ? "is-active" : ""}`} onClick={() => onChangeView("tenants")}>
+              <span className="ac-side-icon">⚉</span>
+              <span className="ac-side-text">ผู้เช่า</span>
+            </button>
+          )}
           <button className={`ac-side-item ${activeView === "calendar" ? "is-active" : ""}`} onClick={() => onChangeView("calendar")}>
             <span className="ac-side-icon">▦</span>
             <span className="ac-side-text">ปฏิทิน</span>
