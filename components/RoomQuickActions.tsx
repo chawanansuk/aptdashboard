@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { Role } from "@/auth";
 import type { RoomView } from "@/types";
 import { canAccess, canPerform } from "@/lib/permissions";
+import { Icon, type IconName } from "@/lib/icons";
 
 interface Props {
   room: RoomView;
@@ -20,7 +21,7 @@ interface Props {
 interface ActionDef {
   key: string;
   label: string;
-  icon: string;
+  icon: IconName;
   onClick: () => void;
 }
 
@@ -71,7 +72,7 @@ export default function RoomQuickActions({
     {
       key: "details",
       label: "ดูรายละเอียดเต็ม",
-      icon: "▦",
+      icon: "view",
       onClick: () => { onOpenDetails(room); onClose(); },
     },
   ];
@@ -79,7 +80,7 @@ export default function RoomQuickActions({
     actions.push({
       key: "repair",
       label: "แจ้งซ่อม",
-      icon: "⚒",
+      icon: "maintenance",
       onClick: () => { onRepair(room); onClose(); },
     });
   }
@@ -87,21 +88,21 @@ export default function RoomQuickActions({
     actions.push({
       key: "status",
       label: "เปลี่ยนสถานะ",
-      icon: "◔",
+      icon: "edit",
       onClick: () => { onChangeStatus(room); onClose(); },
     });
   }
   actions.push({
     key: "history",
     label: `ดูประวัติงาน${room.pastTasks.length ? ` (${room.pastTasks.length})` : ""}`,
-    icon: "🕘",
+    icon: "history",
     onClick: () => { onShowHistory(room); onClose(); },
   });
   if (canAccess(roles, "tenants") && room.tenant) {
     actions.push({
       key: "tenant",
       label: `ผู้เช่า: ${room.tenant}`,
-      icon: "👤",
+      icon: "tenants",
       onClick: () => { onShowTenant(room); onClose(); },
     });
   }
@@ -131,7 +132,7 @@ export default function RoomQuickActions({
           onClick={a.onClick}
           role="menuitem"
         >
-          <span className="ac-quick-popover-icon" aria-hidden>{a.icon}</span>
+          <span className="ac-quick-popover-icon" aria-hidden><Icon name={a.icon} size={15} /></span>
           <span className="ac-quick-popover-label">{a.label}</span>
         </button>
       ))}

@@ -613,7 +613,18 @@ html.dark .ac-mode-badge.is-management {
 }
 .ac-side-item:hover { background: #F9FAFB; }
 .ac-side-item.is-active { background: #EEF2FF; color: #4F46E5; font-weight: 600; }
-.ac-side-icon { width: 16px; font-size: 11px; text-align: center; flex-shrink: 0; }
+.ac-side-icon {
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+.ac-side-item.is-active .ac-side-icon { color: var(--color-accent); }
+.ac-side-dot {
+  width: 8px; height: 8px;
+  border-radius: var(--radius-full);
+  display: inline-block;
+}
 .ac-side-text { flex: 1; }
 
 .ac-badge {
@@ -1045,20 +1056,23 @@ html.dark .ac-btn-secondary:hover { background: #3730A3; }
 
 /* ===== Add Task Button ===== */
 .ac-add-btn{
-  background: var(--ac-primary, #6366F1);
+  background: var(--color-accent);
   color: #fff;
   border: 0;
-  font-weight: 700;
-  padding: 8px 14px;
-  border-radius: 10px;
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 13px;
-  letter-spacing: 0.2px;
-  box-shadow: 0 1px 2px rgba(0,0,0,.08);
-  transition: filter .15s ease, transform .05s ease;
+  font-size: var(--text-base);
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  box-shadow: var(--shadow-xs);
+  transition: background var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
 }
-.ac-add-btn:hover{ filter: brightness(1.05); }
-.ac-add-btn:active{ transform: translateY(1px); }
+.ac-add-btn:hover { background: #1D4ED8; box-shadow: var(--shadow-sm); }
+.ac-add-btn:active { transform: translateY(0.5px) scale(0.985); }
+.ac-add-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 .ac-add-btn[disabled]{ opacity:.6; cursor: not-allowed; }
 .ac-btn-danger {
   background: transparent;
@@ -2830,7 +2844,9 @@ html.dark .ac-quick-popover-close:hover { color: #F1F5F9; }
 }
 html.dark .ac-quick-popover-item:hover { background: #1E293B; }
 .ac-quick-popover-icon {
-  width: 18px; text-align: center; font-size: 13px; opacity: 0.85;
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--color-text-muted);
 }
 .ac-quick-popover-label { flex: 1; font-size: 13px; }
 
