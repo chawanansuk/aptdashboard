@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.8.0 — Dashboard หอพัก
+ * Code.gs v3.9.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -24,6 +24,9 @@
  *     ลิฟต์/สระว่ายน้ำ/เครื่องปั่นไฟ/ปั๊มน้ำ/WiFi/CCTV/อื่นๆ)
  *   - actions getFacilities / addFacility / updateFacility (engineer + management)
  *   - cache 60s + invalidate ตอน add/update
+ * NEW v3.9.0:
+ *   - LockService.tryLock(5000) wrap ทุก write action ป้องกัน concurrent write
+ *     ชนกัน (10+ user เปิดพร้อมกัน). read actions ไม่ต้อง lock.
  */
 
 const SHEET_NAMES = {
@@ -158,6 +161,25 @@ function jsonOut_(obj) {
 function ok_(payload) { return jsonOut_(Object.assign({ ok: true }, payload || {})); }
 function err_(message) { return jsonOut_({ ok: false, error: String(message) }); }
 
+/* ========== WRITE LOCK (NEW v3.9.0) ========== */
+/**
+ * Wrap a write function with ScriptLock.tryLock(5000). Apps Script's
+ * default lock behavior is "fail immediately if held"; with concurrent
+ * writers (10+ users) this causes flaky errors. We wait up to 5s and
+ * release in finally. Reads do NOT use this — they're cache-served.
+ */
+function withWriteLock_(fn) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    throw new Error('busy — มีการบันทึกจากผู้ใช้รายอื่น โปรดลองอีกครั้ง');
+  }
+  try {
+    return fn();
+  } finally {
+    try { lock.releaseLock(); } catch (e) { /* ignore */ }
+  }
+}
+
 /* ========== WEB APP ENTRY ========== */
 function doPost(e) {
   try {
@@ -166,21 +188,23 @@ function doPost(e) {
     if (!body || !body.action) throw new Error('missing action');
 
     switch (body.action) {
+      // ----- reads (no lock) -----
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
       case 'getRoomEquipment': return ok_({ result: { rows: getRoomEquipment_(body.building, body.room) } });
       case 'getAllEquipment':  return ok_({ result: { rows: getAllEquipmentCached_() } });
-      case 'addTask':          return ok_(addTask_(body));
-      case 'updateTask':       return ok_(updateTask_(body));
-      case 'updateTaskStatus': return ok_(updateTaskStatus_(body));
-      case 'deleteTask':       return ok_(deleteTask_(body));
-      case 'updateRoomStatus': return ok_(updateRoomStatus_(body));
-      case 'addEquipment':     return ok_(addEquipment_(body));
-      case 'updateEquipment':  return ok_(updateEquipment_(body));
       case 'getFacilities':    return ok_({ result: { rows: getAllFacilitiesCached_() } });
-      case 'addFacility':      return ok_(addFacility_(body));
-      case 'updateFacility':   return ok_(updateFacility_(body));
       case 'debugFindTask':    return ok_({ row: findTaskRow_(body) });
+      // ----- writes (ScriptLock 5s timeout) -----
+      case 'addTask':          return ok_(withWriteLock_(function () { return addTask_(body); }));
+      case 'updateTask':       return ok_(withWriteLock_(function () { return updateTask_(body); }));
+      case 'updateTaskStatus': return ok_(withWriteLock_(function () { return updateTaskStatus_(body); }));
+      case 'deleteTask':       return ok_(withWriteLock_(function () { return deleteTask_(body); }));
+      case 'updateRoomStatus': return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
+      case 'addEquipment':     return ok_(withWriteLock_(function () { return addEquipment_(body); }));
+      case 'updateEquipment':  return ok_(withWriteLock_(function () { return updateEquipment_(body); }));
+      case 'addFacility':      return ok_(withWriteLock_(function () { return addFacility_(body); }));
+      case 'updateFacility':   return ok_(withWriteLock_(function () { return updateFacility_(body); }));
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -189,7 +213,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.8.0' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.9.0' });
 }
 
 /* ========== TASK READ ========== */
@@ -639,7 +663,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.8.0 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.9.0 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {

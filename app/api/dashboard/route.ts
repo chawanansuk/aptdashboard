@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { parseRoomsCSV } from "@/lib/parseSheet";
 import { getDashboardCache, setDashboardCache } from "@/lib/dashboardCache";
+import { appsScriptCall } from "@/lib/appsScriptFetch";
 import type { RoomRow, SheetRow } from "@/types";
 
 export const runtime = "nodejs";
@@ -17,18 +18,11 @@ async function fetchRooms(): Promise<RoomRow[]> {
 }
 
 async function fetchTasks(): Promise<SheetRow[]> {
-  const url = process.env.SHEET_WRITE_URL;
-  if (!url) throw new Error("ยังไม่ได้ตั้งค่า SHEET_WRITE_URL");
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "getTasks" }),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || "backend error");
-  return (json.result?.rows || []) as SheetRow[];
+  const j = await appsScriptCall<{ rows?: SheetRow[] }>(
+    "getTasks", {}, { idempotent: true }
+  );
+  if (!j.ok) throw new Error(j.error || "backend error");
+  return (j.result?.rows || []) as SheetRow[];
 }
 
 export async function GET() {
