@@ -3012,3 +3012,80 @@ html.dark .ac-role-switcher-select { color: #F1F5F9; }
 @media (max-width: 720px) {
   .ac-role-switcher-label { display: none; }
 }
+
+/* ====================================================================
+ * Loading state (companion to EmptyState)
+ * ==================================================================== */
+.ac-loading {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px;
+  color: #94A3B8;
+  font-size: 13px;
+}
+.ac-loading-comfortable { padding: 40px 20px; }
+.ac-loading-compact { padding: 12px; font-size: 12px; }
+.ac-loading-spinner {
+  width: 16px; height: 16px;
+  border: 2px solid #E2E8F0;
+  border-top-color: #2563EB;
+  border-radius: 50%;
+  animation: ac-spin 0.8s linear infinite;
+  flex-shrink: 0;
+  display: inline-block;
+}
+html.dark .ac-loading-spinner {
+  border-color: #334155;
+  border-top-color: #3B82F6;
+}
+@keyframes ac-spin {
+  to { transform: rotate(360deg); }
+}
+.ac-loading-label { line-height: 1.2; }
+
+/* ====================================================================
+ * Microinteraction polish — subtle press + hover feedback
+ *
+ * Apply to existing buttons & interactive cards without touching their
+ * existing rules. Uses CSS specificity layering: these are general,
+ * later component-specific rules can override if needed.
+ * ==================================================================== */
+
+/* Subtle press scale on every clickable button — feels responsive */
+button:not(:disabled):not(.ac-rc):not(.ac-side-item):not(.ac-overview-card):active {
+  transform: scale(0.98);
+}
+
+/* Smoother hover lift on overview cards */
+.ac-overview-card.is-clickable {
+  will-change: transform, box-shadow;
+}
+
+/* Toast: add gentle exit animation (used when component unmounts via
+ * React; the CSS plays once before removal so user sees it fade out) */
+.ac-toast {
+  animation: ac-toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Card hover lift: smoother on all equipment/facility/maintenance cards */
+.ac-equipment-card,
+.ac-maint-card {
+  transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 120ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ac-equipment-card:hover,
+.ac-maint-card:hover {
+  border-color: #CBD5E1;
+}
+html.dark .ac-equipment-card:hover,
+html.dark .ac-maint-card:hover {
+  border-color: #475569;
+}
+
+/* Reduced motion: respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

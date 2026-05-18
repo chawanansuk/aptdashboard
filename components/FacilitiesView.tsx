@@ -15,6 +15,8 @@ import {
   computeNextService, getMaintenanceStatus, daysUntilService, formatDateLabel,
 } from "@/lib/maintenanceUtils";
 import AddFacilityModal from "./AddFacilityModal";
+import EmptyState from "./EmptyState";
+import LoadingState from "./LoadingState";
 
 interface Props {
   buildings: string[];
@@ -255,15 +257,16 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
 
       {loading && !rows && (
-        <div className="ac-empty" style={{ padding: 40, color: "#94A3B8", textAlign: "center" }}>
-          กำลังโหลดสาธารณูปโภค...
-        </div>
+        <LoadingState label="กำลังโหลดสาธารณูปโภค..." />
       )}
 
       {!loading && rows && filtered.length === 0 && (
-        <div className="ac-empty" style={{ padding: 40, color: "#94A3B8", textAlign: "center" }}>
-          ยังไม่มีสาธารณูปโภคในตึกนี้
-        </div>
+        <EmptyState
+          icon="rooms"
+          title="ยังไม่มีสาธารณูปโภคในตึกนี้"
+          description={canWrite ? "เพิ่มลิฟต์ สระว่ายน้ำ เครื่องปั่นไฟ หรือสาธารณูปโภคอื่น เพื่อเริ่มติดตามรอบบำรุง" : undefined}
+          action={canWrite ? { label: "+ เพิ่มสาธารณูปโภค", onClick: () => setAddOpen(true) } : undefined}
+        />
       )}
 
       {buildingOrder.map((b) => {
