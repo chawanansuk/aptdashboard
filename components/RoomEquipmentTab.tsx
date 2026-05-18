@@ -5,7 +5,11 @@ import { useSession } from "next-auth/react";
 import type { RoomEquipment, EquipmentType, EquipmentStatus } from "@/types";
 import {
   EQUIPMENT_TYPES, EQUIPMENT_TYPE_ICON, EQUIPMENT_STATUS_COLOR,
+  MAINTENANCE_STATUS_COLOR, MAINTENANCE_STATUS_LABEL,
 } from "@/lib/constants";
+import {
+  computeNextService, getMaintenanceStatus, daysUntilService,
+} from "@/lib/maintenanceUtils";
 import { canAddEngTask } from "@/lib/permissions";
 import {
   loadEquipmentCache, saveEquipmentCache, invalidateEquipmentCache,
@@ -84,6 +88,7 @@ export default function RoomEquipmentTab({ building, room }: Props) {
     lastService: string;
     status: EquipmentStatus;
     note: string;
+    intervalDays: number;
   }) {
     setSubmitting(true);
     setErr(null);
@@ -205,6 +210,28 @@ export default function RoomEquipmentTab({ building, room }: Props) {
                     </>
                   )}
                 </div>
+                {(() => {
+                  const next = computeNextService(eq);
+                  if (!next) return null;
+                  const m = getMaintenanceStatus(eq);
+                  const days = daysUntilService(eq);
+                  const color = MAINTENANCE_STATUS_COLOR[m] || "#94A3B8";
+                  const tail =
+                    days === null ? "" :
+                    days < 0 ? ` (เลย ${Math.abs(days)} วัน)` :
+                    days === 0 ? " (วันนี้)" :
+                    ` (อีก ${days} วัน)`;
+                  return (
+                    <div className="ac-equipment-card-meta">
+                      <span
+                        className="ac-equipment-card-status"
+                        style={{ background: color + "22", color }}
+                      >
+                        {MAINTENANCE_STATUS_LABEL[m]} · บำรุงครั้งต่อไป {formatDateLabel(next)}{tail}
+                      </span>
+                    </div>
+                  );
+                })()}
                 {eq.note && (
                   <div className="ac-equipment-card-note">{eq.note}</div>
                 )}
@@ -253,6 +280,7 @@ export default function RoomEquipmentTab({ building, room }: Props) {
           lastService: editTarget.lastService,
           status: editTarget.status,
           note: editTarget.note,
+          intervalDays: editTarget.intervalDays || 0,
         } : undefined}
         onClose={() => setEditTarget(null)}
         onSubmit={handleSubmit}

@@ -94,4 +94,8 @@ export interface RoomEquipment {
   note: string;
   creator: string;        // email
   createdAt: string;
+  intervalDays?: number;  // v3.7.0 — รอบบำรุง (วัน); 0/undefined = ไม่กำหนด
 }
+
+// ===== Maintenance schedule (v3.7.0) =====
+export type MaintenanceStatus = "ok" | "due-soon" | "overdue" | "unknown";

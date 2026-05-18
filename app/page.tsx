@@ -19,10 +19,11 @@ import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledSt
 import { canViewFinancials } from "@/lib/permissions";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
-const IncomeView    = lazy(() => import("@/components/IncomeView"));
-const TenantsView   = lazy(() => import("@/components/TenantsView"));
-const CalendarView  = lazy(() => import("@/components/CalendarView"));
-const SummaryDrawer = lazy(() => import("@/components/SummaryDrawer"));
+const IncomeView      = lazy(() => import("@/components/IncomeView"));
+const TenantsView     = lazy(() => import("@/components/TenantsView"));
+const CalendarView    = lazy(() => import("@/components/CalendarView"));
+const MaintenanceView = lazy(() => import("@/components/MaintenanceView"));
+const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 
 function ViewLoading() {
   return <div className="ac-empty" style={{ padding: 40, textAlign: "center", color: "#94A3B8" }}>กำลังโหลด...</div>;
@@ -48,7 +49,7 @@ export default function Home() {
       v.add("ready"); v.add("pending"); v.add("occupied"); v.add("moveout"); v.add("tenants");
     }
     if (role === "engineer" || role === "management") {
-      v.add("qc"); v.add("repair"); v.add("inactive");
+      v.add("qc"); v.add("repair"); v.add("inactive"); v.add("maintenance");
     }
     if (canViewFinancials(role)) v.add("income");
     return v;
@@ -63,7 +64,7 @@ export default function Home() {
   const [activeBuilding, setActiveBuilding] = useState<string>("ทั้งหมด");
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance">("overview");
   const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "custom">("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -194,7 +195,7 @@ export default function Home() {
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
 
   const visibleRooms = useMemo(() => {
-    if (activeView === "income" || activeView === "tenants" || activeView === "calendar") return [];
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance") return [];
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
@@ -263,7 +264,7 @@ export default function Home() {
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
-  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
   const stats = useMemo(() => {
@@ -336,6 +337,16 @@ export default function Home() {
   function openAddTaskForRoom(building: string, room: string) {
     setTBuilding(building);
     setTRoom(room);
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+
+  /** Open Add-task pre-filled for a maintenance entry (v3.7.0). */
+  function openMaintenanceTask(building: string, room: string, note: string) {
+    setTType("ทำสะอาด");
+    setTBuilding(building);
+    setTRoom(room);
+    setTNote(note);
     setSelectedRoom(null);
     setShowAddTask(true);
   }
@@ -572,6 +583,14 @@ export default function Home() {
           {activeView === "calendar" && (
             <Suspense fallback={<ViewLoading />}>
               <CalendarView tasks={tasks} activeBuilding={activeBuilding} rooms={rooms} onSelectRoom={(r) => setSelectedRoom(r)} />
+            </Suspense>
+          )}
+          {activeView === "maintenance" && (
+            <Suspense fallback={<ViewLoading />}>
+              <MaintenanceView
+                activeBuilding={activeBuilding}
+                onScheduleService={openMaintenanceTask}
+              />
             </Suspense>
           )}
         </main>

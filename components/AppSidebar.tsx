@@ -5,7 +5,7 @@ import type { Role } from "@/auth";
 import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
 import { canViewFinancials } from "@/lib/permissions";
 
-export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar";
+export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance";
 
 interface Props {
   isOpen: boolean;
@@ -48,6 +48,11 @@ function showIncome(role?: Role): boolean {
   return canViewFinancials(role);
 }
 
+function showMaintenance(role?: Role): boolean {
+  // engineer + management — sales ไม่เห็น (v3.7.0)
+  return role === "engineer" || role === "management";
+}
+
 export default function AppSidebar({
   isOpen, activeView, onChangeView, counts, onBackdropClick, role,
 }: Props) {
@@ -57,6 +62,7 @@ export default function AppSidebar({
   const showAnyTaskGroup = showSalesTasks || showEngTasks;
   const showTen = showTenants(role);
   const showInc = showIncome(role);
+  const showMaint = showMaintenance(role);
   // กลุ่ม "ดูข้อมูล" render เสมอ เพราะปฏิทินเห็นทุก role
 
   return (
@@ -155,6 +161,12 @@ export default function AppSidebar({
             <span className="ac-side-icon">▦</span>
             <span className="ac-side-text">ปฏิทิน</span>
           </button>
+          {showMaint && (
+            <button className={`ac-side-item ${activeView === "maintenance" ? "is-active" : ""}`} onClick={() => onChangeView("maintenance")}>
+              <span className="ac-side-icon">🔧</span>
+              <span className="ac-side-text">บำรุงรักษา</span>
+            </button>
+          )}
         </div>
       </aside>
       {isOpen && <div className="ac-side-backdrop" onClick={onBackdropClick} />}
