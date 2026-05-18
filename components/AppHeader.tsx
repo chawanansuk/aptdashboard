@@ -17,6 +17,8 @@ interface Props {
   onToggleTheme: () => void;
   onOpenSummary: () => void;
   onToggleSidebar: () => void;
+  /** Open the global command palette. Mobile users tap this; desktop users press Cmd+K / `/`. */
+  onOpenSearch?: () => void;
 }
 
 function initialsFromName(name?: string | null): string {
@@ -36,7 +38,7 @@ const MODE_LABEL: Record<string, string> = {
 export default function AppHeader({
   buildings, activeBuilding, onChangeBuilding,
   isRefreshing, lastUpdated, isDark,
-  onAddTask, onRefresh, onToggleTheme, onOpenSummary, onToggleSidebar,
+  onAddTask, onRefresh, onToggleTheme, onOpenSummary, onToggleSidebar, onOpenSearch,
 }: Props) {
   const { data: session } = useSession();
   const user = session?.user;
@@ -76,6 +78,18 @@ export default function AppHeader({
         </select>
       </div>
       <div className="ac-nav-right">
+        {onOpenSearch && (
+          <button
+            className="ac-icon-btn ac-cmdk-trigger"
+            aria-label="ค้นหา (Cmd+K)"
+            title="ค้นหา (Cmd+K หรือ /)"
+            onClick={onOpenSearch}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+            </svg>
+          </button>
+        )}
         <button className="ac-add-btn" onClick={onAddTask} title="เพิ่มงานใหม่">
           <span className="ac-add-btn-icon" style={{ display: "none" }}>+</span>
           <span className="ac-add-btn-text">+ เพิ่มงาน</span>
