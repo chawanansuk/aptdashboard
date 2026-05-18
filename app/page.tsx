@@ -23,6 +23,7 @@ const IncomeView      = lazy(() => import("@/components/IncomeView"));
 const TenantsView     = lazy(() => import("@/components/TenantsView"));
 const CalendarView    = lazy(() => import("@/components/CalendarView"));
 const MaintenanceView = lazy(() => import("@/components/MaintenanceView"));
+const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
 const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 
 function ViewLoading() {
@@ -49,7 +50,7 @@ export default function Home() {
       v.add("ready"); v.add("pending"); v.add("occupied"); v.add("moveout"); v.add("tenants");
     }
     if (role === "engineer" || role === "management") {
-      v.add("qc"); v.add("repair"); v.add("inactive"); v.add("maintenance");
+      v.add("qc"); v.add("repair"); v.add("inactive"); v.add("maintenance"); v.add("facilities");
     }
     if (canViewFinancials(role)) v.add("income");
     return v;
@@ -64,7 +65,7 @@ export default function Home() {
   const [activeBuilding, setActiveBuilding] = useState<string>("ทั้งหมด");
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities">("overview");
   const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "custom">("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -195,7 +196,7 @@ export default function Home() {
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
 
   const visibleRooms = useMemo(() => {
-    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance") return [];
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities") return [];
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
@@ -264,7 +265,7 @@ export default function Home() {
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
-  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
   const stats = useMemo(() => {
@@ -588,6 +589,15 @@ export default function Home() {
           {activeView === "maintenance" && (
             <Suspense fallback={<ViewLoading />}>
               <MaintenanceView
+                activeBuilding={activeBuilding}
+                onScheduleService={openMaintenanceTask}
+              />
+            </Suspense>
+          )}
+          {activeView === "facilities" && (
+            <Suspense fallback={<ViewLoading />}>
+              <FacilitiesView
+                buildings={buildings}
                 activeBuilding={activeBuilding}
                 onScheduleService={openMaintenanceTask}
               />

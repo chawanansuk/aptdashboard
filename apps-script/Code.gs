@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.7.0 — Dashboard หอพัก
+ * Code.gs v3.8.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -19,6 +19,11 @@
  * NEW v3.7.0:
  *   - column L "รอบบำรุง(วัน)" ใน tab อุปกรณ์ (auto-expand backward compat)
  *   - action getAllEquipment — list ทั่วโครงการ สำหรับ Maintenance view
+ * NEW v3.8.0:
+ *   - tab "สาธารณูปโภค" auto-create (building-level facilities:
+ *     ลิฟต์/สระว่ายน้ำ/เครื่องปั่นไฟ/ปั๊มน้ำ/WiFi/CCTV/อื่นๆ)
+ *   - actions getFacilities / addFacility / updateFacility (engineer + management)
+ *   - cache 60s + invalidate ตอน add/update
  */
 
 const SHEET_NAMES = {
@@ -27,6 +32,7 @@ const SHEET_NAMES = {
   ROOM: 'ห้อง',
   METER: 'มิเตอร์',
   EQUIPMENT: 'อุปกรณ์',
+  FACILITY: 'สาธารณูปโภค',
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
@@ -34,6 +40,8 @@ const STATUS_OPTIONS = ['ว่าง', 'pending', 'กำลังทำ', 'เ
 const ROOM_STATUS    = ['ว่าง', 'มีผู้เช่า', 'จอง', 'ซ่อม'];
 const EQUIPMENT_TYPES  = ['แอร์', 'เครื่องซักผ้า', 'ตู้เย็น', 'เครื่องทำน้ำอุ่น', 'โทรทัศน์', 'ไมโครเวฟ', 'อื่นๆ'];
 const EQUIPMENT_STATUS = ['ปกติ', 'ต้องซ่อม', 'กำลังซ่อม', 'ใช้ไม่ได้'];
+const FACILITY_TYPES   = ['ลิฟต์', 'สระว่ายน้ำ', 'เครื่องปั่นไฟ', 'ปั๊มน้ำ', 'WiFi', 'CCTV', 'อื่นๆ'];
+const FACILITY_STATUS  = ['ใช้งานได้', 'ต้องซ่อม', 'กำลังซ่อม', 'ปิดใช้งาน'];
 
 // คอลัมน์ของ tab "งาน" (1-based)
 const TASK_COL = {
@@ -107,6 +115,27 @@ function clearEquipmentCache_() {
   try { CacheService.getScriptCache().remove(EQUIPMENT_CACHE_KEY); } catch (e) {}
 }
 
+/* ========== FACILITY CACHE (NEW v3.8.0) ========== */
+const FACILITY_CACHE_KEY = 'facilityCache_v1';
+const FACILITY_CACHE_TTL_SEC = 60;
+
+function getAllFacilitiesCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(FACILITY_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+  const fresh = getAllFacilities_();
+  try {
+    cache.put(FACILITY_CACHE_KEY, JSON.stringify(fresh), FACILITY_CACHE_TTL_SEC);
+  } catch (e) {}
+  return fresh;
+}
+
+function clearFacilityCache_() {
+  try { CacheService.getScriptCache().remove(FACILITY_CACHE_KEY); } catch (e) {}
+}
+
 /* ========== UTIL ========== */
 function norm(v) {
   if (v === null || v === undefined) return '';
@@ -148,6 +177,9 @@ function doPost(e) {
       case 'updateRoomStatus': return ok_(updateRoomStatus_(body));
       case 'addEquipment':     return ok_(addEquipment_(body));
       case 'updateEquipment':  return ok_(updateEquipment_(body));
+      case 'getFacilities':    return ok_({ result: { rows: getAllFacilitiesCached_() } });
+      case 'addFacility':      return ok_(addFacility_(body));
+      case 'updateFacility':   return ok_(updateFacility_(body));
       case 'debugFindTask':    return ok_({ row: findTaskRow_(body) });
       default: throw new Error('unknown action: ' + body.action);
     }
@@ -157,7 +189,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.7.0' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.8.0' });
 }
 
 /* ========== TASK READ ========== */
@@ -490,6 +522,115 @@ function updateEquipment_(b) {
   return { updated: true, row: found };
 }
 
+/* ========== FACILITY (NEW v3.8.0) ========== */
+/**
+ * Auto-create tab 'สาธารณูปโภค' on first write. Returns the sheet.
+ * 11 columns; row 1 frozen.
+ */
+function getOrCreateFacilitySheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.FACILITY);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.FACILITY);
+    sh.appendRow([
+      'id', 'ตึก', 'ประเภท', 'ชื่อ/รุ่น',
+      'วันติดตั้ง', 'วันบริการล่าสุด', 'สถานะ', 'หมายเหตุ',
+      'ผู้บันทึก', 'วันที่บันทึก', 'รอบบำรุง(วัน)',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#ECFDF5');
+  }
+  return sh;
+}
+
+function getAllFacilities_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.FACILITY);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const building = norm(r[1]);
+    if (!building) continue;
+    const intervalNum = parseInt(r[10], 10);
+    rows.push({
+      id:           norm(r[0]),
+      building:     building,
+      type:         norm(r[2]),
+      name:         norm(r[3]),
+      installDate:  fmtDate_(r[4]),
+      lastService:  fmtDate_(r[5]),
+      status:       norm(r[6]) || 'ใช้งานได้',
+      note:         norm(r[7]),
+      creator:      norm(r[8]),
+      createdAt:    norm(r[9]),
+      intervalDays: isFinite(intervalNum) && intervalNum > 0 ? intervalNum : 0,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Append a new facility. Auto-creates the sheet if missing.
+ * Required: building, type. Optional: name, installDate, lastService,
+ * status, note, intervalDays.
+ */
+function addFacility_(b) {
+  if (!b.building) throw new Error('building required');
+  if (!b.type) throw new Error('type required');
+  const sh = getOrCreateFacilitySheet_();
+  const id = Utilities.getUuid();
+  const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  const intervalNum = parseInt(b.intervalDays, 10);
+  sh.appendRow([
+    id,
+    b.building,
+    b.type,
+    b.name || '',
+    b.installDate || '',
+    b.lastService || '',
+    b.status || 'ใช้งานได้',
+    b.note || '',
+    b.creator || '',
+    createdAt,
+    isFinite(intervalNum) && intervalNum > 0 ? intervalNum : '',
+  ]);
+  clearFacilityCache_();
+  return { appended: true, id: id, row: sh.getLastRow() };
+}
+
+/**
+ * Update an existing facility by id. Only provided fields are written.
+ */
+function updateFacility_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.FACILITY);
+  if (!sh) throw new Error('sheet "สาธารณูปโภค" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no facility rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('facility not found: ' + b.id);
+  // 2:ตึก 3:ประเภท 4:ชื่อ 5:วันติดตั้ง 6:วันบริการล่าสุด 7:สถานะ 8:หมายเหตุ 11:รอบบำรุง
+  if (b.type        !== undefined) sh.getRange(found, 3).setValue(b.type);
+  if (b.name        !== undefined) sh.getRange(found, 4).setValue(b.name);
+  if (b.installDate !== undefined) sh.getRange(found, 5).setValue(b.installDate);
+  if (b.lastService !== undefined) sh.getRange(found, 6).setValue(b.lastService);
+  if (b.status      !== undefined) sh.getRange(found, 7).setValue(b.status);
+  if (b.note        !== undefined) sh.getRange(found, 8).setValue(b.note);
+  if (b.intervalDays !== undefined) {
+    const n = parseInt(b.intervalDays, 10);
+    sh.getRange(found, 11).setValue(isFinite(n) && n > 0 ? n : '');
+  }
+  clearFacilityCache_();
+  return { updated: true, row: found };
+}
+
 /* ========== PHASE 1: SETUP / FORMATTING / DROPDOWNS / FILTER VIEWS ========== */
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -498,7 +639,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.7.0 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.8.0 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {
