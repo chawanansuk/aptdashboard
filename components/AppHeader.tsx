@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import RoleSwitcher from "./RoleSwitcher";
+import { Icon } from "@/lib/icons";
 
 interface Props {
   buildings: string[]; // includes "ทั้งหมด" first
@@ -85,14 +86,12 @@ export default function AppHeader({
             title="ค้นหา (Cmd+K หรือ /)"
             onClick={onOpenSearch}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-            </svg>
+            <Icon name="search" size={16} />
           </button>
         )}
         <button className="ac-add-btn" onClick={onAddTask} title="เพิ่มงานใหม่">
-          <span className="ac-add-btn-icon" style={{ display: "none" }}>+</span>
-          <span className="ac-add-btn-text">+ เพิ่มงาน</span>
+          <Icon name="add" size={16} strokeWidth={2.25} />
+          <span className="ac-add-btn-text">เพิ่มงาน</span>
         </button>
         <button
           className={`ac-icon-btn ${isRefreshing ? "is-spinning" : ""}`}
@@ -101,12 +100,17 @@ export default function AppHeader({
           title="รีเฟรช"
           disabled={isRefreshing}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/>
-          </svg>
+          <Icon name="refresh" size={16} />
         </button>
         <div className="ac-last-updated">อัปเดต: {lastUpdated || "-"}</div>
-        <button className="ac-theme-toggle" onClick={onToggleTheme} aria-label="สลับโหมดมืด" title="สลับโหมดมืด">{isDark ? "☀️" : "☽"}</button>
+        <button
+          className="ac-theme-toggle"
+          onClick={onToggleTheme}
+          aria-label={isDark ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด"}
+          title={isDark ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด"}
+        >
+          <Icon name={isDark ? "sun" : "moon"} size={16} />
+        </button>
         <button className="ac-summary-btn" onClick={onOpenSummary}>SUMMARY</button>
 
         <div className="ac-user-wrap">

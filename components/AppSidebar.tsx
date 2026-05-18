@@ -4,6 +4,7 @@ import type { RoomStatus } from "@/types";
 import type { Role } from "@/auth";
 import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
 import { canAccess, type Route } from "@/lib/permissions";
+import { Icon, type IconName } from "@/lib/icons";
 
 export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities";
 
@@ -18,25 +19,22 @@ interface Props {
 }
 
 /**
- * Sidebar = nav grouped by semantic role of each item:
- *   วันนี้       — landing pages (everyone)
- *   สถานะห้อง    — room status filters (sales-side)
- *   งาน         — task queues (sales + engineer per item)
- *   ทรัพย์สิน    — equipment + facility maintenance (engineer-side)
- *   ดูข้อมูล     — read-only views (income/tenants/calendar)
+ * Sidebar = nav grouped by semantic role of each item.
  *
- * Group + item visibility derived from canAccess() — single source of
- * truth in lib/permissions.ts. View-as filter (effectiveRoles) flows
- * in through `roles` prop.
+ * Two icon styles: nav items use Lucide icons (consistent stroke,
+ * 16px); room-status items use a colored filled dot (the dot IS the
+ * status — its color carries meaning). Money/account/etc all use
+ * line-icons for visual consistency.
  */
+
+type DotIcon = { kind: "dot"; color: string };
+type LucideIcon = { kind: "icon"; name: IconName };
+type SidebarIcon = DotIcon | LucideIcon;
 
 interface NavItem {
   key: SidebarView;
   label: string;
-  /** plain icon char OR colored dot (for status items) */
-  icon: string;
-  /** if set, paint icon with this color (used by status dots) */
-  iconColor?: string;
+  icon: SidebarIcon;
   badge?: number;
   badgeClass?: string;
 }
@@ -45,6 +43,9 @@ interface NavGroup {
   label: string;
   items: NavItem[];
 }
+
+function dot(color: string): DotIcon { return { kind: "dot", color }; }
+function icon(name: IconName): LucideIcon { return { kind: "icon", name }; }
 
 function buildGroups(
   counts: Props["counts"],
@@ -55,30 +56,30 @@ function buildGroups(
   const todayGroup: NavGroup = {
     label: "วันนี้",
     items: [
-      { key: "overview", label: "ภาพรวม", icon: "▦", badge: counts.total, badgeClass: "ac-badge-indigo" },
-      { key: "today",    label: "งานวันนี้", icon: "●", badge: counts.today, badgeClass: "ac-badge-red" },
+      { key: "overview", label: "ภาพรวม",    icon: icon("grid"),  badge: counts.total, badgeClass: "ac-badge-indigo" },
+      { key: "today",    label: "งานวันนี้", icon: icon("tasks"), badge: counts.today, badgeClass: "ac-badge-red" },
     ],
   };
 
   const statusItems: NavItem[] = [];
-  if (has("ready"))    statusItems.push({ key: "ready",    label: STATUS_LABEL.ready,    icon: "●", iconColor: STATUS_DOT.ready,    badge: counts.ready || 0,    badgeClass: "ac-badge-green" });
-  if (has("pending"))  statusItems.push({ key: "pending",  label: STATUS_LABEL.pending,  icon: "●", iconColor: STATUS_DOT.pending,  badge: counts.pending || 0,  badgeClass: "ac-badge-indigo" });
-  if (has("occupied")) statusItems.push({ key: "occupied", label: STATUS_LABEL.occupied, icon: "●", iconColor: STATUS_DOT.occupied, badge: counts.occupied || 0, badgeClass: "ac-badge-slate" });
+  if (has("ready"))    statusItems.push({ key: "ready",    label: STATUS_LABEL.ready,    icon: dot(STATUS_DOT.ready),    badge: counts.ready || 0,    badgeClass: "ac-badge-green" });
+  if (has("pending"))  statusItems.push({ key: "pending",  label: STATUS_LABEL.pending,  icon: dot(STATUS_DOT.pending),  badge: counts.pending || 0,  badgeClass: "ac-badge-indigo" });
+  if (has("occupied")) statusItems.push({ key: "occupied", label: STATUS_LABEL.occupied, icon: dot(STATUS_DOT.occupied), badge: counts.occupied || 0, badgeClass: "ac-badge-slate" });
 
   const taskItems: NavItem[] = [];
-  if (has("moveout"))  taskItems.push({ key: "moveout",  label: STATUS_LABEL.moveout,  icon: "●", iconColor: STATUS_DOT.moveout,  badge: counts.moveout || 0,  badgeClass: "ac-badge-red" });
-  if (has("qc"))       taskItems.push({ key: "qc",       label: STATUS_LABEL.qc,       icon: "●", iconColor: STATUS_DOT.qc,       badge: counts.qc || 0,       badgeClass: "ac-badge-orange" });
-  if (has("repair"))   taskItems.push({ key: "repair",   label: STATUS_LABEL.repair,   icon: "●", iconColor: STATUS_DOT.repair,   badge: counts.repair || 0,   badgeClass: "ac-badge-yellow" });
-  if (has("inactive")) taskItems.push({ key: "inactive", label: STATUS_LABEL.inactive, icon: "●", iconColor: STATUS_DOT.inactive, badge: counts.inactive || 0, badgeClass: "ac-badge-empty" });
+  if (has("moveout"))  taskItems.push({ key: "moveout",  label: STATUS_LABEL.moveout,  icon: dot(STATUS_DOT.moveout),  badge: counts.moveout || 0,  badgeClass: "ac-badge-red" });
+  if (has("qc"))       taskItems.push({ key: "qc",       label: STATUS_LABEL.qc,       icon: dot(STATUS_DOT.qc),       badge: counts.qc || 0,       badgeClass: "ac-badge-orange" });
+  if (has("repair"))   taskItems.push({ key: "repair",   label: STATUS_LABEL.repair,   icon: dot(STATUS_DOT.repair),   badge: counts.repair || 0,   badgeClass: "ac-badge-yellow" });
+  if (has("inactive")) taskItems.push({ key: "inactive", label: STATUS_LABEL.inactive, icon: dot(STATUS_DOT.inactive), badge: counts.inactive || 0, badgeClass: "ac-badge-empty" });
 
   const assetItems: NavItem[] = [];
-  if (has("maintenance")) assetItems.push({ key: "maintenance", label: "บำรุงรักษา",    icon: "🔧" });
-  if (has("facilities"))  assetItems.push({ key: "facilities",  label: "สาธารณูปโภค",   icon: "🏢" });
+  if (has("maintenance")) assetItems.push({ key: "maintenance", label: "บำรุงรักษา",    icon: icon("maintenance") });
+  if (has("facilities"))  assetItems.push({ key: "facilities",  label: "สาธารณูปโภค",   icon: icon("facilities") });
 
   const dataItems: NavItem[] = [];
-  if (has("calendar")) dataItems.push({ key: "calendar", label: "ปฏิทิน",  icon: "▦" });
-  if (has("tenants"))  dataItems.push({ key: "tenants",  label: "ผู้เช่า",  icon: "⚉" });
-  if (has("income"))   dataItems.push({ key: "income",   label: "รายได้",  icon: "฿" });
+  if (has("calendar")) dataItems.push({ key: "calendar", label: "ปฏิทิน", icon: icon("calendar") });
+  if (has("tenants"))  dataItems.push({ key: "tenants",  label: "ผู้เช่า",  icon: icon("tenants") });
+  if (has("income"))   dataItems.push({ key: "income",   label: "รายได้",  icon: icon("income") });
 
   const groups: NavGroup[] = [todayGroup];
   if (statusItems.length) groups.push({ label: "สถานะห้อง", items: statusItems });
@@ -86,6 +87,13 @@ function buildGroups(
   if (assetItems.length)  groups.push({ label: "ทรัพย์สิน",  items: assetItems });
   if (dataItems.length)   groups.push({ label: "ดูข้อมูล",   items: dataItems });
   return groups;
+}
+
+function ItemIcon({ icon: ic }: { icon: SidebarIcon }) {
+  if (ic.kind === "dot") {
+    return <span className="ac-side-dot" style={{ background: ic.color }} aria-hidden />;
+  }
+  return <Icon name={ic.name} size={16} />;
 }
 
 export default function AppSidebar({
@@ -105,10 +113,9 @@ export default function AppSidebar({
                 className={`ac-side-item ${activeView === item.key ? "is-active" : ""}`}
                 onClick={() => onChangeView(item.key)}
               >
-                <span
-                  className="ac-side-icon"
-                  style={item.iconColor ? { color: item.iconColor } : undefined}
-                >{item.icon}</span>
+                <span className="ac-side-icon">
+                  <ItemIcon icon={item.icon} />
+                </span>
                 <span className="ac-side-text">{item.label}</span>
                 {typeof item.badge === "number" && (
                   <span className={`ac-badge ${item.badgeClass || ""}`}>{item.badge}</span>

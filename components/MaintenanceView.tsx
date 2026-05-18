@@ -9,6 +9,8 @@ import {
 import {
   computeNextService, getMaintenanceStatus, daysUntilService, formatDateLabel,
 } from "@/lib/maintenanceUtils";
+import EmptyState from "./EmptyState";
+import LoadingState from "./LoadingState";
 
 interface Props {
   activeBuilding: string;
@@ -140,15 +142,15 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
 
       {loading && !rows && (
-        <div className="ac-empty" style={{ padding: 40, color: "#94A3B8", textAlign: "center" }}>
-          กำลังโหลดแผนบำรุง...
-        </div>
+        <LoadingState label="กำลังโหลดแผนบำรุง..." />
       )}
 
       {!loading && rows && filtered.length === 0 && (
-        <div className="ac-empty" style={{ padding: 40, color: "#94A3B8", textAlign: "center" }}>
-          ไม่มีอุปกรณ์ตามตัวกรองนี้
-        </div>
+        <EmptyState
+          icon="search"
+          title="ไม่มีอุปกรณ์ตามตัวกรองนี้"
+          description="ลองเลือกตัวกรองสถานะหรือประเภทอื่น เพื่อดูรายการอุปกรณ์ทั้งหมด"
+        />
       )}
 
       <ul className="ac-maintenance-list">

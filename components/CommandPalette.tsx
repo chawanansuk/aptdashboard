@@ -8,6 +8,7 @@ import {
   buildActions, searchRooms, searchViews, searchCommands,
   type CommandDef, type PaletteAction,
 } from "@/lib/commandPaletteSearch";
+import { Icon } from "@/lib/icons";
 
 interface Props {
   open: boolean;
@@ -121,7 +122,7 @@ export default function CommandPalette({
         onKeyDown={onKey}
       >
         <div className="ac-cmdk-search">
-          <span className="ac-cmdk-icon" aria-hidden>🔍</span>
+          <span className="ac-cmdk-icon" aria-hidden><Icon name="search" size={16} /></span>
           <input
             ref={inputRef}
             type="text"
