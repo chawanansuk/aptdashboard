@@ -265,6 +265,35 @@ export function useDashboardData(): DashboardState {
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
+  // Background polling: refresh every 60s while the tab is visible.
+  // Pauses on hidden tabs to spare Apps Script quota. Survives across
+  // visibilitychange — we re-check on resume.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    function start() {
+      if (timer) return;
+      timer = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          setTick((t) => t + 1);
+        }
+      }, 60_000);
+    }
+    function stop() {
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+    function onVis() {
+      if (document.visibilityState === "visible") start();
+      else stop();
+    }
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
   const optimisticUpdateRoom = useCallback(
     (building: string, room: string, patch: Partial<RoomRow>) => {
       const b = (building || "").trim();

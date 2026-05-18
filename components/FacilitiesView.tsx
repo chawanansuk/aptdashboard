@@ -117,8 +117,32 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
   }) {
     setSubmitting(true);
     setErr(null);
+    const isEdit = !!entry.id;
+    const snapshot = rows;
+    const optimistic: Facility = {
+      id: entry.id || `tmp-${Date.now()}`,
+      building: entry.building,
+      type: entry.type,
+      name: entry.name,
+      installDate: entry.installDate,
+      lastService: entry.lastService,
+      status: entry.status,
+      note: entry.note,
+      creator: "",
+      createdAt: "",
+      intervalDays: entry.intervalDays,
+    };
+    setRows((prev) => {
+      if (!prev) return prev;
+      if (isEdit) {
+        return prev.map((r) => (r.id === entry.id ? { ...r, ...optimistic, id: r.id, creator: r.creator, createdAt: r.createdAt } : r));
+      }
+      return [...prev, optimistic];
+    });
+    if (isEdit) setEditTarget(null); else setAddOpen(false);
+
     try {
-      const action = entry.id ? "update" : "add";
+      const action = isEdit ? "update" : "add";
       const res = await fetch("/api/facilities", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,12 +150,12 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
       });
       const j = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
-      setAddOpen(false);
-      setEditTarget(null);
       invalidateFacilityCache();
       await load({ force: true });
     } catch (e) {
+      setRows(snapshot);
       setErr(e instanceof Error ? e.message : "Network error");
+      if (isEdit) setEditTarget(optimistic); else setAddOpen(true);
     } finally {
       setSubmitting(false);
     }
@@ -142,6 +166,12 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
     const today = new Date().toISOString().slice(0, 10);
     setSubmitting(true);
     setErr(null);
+    const snapshot = rows;
+    setRows((prev) =>
+      prev ? prev.map((r) =>
+        r.id === f.id ? { ...r, status: "ใช้งานได้", lastService: today } : r
+      ) : prev
+    );
     try {
       const res = await fetch("/api/facilities", {
         method: "POST",
@@ -158,6 +188,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
       invalidateFacilityCache();
       await load({ force: true });
     } catch (e) {
+      setRows(snapshot);
       setErr(e instanceof Error ? e.message : "Network error");
     } finally {
       setSubmitting(false);

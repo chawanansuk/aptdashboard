@@ -39,6 +39,22 @@ interface CallOptions {
   timeoutMs?: number;
 }
 
+/**
+ * In-flight request dedup. When N requests for the same (action, body)
+ * arrive concurrently — typical when multiple clients hit a function
+ * instance after cache expiry — only the first hits Apps Script. The
+ * rest await the same promise.
+ *
+ * Only safe for idempotent calls. Writes never dedup (each must commit).
+ * Keys auto-purge on settle. Lives at module scope, so it's per-Vercel-
+ * function-instance, which is exactly the right scope.
+ */
+const inflight = new Map<string, Promise<AppsScriptResult<unknown>>>();
+
+function dedupKey(action: string, body: Record<string, unknown>): string {
+  return action + ":" + JSON.stringify(body);
+}
+
 function shouldRetry(status: number, idempotent: boolean): boolean {
   // Network/abort errors (caught separately) always retry once for idempotent
   if (status >= 500) return true;
@@ -63,6 +79,27 @@ export async function appsScriptCall<T = unknown>(
   action: string,
   body: Record<string, unknown> = {},
   opts: CallOptions = {}
+): Promise<AppsScriptResult<T>> {
+  const idempotent = opts.idempotent ?? false;
+
+  // Dedup concurrent identical reads (e.g. 10 users hit cache miss at once).
+  if (idempotent) {
+    const key = dedupKey(action, body);
+    const existing = inflight.get(key) as Promise<AppsScriptResult<T>> | undefined;
+    if (existing) return existing;
+    const p = runCall<T>(action, body, opts).finally(() => {
+      inflight.delete(key);
+    });
+    inflight.set(key, p as Promise<AppsScriptResult<unknown>>);
+    return p;
+  }
+  return runCall<T>(action, body, opts);
+}
+
+async function runCall<T>(
+  action: string,
+  body: Record<string, unknown>,
+  opts: CallOptions
 ): Promise<AppsScriptResult<T>> {
   const url = getUrl();
   const idempotent = opts.idempotent ?? false;
