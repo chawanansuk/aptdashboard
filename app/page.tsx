@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
@@ -15,6 +16,7 @@ import SkeletonLoader from "@/components/SkeletonLoader";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { canViewFinancials } from "@/lib/permissions";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView    = lazy(() => import("@/components/IncomeView"));
@@ -36,7 +38,21 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
-  // (Session/role checks happen inside each component via useSession + lib/permissions)
+  // ---- Role-based access (PR #2) ----
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+  // Views that some roles can't access — used for safe-redirect guard below
+  const accessibleViews = useMemo(() => {
+    const v = new Set<string>(["overview", "today", "calendar"]);
+    if (role === "sales" || role === "management") {
+      v.add("ready"); v.add("pending"); v.add("occupied"); v.add("moveout"); v.add("tenants");
+    }
+    if (role === "engineer" || role === "management") {
+      v.add("qc"); v.add("repair"); v.add("inactive");
+    }
+    if (canViewFinancials(role)) v.add("income");
+    return v;
+  }, [role]);
 
   // ---- Presets ----
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -126,6 +142,15 @@ export default function Home() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  // ---- Safe redirect: ถ้า role ไม่อนุญาตให้ดู view ปัจจุบัน → กลับไป overview ----
+  // ป้องกัน URL hack / restore session ที่ activeView เป็นค่าที่ role ใหม่เข้าไม่ได้
+  useEffect(() => {
+    if (!role) return; // ยังโหลด session
+    if (!accessibleViews.has(activeView)) {
+      setActiveView("overview");
+    }
+  }, [role, activeView, accessibleViews]);
 
   // ---- Keyboard shortcuts ----
   useEffect(() => {
@@ -429,6 +454,7 @@ export default function Home() {
           onChangeView={setActiveView}
           counts={sidebarCounts}
           onBackdropClick={() => setSidebarOpen(false)}
+          role={role}
         />
 
         <main className="ac-main">

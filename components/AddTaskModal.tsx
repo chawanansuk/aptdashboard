@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
+import { useSession } from "next-auth/react";
+import { canAddSalesTask, canAddEngTask } from "@/lib/permissions";
+
 interface Props {
   open: boolean;
   saving: boolean;
@@ -19,10 +23,50 @@ interface Props {
   onSubmit: () => void;
 }
 
+/**
+ * Task types ที่แต่ละ role เพิ่มได้:
+ *   sales:      ย้ายเข้า / ย้ายออก / ชมห้อง / อื่นๆ
+ *   engineer:   ทำสะอาด / ซ่อม / อื่นๆ
+ *   management: ทุกอย่าง
+ */
+const SALES_TASK_TYPES = ["ย้ายเข้า", "ย้ายออก", "ชมห้อง"] as const;
+const ENG_TASK_TYPES   = ["ทำสะอาด", "ซ่อม"] as const;
+const COMMON_TASK_TYPES = ["อื่นๆ"] as const;
+
+function defaultTypeFor(role: string | undefined, current: string): string {
+  // ถ้าค่าปัจจุบันยังอยู่ในชุดที่อนุญาต → คงไว้
+  // ถ้าไม่อยู่ → reset เป็นค่าเริ่มต้นที่เหมาะกับ role
+  if (role === "sales") return current && SALES_TASK_TYPES.includes(current as never) ? current : "ชมห้อง";
+  if (role === "engineer") return current && ENG_TASK_TYPES.includes(current as never) ? current : "ซ่อม";
+  return current || "ย้ายเข้า";
+}
+
 export default function AddTaskModal({
   open, saving, buildings, date, type, building, room, customer, phone, note,
   onChange, onClose, onSubmit,
 }: Props) {
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+
+  // เลือกประเภทที่ role อนุญาต
+  const allowedTypes = useMemo(() => {
+    const list: string[] = [];
+    if (canAddSalesTask(role)) list.push(...SALES_TASK_TYPES);
+    if (canAddEngTask(role))   list.push(...ENG_TASK_TYPES);
+    list.push(...COMMON_TASK_TYPES);
+    return list;
+  }, [role]);
+
+  // ถ้า type ปัจจุบันไม่อยู่ใน allowedTypes (เช่น เปิด modal โดยที่ default เก่า)
+  // → reset เป็นค่าเริ่มต้นที่เหมาะกับ role
+  useEffect(() => {
+    if (!open) return;
+    if (!allowedTypes.includes(type)) {
+      onChange({ type: defaultTypeFor(role, type) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, role]);
+
   if (!open) return null;
   return (
     <div className="ac-modal-backdrop" onClick={onClose}>
@@ -42,12 +86,9 @@ export default function AddTaskModal({
           <div className="ac-field">
             <label>ประเภท</label>
             <select value={type} onChange={(e) => onChange({ type: e.target.value })}>
-              <option>ย้ายเข้า</option>
-              <option>ย้ายออก</option>
-              <option>ชมห้อง</option>
-              <option>ทำสะอาด</option>
-              <option>ซ่อม</option>
-              <option>อื่นๆ</option>
+              {allowedTypes.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
             </select>
           </div>
           <div className="ac-field">
