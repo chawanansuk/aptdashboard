@@ -285,18 +285,6 @@ export default function Home() {
   const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
-  const stats = useMemo(() => {
-    const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
-    let total = 0, ready = 0, moveout = 0, repair = 0;
-    scope.forEach((r) => {
-      total++;
-      if (r.status === "ready") ready++;
-      if (r.status === "moveout") moveout++;
-      if (r.status === "repair" || r.status === "qc") repair++;
-    });
-    return { total, ready, moveout, repair };
-  }, [rooms, activeBuilding]);
-
   const sidebarCounts = useMemo(() => {
     const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
     const c: Record<string, number> = { today: 0 };
@@ -513,8 +501,6 @@ export default function Home() {
           {showRoomGrid && (
             <RoomsView
               visibleRooms={visibleRooms}
-              stats={stats}
-              activeBuilding={activeBuilding}
               activeFilter={activeFilter}
               onChangeFilter={setActiveFilter}
               search={search}

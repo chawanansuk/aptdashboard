@@ -4,17 +4,8 @@ import { useMemo } from "react";
 import type { RoomStatus, RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
 
-interface Stats {
-  total: number;
-  ready: number;
-  moveout: number;
-  repair: number;
-}
-
 interface Props {
   visibleRooms: RoomView[];
-  stats: Stats;
-  activeBuilding: string;
   activeFilter: "all" | RoomStatus;
   onChangeFilter: (f: "all" | RoomStatus) => void;
   search: string;
@@ -27,7 +18,7 @@ interface Props {
 }
 
 export default function RoomsView({
-  visibleRooms, stats, activeBuilding, activeFilter, onChangeFilter,
+  visibleRooms, activeFilter, onChangeFilter,
   search, onChangeSearch, bulkMode, bulkSelected, onToggleBulkMode, onToggleBulkRoom, onSelectRoom,
 }: Props) {
   const floorGroups = useMemo(() => {
@@ -47,13 +38,6 @@ export default function RoomsView({
 
   return (
     <>
-      <section className="ac-sg">
-        <div className="ac-sc"><div className="ac-si ac-si-indigo">▦</div><div className="ac-sc-body"><div className="ac-sc-label">ทั้งหมด</div><div className="ac-sc-num">{stats.total}</div><div className="ac-sc-sub ac-sub-info">{activeBuilding === "ทั้งหมด" ? "ทุกตึก" : activeBuilding}</div></div></div>
-        <div className="ac-sc"><div className="ac-si ac-si-green">✓</div><div className="ac-sc-body"><div className="ac-sc-label">ว่าง / พร้อมขาย</div><div className="ac-sc-num">{stats.ready}</div><div className="ac-sc-sub ac-sub-info">พร้อมเสนอลูกค้า</div></div></div>
-        <div className="ac-sc"><div className="ac-si ac-si-orange">↗</div><div className="ac-sc-body"><div className="ac-sc-label">แจ้งย้ายออก</div><div className="ac-sc-num">{stats.moveout}</div><div className="ac-sc-sub ac-sub-urgent">ต้องติดตาม</div></div></div>
-        <div className="ac-sc"><div className="ac-si ac-si-red">⚒</div><div className="ac-sc-body"><div className="ac-sc-label">ซ่อม / QC</div><div className="ac-sc-num">{stats.repair}</div><div className="ac-sc-sub ac-sub-urgent">รอดำเนินการ</div></div></div>
-      </section>
-
       <section className="ac-fb">
         <div className="ac-chips">
           {FILTER_CHIPS.map((c) => (
