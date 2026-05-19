@@ -36,16 +36,16 @@ function initialsFromName(name?: string | null): string {
 }
 
 const MODE_LABEL: Record<string, string> = {
-  sales: "Sales Mode",
-  engineer: "Engineer Mode",
-  management: "Management Mode",
+  sales: "โหมดขาย",
+  engineer: "โหมดช่าง",
+  management: "โหมดจัดการ",
 };
 
 const ROLE_LABEL: Record<Role | typeof VIEW_AS_ALL, string> = {
-  all: "ทุก role",
-  sales: "Sales",
-  engineer: "Engineer",
-  management: "Management",
+  all: "ทุกบทบาท",
+  sales: "ทีมขาย",
+  engineer: "ช่าง",
+  management: "ผู้จัดการ",
 };
 
 /**
@@ -86,7 +86,7 @@ export default function AppHeader({
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
 
-  const modeText = modeLabel || MODE_LABEL[primaryRole || "sales"] || "Sales Mode";
+  const modeText = modeLabel || MODE_LABEL[primaryRole || "sales"] || "โหมดขาย";
 
   function closeMenu() { setMenuOpen(false); }
 
@@ -119,8 +119,8 @@ export default function AppHeader({
         {onOpenSearch && (
           <button
             className="ac-icon-btn ac-cmdk-trigger"
-            aria-label="ค้นหา (Cmd+K)"
-            title="ค้นหา (Cmd+K หรือ /)"
+            aria-label="ค้นหา (Ctrl+K)"
+            title="ค้นหา (Ctrl+K หรือ /)"
             onClick={onOpenSearch}
           >
             <Icon name="search" size={16} />
@@ -150,7 +150,7 @@ export default function AppHeader({
         >
           <Icon name={isDark ? "sun" : "moon"} size={16} />
         </button>
-        <button className="ac-summary-btn ac-hide-mobile" onClick={onOpenSummary}>SUMMARY</button>
+        <button className="ac-summary-btn ac-hide-mobile" onClick={onOpenSummary}>สรุปวันนี้</button>
 
         <div className="ac-user-wrap">
           <button
@@ -186,12 +186,12 @@ export default function AppHeader({
                 {/* View-as picker (multi-role only) */}
                 {isMultiRole && (
                   <div className="ac-user-menu-section">
-                    <div className="ac-user-menu-label">View as</div>
+                    <div className="ac-user-menu-label">ดูในมุมมอง</div>
                     <select
                       className="ac-user-menu-select"
                       value={viewAs}
                       onChange={(e) => setViewAs(e.target.value as ViewAsValue)}
-                      aria-label="กรองเมนูตาม role"
+                      aria-label="กรองเมนูตามบทบาท"
                     >
                       {[VIEW_AS_ALL, ...actualRoles].map((v) => (
                         <option key={v} value={v}>{ROLE_LABEL[v]}</option>
