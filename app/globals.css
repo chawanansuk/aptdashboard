@@ -5250,3 +5250,116 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
     background: color-mix(in srgb, var(--color-text) 8%, transparent);
   }
 }
+
+/* ============================================================
+ * Per-view skeleton layouts (components/skeletons/ViewSkeletons.tsx)
+ * Each section mirrors the rough shape of the real view so the page
+ * doesn't visually shift on first paint.
+ * ============================================================ */
+
+/* Tenants: list-of-rows */
+.ac-skel-tenants {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ac-skel-tenant-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/* Calendar */
+.ac-skel-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ac-skel-calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+}
+.ac-skel-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
+}
+
+/* Generic list (maintenance) */
+.ac-skel-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ac-skel-list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/* Generic grid (facilities) */
+.ac-skel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+.ac-skel-grid-card {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ac-skel-grid-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Income */
+.ac-skel-income {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.ac-skel-income-kpi {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+@media (max-width: 600px) {
+  .ac-skel-income-kpi { grid-template-columns: repeat(2, 1fr); }
+}
+.ac-skel-income-card {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/* Room equipment */
+.ac-skel-equipment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ac-skel-equipment-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+}

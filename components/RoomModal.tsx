@@ -7,6 +7,7 @@ import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
 import { canEditTenant } from "@/lib/permissions";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { sumCompletedCosts, formatBaht as formatTaskBaht } from "@/lib/taskCost";
+import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
 
 // Lazy-load equipment tab: fetches the chunk + first API call only when
 // the user clicks the "อุปกรณ์" tab
@@ -454,7 +455,7 @@ export default function RoomModal({
           )}
 
           {tab === "equipment" && (
-            <Suspense fallback={<div className="ac-empty" style={{ padding: 24, color: "#94A3B8" }}>กำลังโหลด...</div>}>
+            <Suspense fallback={<RoomEquipmentSkeleton />}>
               <RoomEquipmentTab building={room.building} room={room.room} />
             </Suspense>
           )}

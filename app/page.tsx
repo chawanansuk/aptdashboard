@@ -28,6 +28,15 @@ import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
 import { getModeConfig, type GreetingStats } from "@/lib/modeConfig";
 import WelcomeHero from "@/components/WelcomeHero";
+import {
+  SalesPipelineSkeleton,
+  EngineerKanbanSkeleton,
+  TenantsSkeleton,
+  CalendarSkeleton,
+  MaintenanceSkeleton,
+  FacilitiesSkeleton,
+  IncomeSkeleton,
+} from "@/components/skeletons/ViewSkeletons";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
@@ -39,10 +48,6 @@ const MaintenanceView = lazy(() => import("@/components/MaintenanceView"));
 const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
 const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
 const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
-
-function ViewLoading() {
-  return <div className="ac-empty" style={{ padding: 40, textAlign: "center", color: "#94A3B8" }}>กำลังโหลด...</div>;
-}
 
 export default function Home() {
   const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing, optimisticUpdateRoom } =
@@ -758,7 +763,7 @@ export default function Home() {
           )}
 
           {activeView === "salespipeline" && (
-            <Suspense fallback={<ViewLoading />}>
+            <Suspense fallback={<SalesPipelineSkeleton />}>
               <SalesPipelineView
                 rooms={rooms}
                 tasks={tasks}
@@ -769,7 +774,7 @@ export default function Home() {
             </Suspense>
           )}
           {activeView === "engineerkanban" && (
-            <Suspense fallback={<ViewLoading />}>
+            <Suspense fallback={<EngineerKanbanSkeleton />}>
               <EngineerKanban
                 tasks={tasks}
                 activeBuilding={activeBuilding}
@@ -778,22 +783,22 @@ export default function Home() {
             </Suspense>
           )}
           {activeView === "income" && (
-            <Suspense fallback={<ViewLoading />}>
+            <Suspense fallback={<IncomeSkeleton />}>
               <IncomeView rooms={rooms} activeBuilding={activeBuilding} />
             </Suspense>
           )}
           {activeView === "tenants" && (
-            <Suspense fallback={<ViewLoading />}>
+            <Suspense fallback={<TenantsSkeleton />}>
               <TenantsView rooms={rooms} activeBuilding={activeBuilding} onSelectRoom={(r) => setSelectedRoom(r)} />
             </Suspense>
           )}
           {activeView === "calendar" && (
-            <Suspense fallback={<ViewLoading />}>
+            <Suspense fallback={<CalendarSkeleton />}>
               <CalendarView tasks={tasks} activeBuilding={activeBuilding} rooms={rooms} onSelectRoom={(r) => setSelectedRoom(r)} />
             </Suspense>
           )}
           {activeView === "maintenance" && (
-            <Suspense fallback={<ViewLoading />}>
+            <Suspense fallback={<MaintenanceSkeleton />}>
               <MaintenanceView
                 activeBuilding={activeBuilding}
                 onScheduleService={openMaintenanceTask}
@@ -801,7 +806,7 @@ export default function Home() {
             </Suspense>
           )}
           {activeView === "facilities" && (
-            <Suspense fallback={<ViewLoading />}>
+            <Suspense fallback={<FacilitiesSkeleton />}>
               <FacilitiesView
                 buildings={buildings}
                 activeBuilding={activeBuilding}
