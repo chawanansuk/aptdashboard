@@ -4051,3 +4051,210 @@ html.dark .ac-maint-card.is-overdue {
 .ac-maint-card.is-due-soon {
   border-left: 4px solid #EAB308;
 }
+
+/* ====================================================================
+ * RoomModal redesign — header fact chips + upcoming/history polish
+ * ==================================================================== */
+
+/* Fact chips strip under the modal title */
+.ac-room-modal-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.ac-room-modal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+}
+html.dark .ac-room-modal-chip {
+  background: #1E293B;
+  border-color: #334155;
+  color: #CBD5E1;
+}
+.ac-room-modal-chip-icon { font-weight: 700; color: #64748B; }
+html.dark .ac-room-modal-chip-icon { color: #94A3B8; }
+.ac-room-modal-chip-faint { color: #94A3B8; font-weight: 500; }
+.ac-room-modal-chip-muted {
+  background: transparent;
+  border-color: #E2E8F0;
+  color: #64748B;
+}
+html.dark .ac-room-modal-chip-muted {
+  background: transparent;
+  border-color: #334155;
+  color: #94A3B8;
+}
+.ac-room-modal-chip.is-overdue {
+  background: #FEE2E2; color: #B91C1C; border-color: #FECACA;
+}
+html.dark .ac-room-modal-chip.is-overdue {
+  background: #7F1D1D; color: #FECACA; border-color: #991B1B;
+}
+.ac-room-modal-chip.is-soon {
+  background: #FEF3C7; color: #92400E; border-color: #FDE68A;
+}
+html.dark .ac-room-modal-chip.is-soon {
+  background: #78350F; color: #FCD34D; border-color: #92400E;
+}
+.ac-room-modal-chip.is-ready {
+  background: #DCFCE7; color: #15803D; border-color: #BBF7D0;
+}
+html.dark .ac-room-modal-chip.is-ready {
+  background: #14532D; color: #86EFAC; border-color: #166534;
+}
+
+/* Permission banner — softer than default warn */
+.ac-room-readonly-banner {
+  font-size: 12px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+}
+
+/* Upcoming tasks list */
+.ac-room-upcoming-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ac-room-upcoming-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+}
+html.dark .ac-room-upcoming-item {
+  background: #1E293B;
+  border-color: #334155;
+}
+.ac-room-upcoming-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+}
+.ac-room-upcoming-main { min-width: 0; }
+.ac-room-upcoming-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.ac-room-upcoming-line1 strong { font-weight: 700; }
+.ac-room-upcoming-when {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+html.dark .ac-room-upcoming-when {
+  background: #1E3A8A;
+  color: #BFDBFE;
+}
+.ac-room-upcoming-date {
+  font-size: 11px;
+  color: #94A3B8;
+}
+.ac-room-upcoming-line2 {
+  font-size: 12px;
+  color: #64748B;
+  margin-top: 2px;
+}
+html.dark .ac-room-upcoming-line2 { color: #CBD5E1; }
+
+/* History list (when expanded) */
+.ac-room-history-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ac-room-history-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+}
+.ac-room-history-item:hover { background: #F8FAFC; }
+html.dark .ac-room-history-item:hover { background: #1E293B; }
+.ac-room-history-item.is-done,
+.ac-room-history-item.is-cancelled { opacity: 0.6; }
+.ac-room-history-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+.ac-room-history-main { min-width: 0; }
+.ac-room-history-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ac-room-history-date,
+.ac-room-history-by {
+  font-size: 11px;
+  color: #94A3B8;
+}
+.ac-room-history-line2 {
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 1px;
+}
+.ac-room-history-status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ac-room-history-status.is-done {
+  background: #DCFCE7; color: #15803D;
+}
+.ac-room-history-status.is-cancelled {
+  background: #FEE2E2; color: #B91C1C;
+}
+.ac-room-history-status:not(.is-done):not(.is-cancelled) {
+  background: #FEF3C7; color: #92400E;
+}
+html.dark .ac-room-history-status.is-done {
+  background: #14532D; color: #86EFAC;
+}
+html.dark .ac-room-history-status.is-cancelled {
+  background: #7F1D1D; color: #FECACA;
+}
+html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
+  background: #78350F; color: #FCD34D;
+}
+
+@media (max-width: 480px) {
+  .ac-room-modal-chips { gap: 4px; }
+  .ac-room-modal-chip { font-size: 10px; padding: 2px 7px; }
+  .ac-room-upcoming-line1 { font-size: 12px; }
+  .ac-room-history-item { font-size: 12px; padding: 5px 8px; }
+  .ac-room-history-status { font-size: 9px; }
+}
