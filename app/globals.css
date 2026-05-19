@@ -3795,3 +3795,259 @@ html.dark .ac-field-hint { color: #64748B; }
   margin-right: 6px;
   vertical-align: -2px;
 }
+
+/* ====================================================================
+ * Task urgency buckets + visual hierarchy (TasksList)
+ *
+ * Each "งานวันนี้/ซ่อม/QC" view groups tasks into urgency buckets:
+ * overdue → today → tomorrow → thisWeek → later → noDate.
+ *
+ * Each bucket renders a colored marker header + count, then its
+ * cards. Cards within a bucket carry a colored left border + an
+ * optional urgency badge ("เลย N วัน" / "วันนี้" / "พรุ่งนี้").
+ * ==================================================================== */
+
+/* ----- Quick urgency summary in section header (overdue/today pills) */
+.ac-tasks-head-actions {
+  display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap;
+}
+.ac-tasks-summary {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.ac-tasks-summary-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+.ac-tasks-summary-pill.is-overdue {
+  background: #FEE2E2; color: #B91C1C;
+}
+.ac-tasks-summary-pill.is-today {
+  background: #DBEAFE; color: #1D4ED8;
+}
+html.dark .ac-tasks-summary-pill.is-overdue { background: #7F1D1D; color: #FECACA; }
+html.dark .ac-tasks-summary-pill.is-today { background: #1E3A8A; color: #BFDBFE; }
+
+/* ----- Bucket sections ----- */
+.ac-task-bucket + .ac-task-bucket {
+  margin-top: 18px;
+}
+.ac-task-bucket-head {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 8px;
+  padding: 0 2px;
+}
+.ac-task-bucket-marker {
+  width: 4px; height: 16px;
+  border-radius: 2px;
+  background: #94A3B8;
+}
+.ac-task-bucket-marker-danger  { background: #DC2626; }
+.ac-task-bucket-marker-info    { background: #2563EB; }
+.ac-task-bucket-marker-neutral { background: #94A3B8; }
+.ac-task-bucket-label {
+  font-size: 12px; font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+}
+.ac-task-bucket-danger .ac-task-bucket-label  { color: #DC2626; }
+.ac-task-bucket-info .ac-task-bucket-label    { color: #2563EB; }
+html.dark .ac-task-bucket-label { color: #CBD5E1; }
+html.dark .ac-task-bucket-danger .ac-task-bucket-label { color: #F87171; }
+html.dark .ac-task-bucket-info .ac-task-bucket-label   { color: #60A5FA; }
+.ac-task-bucket-count {
+  font-size: 11px;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+/* ----- Per-task urgency: colored left border ----- */
+.ac-task-urgency-overdue  { border-left: 4px solid #DC2626 !important; }
+.ac-task-urgency-today    { border-left: 4px solid #2563EB !important; }
+.ac-task-urgency-tomorrow { border-left: 4px solid #60A5FA !important; }
+.ac-task-urgency-thisWeek { border-left: 4px solid #94A3B8 !important; }
+.ac-task-urgency-later    { border-left: 4px solid transparent !important; }
+.ac-task-urgency-noDate   { border-left: 4px solid #CBD5E1 !important; }
+
+/* Slight tint for overdue card so it pops without screaming */
+.ac-task-urgency-overdue { background: #FEF5F5; }
+html.dark .ac-task-urgency-overdue { background: #2A1010; }
+.ac-task-urgency-overdue:hover { background: #FEE8E8; }
+html.dark .ac-task-urgency-overdue:hover { background: #3A1818; }
+
+/* Done/cancelled override urgency tint */
+.ac-task-urgency-overdue.is-done,
+.ac-task-urgency-overdue.is-cancelled {
+  background: #F1F5F9;
+  border-left-color: #CBD5E1 !important;
+}
+html.dark .ac-task-urgency-overdue.is-done,
+html.dark .ac-task-urgency-overdue.is-cancelled {
+  background: #1E293B;
+  border-left-color: #475569 !important;
+}
+
+/* ----- Inline urgency badge next to date ----- */
+.ac-task-urgency-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+.ac-task-urgency-badge.is-overdue {
+  background: #DC2626; color: #fff;
+}
+.ac-task-urgency-badge.is-today {
+  background: #2563EB; color: #fff;
+}
+.ac-task-urgency-badge.is-tomorrow {
+  background: #DBEAFE; color: #1E40AF;
+}
+html.dark .ac-task-urgency-badge.is-tomorrow {
+  background: #1E3A8A; color: #BFDBFE;
+}
+
+/* ----- Mobile: tighten buckets ----- */
+@media (max-width: 600px) {
+  .ac-task-bucket + .ac-task-bucket { margin-top: 14px; }
+  .ac-task-bucket-label { font-size: 11px; letter-spacing: 0.04em; }
+  .ac-task-urgency-overdue,
+  .ac-task-urgency-today,
+  .ac-task-urgency-tomorrow,
+  .ac-task-urgency-thisWeek,
+  .ac-task-urgency-later,
+  .ac-task-urgency-noDate {
+    border-left-width: 3px !important;
+  }
+}
+
+/* ====================================================================
+ * MaintenanceView — building groups + "next 7 days" mini-section
+ * ==================================================================== */
+
+/* Mini-section: "บำรุง 7 วันถัดไป" */
+.ac-maint-week {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+html.dark .ac-maint-week { background: #0F172A; border-color: #334155; }
+.ac-maint-week-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+.ac-maint-week-title {
+  font-size: 12px; font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+}
+html.dark .ac-maint-week-title { color: #CBD5E1; }
+.ac-maint-week-sub {
+  font-size: 11px; color: #94A3B8;
+}
+.ac-maint-week-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ac-maint-week-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #F8FAFC;
+  font-size: 13px;
+}
+html.dark .ac-maint-week-item { background: #1E293B; }
+.ac-maint-week-item-icon {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  background: #fff; border-radius: 6px;
+}
+html.dark .ac-maint-week-item-icon { background: #0F172A; }
+.ac-maint-week-item-where {
+  font-weight: 600;
+  font-size: 13px;
+}
+.ac-maint-week-item-meta {
+  font-size: 11px; color: #94A3B8;
+}
+.ac-maint-week-item-due {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.ac-maint-week-item-due.is-overdue {
+  background: #DC2626; color: #fff;
+}
+.ac-maint-week-item-due.is-today {
+  background: #2563EB; color: #fff;
+}
+.ac-maint-week-item-due.is-soon {
+  background: #DBEAFE; color: #1E40AF;
+}
+html.dark .ac-maint-week-item-due.is-soon {
+  background: #1E3A8A; color: #BFDBFE;
+}
+
+/* Building group header (when activeBuilding = ทั้งหมด) */
+.ac-maint-group-head {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 16px 0 8px;
+  padding: 0 2px;
+}
+.ac-maint-group-head:first-of-type { margin-top: 4px; }
+.ac-maint-group-title {
+  font-size: 14px; font-weight: 700;
+  color: #0F172A;
+}
+html.dark .ac-maint-group-title { color: #F1F5F9; }
+.ac-maint-group-count {
+  font-size: 11px; color: #94A3B8;
+  font-weight: 500;
+}
+.ac-maint-group-counts {
+  font-size: 11px;
+  margin-left: auto;
+  display: flex; gap: 6px;
+}
+.ac-maint-group-counts-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.ac-maint-group-counts-pill.is-overdue {
+  background: #FEE2E2; color: #B91C1C;
+}
+.ac-maint-group-counts-pill.is-soon {
+  background: #FEF3C7; color: #92400E;
+}
+html.dark .ac-maint-group-counts-pill.is-overdue { background: #7F1D1D; color: #FECACA; }
+html.dark .ac-maint-group-counts-pill.is-soon { background: #78350F; color: #FCD34D; }
+
+/* Overdue maint card — more prominent */
+.ac-maint-card.is-overdue {
+  border-left: 4px solid #DC2626;
+  background: #FEF5F5;
+}
+html.dark .ac-maint-card.is-overdue {
+  background: #2A1010;
+}
+.ac-maint-card.is-due-soon {
+  border-left: 4px solid #EAB308;
+}
