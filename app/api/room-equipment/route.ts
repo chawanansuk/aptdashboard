@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
+import { invalidateEquipmentCacheServer } from "@/lib/maintenanceCache";
 import type { RoomEquipment } from "@/types";
 
 export const runtime = "nodejs";
@@ -93,6 +94,12 @@ export async function POST(req: Request) {
 
   try {
     const json = await appsScriptCall(upstreamAction, body);
+    // Apps Script already clears its own equipment cache on write.
+    // Also wipe the Vercel SWR slot so the next read of /api/maintenance-plan
+    // hits upstream for fresh data instead of serving stale add/update.
+    if ((json as { ok?: boolean }).ok !== false) {
+      invalidateEquipmentCacheServer();
+    }
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
