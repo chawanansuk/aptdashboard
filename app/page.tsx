@@ -32,6 +32,7 @@ const TenantsView     = lazy(() => import("@/components/TenantsView"));
 const CalendarView    = lazy(() => import("@/components/CalendarView"));
 const MaintenanceView = lazy(() => import("@/components/MaintenanceView"));
 const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
+const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
 const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 
 function ViewLoading() {
@@ -621,6 +622,14 @@ export default function Home() {
                     </div>
                   )}
                 </section>
+              )}
+              {activeView === "today" && canAccess(roles, "maintenance") && (
+                <Suspense fallback={null}>
+                  <MaintenanceTodaySection
+                    activeBuilding={activeBuilding}
+                    onScheduleService={openMaintenanceTask}
+                  />
+                </Suspense>
               )}
               <TasksList
                 tasks={visibleTasks}
