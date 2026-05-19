@@ -215,45 +215,90 @@ export function useDashboardData(): DashboardState {
   useEffect(() => {
     const ctrl = new AbortController();
     let alive = true;
-    const run = async () => {
-      setStatus("loading");
+    let roomsDone = false;
+    let tasksDone = false;
+    let latestRooms: RoomRow[] | null = null;
+    let latestTasks: SheetRow[] | null = null;
+    const errs: string[] = [];
+    let anyCached = false;
+
+    function finalize() {
+      // Save / mark not-initial once at least one source has data; this
+      // is what makes the room grid appear without waiting on Apps Script.
+      if (latestRooms !== null || latestTasks !== null) {
+        const r = latestRooms ?? rooms;
+        const t = latestTasks ?? tasks;
+        if (r.length || t.length) saveCache(r, t);
+      }
+      const hasAnyData =
+        (latestRooms !== null && latestRooms.length > 0) ||
+        (latestTasks !== null && latestTasks.length > 0) ||
+        rooms.length > 0 ||
+        tasks.length > 0;
+      setLastUpdated(new Date().toLocaleTimeString("th-TH") + (anyCached ? " (server cache)" : ""));
+      setStatus(errs.length && !hasAnyData ? "error" : "ok");
+      setIsInitial(false);
+    }
+
+    async function loadSlice(
+      url: string,
+      onData: (raw: unknown) => void,
+    ) {
       try {
-        // Single combined call (was 2 calls /api/sheet + /api/sheet/rooms)
-        const res = await fetchWithRetry("/api/dashboard", ctrl.signal);
+        const res = await fetchWithRetry(url, ctrl.signal);
         const j = await res.json().catch(() => ({ error: "invalid JSON" }));
-
         if (!alive || ctrl.signal.aborted) return;
-
-        const errs: string[] = [];
         if (j.error) errs.push(String(j.error));
-        if (Array.isArray(j.errors)) for (const e of j.errors) errs.push(String(e));
-
-        const rRooms: RoomRow[] = Array.isArray(j.rooms) ? j.rooms : [];
-        const rTasks: SheetRow[] = Array.isArray(j.tasks) ? j.tasks : [];
-
-        if (rRooms.length || rTasks.length) {
-          setRooms(rRooms);
-          setTasks(rTasks);
-          if (rRooms.length || rTasks.length) saveCache(rRooms, rTasks);
-        }
-        setErrors(errs);
-        setLastUpdated(new Date().toLocaleTimeString("th-TH") + (j.cached ? " (server cache)" : ""));
-        const hasAnyData = rRooms.length > 0 || rTasks.length > 0;
-        setStatus(errs.length && !hasAnyData ? "error" : "ok");
-        setIsInitial(false);
+        if (j.cached) anyCached = true;
+        onData(j);
       } catch (e) {
         if (!alive) return;
         const msg = e instanceof Error ? e.message : "unknown";
-        if (msg !== "aborted") {
-          setErrors([msg]);
-          // Stay in 'ok' state if we still have data shown (from cache)
-          const hasCache = !!loadCache();
-          setStatus(hasCache ? "ok" : "error");
-          setIsInitial(false);
-        }
+        if (msg !== "aborted") errs.push(msg);
       }
+    }
+
+    const run = async () => {
+      setStatus("loading");
+
+      // Parallel slice fetches — render whichever returns first, don't
+      // block the room grid on Apps Script latency.
+      const roomsPromise = loadSlice("/api/dashboard/rooms", (j) => {
+        const arr: RoomRow[] = Array.isArray((j as { rooms?: unknown }).rooms)
+          ? (j as { rooms: RoomRow[] }).rooms
+          : [];
+        latestRooms = arr;
+        if (arr.length) setRooms(arr);
+        roomsDone = true;
+        // Progressive: as soon as rooms land, drop the initial spinner
+        // (the page already shows the grid; tasks fill in when ready).
+        if (arr.length) setIsInitial(false);
+      });
+      const tasksPromise = loadSlice("/api/dashboard/tasks", (j) => {
+        const arr: SheetRow[] = Array.isArray((j as { tasks?: unknown }).tasks)
+          ? (j as { tasks: SheetRow[] }).tasks
+          : [];
+        latestTasks = arr;
+        if (arr.length) setTasks(arr);
+        tasksDone = true;
+      });
+      await Promise.all([roomsPromise, tasksPromise]);
+      if (!alive) return;
+      // Suppress unused-var lints — these track which slice resolved
+      void roomsDone; void tasksDone;
+      finalize();
     };
-    run();
+    run().catch((e) => {
+      if (!alive) return;
+      const msg = e instanceof Error ? e.message : "unknown";
+      if (msg !== "aborted") {
+        setErrors([msg]);
+        const hasCache = !!loadCache();
+        setStatus(hasCache ? "ok" : "error");
+        setIsInitial(false);
+      }
+    });
+
     return () => {
       alive = false;
       ctrl.abort();
