@@ -53,7 +53,7 @@ export type Route =
   // sales-side rooms
   | "ready" | "pending" | "occupied" | "moveout" | "tenants" | "salespipeline"
   // engineer-side jobs + assets
-  | "qc" | "repair" | "inactive" | "maintenance" | "facilities"
+  | "qc" | "repair" | "inactive" | "maintenance" | "facilities" | "engineerkanban"
   // management-only
   | "income";
 
@@ -75,6 +75,7 @@ const ROUTE_ALLOW: Record<Route, Role[]> = {
   inactive:    ["engineer", "management"],
   maintenance: ["engineer", "management"],
   facilities:  ["engineer", "management"],
+  engineerkanban: ["engineer", "management"],
   // management-only
   income:      ["management"],
 };

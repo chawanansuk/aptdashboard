@@ -33,6 +33,7 @@ import WelcomeHero from "@/components/WelcomeHero";
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
 const TenantsView     = lazy(() => import("@/components/TenantsView"));
 const SalesPipelineView = lazy(() => import("@/components/SalesPipelineView"));
+const EngineerKanban    = lazy(() => import("@/components/EngineerKanban"));
 const CalendarView    = lazy(() => import("@/components/CalendarView"));
 const MaintenanceView = lazy(() => import("@/components/MaintenanceView"));
 const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
@@ -85,7 +86,7 @@ export default function Home() {
   const [activeBuilding, setActiveBuilding] = useState<string>("ทั้งหมด");
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban">("overview");
   // Apply mode default landing view once per session, after roles resolve
   useEffect(() => {
     if (landingApplied.current) return;
@@ -254,7 +255,7 @@ export default function Home() {
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
 
   const visibleRooms = useMemo(() => {
-    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "salespipeline") return [];
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "salespipeline" || activeView === "engineerkanban") return [];
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
@@ -323,7 +324,7 @@ export default function Home() {
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
-  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "salespipeline";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "salespipeline" || activeView === "engineerkanban";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
   // Stats for the welcome hero — same data the rest of the page already
@@ -764,6 +765,15 @@ export default function Home() {
                 activeBuilding={activeBuilding}
                 onSelectRoom={(r) => setSelectedRoom(r)}
                 onQuickAddLead={openQuickAddLead}
+              />
+            </Suspense>
+          )}
+          {activeView === "engineerkanban" && (
+            <Suspense fallback={<ViewLoading />}>
+              <EngineerKanban
+                tasks={tasks}
+                activeBuilding={activeBuilding}
+                onChanged={refresh}
               />
             </Suspense>
           )}
