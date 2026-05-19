@@ -38,6 +38,7 @@ import {
   IncomeSkeleton,
 } from "@/components/skeletons/ViewSkeletons";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { toast } from "@/lib/toast";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
@@ -58,7 +59,6 @@ export default function Home() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
   // ---- Role-based access (multi-role + view-as) ----
   useSession(); // initialize session so useEffectiveRoles can read it
@@ -176,13 +176,6 @@ export default function Home() {
     });
   }
 
-  // ---- Toast auto-dismiss ----
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3500);
-    return () => clearTimeout(t);
-  }, [toast]);
-
   // ---- Sidebar auto-close on resize ----
   useEffect(() => {
     const onResize = () => { if (window.innerWidth > 980) setSidebarOpen(false); };
@@ -203,10 +196,7 @@ export default function Home() {
     if (!canAccess(roles, activeView as Route)) {
       const fallback = getDefaultRoute(roles);
       setActiveView(fallback);
-      setToast({
-        type: "err",
-        msg: "ไม่มีสิทธิ์เข้าถึงหน้านี้",
-      });
+      toast.error("ไม่มีสิทธิ์เข้าถึงหน้านี้");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, activeView, roles.join("|")]);
@@ -431,10 +421,10 @@ export default function Home() {
     setBulkSubmitting(false);
     setBulkAddOpen(false);
     if (failCount === 0) {
-      setToast({ type: "ok", msg: `เพิ่ม ${okCount} งานสำเร็จ` });
+      toast.success(`เพิ่ม ${okCount} งานสำเร็จ`);
       exitBulk();
     } else {
-      setToast({ type: "err", msg: `สำเร็จ ${okCount}, ล้มเหลว ${failCount}` });
+      toast.error(`สำเร็จ ${okCount}, ล้มเหลว ${failCount}`);
     }
     refresh();
   }
@@ -510,7 +500,7 @@ export default function Home() {
   ], [isDark]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAddTask() {
-    if (!tBuilding || !tRoom) { setToast({ type: "err", msg: "กรอกตึกและเลขห้อง" }); return; }
+    if (!tBuilding || !tRoom) { toast.error("กรอกตึกและเลขห้อง"); return; }
     setSavingTask(true);
     try {
       // Parse cost client-side so the server gets a clean number (or undefined)
@@ -528,17 +518,17 @@ export default function Home() {
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
       console.log("[write] addTask response", res.status, data);
       if (data.ok) {
-        setToast({ type: "ok", msg: "เพิ่มงานแล้ว — รีเฟรชข้อมูล" });
+        toast.success("เพิ่มงานแล้ว — รีเฟรชข้อมูล");
         setShowAddTask(false);
         setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");
         refresh();
       } else {
         const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
-        setToast({ type: "err", msg: `เพิ่มงานไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}` });
+        toast.error(`เพิ่มงานไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}`);
       }
     } catch (e: unknown) {
       console.error("[write] addTask failed", e);
-      setToast({ type: "err", msg: e instanceof Error ? e.message : "Network error" });
+      toast.error(e instanceof Error ? e.message : "Network error");
     } finally { setSavingTask(false); }
   }
 
@@ -559,7 +549,7 @@ export default function Home() {
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
       console.log("[write] updateRoomStatus response", res.status, data);
       if (data.ok) {
-        setToast({ type: "ok", msg: "บันทึกแล้ว — รีเฟรชข้อมูล" });
+        toast.success("บันทึกแล้ว — รีเฟรชข้อมูล");
         // Optimistic local update — shows the change immediately even if the
         // canonical CSV publish behind /api/sheet/rooms hasn't refreshed yet
         optimisticUpdateRoom(selectedRoom.building, selectedRoom.room, {
@@ -573,11 +563,11 @@ export default function Home() {
         refresh();
       } else {
         const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
-        setToast({ type: "err", msg: `บันทึกไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}` });
+        toast.error(`บันทึกไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}`);
       }
     } catch (e) {
       console.error("[write] updateRoomStatus failed", e);
-      setToast({ type: "err", msg: e instanceof Error ? e.message : "Network error" });
+      toast.error(e instanceof Error ? e.message : "Network error");
     } finally { setSaving(false); }
   }
 
@@ -602,7 +592,7 @@ export default function Home() {
       customStart, customEnd, search,
     });
     setPresets((list) => [...list, created]);
-    setToast({ type: "ok", msg: `บันทึกชุด "${created.name}" แล้ว` });
+    toast.success(`บันทึกชุด "${created.name}" แล้ว`);
   }
   function deletePresetById(id: string) {
     removePreset(id);
@@ -911,12 +901,6 @@ export default function Home() {
         onClose={() => setBulkAddOpen(false)}
         onSubmit={submitBulkAdd}
       />
-
-      {toast && (
-        <div className={`ac-toast ${toast.type === "ok" ? "ac-toast-ok" : "ac-toast-err"}`}>
-          {toast.msg}
-        </div>
-      )}
 
       {summaryOpen && (
         <Suspense fallback={null}>
