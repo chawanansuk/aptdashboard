@@ -83,11 +83,12 @@ describe("searchRooms", () => {
 });
 
 describe("searchViews — permission filtering", () => {
-  it("sales sees room/tenant/calendar views, NOT income or maintenance", () => {
+  it("sales sees room/calendar views, NOT tenants (PII) / income / maintenance", () => {
     const hits = searchViews(["sales"], "");
     const labels = hits.map((h) => h.def.route);
     expect(labels).toContain("ready");
-    expect(labels).toContain("tenants");
+    // tenants is management-only after 2026-05 PII restriction
+    expect(labels).not.toContain("tenants");
     expect(labels).toContain("calendar");
     expect(labels).not.toContain("income");
     expect(labels).not.toContain("maintenance");
@@ -109,10 +110,10 @@ describe("searchViews — permission filtering", () => {
     expect(hits[0].def.route).toBe("income");
   });
 
-  it("multi-role sales+engineer sees union", () => {
+  it("multi-role sales+engineer sees union (still NO tenants — mgmt-only PII)", () => {
     const hits = searchViews(["sales", "engineer"], "");
     const labels = hits.map((h) => h.def.route);
-    expect(labels).toContain("tenants");
+    expect(labels).not.toContain("tenants");  // PII — mgmt-only
     expect(labels).toContain("maintenance");
     expect(labels).not.toContain("income"); // mgmt-only
   });

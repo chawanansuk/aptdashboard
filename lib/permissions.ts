@@ -67,7 +67,10 @@ const ROUTE_ALLOW: Record<Route, Role[]> = {
   pending:     ["sales", "management"],
   occupied:    ["sales", "management"],
   moveout:     ["sales", "management"],
-  tenants:     ["sales", "management"],
+  // tenants: contains PII (name + phone). Restricted to management only.
+  // Previously included "sales" — tightened in 2026-05 per the privacy
+  // requirement: tenant identity fields are admin-only.
+  tenants:     ["management"],
   salespipeline: ["sales", "management"],
   // engineer-side
   qc:          ["engineer", "management"],
@@ -117,6 +120,7 @@ export type Action =
   | "task.delete"
   // rooms / tenants
   | "room.editStatus"
+  | "tenant.view"     // read tenant name + phone
   | "tenant.edit"
   // equipment + facility (engineer-side assets)
   | "equipment.add"
@@ -133,9 +137,10 @@ const ACTION_ALLOW: Record<Action, Role[]> = {
   "task.add.eng":   ["engineer", "management"],
   "task.edit":      ["sales", "engineer", "management"],
   "task.delete":    ["management"],
-  // tenants / room status — management-only (sales likely needs this later
-  // for contract flow, but preserve old admin-only behavior for now)
+  // tenants / room status — management-only (privacy: tenant identity
+  // is PII and never visible to sales/engineer/etc., not just unwritable)
   "room.editStatus": ["management"],
+  "tenant.view":     ["management"],
   "tenant.edit":     ["management"],
   // engineer-side assets
   "equipment.add":  ["engineer", "management"],
@@ -175,6 +180,11 @@ export function canDeleteTask(input: RoleInput): boolean {
 
 export function canEditTenant(input: RoleInput): boolean {
   return canPerform(input, "tenant.edit");
+}
+
+/** Read access to tenant PII (name, phone, contract details). */
+export function canViewTenant(input: RoleInput): boolean {
+  return canPerform(input, "tenant.view");
 }
 
 export function canViewFinancials(input: RoleInput): boolean {

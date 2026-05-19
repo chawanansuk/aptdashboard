@@ -7,7 +7,21 @@ import {
   setRoomsCache,
   tryBeginRoomsRevalidation,
 } from "@/lib/dashboardCache";
+import { canViewTenant } from "@/lib/permissions";
 import type { RoomRow } from "@/types";
+
+/**
+ * Strip tenant PII fields when the requester isn't allowed to read them.
+ * Only fields that identify a person are blanked — `contractEnd` stays
+ * because sales needs to know which rooms have contracts expiring (to
+ * follow up) without seeing who the tenant is.
+ *
+ * Server-side enforcement is mandatory: even if the UI hides the section,
+ * a direct fetch to /api/dashboard/rooms should never leak PII.
+ */
+function stripTenantPii(rows: RoomRow[]): RoomRow[] {
+  return rows.map((r) => ({ ...r, tenant: "", phone: "" }));
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +74,10 @@ export async function GET() {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
   const authMs = Date.now() - handlerStart;
+  // Single permission check at handler entry — applied to every response
+  // body below via `respond()` which strips PII for non-admins.
+  const canTenant = canViewTenant(session.user.roles);
+  const project = (rows: RoomRow[]): RoomRow[] => (canTenant ? rows : stripTenantPii(rows));
 
   const c = getRoomsCacheState();
 
@@ -67,7 +85,7 @@ export async function GET() {
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/rooms] fresh", { ageMs: c.ageMs, totalMs });
     return NextResponse.json(
-      { rooms: c.data, cached: true, cacheState: "fresh", ageMs: c.ageMs },
+      { rooms: project(c.data), cached: true, cacheState: "fresh", ageMs: c.ageMs },
       {
         headers: {
           "Server-Timing": [
@@ -85,7 +103,7 @@ export async function GET() {
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/rooms] stale + bg revalidate", { ageMs: c.ageMs, totalMs });
     return NextResponse.json(
-      { rooms: c.data, cached: true, cacheState: "stale", ageMs: c.ageMs },
+      { rooms: project(c.data), cached: true, cacheState: "stale", ageMs: c.ageMs },
       {
         headers: {
           "Server-Timing": [
@@ -107,7 +125,7 @@ export async function GET() {
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/rooms] miss → fetched", { fetchMs, totalMs });
     return NextResponse.json(
-      { rooms, cached: false, cacheState: "missing" },
+      { rooms: project(rooms), cached: false, cacheState: "missing" },
       {
         headers: {
           "Server-Timing": [

@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
-import { canEditTenant } from "@/lib/permissions";
+import { canEditTenant, canViewTenant } from "@/lib/permissions";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { sumCompletedCosts, formatBaht as formatTaskBaht } from "@/lib/taskCost";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
@@ -104,6 +104,7 @@ export default function RoomModal({
 }: Props) {
   const { data: session } = useSession();
   const canEdit = canEditTenant(session?.user?.roles);
+  const canSeeTenant = canViewTenant(session?.user?.roles);
   const [tab, setTab] = useState<TabKey>(defaultTab || "info");
   const [showHistory, setShowHistory] = useState(false);
 
@@ -193,7 +194,9 @@ export default function RoomModal({
                   {priceDisplay} <span className="ac-room-modal-chip-faint">/เดือน</span>
                 </span>
               )}
-              {tenant && daysLeft !== null && (
+              {/* contract-status chip uses room.status (not tenant truthy) so it
+                  works for non-admin users who can't see the tenant name */}
+              {room.status === "occupied" && daysLeft !== null && (
                 <span className={`ac-room-modal-chip ${daysLeft < 0 ? "is-overdue" : daysLeft <= 30 ? "is-soon" : ""}`}>
                   {daysLeft < 0
                     ? `สัญญาหมดแล้ว ${Math.abs(daysLeft)} วัน`
@@ -202,7 +205,7 @@ export default function RoomModal({
                     : `สัญญาเหลือ ${daysLeft} วัน`}
                 </span>
               )}
-              {!tenant && room.status === "ready" && (
+              {room.status === "ready" && (
                 <span className="ac-room-modal-chip is-ready">ว่าง · พร้อมขาย</span>
               )}
               {room.pastTasks.length > 0 && (
@@ -245,39 +248,41 @@ export default function RoomModal({
                 </div>
               )}
 
-              {/* SECTION — ผู้เช่าปัจจุบัน */}
-              <div className="ac-form-section">
-                <div className="ac-form-section-label">ผู้เช่าปัจจุบัน</div>
-                <div className="ac-form-row">
-                  <div className="ac-field">
-                    <label htmlFor="ac-room-tenant">ชื่อผู้เช่า</label>
-                    <input
-                      id="ac-room-tenant"
-                      type="text"
-                      value={tenant}
-                      onChange={(e) => onChange({ tenant: e.target.value })}
-                      placeholder="ชื่อผู้เช่า"
-                      readOnly={!canEdit}
-                    />
-                  </div>
-                  <div className={`ac-field ${shouldShowError("phone") ? "has-error" : ""}`}>
-                    <label htmlFor="ac-room-phone">เบอร์ติดต่อ</label>
-                    <input
-                      id="ac-room-phone"
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => onChange({ phone: e.target.value })}
-                      onBlur={() => markTouched("phone")}
-                      placeholder="08x-xxx-xxxx"
-                      readOnly={!canEdit}
-                      aria-invalid={shouldShowError("phone") ? "true" : "false"}
-                    />
-                    {shouldShowError("phone") && (
-                      <span className="ac-field-error">{errors.phone}</span>
-                    )}
+              {/* SECTION — ผู้เช่าปัจจุบัน (เฉพาะ tenant.view permission) */}
+              {canSeeTenant && (
+                <div className="ac-form-section">
+                  <div className="ac-form-section-label">ผู้เช่าปัจจุบัน</div>
+                  <div className="ac-form-row">
+                    <div className="ac-field">
+                      <label htmlFor="ac-room-tenant">ชื่อผู้เช่า</label>
+                      <input
+                        id="ac-room-tenant"
+                        type="text"
+                        value={tenant}
+                        onChange={(e) => onChange({ tenant: e.target.value })}
+                        placeholder="ชื่อผู้เช่า"
+                        readOnly={!canEdit}
+                      />
+                    </div>
+                    <div className={`ac-field ${shouldShowError("phone") ? "has-error" : ""}`}>
+                      <label htmlFor="ac-room-phone">เบอร์ติดต่อ</label>
+                      <input
+                        id="ac-room-phone"
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => onChange({ phone: e.target.value })}
+                        onBlur={() => markTouched("phone")}
+                        placeholder="08x-xxx-xxxx"
+                        readOnly={!canEdit}
+                        aria-invalid={shouldShowError("phone") ? "true" : "false"}
+                      />
+                      {shouldShowError("phone") && (
+                        <span className="ac-field-error">{errors.phone}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* SECTION — สัญญา · ราคา */}
               <div className="ac-form-section">
