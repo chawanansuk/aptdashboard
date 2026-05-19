@@ -65,6 +65,10 @@ describe("MODE_CONFIG", () => {
     );
   });
 
+  it("sales lands on salespipeline (the role-specific home view)", () => {
+    expect(MODE_CONFIG.sales.defaultLandingView).toBe("salespipeline");
+  });
+
   it("default task type matches role-appropriate work", () => {
     expect(MODE_CONFIG.sales.defaultTaskType).toBe("ชมห้อง");
     expect(MODE_CONFIG.engineer.defaultTaskType).toBe("ซ่อม");

@@ -4650,3 +4650,217 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
     font-size: 10px;
   }
 }
+
+/* ============================================================
+ * Sales Pipeline view — role-specific home for Sales mode.
+ * KPI strip + 3 sections (vacant, upcoming, expiring) + FAB.
+ * ============================================================ */
+.ac-sales-pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  position: relative;
+  padding-bottom: 80px; /* room for the FAB */
+}
+
+/* KPI strip — 3 chunky cards across the top */
+.ac-sales-kpi {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+@media (max-width: 600px) {
+  .ac-sales-kpi { grid-template-columns: 1fr; }
+}
+.ac-sales-kpi-card {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+  overflow: hidden;
+}
+.ac-sales-kpi-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+.ac-sales-kpi-green::before  { background: #22C55E; }
+.ac-sales-kpi-sky::before    { background: #0EA5E9; }
+.ac-sales-kpi-orange::before { background: #F97316; }
+.ac-sales-kpi-value {
+  font-size: 28px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.1;
+  color: var(--color-text);
+}
+.ac-sales-kpi-label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* Section block */
+.ac-sales-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.ac-sales-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-accent) 4%, transparent);
+}
+.ac-sales-section-title {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: 0;
+}
+.ac-sales-section-count {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ac-sales-empty {
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.ac-sales-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Row — clickable list item; static variant for non-clickable rows */
+.ac-sales-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: transparent;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text);
+  width: 100%;
+  transition: background 80ms ease;
+}
+.ac-sales-row:last-child { border-bottom: 0; }
+.ac-sales-row:hover { background: color-mix(in srgb, var(--color-accent) 6%, transparent); }
+.ac-sales-row-static {
+  cursor: default;
+}
+.ac-sales-row-static:hover { background: transparent; }
+
+.ac-sales-row-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.ac-sales-row-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ac-sales-row-title {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.ac-sales-row-sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ac-sales-row-meta {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.ac-sales-row-meta.is-urgent {
+  color: #DC2626;
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Tags for appointment type (replaces the dot for static rows) */
+.ac-sales-tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+.ac-sales-tag-view {
+  background: color-mix(in srgb, #A855F7 16%, transparent);
+  color: #A855F7;
+}
+.ac-sales-tag-movein {
+  background: color-mix(in srgb, #22C55E 16%, transparent);
+  color: #22C55E;
+}
+
+/* Floating action button — bottom-right */
+.ac-sales-fab {
+  position: fixed;
+  right: var(--space-5);
+  bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 14px 20px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: #fff;
+  border: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  z-index: 40;
+}
+.ac-sales-fab:hover {
+  filter: brightness(1.08);
+}
+.ac-sales-fab:active {
+  transform: translateY(1px);
+}
+.ac-sales-fab > span[aria-hidden] {
+  font-size: 20px;
+  line-height: 1;
+}
+@media (max-width: 600px) {
+  .ac-sales-fab {
+    bottom: calc(var(--space-5) + 72px + env(safe-area-inset-bottom, 0px));
+    /* sits above the BottomNav on mobile */
+  }
+  .ac-sales-fab-text { display: none; }
+  .ac-sales-fab {
+    padding: 14px 16px;
+    border-radius: 50%;
+    width: 56px;
+    height: 56px;
+    justify-content: center;
+  }
+}

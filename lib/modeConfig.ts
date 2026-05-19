@@ -67,7 +67,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
     label: "Sales Mode",
     shortLabel: "Sales",
     emoji: "🌅",
-    defaultLandingView: "tenants",
+    defaultLandingView: "salespipeline",
     defaultTaskType: "ชมห้อง",
     addButtonLabel: "+ นัดลูกค้า",
     roomModalDefaultTab: "info",
@@ -82,7 +82,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
       if (s.tasksToday > 0) parts.push(`งานวันนี้ ${s.tasksToday} รายการ`);
       return parts.length ? parts.join(" · ") : "ยังไม่มีงานเร่งด่วน";
     },
-    sidebarGroupOrder: ["วันนี้", "ดูข้อมูล", "สถานะห้อง", "งาน", "ทรัพย์สิน"],
+    sidebarGroupOrder: ["วันนี้", "สถานะห้อง", "งาน", "ดูข้อมูล", "ทรัพย์สิน"],
   },
 
   engineer: {
