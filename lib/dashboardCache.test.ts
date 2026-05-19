@@ -153,3 +153,30 @@ describe("combined state derived from both slots", () => {
     expect(getTasksCacheState().state).toBe("missing");
   });
 });
+
+describe("emergency-stale peek (perf/tasks-stale-on-error)", () => {
+  it("returns the value even when past STALE_TTL (within 1 hour)", async () => {
+    const { peekEmergencyTasksCache, EMERGENCY_STALE_TTL_MS } = await import("./dashboardCache");
+    setTasksCache([]);
+    // Force-age beyond STALE_TTL but within EMERGENCY_STALE_TTL by using
+    // a future "now" in peek.
+    const wayPastStale = Date.now() + STALE_TTL_MS + 60_000;
+    expect(peekEmergencyTasksCache(wayPastStale)).not.toBeNull();
+    // Past emergency cutoff returns null
+    const pastEmergency = Date.now() + EMERGENCY_STALE_TTL_MS + 1_000;
+    expect(peekEmergencyTasksCache(pastEmergency)).toBeNull();
+  });
+
+  it("returns null when slot has never been set", async () => {
+    const { peekEmergencyTasksCache } = await import("./dashboardCache");
+    invalidateTasksCache();
+    expect(peekEmergencyTasksCache()).toBeNull();
+  });
+
+  it("invalidate clears the emergency slot too", async () => {
+    const { peekEmergencyTasksCache } = await import("./dashboardCache");
+    setTasksCache([]);
+    invalidateTasksCache();
+    expect(peekEmergencyTasksCache()).toBeNull();
+  });
+});
