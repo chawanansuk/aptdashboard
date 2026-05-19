@@ -5552,99 +5552,223 @@ html.dark .ac-empty-state-warning .ac-empty-title { color: #FB923C; }
  * Sales vacant rooms — grouped by Building → Floor → Rooms
  * (components/SalesPipelineView.tsx Section 1)
  * ============================================================ */
+/* === Vacant rooms visual polish — PR feat/sales-vacant-visual-polish === */
+
+/* Section container — bigger padding + hero head */
+.ac-sales-section-vacant {
+  padding: 0;
+}
+.ac-sales-section-head-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 20px 24px 16px;
+  background: transparent;
+  border-bottom: 1px solid var(--color-border);
+}
+.ac-sales-section-title-hero {
+  flex: 1;
+  margin: 0;
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+.ac-sales-section-count-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #22C55E 18%, transparent);
+  color: #15803D;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+html.dark .ac-sales-section-count-pill {
+  background: color-mix(in srgb, #22C55E 22%, transparent);
+  color: #4ADE80;
+}
+
+/* Empty state inside vacant section (e.g. filter excluded a building) */
+.ac-sales-vacant-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 24px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.ac-sales-vacant-empty svg {
+  opacity: 0.5;
+}
+
+/* Groups list — stacked buildings with generous breathing room */
 .ac-sales-vacant-groups {
   display: flex;
   flex-direction: column;
+  gap: 40px;
+  padding: 24px;
 }
+
+/* === Per-building section with gradient identity bar === */
 .ac-sales-vacant-building {
-  border-bottom: 1px solid var(--color-border);
-}
-.ac-sales-vacant-building:last-child {
-  border-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 .ac-sales-vacant-building-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0 12px;
+  border-bottom: 1px solid var(--color-border);
+  position: relative;
+}
+/* Gradient bar above the header — per-building color identity */
+.ac-sales-vacant-building-head::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--bldg-from, #64748B), var(--bldg-to, #94A3B8));
+}
+.ac-sales-vacant-building[data-bcolor="orange"] .ac-sales-vacant-building-head { --bldg-from: #F97316; --bldg-to: #FBBF24; }
+.ac-sales-vacant-building[data-bcolor="purple"] .ac-sales-vacant-building-head { --bldg-from: #A855F7; --bldg-to: #EC4899; }
+.ac-sales-vacant-building[data-bcolor="green"]  .ac-sales-vacant-building-head { --bldg-from: #22C55E; --bldg-to: #4ADE80; }
+.ac-sales-vacant-building[data-bcolor="blue"]   .ac-sales-vacant-building-head { --bldg-from: #3B82F6; --bldg-to: #06B6D4; }
+.ac-sales-vacant-building[data-bcolor="amber"]  .ac-sales-vacant-building-head { --bldg-from: #F59E0B; --bldg-to: #FACC15; }
+.ac-sales-vacant-building[data-bcolor="slate"]  .ac-sales-vacant-building-head { --bldg-from: #64748B; --bldg-to: #94A3B8; }
+
+.ac-sales-vacant-building-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bldg-from, #64748B) 18%, transparent), color-mix(in srgb, var(--bldg-to, #94A3B8) 18%, transparent));
+  color: var(--bldg-from, #64748B);
 }
 .ac-sales-vacant-building-name {
-  font-size: var(--text-base);
-  font-weight: var(--font-weight-semibold);
+  flex: 1;
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
+  line-height: 1.2;
 }
 .ac-sales-vacant-building-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bldg-from, #64748B) 14%, transparent);
+  color: var(--bldg-from, #64748B);
   font-size: var(--text-xs);
-  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+html.dark .ac-sales-vacant-building-count {
+  background: color-mix(in srgb, var(--bldg-from, #64748B) 22%, transparent);
+  color: var(--bldg-to, #94A3B8);
 }
 
+/* === Floor sub-header — text-only summary, no chip === */
 .ac-sales-vacant-floor {
-  padding: var(--space-2) var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 .ac-sales-vacant-floor + .ac-sales-vacant-floor {
-  border-top: 1px dashed var(--color-border);
+  margin-top: 12px;
 }
 .ac-sales-vacant-floor-head {
   display: flex;
   align-items: baseline;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .ac-sales-vacant-floor-label {
   font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  flex-shrink: 0;
 }
-.ac-sales-vacant-floor-count {
+.ac-sales-vacant-floor-rooms-summary {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-text) 8%, transparent);
-  padding: 1px 7px;
-  border-radius: var(--radius-full);
   font-variant-numeric: tabular-nums;
+  /* truncate gracefully if the summary is too long */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
+/* === Room cards — bigger, gradient bg, hover with glow === */
 .ac-sales-vacant-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: var(--space-2);
+  gap: 12px;
 }
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .ac-sales-vacant-grid {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 10px;
   }
 }
-
 .ac-sales-vacant-card {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 10px 12px;
-  background: var(--color-surface);
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  padding: 12px;
+  background: linear-gradient(135deg, #F8FAFC, #F1F5F9);
   border: 1px solid var(--color-border);
-  border-left: 3px solid var(--token-okBright, #22C55E);
-  border-radius: var(--radius-md);
+  border-left: 4px solid #10B981; /* emerald-500 = "พร้อมขาย" */
+  border-radius: 16px;
   cursor: pointer;
-  text-align: left;
-  transition: transform 80ms ease, box-shadow 80ms ease, border-color 80ms ease;
+  text-align: center;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  position: relative;
+  overflow: hidden;
+}
+html.dark .ac-sales-vacant-card {
+  background: linear-gradient(135deg, #1E293B, #0F172A);
+  border-color: #334155;
+  border-left-color: #10B981;
 }
 .ac-sales-vacant-card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 10px 24px -8px rgba(16, 185, 129, 0.35), 0 4px 8px rgba(0, 0, 0, 0.08);
+  border-color: color-mix(in srgb, #10B981 60%, var(--color-border));
+}
+html.dark .ac-sales-vacant-card:hover {
+  box-shadow: 0 12px 28px -8px rgba(16, 185, 129, 0.4), 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+.ac-sales-vacant-card:active {
+  transform: translateY(0) scale(1);
+  transition-duration: 60ms;
 }
 .ac-sales-vacant-card-room {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
   color: var(--color-text);
+  letter-spacing: 0.5px;
 }
-.ac-sales-vacant-card-price {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .ac-sales-vacant-card,
+  .ac-sales-vacant-card:hover,
+  .ac-sales-vacant-card:active {
+    transition: none;
+    transform: none;
+  }
 }

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { RoomView, SheetRow } from "@/types";
 import { STATUS_DOT } from "@/lib/constants";
+import { Icon } from "@/lib/icons";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 
@@ -36,6 +37,23 @@ const CONTRACT_SOON_DAYS = 30;
  * so newly-added buildings don't disappear from the UI.
  */
 const BUILDING_ORDER = ["Kl", "มั่งมี", "มายทรี48", "มีทรัพย์", "มีทอง"];
+
+/**
+ * Visual identity color per building. Maps to a `data-bcolor` attribute on
+ * the section header so CSS can swap the gradient bar + count-pill tint
+ * without inline styles. Unknown buildings fall to "slate" (neutral).
+ */
+type BuildingColor = "orange" | "purple" | "green" | "blue" | "amber" | "slate";
+function buildingColor(name: string): BuildingColor {
+  switch (name) {
+    case "Kl":         return "orange";
+    case "มั่งมี":      return "purple";
+    case "มายทรี48":    return "green";
+    case "มีทรัพย์":    return "blue";
+    case "มีทอง":       return "amber";
+    default:            return "slate";
+  }
+}
 
 function buildingSortIndex(name: string): number {
   const i = BUILDING_ORDER.indexOf(name);
@@ -174,18 +192,30 @@ export default function SalesPipelineView({
       </div>
 
       {/* Section 1 — ห้องว่างพร้อมขาย (จัดกลุ่มตาม ตึก > ชั้น) */}
-      <div className="ac-sales-section">
-        <div className="ac-sales-section-head">
-          <h3 className="ac-sales-section-title">🏠 ห้องว่างพร้อมขาย</h3>
-          <span className="ac-sales-section-count">{vacantRooms.length} ห้อง</span>
+      <div className="ac-sales-section ac-sales-section-vacant">
+        <div className="ac-sales-section-head ac-sales-section-head-hero">
+          <h3 className="ac-sales-section-title-hero">🏠 ห้องว่างพร้อมขาย</h3>
+          <span className="ac-sales-section-count-pill">{vacantRooms.length} ห้อง</span>
         </div>
         {vacantRooms.length === 0 ? (
-          <div className="ac-sales-empty">ไม่มีห้องว่างในขณะนี้</div>
+          <div className="ac-sales-vacant-empty">
+            <Icon name="facilities" size={40} />
+            <span>{activeBuilding === "ทั้งหมด"
+              ? "ไม่มีห้องว่างในขณะนี้"
+              : `ไม่มีห้องว่างในตึก ${activeBuilding}`}</span>
+          </div>
         ) : (
           <div className="ac-sales-vacant-groups">
             {vacantGrouped.map((bg) => (
-              <div key={bg.building} className="ac-sales-vacant-building">
+              <div
+                key={bg.building}
+                className="ac-sales-vacant-building"
+                data-bcolor={buildingColor(bg.building)}
+              >
                 <div className="ac-sales-vacant-building-head">
+                  <span className="ac-sales-vacant-building-icon" aria-hidden>
+                    <Icon name="facilities" size={20} />
+                  </span>
                   <span className="ac-sales-vacant-building-name">{bg.building}</span>
                   <span className="ac-sales-vacant-building-count">{bg.total} ห้องว่าง</span>
                 </div>
@@ -195,7 +225,9 @@ export default function SalesPipelineView({
                       <span className="ac-sales-vacant-floor-label">
                         {fg.floor === "—" ? "ไม่ระบุชั้น" : `ชั้น ${fg.floor}`}
                       </span>
-                      <span className="ac-sales-vacant-floor-count">{fg.rooms.length}</span>
+                      <span className="ac-sales-vacant-floor-rooms-summary">
+                        ห้อง {fg.rooms.map((r) => r.room).join(", ")}
+                      </span>
                     </div>
                     <div className="ac-sales-vacant-grid">
                       {fg.rooms.map((r) => (
@@ -206,9 +238,6 @@ export default function SalesPipelineView({
                           title={`ห้อง ${r.room} · ${r.building}${r.floor ? ` · ชั้น ${r.floor}` : ""}`}
                         >
                           <span className="ac-sales-vacant-card-room">ห้อง {r.room}</span>
-                          <span className="ac-sales-vacant-card-price">
-                            {formatBaht(r.price) ? `฿ ${formatBaht(r.price)}` : "—"}
-                          </span>
                         </button>
                       ))}
                     </div>
