@@ -5219,3 +5219,34 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   margin-left: auto;
   padding: 4px 8px;
 }
+
+/* ============================================================
+ * Skeleton primitives (components/ui/Skeleton.tsx)
+ * Shape classes are decorative; the shimmer comes from .ac-skel.
+ * ============================================================ */
+.ac-skel-shape-text   { display: inline-block; }
+.ac-skel-shape-rect   { display: inline-block; }
+.ac-skel-shape-circle { display: inline-block; }
+.ac-skel-shape-card   { display: block; }
+
+.ac-skel-text-block {
+  display: block;
+  width: 100%;
+}
+.ac-skel-card-block {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/* Respect users who don't want motion */
+@media (prefers-reduced-motion: reduce) {
+  .ac-skel {
+    animation: none;
+    background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  }
+}
