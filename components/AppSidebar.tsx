@@ -16,6 +16,8 @@ interface Props {
   onBackdropClick: () => void;
   /** ผู้ใช้ปัจจุบัน — ถ้า undefined (loading) ให้แสดง safe default: overview + today เท่านั้น */
   roles?: Role[];
+  /** Preferred group order (by label). Groups not listed stay in original order at the end. */
+  groupOrder?: string[];
 }
 
 /**
@@ -89,6 +91,24 @@ function buildGroups(
   return groups;
 }
 
+/**
+ * Reorder sidebar groups by mode preference. Groups whose labels appear in
+ * `order` move to the front in the given order; unknown groups keep their
+ * original relative order at the end. Stable + non-destructive.
+ */
+function reorderGroups(groups: NavGroup[], order: string[] | undefined): NavGroup[] {
+  if (!order || order.length === 0) return groups;
+  const byLabel = new Map(groups.map((g) => [g.label, g] as const));
+  const head: NavGroup[] = [];
+  for (const label of order) {
+    const g = byLabel.get(label);
+    if (g) { head.push(g); byLabel.delete(label); }
+  }
+  // Remaining groups keep their original relative order
+  const tail = groups.filter((g) => byLabel.has(g.label));
+  return [...head, ...tail];
+}
+
 function ItemIcon({ icon: ic }: { icon: SidebarIcon }) {
   if (ic.kind === "dot") {
     return <span className="ac-side-dot" style={{ background: ic.color }} aria-hidden />;
@@ -97,9 +117,9 @@ function ItemIcon({ icon: ic }: { icon: SidebarIcon }) {
 }
 
 export default function AppSidebar({
-  isOpen, activeView, onChangeView, counts, onBackdropClick, roles,
+  isOpen, activeView, onChangeView, counts, onBackdropClick, roles, groupOrder,
 }: Props) {
-  const groups = buildGroups(counts, roles);
+  const groups = reorderGroups(buildGroups(counts, roles), groupOrder);
 
   return (
     <>

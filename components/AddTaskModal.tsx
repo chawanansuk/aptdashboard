@@ -24,6 +24,8 @@ interface Props {
   }>) => void;
   onClose: () => void;
   onSubmit: () => void;
+  /** Mode-specific preferred default type ("ชมห้อง" for sales, "ซ่อม" for engineer, etc.). */
+  defaultType?: string;
 }
 
 /**
@@ -39,7 +41,11 @@ const COMMON_TASK_TYPES = ["อื่นๆ"] as const;
 /** Types where customer/phone are meaningful — clean = no customer. */
 const TYPES_WITH_CUSTOMER = new Set(["ย้ายเข้า", "ย้ายออก", "ชมห้อง"]);
 
-function defaultTypeFor(roles: Role[] | undefined, current: string): string {
+function defaultTypeFor(
+  roles: Role[] | undefined,
+  current: string,
+  preferred?: string,
+): string {
   // multi-role: keep current if still allowed; otherwise pick default
   // that matches the user's "primary" focus (sales first, then engineer)
   const list = roles || [];
@@ -47,6 +53,11 @@ function defaultTypeFor(roles: Role[] | undefined, current: string): string {
   const canEng   = list.includes("engineer") || list.includes("management");
   if (canSales && SALES_TASK_TYPES.includes(current as never)) return current;
   if (canEng && ENG_TASK_TYPES.includes(current as never)) return current;
+  // Mode preference wins next (if allowed for this role mix)
+  if (preferred) {
+    if (canSales && SALES_TASK_TYPES.includes(preferred as never)) return preferred;
+    if (canEng   && ENG_TASK_TYPES.includes(preferred as never))   return preferred;
+  }
   if (canSales) return "ชมห้อง";
   if (canEng)   return "ซ่อม";
   return current || "ย้ายเข้า";
@@ -71,7 +82,7 @@ function validate(values: {
 
 export default function AddTaskModal({
   open, saving, buildings, date, type, building, room, customer, phone, note, cost,
-  onChange, onClose, onSubmit,
+  onChange, onClose, onSubmit, defaultType,
 }: Props) {
   const { data: session } = useSession();
   const roles = session?.user?.roles;
@@ -106,7 +117,7 @@ export default function AddTaskModal({
   useEffect(() => {
     if (!open) return;
     if (!allowedTypes.includes(type)) {
-      onChange({ type: defaultTypeFor(roles, type) });
+      onChange({ type: defaultTypeFor(roles, type, defaultType) });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, roles]);

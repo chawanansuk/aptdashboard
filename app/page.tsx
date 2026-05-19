@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
@@ -26,6 +26,8 @@ import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledSt
 import { canAccess, getDefaultRoute, type Route } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
+import { getModeConfig, type GreetingStats } from "@/lib/modeConfig";
+import WelcomeHero from "@/components/WelcomeHero";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
@@ -59,6 +61,20 @@ export default function Home() {
   // primary role for components that still take a single Role (badge etc.)
   const role = roles[0];
 
+  // ---- Mode personality (PR-O) ----
+  // Derive the mode config from effective roles. View-as swap → mode swap.
+  const modeConfig = useMemo(() => getModeConfig(effectiveRoles), [effectiveRoles]);
+  // Set <html data-mode> so the accent CSS var swaps across the whole app
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.setAttribute("data-mode", modeConfig.mode);
+  }, [modeConfig.mode]);
+
+  // One-time landing view: when the user first lands (session-only), send
+  // them to their role-appropriate view. Subsequent navigation is theirs.
+  // Sales → tenants, Engineer → today, Management → overview.
+  const landingApplied = useRef(false);
+
   // ---- Presets ----
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [presetMenuOpen, setPresetMenuOpen] = useState(false);
@@ -69,6 +85,17 @@ export default function Home() {
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities">("overview");
+  // Apply mode default landing view once per session, after roles resolve
+  useEffect(() => {
+    if (landingApplied.current) return;
+    if (!effectiveRoles || effectiveRoles.length === 0) return;
+    landingApplied.current = true;
+    const target = modeConfig.defaultLandingView as typeof activeView;
+    if (target && target !== activeView && canAccess(roles, target as Route)) {
+      setActiveView(target);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveRoles.join("|")]);
   const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "custom">("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -98,7 +125,13 @@ export default function Home() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [tDate, setTDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [tType, setTType] = useState<string>("ย้ายเข้า");
+  const [tType, setTType] = useState<string>(() => modeConfig.defaultTaskType);
+  // Keep tType in sync when mode changes (View-as swap) — only if the user
+  // hasn't started editing the modal (i.e. when it's closed).
+  useEffect(() => {
+    if (!showAddTask) setTType(modeConfig.defaultTaskType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeConfig.defaultTaskType]);
   const [tBuilding, setTBuilding] = useState<string>("");
   const [tRoom, setTRoom] = useState<string>("");
   const [tCustomer, setTCustomer] = useState<string>("");
@@ -291,6 +324,58 @@ export default function Home() {
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
   const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
+
+  // Stats for the welcome hero — same data the rest of the page already
+  // sees, just summarised for greeting copy. Building-scoped so the hero
+  // narrative matches the current building filter.
+  const greetingStats = useMemo<GreetingStats>(() => {
+    const scope = activeBuilding === "ทั้งหมด"
+      ? rooms
+      : rooms.filter((r) => r.building === activeBuilding);
+    const vacant   = scope.filter((r) => r.status === "ready").length;
+    const occupied = scope.filter((r) => r.status === "occupied").length;
+    const total    = scope.length;
+    const occupancyRate = total > 0 ? occupied / total : 0;
+    // Today's task count (any non-done/non-cancelled task dated today)
+    const d = new Date();
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const todayStr = `${dd}/${mm}/${d.getFullYear()}`;
+    const tasksToday = (tasks || []).filter((t) =>
+      t.date === todayStr
+      && !isDoneStatus(t.status)
+      && !isCancelledStatus(t.status)
+      && (activeBuilding === "ทั้งหมด" || t.building === activeBuilding)
+    ).length;
+    // Contracts expiring this calendar month
+    const thisMonth = d.getMonth();
+    const thisYear  = d.getFullYear();
+    let expiringContractsThisMonth = 0;
+    for (const r of scope) {
+      if (!r.contractEnd) continue;
+      const td = parseThaiDate(r.contractEnd);
+      if (!td) continue;
+      if (td.getMonth() === thisMonth && td.getFullYear() === thisYear) {
+        expiringContractsThisMonth++;
+      }
+    }
+    // Monthly income proxy: sum of occupied-room prices
+    let monthlyIncome = 0;
+    for (const r of scope) {
+      if (r.status !== "occupied") continue;
+      const n = parseInt(String(r.price || "").replace(/[^0-9]/g, ""), 10);
+      if (Number.isFinite(n)) monthlyIncome += n;
+    }
+    // maintenanceOverdue / DueSoon are owned by the (lazy) maintenance
+    // module — left at 0 here so the greeting falls back gracefully; can
+    // be wired in once a lightweight summary endpoint exists.
+    return {
+      vacant, occupied, total, occupancyRate,
+      tasksToday, expiringContractsThisMonth,
+      maintenanceOverdue: 0, maintenanceDueSoon: 0,
+      monthlyIncome,
+    };
+  }, [rooms, tasks, activeBuilding]);
 
   const sidebarCounts = useMemo(() => {
     const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
@@ -519,6 +604,8 @@ export default function Home() {
         onOpenSummary={() => setSummaryOpen(true)}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onOpenSearch={() => cmdk.setOpen(true)}
+        addLabel={modeConfig.addButtonLabel}
+        modeLabel={modeConfig.label}
       />
 
       <div className="ac-body">
@@ -529,6 +616,7 @@ export default function Home() {
           counts={sidebarCounts}
           onBackdropClick={() => setSidebarOpen(false)}
           roles={roles}
+          groupOrder={modeConfig.sidebarGroupOrder}
         />
 
         <main className="ac-main">
@@ -544,6 +632,10 @@ export default function Home() {
           )}
 
           {isInitial && rooms.length === 0 && status !== "error" && <SkeletonLoader />}
+
+          {activeView === "overview" && rooms.length > 0 && (
+            <WelcomeHero config={modeConfig} stats={greetingStats} />
+          )}
 
           {activeView === "overview" && rooms.length > 0 && (
             <OverviewCards
@@ -707,6 +799,7 @@ export default function Home() {
         open={showAddTask}
         saving={savingTask}
         buildings={buildings}
+        defaultType={modeConfig.defaultTaskType}
         date={tDate} type={tType} building={tBuilding} room={tRoom}
         customer={tCustomer} phone={tPhone} note={tNote} cost={tCost}
         onChange={(p) => {
@@ -727,6 +820,7 @@ export default function Home() {
         <RoomModal
           room={selectedRoom}
           saving={saving}
+          defaultTab={modeConfig.roomModalDefaultTab}
           status={editStatus} tenant={editTenant} phone={editPhone}
           contractEnd={editContractEnd} note={editNote} price={editPrice}
           onChange={(p) => {
