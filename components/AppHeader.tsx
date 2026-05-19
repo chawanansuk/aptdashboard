@@ -5,6 +5,7 @@ import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import { useEffectiveRoles, VIEW_AS_ALL, type ViewAsValue } from "@/lib/useEffectiveRoles";
 import { Icon } from "@/lib/icons";
+import { toast } from "@/lib/toast";
 import type { Role } from "@/auth";
 
 interface Props {
@@ -204,7 +205,15 @@ export default function AppHeader({
                     <select
                       className="ac-user-menu-select"
                       value={viewAs}
-                      onChange={(e) => setViewAs(e.target.value as ViewAsValue)}
+                      onChange={(e) => {
+                        const next = e.target.value as ViewAsValue;
+                        setViewAs(next);
+                        closeMenu();
+                        // Confirm visually so the user knows the switch took
+                        // effect — the mode-driven landing useEffect in
+                        // app/page.tsx (PR #57) handles the actual view change
+                        toast.success(`เปลี่ยนมุมมองเป็น ${ROLE_LABEL[next]} แล้ว`);
+                      }}
                       aria-label="กรองเมนูตามบทบาท"
                     >
                       {[VIEW_AS_ALL, ...actualRoles].map((v) => (
