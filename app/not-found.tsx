@@ -22,7 +22,7 @@ export default function NotFound() {
     <main className="ac-notfound" role="main" aria-labelledby="ac-notfound-title">
       <div className="ac-notfound-card">
         <div className="ac-notfound-icon" aria-hidden>
-          <Icon name="rooms" size={48} />
+          <Icon name="grid" size={48} />
         </div>
         <div className="ac-notfound-number" aria-hidden>404</div>
         <h1 className="ac-notfound-title" id="ac-notfound-title">ไม่พบหน้านี้</h1>

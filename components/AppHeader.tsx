@@ -43,10 +43,13 @@ const MODE_LABEL: Record<string, string> = {
 };
 
 const ROLE_LABEL: Record<Role | typeof VIEW_AS_ALL, string> = {
-  all: "ทุกบทบาท",
-  sales: "ทีมขาย",
-  engineer: "ช่าง",
-  management: "ผู้จัดการ",
+  // Emoji prefix lets the user spot the active role at a glance —
+  // particularly useful when the multi-role picker is in the menu and
+  // the user just wants visual confirmation of which mode is on.
+  all: "👥 ทุกบทบาท",
+  sales: "🏠 ทีมขาย",
+  engineer: "🔧 ช่าง",
+  management: "📊 ผู้จัดการ",
 };
 
 /**
