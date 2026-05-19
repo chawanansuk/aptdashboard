@@ -4705,7 +4705,10 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   flex-direction: column;
   gap: var(--space-6);
   position: relative;
-  padding-bottom: 80px; /* room for the FAB */
+  padding-bottom: 80px; /* breathing room above the BottomNav on mobile
+                          (FAB was removed in PR #53; .ac-main already
+                          adds 72px+safe-area but extra here looks better
+                          when the last section is a row list) */
 }
 
 /* KPI strip — 3 chunky cards across the top */
