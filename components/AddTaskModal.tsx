@@ -16,9 +16,11 @@ interface Props {
   customer: string;
   phone: string;
   note: string;
+  /** v3.10.0 — optional cost (raw string input; parent owns it) */
+  cost: string;
   onChange: (patch: Partial<{
     date: string; type: string; building: string; room: string;
-    customer: string; phone: string; note: string;
+    customer: string; phone: string; note: string; cost: string;
   }>) => void;
   onClose: () => void;
   onSubmit: () => void;
@@ -68,7 +70,7 @@ function validate(values: {
 }
 
 export default function AddTaskModal({
-  open, saving, buildings, date, type, building, room, customer, phone, note,
+  open, saving, buildings, date, type, building, room, customer, phone, note, cost,
   onChange, onClose, onSubmit,
 }: Props) {
   const { data: session } = useSession();
@@ -299,13 +301,30 @@ export default function AddTaskModal({
             </div>
           )}
 
-          {/* SECTION 4 — หมายเหตุ */}
+          {/* SECTION 4 — ค่าใช้จ่าย + หมายเหตุ */}
           <div className="ac-form-section">
             <div className="ac-form-section-label">
-              หมายเหตุ <span className="ac-form-section-optional">(ไม่บังคับ)</span>
+              ค่าใช้จ่าย · หมายเหตุ{" "}
+              <span className="ac-form-section-optional">(ไม่บังคับ)</span>
             </div>
             <div className="ac-field">
+              <label htmlFor="ac-addtask-cost">ค่าใช้จ่าย (บาท)</label>
+              <input
+                id="ac-addtask-cost"
+                type="text"
+                inputMode="numeric"
+                value={cost}
+                onChange={(e) => onChange({ cost: e.target.value })}
+                placeholder="เช่น 1500"
+              />
+              <span className="ac-field-hint">
+                ใส่ตอนสร้าง หรือมาเพิ่มภายหลังตอนทำงานเสร็จก็ได้
+              </span>
+            </div>
+            <div className="ac-field">
+              <label htmlFor="ac-addtask-note">หมายเหตุ</label>
               <textarea
+                id="ac-addtask-note"
                 rows={2}
                 value={note}
                 onChange={(e) => onChange({ note: e.target.value })}

@@ -10,6 +10,8 @@ export interface SheetRow {
   status: string;
   creator?: string;
   createdAt?: string;
+  /** v3.10.0 — ค่าใช้จ่าย (THB). 0 หรือ undefined = ไม่ระบุ */
+  cost?: number;
 }
 
 export type TaskType = "ทำสะอาด" | "ย้ายเข้า" | "ย้ายออก" | "ชมห้อง";

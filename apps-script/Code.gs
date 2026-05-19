@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.9.0 — Dashboard หอพัก
+ * Code.gs v3.10.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -27,6 +27,9 @@
  * NEW v3.9.0:
  *   - LockService.tryLock(5000) wrap ทุก write action ป้องกัน concurrent write
  *     ชนกัน (10+ user เปิดพร้อมกัน). read actions ไม่ต้อง lock.
+ * NEW v3.10.0:
+ *   - column K "ค่าใช้จ่าย" ใน tab งาน (auto-expand backward compat)
+ *   - addTask_ / updateTask_ รับ b.cost (number); read แสดงใน SheetRow.cost
  */
 
 const SHEET_NAMES = {
@@ -51,6 +54,7 @@ const TASK_COL = {
   DATE: 1, TYPE: 2, BUILDING: 3, ROOM: 4,
   CUSTOMER: 5, PHONE: 6, NOTE: 7, STATUS: 8,
   CREATOR: 9, CREATED_AT: 10,
+  COST: 11, // v3.10.0
 };
 
 /* ========== CACHE (NEW v3.4.0) ========== */
@@ -213,7 +217,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.9.0' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.10.0' });
 }
 
 /* ========== TASK READ ========== */
@@ -222,9 +226,15 @@ function getTasks_() {
   if (!sh) return [];
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
-  const values = sh.getRange(2, 1, lastRow - 1, 10).getValues();
+  // v3.10.0: read up to col K (11). Use lastCol to stay backward-compat
+  // when the sheet hasn't been expanded yet (existing rows < 11 cols).
+  const lastCol = Math.max(sh.getLastColumn(), 10);
+  const cols = Math.min(lastCol, 11);
+  const values = sh.getRange(2, 1, lastRow - 1, cols).getValues();
   return values
     .map(function (r) {
+      const costRaw = cols >= 11 ? r[10] : '';
+      const costNum = parseFloat(costRaw);
       return {
         date:      fmtDate_(r[0]),
         type:      norm(r[1]),
@@ -236,9 +246,21 @@ function getTasks_() {
         status:    norm(r[7]),
         creator:   norm(r[8]),
         createdAt: norm(r[9]),
+        cost:      isFinite(costNum) && costNum > 0 ? costNum : 0,
       };
     })
     .filter(function (r) { return r.date && r.type && r.building; });
+}
+
+/**
+ * Ensure the "งาน" sheet has column K = "ค่าใช้จ่าย" (v3.10.0).
+ * Idempotent — if the column already exists, do nothing. Used by
+ * addTask_ before append so existing tabs auto-expand on first write.
+ */
+function ensureTaskCostColumn_(sh) {
+  const lastCol = sh.getLastColumn();
+  if (lastCol >= 11) return;
+  sh.getRange(1, 11).setValue('ค่าใช้จ่าย').setFontWeight('bold');
 }
 
 /* ========== ROOMS READ (NEW v3.4.3) ========== */
@@ -322,6 +344,8 @@ function findTaskRow_(q) {
 function addTask_(b) {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   if (!sh) throw new Error('sheet "งาน" not found');
+  ensureTaskCostColumn_(sh); // v3.10.0
+  const costNum = parseFloat(b.cost);
   const row = [
     b.date || '',
     b.type || '',
@@ -333,6 +357,7 @@ function addTask_(b) {
     b.status || 'pending',
     b.creator || '',
     Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm'),
+    isFinite(costNum) && costNum > 0 ? costNum : '',
   ];
   sh.appendRow(row);
   clearTasksCache_();
@@ -356,6 +381,11 @@ function updateTask_(b) {
   if (b.phone !== undefined)    sh.getRange(row, TASK_COL.PHONE).setValue(b.phone);
   if (b.note !== undefined)     sh.getRange(row, TASK_COL.NOTE).setValue(b.note);
   if (b.status !== undefined)   sh.getRange(row, TASK_COL.STATUS).setValue(b.status);
+  if (b.cost !== undefined) {
+    ensureTaskCostColumn_(sh); // v3.10.0 — backward compat for old tabs
+    const n = parseFloat(b.cost);
+    sh.getRange(row, TASK_COL.COST).setValue(isFinite(n) && n > 0 ? n : '');
+  }
   clearTasksCache_();
   return { updated: true, row: row };
 }
@@ -663,7 +693,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.9.0 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.10.0 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {
