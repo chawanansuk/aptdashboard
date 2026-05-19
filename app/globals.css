@@ -4955,13 +4955,20 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   }
   .ac-user-pic { width: 36px; height: 36px; }
 
-  /* User menu — full-width sheet feel on mobile, anchored to header */
+  /* User menu — full-width sheet feel on mobile.
+     Switch to position: fixed so right/left become viewport-relative
+     (previously absolute → relative to the 38px avatar wrap, which
+     squeezed the menu to ~22px and stacked text vertically). */
   .ac-user-menu {
+    position: fixed !important;
+    top: 60px !important;
     right: 8px !important;
     left: 8px !important;
     min-width: 0 !important;
     max-width: none !important;
     width: auto !important;
+    max-height: calc(100vh - 80px) !important;
+    overflow-y: auto !important;
   }
 }
 
