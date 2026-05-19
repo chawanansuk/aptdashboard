@@ -3781,9 +3781,11 @@ html.dark .ac-bottom-nav-tab.is-primary:hover { background: #2563EB; }
     align-items: center;
     justify-content: space-around;
   }
-  /* Main content gets padding so the last row isn't hidden behind the bar. */
+  /* Main content gets padding so the last row isn't hidden behind the bar.
+     Bumped to 96px (was 72px) to cover BottomNav (64px) + the raised
+     center "+" button which extends ~12px above the bar via translateY. */
   .ac-main {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
 }
 
