@@ -104,7 +104,11 @@ async function runCall<T>(
   const url = getUrl();
   const idempotent = opts.idempotent ?? false;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const payload = JSON.stringify({ action, ...body });
+  // Explicit `action` parameter must always win — earlier spread of
+  // body keys can include a stale `action` field (e.g. from /api/room-equipment
+  // forwarding the client's `action: "add"` while we want to upstream
+  // `action: "addEquipment"`). Putting `action` LAST guarantees it overrides.
+  const payload = JSON.stringify({ ...body, action });
 
   let lastErr: Error | null = null;
 
