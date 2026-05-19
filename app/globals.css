@@ -5871,3 +5871,43 @@ html.dark .ac-sales-vacant-card:hover {
     width: 100%;
   }
 }
+
+/* ============================================================
+ * Mobile typography — Thai-aware word-break
+ * (polish-pack TASK 3)
+ * Thai doesn't use spaces between words; the default `break-word`
+ * can split mid-word at line ends. Constrain wrap to natural
+ * boundaries on small viewports.
+ * ============================================================ */
+@media (max-width: 640px) {
+  /* Apply only to content text — not buttons / pills / nav chrome */
+  .ac-main p,
+  .ac-main h1,
+  .ac-main h2,
+  .ac-main h3,
+  .ac-main .ac-sc-label,
+  .ac-main .ac-sc-num,
+  .ac-main .ac-sales-row-title,
+  .ac-main .ac-sales-row-sub,
+  .ac-main .ac-sales-section-title,
+  .ac-main .ac-empty-title,
+  .ac-main .ac-empty-desc,
+  .ac-main .ac-kanban-card-note {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  /* KPI numbers — clamp font size so long numbers (5+ digits) don't wrap */
+  .ac-sales-kpi-value,
+  .ac-kanban-kpi-value {
+    font-size: 22px;
+  }
+
+  /* Building names on cards — never wrap mid-word */
+  .ac-sales-row-sub,
+  .ac-vacant-room-card-meta {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
