@@ -3,6 +3,7 @@ import "./globals.css";
 import PWAClient from "@/components/PWAClient";
 import SessionProviderClient from "@/components/SessionProviderClient";
 import HealthBanner from "@/components/HealthBanner";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { auth } from "@/auth";
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +60,9 @@ export default async function RootLayout({
         <SessionProviderClient session={session}>
           <PWAClient />
           <HealthBanner />
-          {children}
+          {/* Global error boundary — catches anything that escapes per-route
+              boundaries so the user never faces a blank white screen. */}
+          <ErrorBoundary level="global">{children}</ErrorBoundary>
         </SessionProviderClient>
       </body>
     </html>

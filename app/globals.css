@@ -5363,3 +5363,95 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--color-text) 3%, transparent);
 }
+
+/* ============================================================
+ * Error boundary fallback UI (components/ui/ErrorBoundary.tsx)
+ * Two visual sizes via `level`:
+ *   - global  : centered full-page card
+ *   - route   : in-line section card
+ *   - section : same as route (alias)
+ * ============================================================ */
+.ac-error-boundary {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid #DC2626;
+  border-radius: var(--radius-lg);
+  margin: var(--space-3) 0;
+}
+.ac-error-boundary-global {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 540px;
+  margin: 64px auto;
+  padding: var(--space-6);
+}
+.ac-error-boundary-icon {
+  color: #DC2626;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ac-error-boundary-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ac-error-boundary-title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: 0;
+}
+.ac-error-boundary-global .ac-error-boundary-title {
+  font-size: 22px;
+}
+.ac-error-boundary-desc {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+.ac-error-boundary-details {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ac-error-boundary-details summary {
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+.ac-error-boundary-pre {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+}
+.ac-error-boundary-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+.ac-error-boundary-global .ac-error-boundary-actions {
+  justify-content: center;
+}
+.ac-error-boundary-actions .ac-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
