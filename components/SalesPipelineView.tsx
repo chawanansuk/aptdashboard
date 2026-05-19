@@ -30,6 +30,25 @@ interface Props {
 const SALES_TASK_TYPES = new Set(["ชมห้อง", "ย้ายเข้า"]);
 const CONTRACT_SOON_DAYS = 30;
 
+/**
+ * Preferred building order for grouped views (matches the sales team's
+ * mental model). Buildings not in this list fall to the end alphabetically
+ * so newly-added buildings don't disappear from the UI.
+ */
+const BUILDING_ORDER = ["Kl", "มั่งมี", "มายทรี48", "มีทรัพย์", "มีทอง"];
+
+function buildingSortIndex(name: string): number {
+  const i = BUILDING_ORDER.indexOf(name);
+  return i === -1 ? BUILDING_ORDER.length : i;
+}
+
+/** Floor sort: numeric first ("1","2","10"), strings to end. */
+function floorSortKey(s: string): [number, string] {
+  const n = parseInt(s, 10);
+  if (Number.isFinite(n)) return [n, ""];
+  return [Number.MAX_SAFE_INTEGER, s];
+}
+
 interface Appointment {
   task: SheetRow;
   date: Date;
@@ -53,6 +72,53 @@ export default function SalesPipelineView({
       .sort((a, b) => a.building.localeCompare(b.building) || a.room.localeCompare(b.room)),
     [scopedRooms],
   );
+
+  // Group vacant rooms by building → floor → rooms, ordered per business
+  // preference. Buildings/floors with no vacant rooms are dropped so the
+  // sales view stays scannable.
+  const vacantGrouped = useMemo(() => {
+    interface FloorGroup { floor: string; rooms: RoomView[]; }
+    interface BuildingGroup { building: string; total: number; floors: FloorGroup[]; }
+
+    const byBuilding = new Map<string, Map<string, RoomView[]>>();
+    for (const r of vacantRooms) {
+      const b = r.building || "(ไม่ระบุตึก)";
+      const f = r.floor || "—";
+      if (!byBuilding.has(b)) byBuilding.set(b, new Map());
+      const byFloor = byBuilding.get(b)!;
+      if (!byFloor.has(f)) byFloor.set(f, []);
+      byFloor.get(f)!.push(r);
+    }
+
+    const out: BuildingGroup[] = [];
+    for (const [building, floorMap] of byBuilding) {
+      const floors: FloorGroup[] = [];
+      let total = 0;
+      const floorEntries = Array.from(floorMap.entries());
+      // Sort floors numerically (1, 2, 10), strings last
+      floorEntries.sort((a, b) => {
+        const [na, sa] = floorSortKey(a[0]);
+        const [nb, sb] = floorSortKey(b[0]);
+        if (na !== nb) return na - nb;
+        return sa.localeCompare(sb);
+      });
+      for (const [floor, rooms] of floorEntries) {
+        // Within a floor, sort rooms by number
+        const sorted = [...rooms].sort((a, b) => a.room.localeCompare(b.room, undefined, { numeric: true }));
+        floors.push({ floor, rooms: sorted });
+        total += rooms.length;
+      }
+      out.push({ building, total, floors });
+    }
+    // Sort buildings per preferred order; unknowns to end alphabetically
+    out.sort((a, b) => {
+      const ia = buildingSortIndex(a.building);
+      const ib = buildingSortIndex(b.building);
+      if (ia !== ib) return ia - ib;
+      return a.building.localeCompare(b.building);
+    });
+    return out;
+  }, [vacantRooms]);
 
   // Upcoming appointments: future-dated sales-side tasks, not done/cancelled.
   // We compare from start-of-today so today's open appointments still show.
@@ -107,7 +173,7 @@ export default function SalesPipelineView({
         <KpiCard label="สัญญาใกล้หมด (30 วัน)" value={expiringContracts.length} accent="orange" />
       </div>
 
-      {/* Section 1 — ห้องว่างพร้อมขาย */}
+      {/* Section 1 — ห้องว่างพร้อมขาย (จัดกลุ่มตาม ตึก > ชั้น) */}
       <div className="ac-sales-section">
         <div className="ac-sales-section-head">
           <h3 className="ac-sales-section-title">🏠 ห้องว่างพร้อมขาย</h3>
@@ -116,22 +182,39 @@ export default function SalesPipelineView({
         {vacantRooms.length === 0 ? (
           <div className="ac-sales-empty">ไม่มีห้องว่างในขณะนี้</div>
         ) : (
-          <div className="ac-sales-list">
-            {vacantRooms.map((r) => (
-              <button
-                key={`${r.building}|${r.room}`}
-                className="ac-sales-row"
-                onClick={() => onSelectRoom(r)}
-              >
-                <span className="ac-sales-row-dot" style={{ background: STATUS_DOT.ready }} aria-hidden />
-                <span className="ac-sales-row-main">
-                  <span className="ac-sales-row-title">ห้อง {r.room}</span>
-                  <span className="ac-sales-row-sub">{r.building}{r.floor ? ` · ชั้น ${r.floor}` : ""}</span>
-                </span>
-                <span className="ac-sales-row-meta">
-                  {formatBaht(r.price) ? `฿ ${formatBaht(r.price)}` : "—"}
-                </span>
-              </button>
+          <div className="ac-sales-vacant-groups">
+            {vacantGrouped.map((bg) => (
+              <div key={bg.building} className="ac-sales-vacant-building">
+                <div className="ac-sales-vacant-building-head">
+                  <span className="ac-sales-vacant-building-name">{bg.building}</span>
+                  <span className="ac-sales-vacant-building-count">{bg.total} ห้องว่าง</span>
+                </div>
+                {bg.floors.map((fg) => (
+                  <div key={fg.floor} className="ac-sales-vacant-floor">
+                    <div className="ac-sales-vacant-floor-head">
+                      <span className="ac-sales-vacant-floor-label">
+                        {fg.floor === "—" ? "ไม่ระบุชั้น" : `ชั้น ${fg.floor}`}
+                      </span>
+                      <span className="ac-sales-vacant-floor-count">{fg.rooms.length}</span>
+                    </div>
+                    <div className="ac-sales-vacant-grid">
+                      {fg.rooms.map((r) => (
+                        <button
+                          key={`${r.building}|${r.room}`}
+                          className="ac-sales-vacant-card"
+                          onClick={() => onSelectRoom(r)}
+                          title={`ห้อง ${r.room} · ${r.building}${r.floor ? ` · ชั้น ${r.floor}` : ""}`}
+                        >
+                          <span className="ac-sales-vacant-card-room">ห้อง {r.room}</span>
+                          <span className="ac-sales-vacant-card-price">
+                            {formatBaht(r.price) ? `฿ ${formatBaht(r.price)}` : "—"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ))}
           </div>
         )}
