@@ -3775,6 +3775,15 @@ html.dark .ac-modal-foot-hint kbd {
   .ac-modal-foot-hint { display: none; }
 }
 
+/* Small helper text under a field (e.g. "เว้นว่างถ้ายังไม่เคยซ่อม") */
+.ac-field-hint {
+  font-size: 11px;
+  color: #94A3B8;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+html.dark .ac-field-hint { color: #64748B; }
+
 /* Spinner inside primary submit button */
 .ac-btn-spinner {
   display: inline-block;
