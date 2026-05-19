@@ -4,6 +4,7 @@ import PWAClient from "@/components/PWAClient";
 import SessionProviderClient from "@/components/SessionProviderClient";
 import HealthBanner from "@/components/HealthBanner";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { Toaster } from "sonner";
 import { auth } from "@/auth";
 
 export const dynamic = 'force-dynamic';
@@ -63,6 +64,15 @@ export default async function RootLayout({
           {/* Global error boundary — catches anything that escapes per-route
               boundaries so the user never faces a blank white screen. */}
           <ErrorBoundary level="global">{children}</ErrorBoundary>
+          {/* Single Toaster mount-point. `lib/toast.ts` is the wrapper —
+              call toast.success/error/info from anywhere. */}
+          <Toaster
+            position="top-right"
+            richColors
+            theme="system"
+            offset={16}
+            gap={8}
+          />
         </SessionProviderClient>
       </body>
     </html>
