@@ -2,21 +2,29 @@ export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 /**
- * Vercel Cron warmup — pings the 3 dashboard endpoints every 5 minutes
- * (see vercel.json) so neither Vercel function instances nor Apps Script
- * V8 isolates go cold. Without this, the user who happens to hit the
- * site after ~10 min of inactivity eats the full cold-start cost.
+ * Warmup endpoint — pings the 3 dashboard endpoints so neither Vercel
+ * function instances nor Apps Script V8 isolates go cold. Without
+ * this, the user who happens to hit the site after ~10 min of
+ * inactivity eats the full cold-start cost (worst case 11.8s observed).
  *
- * Edge runtime: this handler does only fetch + JSON return, no Node-only
- * APIs — safe to run on the edge for ~0ms cold-start.
+ * Edge runtime: this handler does only fetch + JSON return, no
+ * Node-only APIs — safe to run on the edge for ~0ms cold-start.
  *
- * Auth: Vercel Cron automatically attaches `Authorization: Bearer
- * <CRON_SECRET>` to scheduled runs. The same secret can be set manually
- * via Vercel dashboard → Project → Environment variables (any value;
- * UUID v4 works fine).
+ * Trigger strategy:
+ *   - Vercel Cron *can't* run this every 5 min on Hobby tier (daily
+ *     resolution only; would need Pro plan). We don't wire it via
+ *     vercel.json crons for that reason.
+ *   - Recommended: external uptime-monitoring service that hits the
+ *     URL every 5 min — both have free tiers:
+ *       • UptimeRobot (5 min free)
+ *       • cron-job.org (1 min free)
+ *       • Better Uptime (3 min free)
+ *     Set the URL to https://<your-domain>/api/cron/warmup and
+ *     add header `Authorization: Bearer <CRON_SECRET>`.
+ *   - Alternative: a personal Vercel Pro upgrade enables every-5-minute cron jobs.
  *
- * Cost: free on Hobby tier — Cron is included; outbound fetches to our
- * own functions don't count against any quota that matters here.
+ * Auth: requires `Authorization: Bearer <CRON_SECRET>` header.
+ * Set the secret via Vercel dashboard → Project → Environment Variables.
  */
 
 const ENDPOINTS = [
