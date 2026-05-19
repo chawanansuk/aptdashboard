@@ -92,65 +92,79 @@ export default function AppHeader({
 
   return (
     <header className="ac-nav">
-      <div className="ac-nav-left">
-        <button className="ac-hamburger" aria-label="เมนู" onClick={onToggleSidebar}>
+      {/* === Cell: Brand (hamburger + logo + mode badge) === */}
+      <div className="ac-nav-cell ac-nav-cell-brand">
+        <button className="ac-hamburger" aria-label="เมนู" onClick={onToggleSidebar} title="เปิดเมนูด้านข้าง">
           <span /><span /><span />
         </button>
         <div className="ac-logo">
           <div className="ac-logo-icon">A</div>
           <span className="ac-logo-text">APARTCLOUD</span>
         </div>
-        {/* Mode badge: hidden on mobile (lives inside user menu instead) */}
         <span className={`ac-mode-badge is-${primaryRole || "sales"} ac-hide-mobile`}>
           {modeText}
         </span>
-        <div className="ac-divider ac-hide-mobile" />
-        <nav className="ac-tabs ac-hide-mobile">
-          {buildings.map((b) => (
-            <button key={b} className={`ac-tab ${activeBuilding === b ? "is-active" : ""}`} onClick={() => onChangeBuilding(b)}>{b}</button>
-          ))}
-        </nav>
-        <select className="ac-tabs-select" value={activeBuilding} onChange={(e) => onChangeBuilding(e.target.value)} aria-label="เลือกอาคาร">
-          {buildings.map((b) => (<option key={b} value={b}>{b}</option>))}
-        </select>
       </div>
 
-      <div className="ac-nav-right">
+      {/* === Cell: Building filter (segmented pill control) === */}
+      <nav className="ac-nav-cell ac-nav-cell-tabs ac-tabs" aria-label="ตัวกรองอาคาร">
+        {buildings.map((b) => (
+          <button
+            key={b}
+            className={`ac-tab ${activeBuilding === b ? "is-active" : ""}`}
+            onClick={() => onChangeBuilding(b)}
+            title={b === "ทั้งหมด" ? "ดูทุกอาคาร" : `กรองเฉพาะอาคาร ${b}`}
+          >{b}</button>
+        ))}
+      </nav>
+
+      {/* === Cell: Actions (refresh + lastUpdated + add button) === */}
+      <div className="ac-nav-cell ac-nav-cell-actions">
+        <button
+          className={`ac-icon-btn ac-hide-mobile ${isRefreshing ? "is-spinning" : ""}`}
+          aria-label="รีเฟรชข้อมูล"
+          onClick={onRefresh}
+          title={`รีเฟรชข้อมูล${lastUpdated ? ` · อัปเดตล่าสุด ${lastUpdated}` : ""}`}
+          disabled={isRefreshing}
+        >
+          <Icon name="refresh" size={16} />
+        </button>
+        <div className="ac-last-updated ac-hide-mobile">อัปเดต {lastUpdated || "-"}</div>
+        <button
+          className="ac-add-btn ac-hide-mobile"
+          onClick={onAddTask}
+          title={addLabel || "เพิ่มงานใหม่"}
+        >
+          <Icon name="add" size={16} strokeWidth={2.25} />
+          <span className="ac-add-btn-text">{addLabel ? addLabel.replace(/^\+\s*/, "") : "เพิ่มงาน"}</span>
+        </button>
+      </div>
+
+      {/* === Cell: Utils (search + theme + summary + avatar) === */}
+      <div className="ac-nav-cell ac-nav-cell-utils">
         {onOpenSearch && (
           <button
             className="ac-icon-btn ac-cmdk-trigger"
             aria-label="ค้นหา (Ctrl+K)"
-            title="ค้นหา (Ctrl+K หรือ /)"
+            title="ค้นหาห้อง / หน้า / คำสั่ง (Ctrl+K หรือ /)"
             onClick={onOpenSearch}
           >
             <Icon name="search" size={16} />
           </button>
         )}
-
-        {/* Desktop-only primary actions — on mobile these live in the user menu / BottomNav */}
-        <button className="ac-add-btn ac-hide-mobile" onClick={onAddTask} title={addLabel || "เพิ่มงานใหม่"}>
-          <Icon name="add" size={16} strokeWidth={2.25} />
-          <span className="ac-add-btn-text">{addLabel ? addLabel.replace(/^\+\s*/, "") : "เพิ่มงาน"}</span>
-        </button>
-        <button
-          className={`ac-icon-btn ac-hide-mobile ${isRefreshing ? "is-spinning" : ""}`}
-          aria-label="รีเฟรช"
-          onClick={onRefresh}
-          title="รีเฟรช"
-          disabled={isRefreshing}
-        >
-          <Icon name="refresh" size={16} />
-        </button>
-        <div className="ac-last-updated ac-hide-mobile">อัปเดต: {lastUpdated || "-"}</div>
         <button
           className="ac-theme-toggle ac-hide-mobile"
           onClick={onToggleTheme}
           aria-label={isDark ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด"}
-          title={isDark ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด"}
+          title={isDark ? "สลับเป็นธีมสว่าง" : "สลับเป็นธีมมืด"}
         >
           <Icon name={isDark ? "sun" : "moon"} size={16} />
         </button>
-        <button className="ac-summary-btn ac-hide-mobile" onClick={onOpenSummary}>สรุปวันนี้</button>
+        <button
+          className="ac-summary-btn ac-hide-mobile"
+          onClick={onOpenSummary}
+          title="ดูสรุปงานวันนี้ทั้งหมด"
+        >สรุปวันนี้</button>
 
         <div className="ac-user-wrap">
           <button
