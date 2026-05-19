@@ -215,9 +215,16 @@ export default function RoomEquipmentTab({ building, room }: Props) {
 
       {!loading && rows && filtered.length === 0 && (
         <EmptyState
-          icon="tasks"
+          icon={filter === "all" ? "equipment" : "search"}
+          tone={filter === "all" ? "neutral" : "warning"}
           title={filter === "all" ? "ยังไม่มีอุปกรณ์ในห้องนี้" : `ไม่มีอุปกรณ์ประเภท "${filter}"`}
-          description={filter === "all" && canWrite ? "เริ่มต้นด้วยการเพิ่มแอร์ ตู้เย็น หรือเครื่องซักผ้า" : undefined}
+          description={
+            filter === "all"
+              ? (canWrite
+                  ? "เพิ่มแอร์ ตู้เย็น เครื่องซักผ้า เครื่องทำน้ำอุ่น เพื่อจัดรอบบำรุงและบันทึกประวัติซ่อม"
+                  : "ห้องนี้ยังไม่มีข้อมูลอุปกรณ์ในระบบ")
+              : "ลองเลือกประเภทอื่น หรือ \"ทั้งหมด\" เพื่อดูอุปกรณ์ทั้งหมดในห้อง"
+          }
           action={filter === "all" && canWrite ? { label: "+ เพิ่มอุปกรณ์", onClick: () => setAddOpen(true) } : undefined}
         />
       )}

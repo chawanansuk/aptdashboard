@@ -2,6 +2,7 @@
 
 import { SheetRow, TASK_ORDER, TaskType } from "@/types";
 import { parseThaiDate, isToday } from "@/lib/dateUtils";
+import EmptyState from "./EmptyState";
 
 interface Props {
   rows: SheetRow[];
@@ -39,9 +40,13 @@ export default function TodayTasks({ rows }: Props) {
       <h2 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">งานวันนี้</h2>
 
       {today.length === 0 ? (
-        <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">
-          วันนี้ไม่มีงานค้าง
-        </p>
+        <EmptyState
+          icon="celebration"
+          tone="celebration"
+          compact
+          title="วันนี้ไม่มีงานค้าง 🎉"
+          description="ใช้เวลาดูแลห้องอื่น หรือพักผ่อนได้เลย"
+        />
       ) : (
         <div className="flex flex-col gap-2">
           {today.map((row, i) => {

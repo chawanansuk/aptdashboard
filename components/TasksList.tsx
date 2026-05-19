@@ -163,7 +163,11 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
         <header className="ac-tasks-head">
           <h3 className="ac-tasks-title">{title}</h3>
         </header>
-        <EmptyState icon="tasks" title={emptyText || "ไม่มีงานในรายการนี้"} description="ลองเปลี่ยน filter / ช่วงวันที่ หรือกด + เพิ่มงาน เพื่อสร้างใหม่" />
+        <EmptyState
+          icon="tasks"
+          title={emptyText || "ไม่มีงานในรายการนี้"}
+          description="ลองเปลี่ยนตัวกรองสถานะ/ช่วงวันที่ หรือสร้างงานใหม่ด้วยปุ่ม + ด้านล่าง"
+        />
       </section>
     );
   }
@@ -203,7 +207,12 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
 
       {visible.length === 0 && (
-        <EmptyState icon="tasks" title={hideDone ? "งานทั้งหมดเสร็จแล้ว 🎉" : (emptyText || "ไม่มีงานในรายการนี้")} description={hideDone ? "ปลดล็อก toggle ด้านบนเพื่อดูงานที่เสร็จ/ยกเลิก" : undefined} />
+        <EmptyState
+          icon={hideDone ? "celebration" : "tasks"}
+          tone={hideDone ? "celebration" : "neutral"}
+          title={hideDone ? "งานทั้งหมดเสร็จแล้ว 🎉" : (emptyText || "ไม่มีงานในรายการนี้")}
+          description={hideDone ? "ปลดล็อก toggle ด้านบนเพื่อดูงานที่เสร็จ/ยกเลิก" : undefined}
+        />
       )}
 
       {buckets.map((bucket) => (
