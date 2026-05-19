@@ -31,9 +31,16 @@ export interface CacheLookup<T> {
 }
 
 /** Returned as-is, no revalidation triggered. */
-export const FRESH_TTL_MS = 60_000;
+export const FRESH_TTL_MS = 90_000;
 /** Returned with background revalidation. */
-export const STALE_TTL_MS = 5 * 60_000;
+export const STALE_TTL_MS = 10 * 60_000;
+/**
+ * Hard upper bound — past this, the data is "very stale" but we still
+ * keep it in memory so that the slow-upstream path can serve it as an
+ * emergency fallback instead of returning 502. Cleared on writes via
+ * `invalidateDashboardCache`.
+ */
+export const EMERGENCY_STALE_TTL_MS = 60 * 60_000; // 1 hour
 
 /**
  * Generic SWR slot. Each upstream source (rooms, tasks) gets its own
@@ -53,6 +60,19 @@ class SwrSlot<T> {
     // Beyond stale TTL — expire so it can be GC'd.
     this.value = null;
     return { state: "missing", data: null, ageMs };
+  }
+
+  /**
+   * Emergency fallback — returns the cached value even if past STALE_TTL,
+   * as long as we're still within EMERGENCY_STALE_TTL_MS. Used by the
+   * upstream-failure path so the user sees old-but-real data instead of
+   * a 502. Does NOT expire the slot (caller decides).
+   */
+  peekEmergency(now: number = Date.now()): T | null {
+    if (this.value === null) return null;
+    const ageMs = now - this.savedAt;
+    if (ageMs <= EMERGENCY_STALE_TTL_MS) return this.value;
+    return null;
   }
 
   set(v: T, now: number = Date.now()): void {
@@ -98,6 +118,10 @@ export function tryBeginRoomsRevalidation(): boolean {
 export function endRoomsRevalidation(): void {
   roomsSlot.endRevalidation();
 }
+/** Emergency fallback — see SwrSlot.peekEmergency. */
+export function peekEmergencyRoomsCache(now?: number): RoomRow[] | null {
+  return roomsSlot.peekEmergency(now);
+}
 
 export function getTasksCacheState(now?: number): CacheLookup<SheetRow[]> {
   return tasksSlot.get(now);
@@ -113,6 +137,10 @@ export function tryBeginTasksRevalidation(): boolean {
 }
 export function endTasksRevalidation(): void {
   tasksSlot.endRevalidation();
+}
+/** Emergency fallback — see SwrSlot.peekEmergency. */
+export function peekEmergencyTasksCache(now?: number): SheetRow[] | null {
+  return tasksSlot.peekEmergency(now);
 }
 
 /* ====================================================================

@@ -59,7 +59,7 @@ const TASK_COL = {
 
 /* ========== CACHE (NEW v3.4.0) ========== */
 const TASKS_CACHE_KEY = 'tasksCache_v1';
-const TASKS_CACHE_TTL_SEC = 60; // 60 วินาที — ปรับได้
+const TASKS_CACHE_TTL_SEC = 180; // 3 นาที — v3.11.0: ขยายจาก 60s ลด cold-start hits
 
 function getTasksCached_() {
   const cache = CacheService.getScriptCache();
