@@ -28,6 +28,8 @@ interface Props {
   onClose: () => void;
   onSave: () => void;
   onAddTaskHere: () => void;
+  /** Mode-specific initial tab ("info" or "equipment"). Defaults to "info". */
+  defaultTab?: "info" | "equipment";
 }
 
 type TabKey = "info" | "equipment";
@@ -97,11 +99,11 @@ function validate(values: { price: string; phone: string; contractEnd: string })
 
 export default function RoomModal({
   room, saving, status, tenant, phone, contractEnd, note, price,
-  onChange, onClose, onSave, onAddTaskHere,
+  onChange, onClose, onSave, onAddTaskHere, defaultTab,
 }: Props) {
   const { data: session } = useSession();
   const canEdit = canEditTenant(session?.user?.roles);
-  const [tab, setTab] = useState<TabKey>("info");
+  const [tab, setTab] = useState<TabKey>(defaultTab || "info");
   const [showHistory, setShowHistory] = useState(false);
 
   // Validation state — same UX as the redesigned add modals (PR #31)
@@ -112,9 +114,9 @@ export default function RoomModal({
     // Reset validation each time a new room is opened
     setSubmitAttempted(false);
     setTouched(new Set());
-    setTab("info");
+    setTab(defaultTab || "info");
     setShowHistory(false);
-  }, [room.building, room.room]);
+  }, [room.building, room.room, defaultTab]);
 
   const errors = useMemo(
     () => validate({ price, phone, contractEnd }),

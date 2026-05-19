@@ -20,6 +20,10 @@ interface Props {
   onToggleSidebar: () => void;
   /** Open the global command palette. Mobile users tap this; desktop users press Cmd+K / `/`. */
   onOpenSearch?: () => void;
+  /** Mode-specific label for the add button (e.g. "+ นัดลูกค้า"). Falls back to "เพิ่มงาน". */
+  addLabel?: string;
+  /** Mode-specific label for the role/mode badge (e.g. "Sales Mode"). Falls back to MODE_LABEL map. */
+  modeLabel?: string;
 }
 
 function initialsFromName(name?: string | null): string {
@@ -40,6 +44,7 @@ export default function AppHeader({
   buildings, activeBuilding, onChangeBuilding,
   isRefreshing, lastUpdated, isDark,
   onAddTask, onRefresh, onToggleTheme, onOpenSummary, onToggleSidebar, onOpenSearch,
+  addLabel, modeLabel,
 }: Props) {
   const { data: session } = useSession();
   const user = session?.user;
@@ -66,7 +71,7 @@ export default function AppHeader({
           <span /><span /><span />
         </button>
         <div className="ac-logo"><div className="ac-logo-icon">A</div><span className="ac-logo-text">APARTCLOUD</span></div>
-        <span className={`ac-mode-badge is-${primaryRole || "sales"}`}>{MODE_LABEL[primaryRole || "sales"] || "SALES MODE"}</span>
+        <span className={`ac-mode-badge is-${primaryRole || "sales"}`}>{modeLabel || MODE_LABEL[primaryRole || "sales"] || "SALES MODE"}</span>
         <RoleSwitcher />
         <div className="ac-divider" />
         <nav className="ac-tabs">
@@ -89,9 +94,9 @@ export default function AppHeader({
             <Icon name="search" size={16} />
           </button>
         )}
-        <button className="ac-add-btn" onClick={onAddTask} title="เพิ่มงานใหม่">
+        <button className="ac-add-btn" onClick={onAddTask} title={addLabel || "เพิ่มงานใหม่"}>
           <Icon name="add" size={16} strokeWidth={2.25} />
-          <span className="ac-add-btn-text">เพิ่มงาน</span>
+          <span className="ac-add-btn-text">{addLabel ? addLabel.replace(/^\+\s*/, "") : "เพิ่มงาน"}</span>
         </button>
         <button
           className={`ac-icon-btn ${isRefreshing ? "is-spinning" : ""}`}
