@@ -767,7 +767,7 @@ export default function Home() {
             </ErrorBoundary>
           )}
           {activeView === "engineerkanban" && (
-            <ErrorBoundary level="route" label="Kanban งานช่าง">
+            <ErrorBoundary level="route" label="กระดานงานช่าง">
               <Suspense fallback={<EngineerKanbanSkeleton />}>
                 <EngineerKanban
                   tasks={tasks}

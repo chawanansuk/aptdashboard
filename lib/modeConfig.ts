@@ -64,8 +64,8 @@ export interface ModeConfig {
 export const MODE_CONFIG: Record<Mode, ModeConfig> = {
   sales: {
     mode: "sales",
-    label: "Sales Mode",
-    shortLabel: "Sales",
+    label: "โหมดขาย",
+    shortLabel: "ขาย",
     emoji: "🌅",
     defaultLandingView: "salespipeline",
     defaultTaskType: "ชมห้อง",
@@ -87,8 +87,8 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
 
   engineer: {
     mode: "engineer",
-    label: "Engineer Mode",
-    shortLabel: "Engineer",
+    label: "โหมดช่าง",
+    shortLabel: "ช่าง",
     emoji: "🔧",
     defaultLandingView: "engineerkanban",
     defaultTaskType: "ซ่อม",
@@ -112,8 +112,8 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
 
   management: {
     mode: "management",
-    label: "Management Mode",
-    shortLabel: "MGMT",
+    label: "โหมดจัดการ",
+    shortLabel: "จัดการ",
     emoji: "📊",
     defaultLandingView: "overview",
     defaultTaskType: "ย้ายเข้า",

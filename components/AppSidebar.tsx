@@ -63,7 +63,7 @@ function buildGroups(
     todayItems.push({ key: "salespipeline", label: "ภาพรวมขาย", icon: icon("tenants") });
   }
   if (has("engineerkanban")) {
-    todayItems.push({ key: "engineerkanban", label: "Kanban งานช่าง", icon: icon("maintenance") });
+    todayItems.push({ key: "engineerkanban", label: "กระดานงานช่าง", icon: icon("maintenance") });
   }
   const todayGroup: NavGroup = { label: "วันนี้", items: todayItems };
 

@@ -58,7 +58,7 @@ export function SalesPipelineSkeleton() {
  * ==================================================================== */
 export function EngineerKanbanSkeleton() {
   return (
-    <section className="ac-kanban" aria-busy="true" aria-label="กำลังโหลด Kanban งานช่าง">
+    <section className="ac-kanban" aria-busy="true" aria-label="กำลังโหลดกระดานงานช่าง">
       <div className="ac-kanban-strip">
         {[0, 1, 2].map((i) => (
           <div key={i} className="ac-kanban-kpi ac-kanban-kpi-teal">
