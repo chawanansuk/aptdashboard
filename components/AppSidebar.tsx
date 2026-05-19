@@ -6,7 +6,7 @@ import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
 import { canAccess, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
 
-export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities";
+export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline";
 
 interface Props {
   isOpen: boolean;
@@ -55,13 +55,14 @@ function buildGroups(
 ): NavGroup[] {
   const has = (route: Route) => canAccess(roles, route);
 
-  const todayGroup: NavGroup = {
-    label: "วันนี้",
-    items: [
-      { key: "overview", label: "ภาพรวม",    icon: icon("grid"),  badge: counts.total, badgeClass: "ac-badge-indigo" },
-      { key: "today",    label: "งานวันนี้", icon: icon("tasks"), badge: counts.today, badgeClass: "ac-badge-red" },
-    ],
-  };
+  const todayItems: NavItem[] = [
+    { key: "overview", label: "ภาพรวม",    icon: icon("grid"),  badge: counts.total, badgeClass: "ac-badge-indigo" },
+    { key: "today",    label: "งานวันนี้", icon: icon("tasks"), badge: counts.today, badgeClass: "ac-badge-red" },
+  ];
+  if (has("salespipeline")) {
+    todayItems.push({ key: "salespipeline", label: "ภาพรวมขาย", icon: icon("tenants") });
+  }
+  const todayGroup: NavGroup = { label: "วันนี้", items: todayItems };
 
   const statusItems: NavItem[] = [];
   if (has("ready"))    statusItems.push({ key: "ready",    label: STATUS_LABEL.ready,    icon: dot(STATUS_DOT.ready),    badge: counts.ready || 0,    badgeClass: "ac-badge-green" });

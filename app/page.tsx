@@ -32,6 +32,7 @@ import WelcomeHero from "@/components/WelcomeHero";
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
 const TenantsView     = lazy(() => import("@/components/TenantsView"));
+const SalesPipelineView = lazy(() => import("@/components/SalesPipelineView"));
 const CalendarView    = lazy(() => import("@/components/CalendarView"));
 const MaintenanceView = lazy(() => import("@/components/MaintenanceView"));
 const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
@@ -84,7 +85,7 @@ export default function Home() {
   const [activeBuilding, setActiveBuilding] = useState<string>("ทั้งหมด");
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline">("overview");
   // Apply mode default landing view once per session, after roles resolve
   useEffect(() => {
     if (landingApplied.current) return;
@@ -253,7 +254,7 @@ export default function Home() {
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
 
   const visibleRooms = useMemo(() => {
-    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities") return [];
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "salespipeline") return [];
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
@@ -322,7 +323,7 @@ export default function Home() {
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
-  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "salespipeline";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
   // Stats for the welcome hero — same data the rest of the page already
@@ -445,6 +446,18 @@ export default function Home() {
     setTBuilding(building);
     setTRoom(room);
     setTNote(note);
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+
+  /** Quick "บันทึกนัดชม" — pre-fill AddTaskModal with type=ชมห้อง (sales FAB). */
+  function openQuickAddLead() {
+    setTType("ชมห้อง");
+    setTBuilding("");
+    setTRoom("");
+    setTCustomer("");
+    setTPhone("");
+    setTNote("");
     setSelectedRoom(null);
     setShowAddTask(true);
   }
@@ -743,6 +756,17 @@ export default function Home() {
             </>
           )}
 
+          {activeView === "salespipeline" && (
+            <Suspense fallback={<ViewLoading />}>
+              <SalesPipelineView
+                rooms={rooms}
+                tasks={tasks}
+                activeBuilding={activeBuilding}
+                onSelectRoom={(r) => setSelectedRoom(r)}
+                onQuickAddLead={openQuickAddLead}
+              />
+            </Suspense>
+          )}
           {activeView === "income" && (
             <Suspense fallback={<ViewLoading />}>
               <IncomeView rooms={rooms} activeBuilding={activeBuilding} />

@@ -45,6 +45,7 @@ export const VIEW_LABEL: Record<string, string> = {
   moveout: "งานย้ายออก",
   qc: "งานทำสะอาด/QC",
   repair: "งานรอซ่อม",
+  salespipeline: "ภาพรวมขาย",
 };
 
 export function isDoneStatus(s: string): boolean {

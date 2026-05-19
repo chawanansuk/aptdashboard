@@ -51,7 +51,7 @@ export type Route =
   // shared
   | "overview" | "today" | "calendar"
   // sales-side rooms
-  | "ready" | "pending" | "occupied" | "moveout" | "tenants"
+  | "ready" | "pending" | "occupied" | "moveout" | "tenants" | "salespipeline"
   // engineer-side jobs + assets
   | "qc" | "repair" | "inactive" | "maintenance" | "facilities"
   // management-only
@@ -68,6 +68,7 @@ const ROUTE_ALLOW: Record<Route, Role[]> = {
   occupied:    ["sales", "management"],
   moveout:     ["sales", "management"],
   tenants:     ["sales", "management"],
+  salespipeline: ["sales", "management"],
   // engineer-side
   qc:          ["engineer", "management"],
   repair:      ["engineer", "management"],
