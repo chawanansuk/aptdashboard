@@ -6,7 +6,7 @@ import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
 import { canAccess, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
 
-export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline";
+export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban";
 
 interface Props {
   isOpen: boolean;
@@ -61,6 +61,9 @@ function buildGroups(
   ];
   if (has("salespipeline")) {
     todayItems.push({ key: "salespipeline", label: "ภาพรวมขาย", icon: icon("tenants") });
+  }
+  if (has("engineerkanban")) {
+    todayItems.push({ key: "engineerkanban", label: "Kanban งานช่าง", icon: icon("maintenance") });
   }
   const todayGroup: NavGroup = { label: "วันนี้", items: todayItems };
 

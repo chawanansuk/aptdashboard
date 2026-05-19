@@ -90,7 +90,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
     label: "Engineer Mode",
     shortLabel: "Engineer",
     emoji: "🔧",
-    defaultLandingView: "today",
+    defaultLandingView: "engineerkanban",
     defaultTaskType: "ซ่อม",
     addButtonLabel: "+ แจ้งซ่อม",
     roomModalDefaultTab: "equipment",

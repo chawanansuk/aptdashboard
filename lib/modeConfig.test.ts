@@ -69,6 +69,10 @@ describe("MODE_CONFIG", () => {
     expect(MODE_CONFIG.sales.defaultLandingView).toBe("salespipeline");
   });
 
+  it("engineer lands on engineerkanban (the role-specific home view)", () => {
+    expect(MODE_CONFIG.engineer.defaultLandingView).toBe("engineerkanban");
+  });
+
   it("default task type matches role-appropriate work", () => {
     expect(MODE_CONFIG.sales.defaultTaskType).toBe("ชมห้อง");
     expect(MODE_CONFIG.engineer.defaultTaskType).toBe("ซ่อม");
