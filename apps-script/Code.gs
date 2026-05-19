@@ -103,7 +103,10 @@ function clearRoomsCache_() {
 
 /* ========== EQUIPMENT CACHE (NEW v3.6.0) ========== */
 const EQUIPMENT_CACHE_KEY = 'equipmentCache_v2';
-const EQUIPMENT_CACHE_TTL_SEC = 60;
+// 3 นาที — v3.11.0 ขยายจาก 60s. Vercel ฝั่งใหม่ serve stale-on-error อยู่
+// แล้ว และ writes (addEquipment/updateEquipment) เรียก clearEquipmentCache_
+// ทันที จึงไม่มีปัญหา consistency
+const EQUIPMENT_CACHE_TTL_SEC = 180;
 
 function getAllEquipmentCached_() {
   const cache = CacheService.getScriptCache();
