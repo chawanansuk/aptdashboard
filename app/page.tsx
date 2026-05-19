@@ -37,6 +37,7 @@ import {
   FacilitiesSkeleton,
   IncomeSkeleton,
 } from "@/components/skeletons/ViewSkeletons";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
@@ -763,56 +764,70 @@ export default function Home() {
           )}
 
           {activeView === "salespipeline" && (
-            <Suspense fallback={<SalesPipelineSkeleton />}>
-              <SalesPipelineView
-                rooms={rooms}
-                tasks={tasks}
-                activeBuilding={activeBuilding}
-                onSelectRoom={(r) => setSelectedRoom(r)}
-                onQuickAddLead={openQuickAddLead}
-              />
-            </Suspense>
+            <ErrorBoundary level="route" label="ภาพรวมขาย">
+              <Suspense fallback={<SalesPipelineSkeleton />}>
+                <SalesPipelineView
+                  rooms={rooms}
+                  tasks={tasks}
+                  activeBuilding={activeBuilding}
+                  onSelectRoom={(r) => setSelectedRoom(r)}
+                  onQuickAddLead={openQuickAddLead}
+                />
+              </Suspense>
+            </ErrorBoundary>
           )}
           {activeView === "engineerkanban" && (
-            <Suspense fallback={<EngineerKanbanSkeleton />}>
-              <EngineerKanban
-                tasks={tasks}
-                activeBuilding={activeBuilding}
-                onChanged={refresh}
-              />
-            </Suspense>
+            <ErrorBoundary level="route" label="Kanban งานช่าง">
+              <Suspense fallback={<EngineerKanbanSkeleton />}>
+                <EngineerKanban
+                  tasks={tasks}
+                  activeBuilding={activeBuilding}
+                  onChanged={refresh}
+                />
+              </Suspense>
+            </ErrorBoundary>
           )}
           {activeView === "income" && (
-            <Suspense fallback={<IncomeSkeleton />}>
-              <IncomeView rooms={rooms} activeBuilding={activeBuilding} />
-            </Suspense>
+            <ErrorBoundary level="route" label="รายได้">
+              <Suspense fallback={<IncomeSkeleton />}>
+                <IncomeView rooms={rooms} activeBuilding={activeBuilding} />
+              </Suspense>
+            </ErrorBoundary>
           )}
           {activeView === "tenants" && (
-            <Suspense fallback={<TenantsSkeleton />}>
-              <TenantsView rooms={rooms} activeBuilding={activeBuilding} onSelectRoom={(r) => setSelectedRoom(r)} />
-            </Suspense>
+            <ErrorBoundary level="route" label="ผู้เช่า">
+              <Suspense fallback={<TenantsSkeleton />}>
+                <TenantsView rooms={rooms} activeBuilding={activeBuilding} onSelectRoom={(r) => setSelectedRoom(r)} />
+              </Suspense>
+            </ErrorBoundary>
           )}
           {activeView === "calendar" && (
-            <Suspense fallback={<CalendarSkeleton />}>
-              <CalendarView tasks={tasks} activeBuilding={activeBuilding} rooms={rooms} onSelectRoom={(r) => setSelectedRoom(r)} />
-            </Suspense>
+            <ErrorBoundary level="route" label="ปฏิทิน">
+              <Suspense fallback={<CalendarSkeleton />}>
+                <CalendarView tasks={tasks} activeBuilding={activeBuilding} rooms={rooms} onSelectRoom={(r) => setSelectedRoom(r)} />
+              </Suspense>
+            </ErrorBoundary>
           )}
           {activeView === "maintenance" && (
-            <Suspense fallback={<MaintenanceSkeleton />}>
-              <MaintenanceView
-                activeBuilding={activeBuilding}
-                onScheduleService={openMaintenanceTask}
-              />
-            </Suspense>
+            <ErrorBoundary level="route" label="บำรุงรักษา">
+              <Suspense fallback={<MaintenanceSkeleton />}>
+                <MaintenanceView
+                  activeBuilding={activeBuilding}
+                  onScheduleService={openMaintenanceTask}
+                />
+              </Suspense>
+            </ErrorBoundary>
           )}
           {activeView === "facilities" && (
-            <Suspense fallback={<FacilitiesSkeleton />}>
-              <FacilitiesView
-                buildings={buildings}
-                activeBuilding={activeBuilding}
-                onScheduleService={openMaintenanceTask}
-              />
-            </Suspense>
+            <ErrorBoundary level="route" label="สาธารณูปโภค">
+              <Suspense fallback={<FacilitiesSkeleton />}>
+                <FacilitiesView
+                  buildings={buildings}
+                  activeBuilding={activeBuilding}
+                  onScheduleService={openMaintenanceTask}
+                />
+              </Suspense>
+            </ErrorBoundary>
           )}
         </main>
       </div>
