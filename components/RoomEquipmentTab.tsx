@@ -34,7 +34,7 @@ function formatDateLabel(s: string): string {
 
 export default function RoomEquipmentTab({ building, room }: Props) {
   const { data: session } = useSession();
-  const canWrite = canAddEngTask(session?.user?.role);
+  const canWrite = canAddEngTask(session?.user?.roles);
 
   const [rows, setRows] = useState<RoomEquipment[] | null>(null);
   const [loading, setLoading] = useState(false);

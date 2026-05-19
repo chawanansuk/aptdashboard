@@ -28,7 +28,7 @@ type TypeFilter = "all" | FacilityType;
 
 export default function FacilitiesView({ buildings, activeBuilding, onScheduleService }: Props) {
   const { data: session } = useSession();
-  const canWrite = canAddEngTask(session?.user?.role);
+  const canWrite = canAddEngTask(session?.user?.roles);
 
   const [rows, setRows] = useState<Facility[] | null>(null);
   const [loading, setLoading] = useState(false);
