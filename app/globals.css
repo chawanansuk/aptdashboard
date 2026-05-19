@@ -4705,7 +4705,10 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   flex-direction: column;
   gap: var(--space-6);
   position: relative;
-  padding-bottom: 80px; /* room for the FAB */
+  padding-bottom: 80px; /* breathing room above the BottomNav on mobile
+                          (FAB was removed in PR #53; .ac-main already
+                          adds 72px+safe-area but extra here looks better
+                          when the last section is a row list) */
 }
 
 /* KPI strip — 3 chunky cards across the top */
@@ -4919,10 +4922,14 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
  * ============================================================ */
 
 /* Visibility helpers — `.ac-hide-mobile` is visible on desktop only,
-   `.ac-show-mobile-only` is visible on mobile only. */
+   `.ac-show-mobile-only` is visible on mobile only.
+   Boundary note: 767.98px (not 768) so the inclusive `<=` doesn't catch
+   tablets sized to exactly 768 (iPad portrait). Those should get the
+   desktop chrome — they have plenty of horizontal room for + นัดลูกค้า,
+   สรุปวันนี้, theme toggle, etc. */
 .ac-show-mobile-only { display: none; }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* Hide secondary chrome on mobile — surfaced inside the user menu */
   .ac-hide-mobile { display: none !important; }
   .ac-show-mobile-only { display: block; }
@@ -5777,5 +5784,26 @@ html.dark .ac-sales-vacant-card:hover {
   .ac-sales-vacant-card:active {
     transition: none;
     transform: none;
+  }
+}
+
+/* ============================================================
+ * Ultra-narrow mobile (≤ 360px) — Galaxy Fold front, old iPhones
+ * Header has 4 grid cells in 2 rows; at 320-360 px the brand cell
+ * gets squeezed. Hide the "APARTCLOUD" wordmark and keep just the
+ * "A" badge so utils (search + avatar) get breathing room.
+ * ============================================================ */
+@media (max-width: 360px) {
+  .ac-logo-text {
+    display: none !important;
+  }
+  /* Tighter padding so 4 cells fit without overflow */
+  .ac-nav {
+    padding: 6px 8px;
+  }
+  /* Slightly smaller pills so 5+ buildings still scroll smoothly */
+  .ac-tab {
+    padding: 4px 10px;
+    font-size: 11px;
   }
 }
