@@ -596,20 +596,51 @@ input { font-family: inherit; }
 body { padding-top: env(safe-area-inset-top); }
 
 /* NAVBAR */
+/* ============================================================
+ * App header — 4-cell grid layout
+ *   <1024px (mobile/tablet): 2 rows
+ *     Row 1: [brand] ... [utils]
+ *     Row 2: [tabs (scrollable)] ... [actions]
+ *   ≥1024px (desktop): 1 row
+ *     [brand] [tabs] [actions] [utils]
+ * ============================================================ */
 .ac-nav {
   position: sticky;
   top: 0;
   z-index: 100;
-  display: flex;
+  display: grid;
   align-items: center;
-  gap: 12px;
-  height: 56px;
-  padding: 0 24px;
+  gap: 8px 12px;
+  padding: 8px 16px;
   background: #fff;
   border-bottom: 1px solid #E8EAED;
+  /* Mobile/tablet — 2 rows: brand+utils on top, tabs+actions below */
+  grid-template-areas:
+    "brand utils"
+    "tabs  actions";
+  grid-template-columns: 1fr auto;
 }
-.ac-nav-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
-.ac-nav-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.ac-nav-cell-brand   { grid-area: brand;   display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ac-nav-cell-tabs    { grid-area: tabs;    min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.ac-nav-cell-tabs::-webkit-scrollbar { display: none; }
+.ac-nav-cell-actions { grid-area: actions; display: flex; align-items: center; gap: 8px; justify-self: end; }
+.ac-nav-cell-utils   { grid-area: utils;   display: flex; align-items: center; gap: 4px; justify-self: end; }
+
+/* Desktop: collapse into one row */
+@media (min-width: 1024px) {
+  .ac-nav {
+    grid-template-areas: "brand tabs actions utils";
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    height: 56px;
+    padding: 0 24px;
+  }
+}
+
+/* Legacy aliases — preserved so any inline style/test that still
+   targets these old class names doesn't break silently. The new
+   header uses cell-* classes. */
+.ac-nav-left  { display: contents; }
+.ac-nav-right { display: contents; }
 
 .ac-hamburger {
   display: none;
@@ -677,22 +708,36 @@ html.dark .ac-mode-badge.is-management {
 }
 .ac-divider { width: 1px; height: 24px; background: #E8EAED; }
 
-.ac-tabs { display: flex; align-items: center; gap: 4px; }
-.ac-tabs-select {
-  display: none;
-  font-size: 13px; padding: 6px 10px;
-  border: 1px solid #E5E7EB; border-radius: 8px; background: #fff;
+.ac-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Segmented pill control. On small screens, parent cell has overflow-x:auto;
+     here we keep all pills inline so they can scroll horizontally as a row. */
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  padding: 4px;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  border-radius: 999px;
+  width: fit-content;
 }
+/* Legacy select kept hidden — pills are now used on all viewports. */
+.ac-tabs-select { display: none !important; }
 .ac-tab {
   padding: 6px 14px;
-  border-radius: 20px;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 500;
   color: #6B7280;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
 }
-.ac-tab:hover { background: #F3F4F6; }
-.ac-tab.is-active { background: #4F46E5; color: #fff; }
+.ac-tab:hover { background: #F3F4F6; color: #111827; }
+.ac-tab.is-active {
+  background: var(--color-accent, #4F46E5);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
 
 .ac-icon-btn {
   position: relative;
@@ -1216,8 +1261,8 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
 }
 
 @media (max-width: 768px) {
-  .ac-tabs { display: none; }
-  .ac-tabs-select { display: block; }
+  /* Note: .ac-tabs / .ac-tabs-select rules removed — pills now used on all
+     viewports (parent .ac-nav-cell-tabs is horizontally scrollable). */
   .ac-mode-badge { display: none; }
   .ac-divider { display: none; }
   .ac-logo-text { display: none; }
@@ -4882,16 +4927,15 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   .ac-hide-mobile { display: none !important; }
   .ac-show-mobile-only { display: block; }
 
-  /* Tighten the bar — only 4 elements remain visible */
+  /* Tighten the bar */
   .ac-nav {
     padding: 6px 10px;
-    gap: 6px;
+    gap: 6px 8px;
   }
-  .ac-nav-right { gap: 4px; }
+  .ac-nav-cell-utils  { gap: 2px; }
+  .ac-nav-cell-actions { gap: 6px; }
 
-  /* Logo: keep the badge "A" + show the wordmark for brand recall.
-     Original mobile rule hid the wordmark but with fewer elements
-     we now have room. */
+  /* Logo: keep both icon + wordmark visible (we have row 1 space) */
   .ac-logo-text {
     display: inline;
     font-size: 13px;
@@ -4899,10 +4943,10 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   }
   .ac-logo-icon { width: 32px; height: 32px; font-size: 14px; }
 
-  /* Building select gets more space now that nothing competes with it */
-  .ac-tabs-select {
-    max-width: 140px;
-    font-size: 13px;
+  /* Building pills: smaller on mobile to fit more without scrolling */
+  .ac-tab {
+    padding: 5px 12px;
+    font-size: 12px;
   }
 
   /* User trigger — make the avatar a clear tap target */

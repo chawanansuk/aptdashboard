@@ -144,7 +144,15 @@ export default function SalesPipelineView({
           <span className="ac-sales-section-count">{upcomingAppointments.length} นัด</span>
         </div>
         {upcomingAppointments.length === 0 ? (
-          <div className="ac-sales-empty">ยังไม่มีนัดหมายข้างหน้า</div>
+          <div className="ac-sales-empty">
+            <span>ยังไม่มีนัดหมายข้างหน้า</span>
+            <button
+              type="button"
+              className="ac-btn ac-btn-primary ac-btn-sm"
+              onClick={onQuickAddLead}
+              style={{ marginTop: 8 }}
+            >+ บันทึกนัดชม</button>
+          </div>
         ) : (
           <div className="ac-sales-list">
             {upcomingAppointments.map((a, idx) => (
@@ -203,16 +211,10 @@ export default function SalesPipelineView({
         )}
       </div>
 
-      {/* Floating action — quick add lead (viewing appointment) */}
-      <button
-        className="ac-sales-fab"
-        onClick={onQuickAddLead}
-        title="บันทึกนัดชมห้องใหม่"
-        aria-label="บันทึกนัดชมห้องใหม่"
-      >
-        <span aria-hidden>+</span>
-        <span className="ac-sales-fab-text">บันทึกนัดชม</span>
-      </button>
+      {/* FAB removed in Phase 1A — single CTA "+ นัดลูกค้า" lives in the
+          header now to avoid duplication. `onQuickAddLead` is still on the
+          props interface for potential reuse (Sales empty-state CTA etc.)
+          but no quick-add button is rendered here. */}
     </section>
   );
 }
