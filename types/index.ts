@@ -65,3 +65,67 @@ export interface RoomView {
   upcomingTasks: SheetRow[];
   pastTasks: SheetRow[];
 }
+
+// ===== ROOM EQUIPMENT sheet (ชีต "อุปกรณ์") — v3.6.0 =====
+export type EquipmentType =
+  | "แอร์"
+  | "เครื่องซักผ้า"
+  | "ตู้เย็น"
+  | "เครื่องทำน้ำอุ่น"
+  | "โทรทัศน์"
+  | "ไมโครเวฟ"
+  | "อื่นๆ";
+
+export type EquipmentStatus =
+  | "ปกติ"
+  | "ต้องซ่อม"
+  | "กำลังซ่อม"
+  | "ใช้ไม่ได้";
+
+export interface RoomEquipment {
+  id: string;
+  building: string;
+  room: string;
+  type: EquipmentType | string;
+  brand: string;          // ยี่ห้อ/รุ่น
+  installDate: string;    // yyyy-MM-dd
+  lastService: string;    // yyyy-MM-dd
+  status: EquipmentStatus | string;
+  note: string;
+  creator: string;        // email
+  createdAt: string;
+  intervalDays?: number;  // v3.7.0 — รอบบำรุง (วัน); 0/undefined = ไม่กำหนด
+}
+
+// ===== Maintenance schedule (v3.7.0) =====
+export type MaintenanceStatus = "ok" | "due-soon" | "overdue" | "unknown";
+
+// ===== Facility (v3.8.0) — building-level สาธารณูปโภค =====
+export type FacilityType =
+  | "ลิฟต์"
+  | "สระว่ายน้ำ"
+  | "เครื่องปั่นไฟ"
+  | "ปั๊มน้ำ"
+  | "WiFi"
+  | "CCTV"
+  | "อื่นๆ";
+
+export type FacilityStatus =
+  | "ใช้งานได้"
+  | "ต้องซ่อม"
+  | "กำลังซ่อม"
+  | "ปิดใช้งาน";
+
+export interface Facility {
+  id: string;
+  building: string;
+  type: FacilityType | string;
+  name: string;           // ชื่อ/รุ่น เช่น "ลิฟต์ Mitsubishi #1"
+  installDate: string;    // yyyy-MM-dd
+  lastService: string;    // yyyy-MM-dd
+  status: FacilityStatus | string;
+  note: string;
+  creator: string;
+  createdAt: string;
+  intervalDays?: number;
+}

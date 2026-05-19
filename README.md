@@ -112,22 +112,43 @@ git push
    | `AUTH_GOOGLE_ID` | จาก Google Console |
    | `AUTH_GOOGLE_SECRET` | จาก Google Console |
    | `AUTH_TRUST_HOST` | `true` |
-   | `ALLOWED_USERS` | `owner@example.com:admin,staff1@example.com:staff` |
+   | `ALLOWED_USERS` | `owner@example.com:management,sales1@example.com:sales,tech1@example.com:engineer` |
 
 3. **Redeploy** — ตรวจให้ env vars apply ทุก environment (Production / Preview)
 
-### Roles
+### Roles (3 modes)
 
-- **admin** — ดู + เพิ่ม + แก้ + **ลบงาน** + **แก้ผู้เช่า**
-- **staff** — ดู + เพิ่ม + แก้งาน (ห้ามลบ ห้ามแก้ห้อง)
+| Role | Badge | สิทธิ์หลัก |
+|---|---|---|
+| **sales** 💼 | สีเขียว `SALES MODE` | ดูผังห้อง · นัดดู · สัญญา · ย้ายเข้า/ออก |
+| **engineer** 🔧 | สีส้ม `ENGINEER MODE` | ดูห้อง · ซ่อม · ทำสะอาด · อุปกรณ์ |
+| **management** 📊 | สีม่วง `MGMT MODE` | เห็นทุกอย่าง + รายได้ + ลบ/แก้ได้ทุกอย่าง |
 
-ทั้ง client (ซ่อนปุ่ม) และ server (`/api/sheet/update` 403) ตรวจ role ทั้งสองด้าน
+**Permission map (เฉพาะ action ที่ต่างกัน):**
+
+| Action | sales | engineer | management |
+|---|:-:|:-:|:-:|
+| ลบงาน | — | — | ✓ |
+| แก้ข้อมูลห้อง/ผู้เช่า | — | — | ✓ |
+| ดูรายได้ | — | — | ✓ |
+| เพิ่ม/แก้งาน | ✓ | ✓ | ✓ |
+| ดูทุกหน้า | ✓ | ✓ | ✓ |
+
+> ในรอบนี้ทั้ง 3 roles ยังเห็น sidebar เหมือนกัน — PR ถัดไปจะแยก sidebar ตาม role (ซ่อน "รายได้" จาก sales/engineer, ฯลฯ)
+
+### Legacy compatibility
+
+ALLOWED_USERS เก่าที่ใช้ค่า `admin` / `staff` ยังทำงานได้โดย auto-map:
+- `email:admin` → `management`
+- `email:staff` → `sales`
+
+ไม่ต้องแก้ env ทันที — แต่แนะนำให้ migrate ไปใช้ค่าใหม่เพื่อความชัดเจน
 
 ### เพิ่ม / ลบ user
 
 แก้ `ALLOWED_USERS` ใน Vercel แล้ว redeploy:
 ```
-ALLOWED_USERS=alice@gmail.com:admin,bob@gmail.com:staff,carol@gmail.com:staff
+ALLOWED_USERS=alice@gmail.com:management,bob@gmail.com:sales,carol@gmail.com:engineer
 ```
 
 User ที่ไม่อยู่ใน list จะเห็นหน้า `/login/denied` หลัง login Google สำเร็จ

@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
 import { canEditTenant } from "@/lib/permissions";
+import { parseThaiDate } from "@/lib/dateUtils";
+
+// Lazy-load equipment tab: fetches the chunk + first API call only when
+// the user clicks the "อุปกรณ์" tab
+const RoomEquipmentTab = lazy(() => import("./RoomEquipmentTab"));
 
 interface Props {
   room: RoomView;
@@ -24,108 +29,425 @@ interface Props {
   onAddTaskHere: () => void;
 }
 
+type TabKey = "info" | "equipment";
+type FieldKey = "price" | "phone" | "contractEnd";
+type Errors = Partial<Record<FieldKey, string>>;
+
+const TYPE_COLOR: Record<string, string> = {
+  "ทำสะอาด": "#EAB308",
+  "ย้ายเข้า": "#22C55E",
+  "ย้ายออก": "#EF4444",
+  "ชมห้อง": "#A855F7",
+  "ซ่อม": "#F97316",
+  "อื่นๆ": "#64748B",
+};
+
+/** Pure helpers (top-level so they're testable + obvious) */
+function daysUntilContract(contractEnd: string): number | null {
+  const d = parseThaiDate(contractEnd);
+  if (!d) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function formatBaht(s: string): string {
+  if (!s) return "";
+  const n = parseInt(String(s).replace(/[^0-9]/g, ""), 10);
+  if (!Number.isFinite(n)) return "";
+  return n.toLocaleString("th-TH");
+}
+
+function relativeDate(s: string): string {
+  const d = parseThaiDate(s);
+  if (!d) return s || "—";
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const diff = Math.round((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return "วันนี้";
+  if (diff === 1) return "พรุ่งนี้";
+  if (diff === -1) return "เมื่อวาน";
+  if (diff > 1 && diff <= 7) return `ใน ${diff} วัน`;
+  if (diff < -1 && diff >= -7) return `${Math.abs(diff)} วันที่แล้ว`;
+  return s;
+}
+
+function validate(values: { price: string; phone: string; contractEnd: string }): Errors {
+  const e: Errors = {};
+  if (values.price) {
+    const onlyDigits = values.price.replace(/[,\s]/g, "");
+    if (!/^\d+$/.test(onlyDigits)) {
+      e.price = "ราคาต้องเป็นตัวเลขเท่านั้น";
+    }
+  }
+  if (values.phone) {
+    const digits = values.phone.replace(/[^0-9]/g, "");
+    if (digits.length > 0 && digits.length < 9) {
+      e.phone = "เบอร์โทรสั้นเกินไป";
+    }
+  }
+  if (values.contractEnd) {
+    if (!/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(values.contractEnd.trim())) {
+      e.contractEnd = "รูปแบบวันที่ไม่ถูกต้อง (dd/MM/yyyy)";
+    }
+  }
+  return e;
+}
+
 export default function RoomModal({
   room, saving, status, tenant, phone, contractEnd, note, price,
   onChange, onClose, onSave, onAddTaskHere,
 }: Props) {
   const { data: session } = useSession();
-  const canEdit = canEditTenant(session?.user?.role);
+  const canEdit = canEditTenant(session?.user?.roles);
+  const [tab, setTab] = useState<TabKey>("info");
   const [showHistory, setShowHistory] = useState(false);
 
+  // Validation state — same UX as the redesigned add modals (PR #31)
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [touched, setTouched] = useState<Set<FieldKey>>(new Set());
+
+  useEffect(() => {
+    // Reset validation each time a new room is opened
+    setSubmitAttempted(false);
+    setTouched(new Set());
+    setTab("info");
+    setShowHistory(false);
+  }, [room.building, room.room]);
+
+  const errors = useMemo(
+    () => validate({ price, phone, contractEnd }),
+    [price, phone, contractEnd]
+  );
+  const hasErrors = Object.keys(errors).length > 0;
+
+  function shouldShowError(field: FieldKey): boolean {
+    if (!errors[field]) return false;
+    return submitAttempted || touched.has(field);
+  }
+  function markTouched(field: FieldKey) {
+    setTouched((prev) => {
+      if (prev.has(field)) return prev;
+      const next = new Set(prev);
+      next.add(field);
+      return next;
+    });
+  }
+
+  function attemptSave() {
+    setSubmitAttempted(true);
+    if (hasErrors) return;
+    onSave();
+  }
+
+  // Keyboard: Cmd/Ctrl+Enter = save · Esc = close
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        if (!saving) onClose();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (canEdit && tab === "info") attemptSave();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saving, canEdit, tab, hasErrors, price, phone, contractEnd]);
+
+  /* ----- Derived header facts ----- */
+  const daysLeft = daysUntilContract(contractEnd);
+  const priceDisplay = formatBaht(price);
+
   return (
-    <div className="ac-modal-backdrop" onClick={onClose}>
-      <div className="ac-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="ac-modal-backdrop" onClick={() => !saving && onClose()}>
+      <div
+        className="ac-modal ac-modal-form"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ac-roommodal-title"
+      >
         <header className="ac-modal-head">
           <div>
-            <div className="ac-modal-title">{room.building} {room.room}</div>
+            <div className="ac-modal-title" id="ac-roommodal-title">
+              {room.building} {room.room}
+            </div>
             <div className="ac-modal-sub">
               <span className="ac-legend-dot" style={{ background: STATUS_DOT[room.status] }} />
               {STATUS_LABEL[room.status]} · ชั้น {room.floor || "-"}
             </div>
-          </div>
-          <button className="ac-modal-close" onClick={onClose}>✕</button>
-        </header>
-        <div className="ac-modal-body">
-          {!canEdit && (
-            <div style={{ fontSize: 12, color: "#94A3B8", padding: "4px 0" }}>
-              ดูข้อมูลอย่างเดียว · เฉพาะ admin แก้ไขข้อมูลห้องได้
+            {/* At-a-glance fact chips */}
+            <div className="ac-room-modal-chips">
+              {priceDisplay && (
+                <span className="ac-room-modal-chip">
+                  <span className="ac-room-modal-chip-icon">฿</span>
+                  {priceDisplay} <span className="ac-room-modal-chip-faint">/เดือน</span>
+                </span>
+              )}
+              {tenant && daysLeft !== null && (
+                <span className={`ac-room-modal-chip ${daysLeft < 0 ? "is-overdue" : daysLeft <= 30 ? "is-soon" : ""}`}>
+                  {daysLeft < 0
+                    ? `สัญญาหมดแล้ว ${Math.abs(daysLeft)} วัน`
+                    : daysLeft === 0
+                    ? "สัญญาหมดวันนี้"
+                    : `สัญญาเหลือ ${daysLeft} วัน`}
+                </span>
+              )}
+              {!tenant && room.status === "ready" && (
+                <span className="ac-room-modal-chip is-ready">ว่าง · พร้อมขาย</span>
+              )}
+              {room.pastTasks.length > 0 && (
+                <span className="ac-room-modal-chip ac-room-modal-chip-muted">
+                  ประวัติงาน {room.pastTasks.length} รายการ
+                </span>
+              )}
             </div>
-          )}
+          </div>
+          <button className="ac-modal-close" onClick={onClose} aria-label="ปิด">✕</button>
+        </header>
 
-          <label className="ac-field">
-            <span>ราคา/เดือน (บาท)</span>
-            <input type="text" inputMode="numeric" value={price} onChange={(e) => onChange({ price: e.target.value })} placeholder="เช่น 3500" readOnly={!canEdit} />
-          </label>
+        <nav className="ac-modal-tabs" role="tablist" aria-label="แท็บข้อมูลห้อง">
+          <button
+            role="tab"
+            aria-selected={tab === "info"}
+            className={`ac-modal-tab ${tab === "info" ? "is-active" : ""}`}
+            onClick={() => setTab("info")}
+          >ข้อมูล</button>
+          <button
+            role="tab"
+            aria-selected={tab === "equipment"}
+            className={`ac-modal-tab ${tab === "equipment" ? "is-active" : ""}`}
+            onClick={() => setTab("equipment")}
+          >อุปกรณ์</button>
+        </nav>
 
-          <label className="ac-field">
-            <span>สถานะ (ในชีต)</span>
-            <select value={status} onChange={(e) => onChange({ status: e.target.value })} disabled={!canEdit}>
-              <option value="">- เลือก -</option>
-              {RAW_STATUS_OPTIONS.map((s) => (<option key={s} value={s}>{s}</option>))}
-            </select>
-          </label>
-          <label className="ac-field">
-            <span>ผู้เช่าปัจจุบัน</span>
-            <input type="text" value={tenant} onChange={(e) => onChange({ tenant: e.target.value })} placeholder="ชื่อผู้เช่า" readOnly={!canEdit} />
-          </label>
-          <label className="ac-field">
-            <span>เบอร์ติดต่อ</span>
-            <input type="tel" value={phone} onChange={(e) => onChange({ phone: e.target.value })} placeholder="08x-xxx-xxxx" readOnly={!canEdit} />
-          </label>
-          <label className="ac-field">
-            <span>วันสัญญาหมด</span>
-            <input type="text" value={contractEnd} onChange={(e) => onChange({ contractEnd: e.target.value })} placeholder="dd/MM/yyyy" readOnly={!canEdit} />
-          </label>
-          <label className="ac-field">
-            <span>หมายเหตุ</span>
-            <input type="text" value={note} onChange={(e) => onChange({ note: e.target.value })} placeholder="บันทึกเพิ่มเติม" readOnly={!canEdit} />
-          </label>
-
-          {room.upcomingTasks.length > 0 && (
+        <div className="ac-modal-body">
+          {tab === "info" && (
             <>
-              <div style={{ borderTop: "1px solid #F1F5F9", margin: "6px 0" }} />
-              <div style={{ fontSize: 12, color: "#6B7280", fontWeight: 600 }}>งานที่มาถึง</div>
-              {room.upcomingTasks.map((t, i) => (
-                <div key={i} className="ac-modal-row">
-                  <span>{t.date} · {t.type}</span>
-                  <strong>{t.note || t.customer || "-"}</strong>
+              {!canEdit && (
+                <div className="ac-banner ac-banner-info ac-room-readonly-banner">
+                  ดูข้อมูลอย่างเดียว · เฉพาะ <strong>management</strong> แก้ไขข้อมูลห้องได้
                 </div>
-              ))}
-            </>
-          )}
+              )}
 
-          {room.pastTasks.length > 0 && (
-            <>
-              <div style={{ borderTop: "1px solid #F1F5F9", margin: "6px 0" }} />
-              <button
-                type="button"
-                className="ac-history-toggle"
-                onClick={() => setShowHistory((v) => !v)}
-              >
-                <span>{showHistory ? "▾" : "▸"} ประวัติงาน ({room.pastTasks.length})</span>
-              </button>
-              {showHistory && (
-                <div className="ac-history-list">
-                  {room.pastTasks.map((t, i) => {
-                    const s = (t.status || "").trim();
-                    const isDone = s === "เสร็จ" || s === "done" || s === "ปิดแล้ว";
-                    const isCancel = s === "ยกเลิก" || s === "cancelled";
-                    return (
-                      <div key={i} className={`ac-modal-row ac-history-row ${isDone ? "is-done" : ""} ${isCancel ? "is-cancelled" : ""}`}>
-                        <span>{t.date} · {t.type}{t.creator ? ` · โดย ${t.creator}` : ""}</span>
-                        <span className="ac-history-meta">
-                          {t.customer && <span>{t.customer} </span>}
-                          <strong className="ac-history-status">{s || "—"}</strong>
-                        </span>
-                      </div>
-                    );
-                  })}
+              {/* SECTION — ผู้เช่าปัจจุบัน */}
+              <div className="ac-form-section">
+                <div className="ac-form-section-label">ผู้เช่าปัจจุบัน</div>
+                <div className="ac-form-row">
+                  <div className="ac-field">
+                    <label htmlFor="ac-room-tenant">ชื่อผู้เช่า</label>
+                    <input
+                      id="ac-room-tenant"
+                      type="text"
+                      value={tenant}
+                      onChange={(e) => onChange({ tenant: e.target.value })}
+                      placeholder="ชื่อผู้เช่า"
+                      readOnly={!canEdit}
+                    />
+                  </div>
+                  <div className={`ac-field ${shouldShowError("phone") ? "has-error" : ""}`}>
+                    <label htmlFor="ac-room-phone">เบอร์ติดต่อ</label>
+                    <input
+                      id="ac-room-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => onChange({ phone: e.target.value })}
+                      onBlur={() => markTouched("phone")}
+                      placeholder="08x-xxx-xxxx"
+                      readOnly={!canEdit}
+                      aria-invalid={shouldShowError("phone") ? "true" : "false"}
+                    />
+                    {shouldShowError("phone") && (
+                      <span className="ac-field-error">{errors.phone}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION — สัญญา · ราคา */}
+              <div className="ac-form-section">
+                <div className="ac-form-section-label">สัญญา · ราคา</div>
+                <div className="ac-form-row">
+                  <div className={`ac-field ${shouldShowError("contractEnd") ? "has-error" : ""}`}>
+                    <label htmlFor="ac-room-contract">วันสัญญาหมด</label>
+                    <input
+                      id="ac-room-contract"
+                      type="text"
+                      value={contractEnd}
+                      onChange={(e) => onChange({ contractEnd: e.target.value })}
+                      onBlur={() => markTouched("contractEnd")}
+                      placeholder="dd/MM/yyyy"
+                      readOnly={!canEdit}
+                      aria-invalid={shouldShowError("contractEnd") ? "true" : "false"}
+                    />
+                    {shouldShowError("contractEnd") && (
+                      <span className="ac-field-error">{errors.contractEnd}</span>
+                    )}
+                    {!shouldShowError("contractEnd") && daysLeft !== null && (
+                      <span className="ac-field-hint">
+                        {daysLeft < 0
+                          ? `หมดแล้ว ${Math.abs(daysLeft)} วัน`
+                          : daysLeft === 0
+                          ? "หมดวันนี้"
+                          : `เหลือ ${daysLeft} วัน`}
+                      </span>
+                    )}
+                  </div>
+                  <div className={`ac-field ${shouldShowError("price") ? "has-error" : ""}`}>
+                    <label htmlFor="ac-room-price">ราคา (บาท/เดือน)</label>
+                    <input
+                      id="ac-room-price"
+                      type="text"
+                      inputMode="numeric"
+                      value={price}
+                      onChange={(e) => onChange({ price: e.target.value })}
+                      onBlur={() => markTouched("price")}
+                      placeholder="เช่น 3500"
+                      readOnly={!canEdit}
+                      aria-invalid={shouldShowError("price") ? "true" : "false"}
+                    />
+                    {shouldShowError("price") && (
+                      <span className="ac-field-error">{errors.price}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION — สถานะ */}
+              <div className="ac-form-section">
+                <div className="ac-form-section-label">สถานะห้อง</div>
+                <div className="ac-field">
+                  <label htmlFor="ac-room-status">สถานะ (ในชีต)</label>
+                  <select
+                    id="ac-room-status"
+                    value={status}
+                    onChange={(e) => onChange({ status: e.target.value })}
+                    disabled={!canEdit}
+                  >
+                    <option value="">- เลือก -</option>
+                    {RAW_STATUS_OPTIONS.map((s) => (<option key={s} value={s}>{s}</option>))}
+                  </select>
+                  <span className="ac-field-hint">
+                    สถานะใน UI คำนวณจากสถานะนี้ + งานที่นัดล่วงหน้า
+                  </span>
+                </div>
+              </div>
+
+              {/* SECTION — หมายเหตุ */}
+              <div className="ac-form-section">
+                <div className="ac-form-section-label">
+                  หมายเหตุ <span className="ac-form-section-optional">(ไม่บังคับ)</span>
+                </div>
+                <div className="ac-field">
+                  <textarea
+                    rows={2}
+                    value={note}
+                    onChange={(e) => onChange({ note: e.target.value })}
+                    placeholder="บันทึกเพิ่มเติม..."
+                    readOnly={!canEdit}
+                  />
+                </div>
+              </div>
+
+              {/* Upcoming tasks — visual upgrade */}
+              {room.upcomingTasks.length > 0 && (
+                <div className="ac-form-section">
+                  <div className="ac-form-section-label">
+                    งานที่นัดล่วงหน้า{" "}
+                    <span className="ac-form-section-optional">({room.upcomingTasks.length})</span>
+                  </div>
+                  <ul className="ac-room-upcoming-list">
+                    {room.upcomingTasks.map((t, i) => {
+                      const dot = TYPE_COLOR[t.type] || "#64748B";
+                      return (
+                        <li key={i} className="ac-room-upcoming-item">
+                          <span className="ac-room-upcoming-dot" style={{ background: dot }} />
+                          <div className="ac-room-upcoming-main">
+                            <div className="ac-room-upcoming-line1">
+                              <strong>{t.type}</strong>
+                              <span className="ac-room-upcoming-when">{relativeDate(t.date)}</span>
+                              <span className="ac-room-upcoming-date">· {t.date}</span>
+                            </div>
+                            {(t.note || t.customer) && (
+                              <div className="ac-room-upcoming-line2">
+                                {t.customer && <span>{t.customer}</span>}
+                                {t.note && (
+                                  <span>{t.customer ? " · " : ""}{t.note}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {/* Past tasks — collapsible */}
+              {room.pastTasks.length > 0 && (
+                <div className="ac-form-section">
+                  <button
+                    type="button"
+                    className="ac-history-toggle"
+                    onClick={() => setShowHistory((v) => !v)}
+                    aria-expanded={showHistory}
+                  >
+                    <span>{showHistory ? "▾" : "▸"}</span>
+                    <span>ประวัติงาน ({room.pastTasks.length})</span>
+                  </button>
+                  {showHistory && (
+                    <ul className="ac-room-history-list">
+                      {room.pastTasks.map((t, i) => {
+                        const s = (t.status || "").trim();
+                        const isDone = s === "เสร็จ" || s === "done" || s === "ปิดแล้ว";
+                        const isCancel = s === "ยกเลิก" || s === "cancelled";
+                        const dot = TYPE_COLOR[t.type] || "#64748B";
+                        return (
+                          <li
+                            key={i}
+                            className={`ac-room-history-item ${isDone ? "is-done" : ""} ${isCancel ? "is-cancelled" : ""}`}
+                          >
+                            <span className="ac-room-history-dot" style={{ background: dot }} />
+                            <div className="ac-room-history-main">
+                              <div className="ac-room-history-line1">
+                                <strong>{t.type}</strong>
+                                <span className="ac-room-history-date">· {t.date}</span>
+                                {t.creator && (
+                                  <span className="ac-room-history-by">· โดย {t.creator}</span>
+                                )}
+                              </div>
+                              {t.customer && (
+                                <div className="ac-room-history-line2">{t.customer}</div>
+                              )}
+                            </div>
+                            <span className={`ac-room-history-status ${isDone ? "is-done" : ""} ${isCancel ? "is-cancelled" : ""}`}>
+                              {s || "—"}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
               )}
             </>
           )}
+
+          {tab === "equipment" && (
+            <Suspense fallback={<div className="ac-empty" style={{ padding: 24, color: "#94A3B8" }}>กำลังโหลด...</div>}>
+              <RoomEquipmentTab building={room.building} room={room.room} />
+            </Suspense>
+          )}
         </div>
-        <footer className="ac-modal-foot">
+
+        <footer className="ac-modal-foot ac-modal-foot-sticky">
+          {canEdit && tab === "info" && (
+            <span className="ac-modal-foot-hint" aria-hidden>
+              <kbd>⌘</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
+            </span>
+          )}
           <button
             className="ac-btn ac-btn-secondary ac-btn-foot-start"
             onClick={onAddTaskHere}
@@ -134,9 +456,18 @@ export default function RoomModal({
           >
             + เพิ่มงานที่ห้องนี้
           </button>
-          <button className="ac-btn ac-btn-ghost" onClick={onClose} disabled={saving}>ยกเลิก</button>
-          {canEdit && (
-            <button className="ac-btn ac-btn-primary" onClick={onSave} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</button>
+          <button className="ac-btn ac-btn-ghost" onClick={onClose} disabled={saving}>
+            ยกเลิก
+          </button>
+          {canEdit && tab === "info" && (
+            <button
+              className="ac-btn ac-btn-primary"
+              onClick={attemptSave}
+              disabled={saving}
+            >
+              {saving && <span className="ac-btn-spinner" aria-hidden />}
+              {saving ? "กำลังบันทึก..." : "บันทึก"}
+            </button>
           )}
         </footer>
       </div>

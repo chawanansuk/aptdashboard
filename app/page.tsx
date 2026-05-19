@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
+import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
+import { invalidateFacilityCache } from "@/lib/facilityCache";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
 import AppHeader from "@/components/AppHeader";
 import AppSidebar from "@/components/AppSidebar";
+import OverviewCards from "@/components/OverviewCards";
 import RoomsView from "@/components/RoomsView";
+import CommandPalette from "@/components/CommandPalette";
+import { useCommandPalette } from "@/lib/useCommandPalette";
+import type { CommandDef } from "@/lib/commandPaletteSearch";
+import BottomNav, { type BottomNavView } from "@/components/BottomNav";
 import RoomModal from "@/components/RoomModal";
 import AddTaskModal from "@/components/AddTaskModal";
 import BulkAddModal from "@/components/BulkAddModal";
@@ -15,12 +23,16 @@ import SkeletonLoader from "@/components/SkeletonLoader";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { canAccess, getDefaultRoute, type Route } from "@/lib/permissions";
+import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
-const IncomeView    = lazy(() => import("@/components/IncomeView"));
-const TenantsView   = lazy(() => import("@/components/TenantsView"));
-const CalendarView  = lazy(() => import("@/components/CalendarView"));
-const SummaryDrawer = lazy(() => import("@/components/SummaryDrawer"));
+const IncomeView      = lazy(() => import("@/components/IncomeView"));
+const TenantsView     = lazy(() => import("@/components/TenantsView"));
+const CalendarView    = lazy(() => import("@/components/CalendarView"));
+const MaintenanceView = lazy(() => import("@/components/MaintenanceView"));
+const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
+const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 
 function ViewLoading() {
   return <div className="ac-empty" style={{ padding: 40, textAlign: "center", color: "#94A3B8" }}>กำลังโหลด...</div>;
@@ -36,7 +48,14 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
-  // (Session/role checks happen inside each component via useSession + lib/permissions)
+  // ---- Role-based access (multi-role + view-as) ----
+  useSession(); // initialize session so useEffectiveRoles can read it
+  const { actualRoles, effectiveRoles } = useEffectiveRoles();
+  // `effectiveRoles` drives UI; `actualRoles` is the server truth (used
+  // anywhere we need to know "what can this user REALLY do")
+  const roles = effectiveRoles.length ? effectiveRoles : actualRoles;
+  // primary role for components that still take a single Role (badge etc.)
+  const role = roles[0];
 
   // ---- Presets ----
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -47,7 +66,7 @@ export default function Home() {
   const [activeBuilding, setActiveBuilding] = useState<string>("ทั้งหมด");
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities">("overview");
   const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "custom">("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -127,6 +146,35 @@ export default function Home() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // ---- Route guard: redirect + toast if user lacks access ----
+  // Fires on URL/preset hack, on role change, or after View-as switch
+  // that excludes the current view. Uses actualRoles so we don't
+  // bounce the user when they're just filtering UI via View-as
+  // (View-as = sales but real role includes engineer → still allowed
+  //  at server, but UI hides it; redirect to a route that's actually
+  //  visible to the filtered view).
+  useEffect(() => {
+    if (!role) return; // session still loading
+    // Guard against the *effective* role set so View-as also redirects
+    if (!canAccess(roles, activeView as Route)) {
+      const fallback = getDefaultRoute(roles);
+      setActiveView(fallback);
+      setToast({
+        type: "err",
+        msg: "ไม่มีสิทธิ์เข้าถึงหน้านี้",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, activeView, roles.join("|")]);
+
+  // ---- Tab-focus refresh: when user returns to the tab, refetch the
+  // dashboard and invalidate caches that don't auto-revalidate. Skips if
+  // we refreshed within the last 30s.
+  useTabFocusRefresh(() => {
+    invalidateFacilityCache();
+    refresh();
+  });
+
   // ---- Keyboard shortcuts ----
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -169,7 +217,7 @@ export default function Home() {
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
 
   const visibleRooms = useMemo(() => {
-    if (activeView === "income" || activeView === "tenants" || activeView === "calendar") return [];
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities") return [];
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
@@ -238,20 +286,8 @@ export default function Home() {
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
-  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
-
-  const stats = useMemo(() => {
-    const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
-    let total = 0, ready = 0, moveout = 0, repair = 0;
-    scope.forEach((r) => {
-      total++;
-      if (r.status === "ready") ready++;
-      if (r.status === "moveout") moveout++;
-      if (r.status === "repair" || r.status === "qc") repair++;
-    });
-    return { total, ready, moveout, repair };
-  }, [rooms, activeBuilding]);
 
   const sidebarCounts = useMemo(() => {
     const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
@@ -314,6 +350,56 @@ export default function Home() {
     setSelectedRoom(null);
     setShowAddTask(true);
   }
+
+  /** Open Add-task pre-filled for a maintenance entry (v3.7.0). */
+  function openMaintenanceTask(building: string, room: string, note: string) {
+    setTType("ทำสะอาด");
+    setTBuilding(building);
+    setTRoom(room);
+    setTNote(note);
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+
+  /** Quick "แจ้งซ่อม" — pre-fill AddTaskModal with type=ซ่อม for the room. */
+  function openRepairForRoom(r: { building: string; room: string }) {
+    setTType("ซ่อม");
+    setTBuilding(r.building);
+    setTRoom(r.room);
+    setTNote("");
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+
+  // ---- Command palette (Cmd+K / Ctrl+K / `/`) ----
+  const cmdk = useCommandPalette();
+  const paletteCommands = useMemo<CommandDef[]>(() => [
+    {
+      id: "addTask",
+      label: "เพิ่มงานใหม่",
+      hint: "Add task",
+      requires: { action: "task.add" },
+      run: () => setShowAddTask(true),
+    },
+    {
+      id: "refresh",
+      label: "Refresh ข้อมูล",
+      hint: "ดึงข้อมูลใหม่จากชีต",
+      run: () => refresh(),
+    },
+    {
+      id: "toggleTheme",
+      label: isDark ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด",
+      hint: "Dark mode toggle",
+      run: () => toggleTheme(),
+    },
+    {
+      id: "openSummary",
+      label: "เปิด Summary",
+      hint: "สรุปภาพรวมทั้งหมด",
+      run: () => setSummaryOpen(true),
+    },
+  ], [isDark]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAddTask() {
     if (!tBuilding || !tRoom) { setToast({ type: "err", msg: "กรอกตึกและเลขห้อง" }); return; }
@@ -426,6 +512,7 @@ export default function Home() {
         onToggleTheme={toggleTheme}
         onOpenSummary={() => setSummaryOpen(true)}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        onOpenSearch={() => cmdk.setOpen(true)}
       />
 
       <div className="ac-body">
@@ -435,6 +522,7 @@ export default function Home() {
           onChangeView={setActiveView}
           counts={sidebarCounts}
           onBackdropClick={() => setSidebarOpen(false)}
+          roles={roles}
         />
 
         <main className="ac-main">
@@ -451,11 +539,19 @@ export default function Home() {
 
           {isInitial && rooms.length === 0 && status !== "error" && <SkeletonLoader />}
 
+          {activeView === "overview" && rooms.length > 0 && (
+            <OverviewCards
+              rooms={rooms}
+              tasks={tasks}
+              activeBuilding={activeBuilding}
+              roles={roles}
+              onNavigate={(v) => setActiveView(v)}
+            />
+          )}
+
           {showRoomGrid && (
             <RoomsView
               visibleRooms={visibleRooms}
-              stats={stats}
-              activeBuilding={activeBuilding}
               activeFilter={activeFilter}
               onChangeFilter={setActiveFilter}
               search={search}
@@ -465,6 +561,8 @@ export default function Home() {
               onToggleBulkMode={() => bulkMode ? exitBulk() : setBulkMode(true)}
               onToggleBulkRoom={toggleBulkRoom}
               onSelectRoom={(r) => setSelectedRoom(r)}
+              roles={roles}
+              onRepairRoom={openRepairForRoom}
             />
           )}
 
@@ -554,8 +652,42 @@ export default function Home() {
               <CalendarView tasks={tasks} activeBuilding={activeBuilding} rooms={rooms} onSelectRoom={(r) => setSelectedRoom(r)} />
             </Suspense>
           )}
+          {activeView === "maintenance" && (
+            <Suspense fallback={<ViewLoading />}>
+              <MaintenanceView
+                activeBuilding={activeBuilding}
+                onScheduleService={openMaintenanceTask}
+              />
+            </Suspense>
+          )}
+          {activeView === "facilities" && (
+            <Suspense fallback={<ViewLoading />}>
+              <FacilitiesView
+                buildings={buildings}
+                activeBuilding={activeBuilding}
+                onScheduleService={openMaintenanceTask}
+              />
+            </Suspense>
+          )}
         </main>
       </div>
+
+      <BottomNav
+        activeView={activeView}
+        roles={roles}
+        onNavigate={(v: BottomNavView) => setActiveView(v)}
+        onAddTask={() => setShowAddTask(true)}
+      />
+
+      <CommandPalette
+        open={cmdk.open}
+        onClose={() => cmdk.setOpen(false)}
+        rooms={rooms}
+        roles={roles}
+        commands={paletteCommands}
+        onSelectRoom={(r) => setSelectedRoom(r)}
+        onChangeView={(v) => setActiveView(v)}
+      />
 
       <AddTaskModal
         open={showAddTask}

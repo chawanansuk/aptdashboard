@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.4.3 — Dashboard หอพัก
+ * Code.gs v3.9.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -12,6 +12,21 @@
  *     (CSV publish มี 5min cache จาก Google ที่ทำให้ updateRoomStatus
  *      ไม่เห็นผลทันที)
  *   - clearRoomsCache_ ใน updateRoomStatus_ + onEdit
+ * NEW v3.6.0:
+ *   - tab "อุปกรณ์" auto-create + actions getRoomEquipment / addEquipment /
+ *     updateEquipment (ใช้กับ Engineer mode)
+ *   - cache 60s + invalidate ตอน add/update
+ * NEW v3.7.0:
+ *   - column L "รอบบำรุง(วัน)" ใน tab อุปกรณ์ (auto-expand backward compat)
+ *   - action getAllEquipment — list ทั่วโครงการ สำหรับ Maintenance view
+ * NEW v3.8.0:
+ *   - tab "สาธารณูปโภค" auto-create (building-level facilities:
+ *     ลิฟต์/สระว่ายน้ำ/เครื่องปั่นไฟ/ปั๊มน้ำ/WiFi/CCTV/อื่นๆ)
+ *   - actions getFacilities / addFacility / updateFacility (engineer + management)
+ *   - cache 60s + invalidate ตอน add/update
+ * NEW v3.9.0:
+ *   - LockService.tryLock(5000) wrap ทุก write action ป้องกัน concurrent write
+ *     ชนกัน (10+ user เปิดพร้อมกัน). read actions ไม่ต้อง lock.
  */
 
 const SHEET_NAMES = {
@@ -19,11 +34,17 @@ const SHEET_NAMES = {
   TEMPLATE: 'template_งาน',
   ROOM: 'ห้อง',
   METER: 'มิเตอร์',
+  EQUIPMENT: 'อุปกรณ์',
+  FACILITY: 'สาธารณูปโภค',
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
 const STATUS_OPTIONS = ['ว่าง', 'pending', 'กำลังทำ', 'เสร็จ', 'ยกเลิก'];
 const ROOM_STATUS    = ['ว่าง', 'มีผู้เช่า', 'จอง', 'ซ่อม'];
+const EQUIPMENT_TYPES  = ['แอร์', 'เครื่องซักผ้า', 'ตู้เย็น', 'เครื่องทำน้ำอุ่น', 'โทรทัศน์', 'ไมโครเวฟ', 'อื่นๆ'];
+const EQUIPMENT_STATUS = ['ปกติ', 'ต้องซ่อม', 'กำลังซ่อม', 'ใช้ไม่ได้'];
+const FACILITY_TYPES   = ['ลิฟต์', 'สระว่ายน้ำ', 'เครื่องปั่นไฟ', 'ปั๊มน้ำ', 'WiFi', 'CCTV', 'อื่นๆ'];
+const FACILITY_STATUS  = ['ใช้งานได้', 'ต้องซ่อม', 'กำลังซ่อม', 'ปิดใช้งาน'];
 
 // คอลัมน์ของ tab "งาน" (1-based)
 const TASK_COL = {
@@ -76,6 +97,48 @@ function clearRoomsCache_() {
   try { CacheService.getScriptCache().remove(ROOMS_CACHE_KEY); } catch (e) {}
 }
 
+/* ========== EQUIPMENT CACHE (NEW v3.6.0) ========== */
+const EQUIPMENT_CACHE_KEY = 'equipmentCache_v2';
+const EQUIPMENT_CACHE_TTL_SEC = 60;
+
+function getAllEquipmentCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(EQUIPMENT_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+  const fresh = getAllEquipment_();
+  try {
+    cache.put(EQUIPMENT_CACHE_KEY, JSON.stringify(fresh), EQUIPMENT_CACHE_TTL_SEC);
+  } catch (e) {}
+  return fresh;
+}
+
+function clearEquipmentCache_() {
+  try { CacheService.getScriptCache().remove(EQUIPMENT_CACHE_KEY); } catch (e) {}
+}
+
+/* ========== FACILITY CACHE (NEW v3.8.0) ========== */
+const FACILITY_CACHE_KEY = 'facilityCache_v1';
+const FACILITY_CACHE_TTL_SEC = 60;
+
+function getAllFacilitiesCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(FACILITY_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+  const fresh = getAllFacilities_();
+  try {
+    cache.put(FACILITY_CACHE_KEY, JSON.stringify(fresh), FACILITY_CACHE_TTL_SEC);
+  } catch (e) {}
+  return fresh;
+}
+
+function clearFacilityCache_() {
+  try { CacheService.getScriptCache().remove(FACILITY_CACHE_KEY); } catch (e) {}
+}
+
 /* ========== UTIL ========== */
 function norm(v) {
   if (v === null || v === undefined) return '';
@@ -98,6 +161,25 @@ function jsonOut_(obj) {
 function ok_(payload) { return jsonOut_(Object.assign({ ok: true }, payload || {})); }
 function err_(message) { return jsonOut_({ ok: false, error: String(message) }); }
 
+/* ========== WRITE LOCK (NEW v3.9.0) ========== */
+/**
+ * Wrap a write function with ScriptLock.tryLock(5000). Apps Script's
+ * default lock behavior is "fail immediately if held"; with concurrent
+ * writers (10+ users) this causes flaky errors. We wait up to 5s and
+ * release in finally. Reads do NOT use this — they're cache-served.
+ */
+function withWriteLock_(fn) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    throw new Error('busy — มีการบันทึกจากผู้ใช้รายอื่น โปรดลองอีกครั้ง');
+  }
+  try {
+    return fn();
+  } finally {
+    try { lock.releaseLock(); } catch (e) { /* ignore */ }
+  }
+}
+
 /* ========== WEB APP ENTRY ========== */
 function doPost(e) {
   try {
@@ -106,14 +188,23 @@ function doPost(e) {
     if (!body || !body.action) throw new Error('missing action');
 
     switch (body.action) {
+      // ----- reads (no lock) -----
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
-      case 'addTask':          return ok_(addTask_(body));
-      case 'updateTask':       return ok_(updateTask_(body));
-      case 'updateTaskStatus': return ok_(updateTaskStatus_(body));
-      case 'deleteTask':       return ok_(deleteTask_(body));
-      case 'updateRoomStatus': return ok_(updateRoomStatus_(body));
+      case 'getRoomEquipment': return ok_({ result: { rows: getRoomEquipment_(body.building, body.room) } });
+      case 'getAllEquipment':  return ok_({ result: { rows: getAllEquipmentCached_() } });
+      case 'getFacilities':    return ok_({ result: { rows: getAllFacilitiesCached_() } });
       case 'debugFindTask':    return ok_({ row: findTaskRow_(body) });
+      // ----- writes (ScriptLock 5s timeout) -----
+      case 'addTask':          return ok_(withWriteLock_(function () { return addTask_(body); }));
+      case 'updateTask':       return ok_(withWriteLock_(function () { return updateTask_(body); }));
+      case 'updateTaskStatus': return ok_(withWriteLock_(function () { return updateTaskStatus_(body); }));
+      case 'deleteTask':       return ok_(withWriteLock_(function () { return deleteTask_(body); }));
+      case 'updateRoomStatus': return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
+      case 'addEquipment':     return ok_(withWriteLock_(function () { return addEquipment_(body); }));
+      case 'updateEquipment':  return ok_(withWriteLock_(function () { return updateEquipment_(body); }));
+      case 'addFacility':      return ok_(withWriteLock_(function () { return addFacility_(body); }));
+      case 'updateFacility':   return ok_(withWriteLock_(function () { return updateFacility_(body); }));
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -122,7 +213,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.4.3' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.9.0' });
 }
 
 /* ========== TASK READ ========== */
@@ -313,6 +404,257 @@ function updateRoomStatus_(b) {
   throw new Error('room not found: ' + b.building + ' ' + b.room);
 }
 
+/* ========== EQUIPMENT (NEW v3.6.0) ========== */
+/**
+ * Auto-create tab 'อุปกรณ์' on first write. Returns the sheet.
+ * Header has 12 columns (v3.7.0 added col L 'รอบบำรุง(วัน)'); row 1 frozen.
+ * Backward compat: if tab exists with 11 cols, add the 12th header in-place.
+ */
+function getOrCreateEquipmentSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.EQUIPMENT);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.EQUIPMENT);
+    sh.appendRow([
+      'id', 'ตึก', 'ห้อง', 'ประเภท', 'ยี่ห้อ/รุ่น',
+      'วันติดตั้ง', 'วันซ่อมล่าสุด', 'สถานะ', 'หมายเหตุ',
+      'ผู้บันทึก', 'วันที่บันทึก', 'รอบบำรุง(วัน)',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 12).setFontWeight('bold').setBackground('#FFF7ED');
+  } else {
+    // backward compat: ensure column L header exists
+    const lastCol = sh.getLastColumn();
+    if (lastCol < 12) {
+      sh.getRange(1, 12).setValue('รอบบำรุง(วัน)')
+        .setFontWeight('bold').setBackground('#FFF7ED');
+    }
+  }
+  return sh;
+}
+
+function getAllEquipment_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.EQUIPMENT);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const lastCol = Math.max(sh.getLastColumn(), 11);
+  const cols = Math.min(lastCol, 12);
+  const data = sh.getRange(2, 1, lastRow - 1, cols).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const building = norm(r[1]);
+    const room = norm(r[2]);
+    if (!building || !room) continue;
+    const intervalRaw = cols >= 12 ? r[11] : '';
+    const intervalNum = parseInt(intervalRaw, 10);
+    rows.push({
+      id:           norm(r[0]),
+      building:     building,
+      room:         room,
+      type:         norm(r[3]),
+      brand:        norm(r[4]),
+      installDate:  fmtDate_(r[5]),
+      lastService:  fmtDate_(r[6]),
+      status:       norm(r[7]) || 'ปกติ',
+      note:         norm(r[8]),
+      creator:      norm(r[9]),
+      createdAt:    norm(r[10]),
+      intervalDays: isFinite(intervalNum) && intervalNum > 0 ? intervalNum : 0,
+    });
+  }
+  return rows;
+}
+
+function getRoomEquipment_(building, room) {
+  const b = norm(building);
+  const r = norm(room);
+  if (!b || !r) return [];
+  const all = getAllEquipmentCached_();
+  const filtered = [];
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].building === b && all[i].room === r) filtered.push(all[i]);
+  }
+  // Sort by installDate desc (newest first), fall back to id for stability
+  filtered.sort(function (a, c) {
+    return (c.installDate || '').localeCompare(a.installDate || '');
+  });
+  return filtered;
+}
+
+/**
+ * Append a new equipment entry. Auto-creates the sheet if missing.
+ * Required: building, room, type. Optional: brand, installDate,
+ * lastService, status, note.
+ */
+function addEquipment_(b) {
+  if (!b.building || !b.room) throw new Error('building/room required');
+  if (!b.type) throw new Error('type required');
+  const sh = getOrCreateEquipmentSheet_();
+  const id = Utilities.getUuid();
+  const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  const intervalNum = parseInt(b.intervalDays, 10);
+  sh.appendRow([
+    id,
+    b.building,
+    b.room,
+    b.type,
+    b.brand || '',
+    b.installDate || '',
+    b.lastService || '',
+    b.status || 'ปกติ',
+    b.note || '',
+    b.creator || '',
+    createdAt,
+    isFinite(intervalNum) && intervalNum > 0 ? intervalNum : '',
+  ]);
+  clearEquipmentCache_();
+  return { appended: true, id: id, row: sh.getLastRow() };
+}
+
+/**
+ * Update an existing equipment entry by id. Only provided fields are
+ * written; others are left untouched. Commonly used to update status
+ * + lastService when an engineer marks a unit repaired.
+ */
+function updateEquipment_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.EQUIPMENT);
+  if (!sh) throw new Error('sheet "อุปกรณ์" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no equipment rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('equipment not found: ' + b.id);
+  // Column index map (1-based)
+  // 2:ตึก 3:ห้อง 4:ประเภท 5:ยี่ห้อ 6:วันติดตั้ง 7:วันซ่อมล่าสุด 8:สถานะ 9:หมายเหตุ 12:รอบบำรุง(วัน)
+  if (b.type        !== undefined) sh.getRange(found, 4).setValue(b.type);
+  if (b.brand       !== undefined) sh.getRange(found, 5).setValue(b.brand);
+  if (b.installDate !== undefined) sh.getRange(found, 6).setValue(b.installDate);
+  if (b.lastService !== undefined) sh.getRange(found, 7).setValue(b.lastService);
+  if (b.status      !== undefined) sh.getRange(found, 8).setValue(b.status);
+  if (b.note        !== undefined) sh.getRange(found, 9).setValue(b.note);
+  if (b.intervalDays !== undefined) {
+    const n = parseInt(b.intervalDays, 10);
+    sh.getRange(found, 12).setValue(isFinite(n) && n > 0 ? n : '');
+  }
+  clearEquipmentCache_();
+  return { updated: true, row: found };
+}
+
+/* ========== FACILITY (NEW v3.8.0) ========== */
+/**
+ * Auto-create tab 'สาธารณูปโภค' on first write. Returns the sheet.
+ * 11 columns; row 1 frozen.
+ */
+function getOrCreateFacilitySheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.FACILITY);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.FACILITY);
+    sh.appendRow([
+      'id', 'ตึก', 'ประเภท', 'ชื่อ/รุ่น',
+      'วันติดตั้ง', 'วันบริการล่าสุด', 'สถานะ', 'หมายเหตุ',
+      'ผู้บันทึก', 'วันที่บันทึก', 'รอบบำรุง(วัน)',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#ECFDF5');
+  }
+  return sh;
+}
+
+function getAllFacilities_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.FACILITY);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const building = norm(r[1]);
+    if (!building) continue;
+    const intervalNum = parseInt(r[10], 10);
+    rows.push({
+      id:           norm(r[0]),
+      building:     building,
+      type:         norm(r[2]),
+      name:         norm(r[3]),
+      installDate:  fmtDate_(r[4]),
+      lastService:  fmtDate_(r[5]),
+      status:       norm(r[6]) || 'ใช้งานได้',
+      note:         norm(r[7]),
+      creator:      norm(r[8]),
+      createdAt:    norm(r[9]),
+      intervalDays: isFinite(intervalNum) && intervalNum > 0 ? intervalNum : 0,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Append a new facility. Auto-creates the sheet if missing.
+ * Required: building, type. Optional: name, installDate, lastService,
+ * status, note, intervalDays.
+ */
+function addFacility_(b) {
+  if (!b.building) throw new Error('building required');
+  if (!b.type) throw new Error('type required');
+  const sh = getOrCreateFacilitySheet_();
+  const id = Utilities.getUuid();
+  const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  const intervalNum = parseInt(b.intervalDays, 10);
+  sh.appendRow([
+    id,
+    b.building,
+    b.type,
+    b.name || '',
+    b.installDate || '',
+    b.lastService || '',
+    b.status || 'ใช้งานได้',
+    b.note || '',
+    b.creator || '',
+    createdAt,
+    isFinite(intervalNum) && intervalNum > 0 ? intervalNum : '',
+  ]);
+  clearFacilityCache_();
+  return { appended: true, id: id, row: sh.getLastRow() };
+}
+
+/**
+ * Update an existing facility by id. Only provided fields are written.
+ */
+function updateFacility_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.FACILITY);
+  if (!sh) throw new Error('sheet "สาธารณูปโภค" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no facility rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('facility not found: ' + b.id);
+  // 2:ตึก 3:ประเภท 4:ชื่อ 5:วันติดตั้ง 6:วันบริการล่าสุด 7:สถานะ 8:หมายเหตุ 11:รอบบำรุง
+  if (b.type        !== undefined) sh.getRange(found, 3).setValue(b.type);
+  if (b.name        !== undefined) sh.getRange(found, 4).setValue(b.name);
+  if (b.installDate !== undefined) sh.getRange(found, 5).setValue(b.installDate);
+  if (b.lastService !== undefined) sh.getRange(found, 6).setValue(b.lastService);
+  if (b.status      !== undefined) sh.getRange(found, 7).setValue(b.status);
+  if (b.note        !== undefined) sh.getRange(found, 8).setValue(b.note);
+  if (b.intervalDays !== undefined) {
+    const n = parseInt(b.intervalDays, 10);
+    sh.getRange(found, 11).setValue(isFinite(n) && n > 0 ? n : '');
+  }
+  clearFacilityCache_();
+  return { updated: true, row: found };
+}
+
 /* ========== PHASE 1: SETUP / FORMATTING / DROPDOWNS / FILTER VIEWS ========== */
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -321,7 +663,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.4.3 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v3.9.0 เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {
