@@ -2845,6 +2845,77 @@ html.dark .ac-user-signout:hover { background: #7F1D1D; color: #FECACA; }
   .ac-user-menu, .ac-user-menu-backdrop { display: none !important; }
 }
 
+/* ===== Health Banner ===== */
+.ac-health-banner {
+  position: sticky;
+  top: 0;
+  z-index: 990;
+  background: #FEF3C7;
+  color: #92400E;
+  border-bottom: 1px solid #FCD34D;
+  font-size: 13px;
+  padding: 10px 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
+}
+html.dark .ac-health-banner {
+  background: #78350F;
+  color: #FDE68A;
+  border-bottom-color: #B45309;
+}
+.ac-health-banner-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.ac-health-banner-msg {
+  flex: 1;
+  min-width: 0;
+}
+.ac-health-banner-link {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+}
+.ac-health-banner-close {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 8px;
+  margin-left: 4px;
+}
+.ac-health-banner-close:hover { opacity: 0.7; }
+.ac-health-banner-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid currentColor;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  opacity: 0.85;
+  font-size: 12px;
+}
+.ac-health-banner-details details { margin-top: 6px; }
+.ac-health-banner-details code {
+  background: rgba(0,0,0,0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+@media print {
+  .ac-health-banner { display: none !important; }
+}
 /* ===== Room modal tabs (v3.6.0) ===== */
 .ac-modal-tabs {
   display: flex;

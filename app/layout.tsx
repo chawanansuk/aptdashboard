@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import PWAClient from "@/components/PWAClient";
 import SessionProviderClient from "@/components/SessionProviderClient";
+import HealthBanner from "@/components/HealthBanner";
 import { auth } from "@/auth";
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,7 @@ export default async function RootLayout({
         />
         <SessionProviderClient session={session}>
           <PWAClient />
+          <HealthBanner />
           {children}
         </SessionProviderClient>
       </body>
