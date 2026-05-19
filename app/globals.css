@@ -5783,3 +5783,24 @@ html.dark .ac-sales-vacant-card:hover {
     transform: none;
   }
 }
+
+/* ============================================================
+ * Ultra-narrow mobile (≤ 360px) — Galaxy Fold front, old iPhones
+ * Header has 4 grid cells in 2 rows; at 320-360 px the brand cell
+ * gets squeezed. Hide the "APARTCLOUD" wordmark and keep just the
+ * "A" badge so utils (search + avatar) get breathing room.
+ * ============================================================ */
+@media (max-width: 360px) {
+  .ac-logo-text {
+    display: none !important;
+  }
+  /* Tighter padding so 4 cells fit without overflow */
+  .ac-nav {
+    padding: 6px 8px;
+  }
+  /* Slightly smaller pills so 5+ buildings still scroll smoothly */
+  .ac-tab {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+}
