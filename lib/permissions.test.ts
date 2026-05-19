@@ -19,10 +19,11 @@ describe("permissions: canAccess", () => {
     }
   });
 
-  it("sales sees rooms + tenants + calendar but NOT engineer routes or income", () => {
+  it("sales sees rooms + calendar but NOT tenants (PII) / engineer routes / income", () => {
     expect(canAccess(["sales"], "ready")).toBe(true);
     expect(canAccess(["sales"], "moveout")).toBe(true);
-    expect(canAccess(["sales"], "tenants")).toBe(true);
+    // tenants route restricted to management only (PII protection — 2026-05)
+    expect(canAccess(["sales"], "tenants")).toBe(false);
     expect(canAccess(["sales"], "calendar")).toBe(true);
     expect(canAccess(["sales"], "qc")).toBe(false);
     expect(canAccess(["sales"], "repair")).toBe(false);
@@ -40,11 +41,16 @@ describe("permissions: canAccess", () => {
     expect(canAccess(["engineer"], "income")).toBe(false);
   });
 
-  it("multi-role sales+engineer sees union (no income)", () => {
+  it("multi-role sales+engineer sees union (still NO tenants — PII / no income)", () => {
     const roles = ["sales", "engineer"] as const;
-    expect(canAccess([...roles], "tenants")).toBe(true);    // sales side
+    expect(canAccess([...roles], "tenants")).toBe(false);    // management-only
     expect(canAccess([...roles], "maintenance")).toBe(true); // engineer side
     expect(canAccess([...roles], "income")).toBe(false);     // mgmt only
+  });
+
+  it("management can access tenants (the only role that can)", () => {
+    expect(canAccess(["management"], "tenants")).toBe(true);
+    expect(canAccess(["sales", "management"], "tenants")).toBe(true);
   });
 
   it("undefined / empty roles → only nothing", () => {
@@ -79,11 +85,15 @@ describe("permissions: canPerform", () => {
     expect(canPerform(["engineer"], "task.add.sales")).toBe(false);
   });
 
-  it("only management can view financials or edit tenants", () => {
+  it("only management can view financials or read/edit tenants", () => {
     expect(canPerform(["management"], "finance.view")).toBe(true);
+    expect(canPerform(["management"], "tenant.view")).toBe(true);
     expect(canPerform(["management"], "tenant.edit")).toBe(true);
     expect(canPerform(["sales", "engineer"], "finance.view")).toBe(false);
+    // PII protection: even read access is mgmt-only (2026-05)
+    expect(canPerform(["sales"], "tenant.view")).toBe(false);
     expect(canPerform(["sales"], "tenant.edit")).toBe(false);
+    expect(canPerform(["engineer"], "tenant.view")).toBe(false);
   });
 
   it("equipment + facility ops are engineer or management", () => {

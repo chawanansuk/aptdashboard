@@ -9,7 +9,13 @@ import {
   tryBeginRevalidation,
 } from "@/lib/dashboardCache";
 import { appsScriptCall } from "@/lib/appsScriptFetch";
+import { canViewTenant } from "@/lib/permissions";
 import type { RoomRow, SheetRow } from "@/types";
+
+/** Strip tenant PII (see app/api/dashboard/rooms/route.ts for details). */
+function stripTenantPii(rows: RoomRow[]): RoomRow[] {
+  return rows.map((r) => ({ ...r, tenant: "", phone: "" }));
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -152,6 +158,8 @@ export async function GET() {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
   const authMs = Date.now() - handlerStart;
+  const canTenant = canViewTenant(session.user.roles);
+  const projectRooms = (rs: RoomRow[]) => (canTenant ? rs : stripTenantPii(rs));
 
   const cacheLookup = getDashboardCacheState();
 
@@ -161,7 +169,7 @@ export async function GET() {
     console.info("[dashboard] cache fresh", { ageMs: cacheLookup.ageMs, totalMs });
     return NextResponse.json(
       {
-        rooms: cacheLookup.data.rooms,
+        rooms: projectRooms(cacheLookup.data.rooms),
         tasks: cacheLookup.data.tasks,
         cached: true,
         cacheState: "fresh",
@@ -189,7 +197,7 @@ export async function GET() {
     });
     return NextResponse.json(
       {
-        rooms: cacheLookup.data.rooms,
+        rooms: projectRooms(cacheLookup.data.rooms),
         tasks: cacheLookup.data.tasks,
         cached: true,
         cacheState: "stale",
@@ -221,7 +229,7 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      rooms: fetchOut.rooms,
+      rooms: projectRooms(fetchOut.rooms),
       tasks: fetchOut.tasks,
       cached: false,
       cacheState: "missing",
