@@ -3868,6 +3868,168 @@ html.dark .ac-field-hint { color: #64748B; }
 }
 
 /* ====================================================================
+ * Today briefing — "บำรุงรักษา" section above TasksList in งานวันนี้ view
+ *
+ * Compact maintenance list that surfaces equipment + facility items
+ * that are overdue or due today. Top-of-page "what's pressing".
+ * ==================================================================== */
+.ac-maint-today {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-left: 4px solid #DC2626;
+}
+html.dark .ac-maint-today {
+  background: #0F172A;
+  border-color: #334155;
+  border-left-color: #DC2626;
+}
+
+.ac-maint-today-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.ac-maint-today-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #DC2626;
+}
+html.dark .ac-maint-today-title { color: #F87171; }
+
+.ac-maint-today-sub {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ac-maint-today-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+.ac-maint-today-pill.is-overdue { background: #FEE2E2; color: #B91C1C; }
+.ac-maint-today-pill.is-today   { background: #DBEAFE; color: #1D4ED8; }
+html.dark .ac-maint-today-pill.is-overdue { background: #7F1D1D; color: #FECACA; }
+html.dark .ac-maint-today-pill.is-today { background: #1E3A8A; color: #BFDBFE; }
+
+.ac-maint-today-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ac-maint-today-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-left-width: 3px;
+  transition: background 120ms ease;
+}
+html.dark .ac-maint-today-item {
+  background: #1E293B;
+  border-color: #334155;
+}
+.ac-maint-today-item.is-overdue { border-left-color: #DC2626; }
+.ac-maint-today-item.is-today   { border-left-color: #2563EB; }
+.ac-maint-today-item:hover { background: #F1F5F9; }
+html.dark .ac-maint-today-item:hover { background: #334155; }
+
+.ac-maint-today-icon {
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+html.dark .ac-maint-today-icon { background: #0F172A; }
+
+.ac-maint-today-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ac-maint-today-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.ac-maint-today-line1 strong {
+  color: #0F172A;
+  font-weight: 700;
+}
+html.dark .ac-maint-today-line1 strong { color: #F1F5F9; }
+.ac-maint-today-type,
+.ac-maint-today-brand {
+  font-size: 12px;
+  color: #64748B;
+}
+html.dark .ac-maint-today-type,
+html.dark .ac-maint-today-brand { color: #CBD5E1; }
+
+.ac-maint-today-line2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+.ac-maint-today-due {
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.ac-maint-today-due.is-overdue {
+  background: #DC2626; color: #fff;
+}
+.ac-maint-today-due.is-today {
+  background: #2563EB; color: #fff;
+}
+.ac-maint-today-kind {
+  color: #94A3B8;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ac-maint-today-foot {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #94A3B8;
+  text-align: center;
+}
+html.dark .ac-maint-today-foot { color: #64748B; }
+.ac-maint-today-foot strong { color: #475569; font-weight: 600; }
+html.dark .ac-maint-today-foot strong { color: #CBD5E1; }
+
+@media (max-width: 600px) {
+  .ac-maint-today { padding: 10px 12px; }
+  .ac-maint-today-item { padding: 6px 8px; gap: 8px; }
+  .ac-maint-today-icon { width: 28px; height: 28px; font-size: 14px; }
+  .ac-maint-today-line1 { font-size: 13px; }
+}
+
+/* ====================================================================
  * Task urgency buckets + visual hierarchy (TasksList)
  *
  * Each "งานวันนี้/ซ่อม/QC" view groups tasks into urgency buckets:
