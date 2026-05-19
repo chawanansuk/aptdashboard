@@ -4919,10 +4919,14 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
  * ============================================================ */
 
 /* Visibility helpers — `.ac-hide-mobile` is visible on desktop only,
-   `.ac-show-mobile-only` is visible on mobile only. */
+   `.ac-show-mobile-only` is visible on mobile only.
+   Boundary note: 767.98px (not 768) so the inclusive `<=` doesn't catch
+   tablets sized to exactly 768 (iPad portrait). Those should get the
+   desktop chrome — they have plenty of horizontal room for + นัดลูกค้า,
+   สรุปวันนี้, theme toggle, etc. */
 .ac-show-mobile-only { display: none; }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   /* Hide secondary chrome on mobile — surfaced inside the user menu */
   .ac-hide-mobile { display: none !important; }
   .ac-show-mobile-only { display: block; }
