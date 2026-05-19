@@ -1,12 +1,65 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { parseRoomsCSV } from "@/lib/parseSheet";
-import { getDashboardCache, setDashboardCache } from "@/lib/dashboardCache";
+import {
+  endRevalidation,
+  FRESH_TTL_MS,
+  getDashboardCacheState,
+  setDashboardCache,
+  tryBeginRevalidation,
+} from "@/lib/dashboardCache";
 import { appsScriptCall } from "@/lib/appsScriptFetch";
 import type { RoomRow, SheetRow } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/dashboard — primary read endpoint.
+ *
+ * Performance strategy (perf/dashboard-swr-and-timing):
+ *
+ * 1. SWR cache (lib/dashboardCache):
+ *    - fresh (≤ 60s): return as-is, no upstream call
+ *    - stale (≤ 5min): return immediately, kick off background refetch
+ *    - missing (> 5min or invalidated): block on a full fetch
+ *
+ * 2. Timing instrumentation:
+ *    - Per-source latency (rooms CSV vs Apps Script tasks)
+ *    - Total handler time
+ *    - Surfaced as Server-Timing header so we can inspect in DevTools / curl,
+ *      and as console.info for Vercel logs
+ *
+ * Auth gates access; the cache itself isn't per-user (dashboard data is the
+ * same for every authenticated user), so we keep one shared slot.
+ */
+
+interface SourceTiming {
+  source: "rooms" | "tasks";
+  ms: number;
+  ok: boolean;
+  error?: string;
+}
+
+async function timed<T>(
+  source: SourceTiming["source"],
+  fn: () => Promise<T>,
+): Promise<{ result: T | null; timing: SourceTiming }> {
+  const start = Date.now();
+  try {
+    const result = await fn();
+    return {
+      result,
+      timing: { source, ms: Date.now() - start, ok: true },
+    };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : "unknown";
+    return {
+      result: null,
+      timing: { source, ms: Date.now() - start, ok: false, error },
+    };
+  }
+}
 
 async function fetchRooms(): Promise<RoomRow[]> {
   const url = process.env.NEXT_PUBLIC_SHEET_ROOMS_CSV_URL;
@@ -25,56 +78,170 @@ async function fetchTasks(): Promise<SheetRow[]> {
   return (j.result?.rows || []) as SheetRow[];
 }
 
+interface FetchAllResult {
+  rooms: RoomRow[];
+  tasks: SheetRow[];
+  timings: SourceTiming[];
+  errors: string[];
+}
+
+async function fetchAllUpstream(): Promise<FetchAllResult> {
+  const [roomsT, tasksT] = await Promise.all([
+    timed("rooms", fetchRooms),
+    timed("tasks", fetchTasks),
+  ]);
+
+  const errors: string[] = [];
+  if (!roomsT.timing.ok && roomsT.timing.error) errors.push("rooms: " + roomsT.timing.error);
+  if (!tasksT.timing.ok && tasksT.timing.error) errors.push("tasks: " + tasksT.timing.error);
+
+  return {
+    rooms: roomsT.result || [],
+    tasks: tasksT.result || [],
+    timings: [roomsT.timing, tasksT.timing],
+    errors,
+  };
+}
+
+/** Format timings into a Server-Timing header so DevTools can render it. */
+function buildServerTimingHeader(parts: { name: string; ms: number; desc?: string }[]): string {
+  return parts
+    .map((p) => {
+      const desc = p.desc ? `;desc="${p.desc.replace(/"/g, "'")}"` : "";
+      return `${p.name}${desc};dur=${p.ms.toFixed(0)}`;
+    })
+    .join(", ");
+}
+
+/**
+ * Fire-and-forget background revalidation. Single-flight guarded so that
+ * 10 concurrent stale-hits only trigger 1 upstream refetch.
+ */
+function scheduleRevalidate(): void {
+  if (!tryBeginRevalidation()) return;
+  // Don't await — this runs in the background while the user already has
+  // their stale response in hand.
+  (async () => {
+    const start = Date.now();
+    try {
+      const out = await fetchAllUpstream();
+      if (out.errors.length === 0) {
+        setDashboardCache(out.rooms, out.tasks);
+        console.info("[dashboard] revalidate ok", {
+          totalMs: Date.now() - start,
+          timings: out.timings,
+        });
+      } else {
+        console.warn("[dashboard] revalidate partial-fail; keeping previous cache", {
+          totalMs: Date.now() - start,
+          errors: out.errors,
+        });
+      }
+    } catch (e) {
+      console.error("[dashboard] revalidate threw", e);
+    } finally {
+      endRevalidation();
+    }
+  })();
+}
+
 export async function GET() {
+  const handlerStart = Date.now();
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
+  const authMs = Date.now() - handlerStart;
 
-  // Cache hit — serve last known good
-  const cached = getDashboardCache();
-  if (cached) {
-    return NextResponse.json({
-      rooms: cached.rooms,
-      tasks: cached.tasks,
-      cached: true,
-      ageMs: Date.now() - cached.savedAt,
+  const cacheLookup = getDashboardCacheState();
+
+  // ----- fresh: return immediately, no upstream call -----
+  if (cacheLookup.state === "fresh" && cacheLookup.data) {
+    const totalMs = Date.now() - handlerStart;
+    console.info("[dashboard] cache fresh", { ageMs: cacheLookup.ageMs, totalMs });
+    return NextResponse.json(
+      {
+        rooms: cacheLookup.data.rooms,
+        tasks: cacheLookup.data.tasks,
+        cached: true,
+        cacheState: "fresh",
+        ageMs: cacheLookup.ageMs,
+      },
+      {
+        headers: {
+          "Server-Timing": buildServerTimingHeader([
+            { name: "auth", ms: authMs },
+            { name: "cache", ms: 0, desc: "fresh hit" },
+            { name: "total", ms: totalMs },
+          ]),
+        },
+      },
+    );
+  }
+
+  // ----- stale: return immediately, revalidate in background -----
+  if (cacheLookup.state === "stale" && cacheLookup.data) {
+    scheduleRevalidate();
+    const totalMs = Date.now() - handlerStart;
+    console.info("[dashboard] cache stale (revalidating bg)", {
+      ageMs: cacheLookup.ageMs,
+      totalMs,
     });
+    return NextResponse.json(
+      {
+        rooms: cacheLookup.data.rooms,
+        tasks: cacheLookup.data.tasks,
+        cached: true,
+        cacheState: "stale",
+        ageMs: cacheLookup.ageMs,
+      },
+      {
+        headers: {
+          "Server-Timing": buildServerTimingHeader([
+            { name: "auth", ms: authMs },
+            { name: "cache", ms: 0, desc: "stale hit + bg revalidate" },
+            { name: "total", ms: totalMs },
+          ]),
+        },
+      },
+    );
   }
 
-  // Cache miss — fetch both upstream sources in parallel
-  const [roomsResult, tasksResult] = await Promise.allSettled([
-    fetchRooms(),
-    fetchTasks(),
-  ]);
-
-  const errors: string[] = [];
-  let rooms: RoomRow[] = [];
-  let tasks: SheetRow[] = [];
-
-  if (roomsResult.status === "fulfilled") {
-    rooms = roomsResult.value;
-  } else {
-    const m = roomsResult.reason instanceof Error ? roomsResult.reason.message : "unknown";
-    errors.push("rooms: " + m);
+  // ----- missing: block on upstream -----
+  const fetchOut = await fetchAllUpstream();
+  if (fetchOut.errors.length === 0) {
+    setDashboardCache(fetchOut.rooms, fetchOut.tasks);
   }
-
-  if (tasksResult.status === "fulfilled") {
-    tasks = tasksResult.value;
-  } else {
-    const m = tasksResult.reason instanceof Error ? tasksResult.reason.message : "unknown";
-    errors.push("tasks: " + m);
-  }
-
-  // Only cache when both upstream calls succeeded — partial data poisons the cache
-  if (errors.length === 0) {
-    setDashboardCache(rooms, tasks);
-  }
-
-  return NextResponse.json({
-    rooms,
-    tasks,
-    cached: false,
-    errors: errors.length ? errors : undefined,
+  const totalMs = Date.now() - handlerStart;
+  console.info("[dashboard] cache miss", {
+    totalMs,
+    timings: fetchOut.timings,
+    errors: fetchOut.errors,
   });
+
+  return NextResponse.json(
+    {
+      rooms: fetchOut.rooms,
+      tasks: fetchOut.tasks,
+      cached: false,
+      cacheState: "missing",
+      errors: fetchOut.errors.length ? fetchOut.errors : undefined,
+    },
+    {
+      headers: {
+        "Server-Timing": buildServerTimingHeader([
+          { name: "auth", ms: authMs },
+          ...fetchOut.timings.map((t) => ({
+            name: t.source,
+            ms: t.ms,
+            desc: t.ok ? undefined : `error: ${t.error || ""}`,
+          })),
+          { name: "total", ms: totalMs },
+        ]),
+      },
+    },
+  );
 }
+
+/** Re-export so the legacy spec helper still exists for tests. */
+export { FRESH_TTL_MS };
