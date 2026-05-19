@@ -732,11 +732,16 @@ html.dark .ac-mode-badge.is-management {
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
   flex-shrink: 0;
 }
-.ac-tab:hover { background: #F3F4F6; color: #111827; }
+.ac-tab:hover { background: #F3F4F6; color: #111827; transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease; }
 .ac-tab.is-active {
   background: var(--color-accent, #4F46E5);
   color: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: var(--font-weight-semibold);
+  /* Stronger visual hit: deeper shadow + tinted ring so the active pill
+     reads at a glance even on busy backgrounds. */
+  box-shadow:
+    0 2px 6px color-mix(in srgb, var(--color-accent, #4F46E5) 35%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--color-accent, #4F46E5) 28%, transparent);
 }
 
 .ac-icon-btn {
@@ -3781,9 +3786,11 @@ html.dark .ac-bottom-nav-tab.is-primary:hover { background: #2563EB; }
     align-items: center;
     justify-content: space-around;
   }
-  /* Main content gets padding so the last row isn't hidden behind the bar. */
+  /* Main content gets padding so the last row isn't hidden behind the bar.
+     Bumped to 96px (was 72px) to cover BottomNav (64px) + the raised
+     center "+" button which extends ~12px above the bar via translateY. */
   .ac-main {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
 }
 
@@ -5805,5 +5812,109 @@ html.dark .ac-sales-vacant-card:hover {
   .ac-tab {
     padding: 4px 10px;
     font-size: 11px;
+  }
+}
+
+/* ============================================================
+ * 404 fallback page (app/not-found.tsx)
+ * Centered card, design tokens, mobile-stacked buttons
+ * ============================================================ */
+.ac-notfound {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: var(--color-bg, #F8FAFC);
+}
+.ac-notfound-card {
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-7) var(--space-5);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.ac-notfound-icon {
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+  display: inline-flex;
+}
+.ac-notfound-number {
+  font-size: 64px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  color: color-mix(in srgb, var(--color-text) 18%, transparent);
+  letter-spacing: -2px;
+  margin-bottom: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+.ac-notfound-title {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  margin: 0 0 var(--space-2) 0;
+}
+.ac-notfound-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0 auto var(--space-5);
+  max-width: 360px;
+  line-height: 1.5;
+}
+.ac-notfound-actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+@media (max-width: 480px) {
+  .ac-notfound-actions {
+    flex-direction: column-reverse;
+  }
+  .ac-notfound-actions .ac-btn {
+    width: 100%;
+  }
+}
+
+/* ============================================================
+ * Mobile typography — Thai-aware word-break
+ * (polish-pack TASK 3)
+ * Thai doesn't use spaces between words; the default `break-word`
+ * can split mid-word at line ends. Constrain wrap to natural
+ * boundaries on small viewports.
+ * ============================================================ */
+@media (max-width: 640px) {
+  /* Apply only to content text — not buttons / pills / nav chrome */
+  .ac-main p,
+  .ac-main h1,
+  .ac-main h2,
+  .ac-main h3,
+  .ac-main .ac-sc-label,
+  .ac-main .ac-sc-num,
+  .ac-main .ac-sales-row-title,
+  .ac-main .ac-sales-row-sub,
+  .ac-main .ac-sales-section-title,
+  .ac-main .ac-empty-title,
+  .ac-main .ac-empty-desc,
+  .ac-main .ac-kanban-card-note {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  /* KPI numbers — clamp font size so long numbers (5+ digits) don't wrap */
+  .ac-sales-kpi-value,
+  .ac-kanban-kpi-value {
+    font-size: 22px;
+  }
+
+  /* Building names on cards — never wrap mid-word */
+  .ac-sales-row-sub,
+  .ac-vacant-room-card-meta {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
