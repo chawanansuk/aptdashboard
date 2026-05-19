@@ -60,7 +60,7 @@ type EditState = {
 
 export default function TasksList({ tasks, title, emptyText, onChanged }: Props) {
   const { data: session } = useSession();
-  const canDelete = canDeleteTask(session?.user?.role);
+  const canDelete = canDeleteTask(session?.user?.roles);
 
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
