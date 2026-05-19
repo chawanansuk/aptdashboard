@@ -262,9 +262,13 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
 
       {!loading && rows && filtered.length === 0 && (
         <EmptyState
-          icon="rooms"
+          icon="facility"
           title="ยังไม่มีสาธารณูปโภคในตึกนี้"
-          description={canWrite ? "เพิ่มลิฟต์ สระว่ายน้ำ เครื่องปั่นไฟ หรือสาธารณูปโภคอื่น เพื่อเริ่มติดตามรอบบำรุง" : undefined}
+          description={
+            canWrite
+              ? "เริ่มต้นด้วยการเพิ่มลิฟต์ สระว่ายน้ำ เครื่องปั่นไฟ หรือสิ่งอำนวยความสะดวกอื่น เพื่อจัดรอบบำรุงรักษาและติดตามสถานะใช้งาน"
+              : "ยังไม่มีข้อมูลสาธารณูปโภคในตึกนี้ — ติดต่อทีมจัดการเพื่อเพิ่มข้อมูล"
+          }
           action={canWrite ? { label: "+ เพิ่มสาธารณูปโภค", onClick: () => setAddOpen(true) } : undefined}
         />
       )}

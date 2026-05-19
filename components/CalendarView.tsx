@@ -274,7 +274,12 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
             <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setSelectedDay(null)}>ปิด</button>
           </header>
           {selectedTasks.length === 0 ? (
-            <EmptyState icon="calendar" title="ไม่มีงานในวันนี้" />
+            <EmptyState
+              icon="calendar"
+              compact
+              title="ไม่มีงานในวันนี้"
+              description="เลือกวันอื่นในปฏิทิน หรือเพิ่มงานใหม่ผ่านปุ่ม + ด้านล่าง"
+            />
           ) : (
             <div className="ac-cal-task-list">
               {selectedTasks.map((t, i) => {

@@ -123,7 +123,12 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
           <tbody>
             {tenants.length === 0 && (
               <tr><td colSpan={5} style={{ padding: 0 }}>
-                <EmptyState icon="search" title="ไม่พบผู้เช่าในเงื่อนไขนี้" description="ลองเปลี่ยน filter หรือลบคำค้นหา" />
+                <EmptyState
+                  icon="search"
+                  tone="warning"
+                  title="ไม่พบผู้เช่าในเงื่อนไขนี้"
+                  description="ลองล้างคำค้นหา หรือเปลี่ยนตัวกรองสถานะสัญญา (ใกล้หมด/เลยกำหนด) เพื่อดูผู้เช่าทั้งหมด"
+                />
               </td></tr>
             )}
             {tenants.map((r) => {

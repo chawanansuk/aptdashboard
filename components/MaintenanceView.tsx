@@ -234,9 +234,18 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
 
       {!loading && rows && filtered.length === 0 && (
         <EmptyState
-          icon="search"
-          title="ไม่มีอุปกรณ์ตามตัวกรองนี้"
-          description="ลองเลือกตัวกรองสถานะหรือประเภทอื่น เพื่อดูรายการอุปกรณ์ทั้งหมด"
+          icon={statusFilter === "all" && typeFilter === "all" ? "maintenance" : "search"}
+          tone={statusFilter === "all" && typeFilter === "all" ? "neutral" : "warning"}
+          title={
+            statusFilter === "all" && typeFilter === "all"
+              ? "ยังไม่มีรายการบำรุงรักษา"
+              : "ไม่มีอุปกรณ์ตามตัวกรองนี้"
+          }
+          description={
+            statusFilter === "all" && typeFilter === "all"
+              ? "เริ่มต้นด้วยการเพิ่มอุปกรณ์ที่ต้องตรวจสอบในห้อง — แอร์ ตู้เย็น เครื่องซักผ้า — ระบบจะแจ้งเตือนเมื่อใกล้ถึงรอบบำรุง"
+              : "ลองเลือกตัวกรองสถานะหรือประเภทอื่น เพื่อดูรายการอุปกรณ์ทั้งหมด"
+          }
         />
       )}
 

@@ -5455,3 +5455,51 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   align-items: center;
   gap: 6px;
 }
+
+/* ============================================================
+ * EmptyState tone variants + actions wrapper + compact mode
+ * (components/EmptyState.tsx — extended for PR 4)
+ * ============================================================ */
+.ac-empty-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+/* Celebration tone — green accent, used for "no work today 🎉" style */
+.ac-empty-state-celebration .ac-empty-icon {
+  color: #22C55E;
+}
+.ac-empty-state-celebration .ac-empty-title {
+  color: #16A34A;
+}
+html.dark .ac-empty-state-celebration .ac-empty-icon { color: #4ADE80; }
+html.dark .ac-empty-state-celebration .ac-empty-title { color: #4ADE80; }
+
+/* Warning tone — orange, used for "filter excluded everything" */
+.ac-empty-state-warning .ac-empty-icon {
+  color: #F97316;
+}
+.ac-empty-state-warning .ac-empty-title {
+  color: #C2410C;
+}
+html.dark .ac-empty-state-warning .ac-empty-icon { color: #FB923C; }
+html.dark .ac-empty-state-warning .ac-empty-title { color: #FB923C; }
+
+/* Compact mode — smaller padding + smaller icon (for inline empties
+   inside cards/sections, not full-page). */
+.ac-empty-state-compact {
+  padding: 20px 12px;
+}
+.ac-empty-state-compact .ac-empty-icon svg {
+  width: 40px;
+  height: 40px;
+}
+.ac-empty-state-compact .ac-empty-title {
+  font-size: 14px;
+}
+.ac-empty-state-compact .ac-empty-desc {
+  font-size: 12px;
+}

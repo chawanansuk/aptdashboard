@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { RoomRow, SheetRow } from "@/types";
 import { parseSheetDate } from "@/lib/dateUtils";
+import EmptyState from "./EmptyState";
 
 type Props = {
   open: boolean;
@@ -141,7 +142,13 @@ export default function SummaryDrawer({ open, onClose, rooms, tasks, onAddTask, 
             </div>
 
             {visibleTasks.length === 0 ? (
-              <div className="ac-summary-empty">ไม่มีงานในช่วงนี้ 🎉</div>
+              <EmptyState
+                icon="celebration"
+                tone="celebration"
+                compact
+                title="ไม่มีงานในช่วงนี้ 🎉"
+                description="ทุกอย่างเรียบร้อย — ไม่มีงานที่ต้องทำในช่วงเวลาที่เลือก"
+              />
             ) : (
               <ul className="ac-summary-task-rows">
                 {visibleTasks.map((t, i) => {
