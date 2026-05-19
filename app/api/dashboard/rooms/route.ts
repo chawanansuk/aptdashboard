@@ -88,6 +88,11 @@ export async function GET() {
       { rooms: project(c.data), cached: true, cacheState: "fresh", ageMs: c.ageMs },
       {
         headers: {
+          // Browser cache only (`private`) — never CDN. Rooms response
+          // varies by user role (PII strip, PR #61), so a shared CDN
+          // could leak management's data to sales. 60s fresh covers
+          // typical click-back navigation cheaply.
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
           "Server-Timing": [
             timing("auth", authMs),
             timing("cache", 0, "fresh hit"),
@@ -106,6 +111,11 @@ export async function GET() {
       { rooms: project(c.data), cached: true, cacheState: "stale", ageMs: c.ageMs },
       {
         headers: {
+          // Browser cache only (`private`) — never CDN. Rooms response
+          // varies by user role (PII strip, PR #61), so a shared CDN
+          // could leak management's data to sales. 60s fresh covers
+          // typical click-back navigation cheaply.
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
           "Server-Timing": [
             timing("auth", authMs),
             timing("cache", 0, "stale hit"),
@@ -128,6 +138,11 @@ export async function GET() {
       { rooms: project(rooms), cached: false, cacheState: "missing" },
       {
         headers: {
+          // Browser cache only (`private`) — never CDN. Rooms response
+          // varies by user role (PII strip, PR #61), so a shared CDN
+          // could leak management's data to sales. 60s fresh covers
+          // typical click-back navigation cheaply.
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
           "Server-Timing": [
             timing("auth", authMs),
             timing("rooms", fetchMs),
@@ -145,6 +160,11 @@ export async function GET() {
       {
         status: 502,
         headers: {
+          // Browser cache only (`private`) — never CDN. Rooms response
+          // varies by user role (PII strip, PR #61), so a shared CDN
+          // could leak management's data to sales. 60s fresh covers
+          // typical click-back navigation cheaply.
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
           "Server-Timing": [
             timing("auth", authMs),
             timing("rooms", Date.now() - fetchStart, `error: ${error}`),

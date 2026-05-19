@@ -177,6 +177,9 @@ export async function GET() {
       },
       {
         headers: {
+          // Browser cache only — response varies by user role (PII strip).
+          // 30s fresh + 120s SWR for the combined endpoint.
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
           "Server-Timing": buildServerTimingHeader([
             { name: "auth", ms: authMs },
             { name: "cache", ms: 0, desc: "fresh hit" },
@@ -205,6 +208,9 @@ export async function GET() {
       },
       {
         headers: {
+          // Browser cache only — response varies by user role (PII strip).
+          // 30s fresh + 120s SWR for the combined endpoint.
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
           "Server-Timing": buildServerTimingHeader([
             { name: "auth", ms: authMs },
             { name: "cache", ms: 0, desc: "stale hit + bg revalidate" },
@@ -237,6 +243,7 @@ export async function GET() {
     },
     {
       headers: {
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
         "Server-Timing": buildServerTimingHeader([
           { name: "auth", ms: authMs },
           ...fetchOut.timings.map((t) => ({
