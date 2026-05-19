@@ -25,6 +25,7 @@ import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/p
 import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { canAccess, getDefaultRoute, type Route } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
+import { parseCostInput } from "@/lib/taskCost";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
@@ -103,6 +104,7 @@ export default function Home() {
   const [tCustomer, setTCustomer] = useState<string>("");
   const [tPhone, setTPhone] = useState<string>("");
   const [tNote, setTNote] = useState<string>("");
+  const [tCost, setTCost] = useState<string>("");
 
   // ---- Bulk ----
   const [bulkMode, setBulkMode] = useState(false);
@@ -406,6 +408,8 @@ export default function Home() {
     if (!tBuilding || !tRoom) { setToast({ type: "err", msg: "กรอกตึกและเลขห้อง" }); return; }
     setSavingTask(true);
     try {
+      // Parse cost client-side so the server gets a clean number (or undefined)
+      const costNum = tCost ? parseCostInput(tCost) : 0;
       const res = await fetch("/api/sheet/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -413,6 +417,7 @@ export default function Home() {
           action: "addTask",
           date: tDate, type: tType, building: tBuilding, room: tRoom,
           customer: tCustomer, phone: tPhone, note: tNote,
+          ...(costNum > 0 ? { cost: costNum } : {}),
         }),
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
@@ -420,7 +425,7 @@ export default function Home() {
       if (data.ok) {
         setToast({ type: "ok", msg: "เพิ่มงานแล้ว — รีเฟรชข้อมูล" });
         setShowAddTask(false);
-        setTCustomer(""); setTPhone(""); setTNote(""); setTRoom("");
+        setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");
         refresh();
       } else {
         const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
@@ -703,7 +708,7 @@ export default function Home() {
         saving={savingTask}
         buildings={buildings}
         date={tDate} type={tType} building={tBuilding} room={tRoom}
-        customer={tCustomer} phone={tPhone} note={tNote}
+        customer={tCustomer} phone={tPhone} note={tNote} cost={tCost}
         onChange={(p) => {
           if (p.date !== undefined) setTDate(p.date);
           if (p.type !== undefined) setTType(p.type);
@@ -712,6 +717,7 @@ export default function Home() {
           if (p.customer !== undefined) setTCustomer(p.customer);
           if (p.phone !== undefined) setTPhone(p.phone);
           if (p.note !== undefined) setTNote(p.note);
+          if (p.cost !== undefined) setTCost(p.cost);
         }}
         onClose={() => setShowAddTask(false)}
         onSubmit={handleAddTask}

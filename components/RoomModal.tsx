@@ -6,6 +6,7 @@ import type { RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
 import { canEditTenant } from "@/lib/permissions";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { sumCompletedCosts, formatBaht as formatTaskBaht } from "@/lib/taskCost";
 
 // Lazy-load equipment tab: fetches the chunk + first API call only when
 // the user clicks the "อุปกรณ์" tab
@@ -158,6 +159,10 @@ export default function RoomModal({
   /* ----- Derived header facts ----- */
   const daysLeft = daysUntilContract(contractEnd);
   const priceDisplay = formatBaht(price);
+  const completedCostsTotal = useMemo(
+    () => sumCompletedCosts(room.pastTasks),
+    [room.pastTasks]
+  );
 
   return (
     <div className="ac-modal-backdrop" onClick={() => !saving && onClose()}>
@@ -200,6 +205,12 @@ export default function RoomModal({
               {room.pastTasks.length > 0 && (
                 <span className="ac-room-modal-chip ac-room-modal-chip-muted">
                   ประวัติงาน {room.pastTasks.length} รายการ
+                </span>
+              )}
+              {completedCostsTotal > 0 && (
+                <span className="ac-room-modal-chip ac-room-modal-chip-muted">
+                  <span className="ac-room-modal-chip-icon">฿</span>
+                  รวมที่ใช้จ่าย {formatTaskBaht(completedCostsTotal)}
                 </span>
               )}
             </div>
@@ -416,6 +427,11 @@ export default function RoomModal({
                                 <span className="ac-room-history-date">· {t.date}</span>
                                 {t.creator && (
                                   <span className="ac-room-history-by">· โดย {t.creator}</span>
+                                )}
+                                {typeof t.cost === "number" && t.cost > 0 && (
+                                  <span className="ac-room-history-cost">
+                                    · {formatTaskBaht(t.cost)}
+                                  </span>
                                 )}
                               </div>
                               {t.customer && (
