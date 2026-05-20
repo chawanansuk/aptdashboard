@@ -235,6 +235,12 @@ export function useDashboardData(): DashboardState {
         (latestTasks !== null && latestTasks.length > 0) ||
         rooms.length > 0 ||
         tasks.length > 0;
+      // Surface per-slice errors collected in `errs` to the banner state.
+      // Without this, an Apps Script "quota exceeded" / 502 etc. would be
+      // logged but invisible to the user (loadSlice swallows them into the
+      // local array; only the outer try/catch hits setErrors, and that
+      // path almost never fires because loadSlice doesn't throw).
+      setErrors(errs);
       setLastUpdated(new Date().toLocaleTimeString("th-TH") + (anyCached ? " (server cache)" : ""));
       setStatus(errs.length && !hasAnyData ? "error" : "ok");
       setIsInitial(false);
@@ -268,10 +274,15 @@ export function useDashboardData(): DashboardState {
           ? (j as { rooms: RoomRow[] }).rooms
           : [];
         latestRooms = arr;
-        if (arr.length) setRooms(arr);
+        // Always write the new array — including empty `[]` — so that when
+        // the last room in a building is deleted/moved the UI reflects it
+        // instead of showing stale data forever.
+        setRooms(arr);
         roomsDone = true;
-        // Progressive: as soon as rooms land, drop the initial spinner
-        // (the page already shows the grid; tasks fill in when ready).
+        // Progressive: as soon as rooms land, drop the initial spinner.
+        // We still gate on `arr.length` here because an empty initial
+        // response shouldn't hide the skeleton (UI looks broken otherwise);
+        // the real "we have data" signal is a non-zero response.
         if (arr.length) setIsInitial(false);
       });
       const tasksPromise = loadSlice("/api/dashboard/tasks", (j) => {
@@ -279,7 +290,8 @@ export function useDashboardData(): DashboardState {
           ? (j as { tasks: SheetRow[] }).tasks
           : [];
         latestTasks = arr;
-        if (arr.length) setTasks(arr);
+        // Same fix as rooms — write empty arrays so deletions show up
+        setTasks(arr);
         tasksDone = true;
       });
       await Promise.all([roomsPromise, tasksPromise]);
