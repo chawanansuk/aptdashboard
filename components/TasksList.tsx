@@ -6,6 +6,7 @@ import { canDeleteTask } from "@/lib/permissions";
 import {
   bucketTasks, daysOverdue, URGENCY_META, type Urgency,
 } from "@/lib/taskUrgency";
+import { TASK_STATUS } from "@/lib/taskStatus";
 import EmptyState from "./EmptyState";
 
 // dd/MM/yyyy <-> yyyy-MM-dd conversion for <input type="date">
@@ -413,7 +414,7 @@ function TaskCard({
         )}
         {(done || cancelled) && (
           <button className="ac-btn ac-btn-ghost ac-btn-sm" disabled={busy}
-            onClick={() => onPickStatus(t, "ว่าง")} title="ดึงกลับเป็นยังไม่เสร็จ">คืน</button>
+            onClick={() => onPickStatus(t, TASK_STATUS.PENDING)} title="ดึงกลับเป็นยังไม่เสร็จ">คืน</button>
         )}
         {canDelete && (
           <button className="ac-btn ac-btn-danger ac-btn-sm" disabled={busy}
