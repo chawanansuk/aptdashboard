@@ -15,6 +15,11 @@ export function parseThaiDate(dateStr: string): Date | null {
   if (parts.length !== 3) return null;
   const [day, month, year] = parts.map((p) => parseInt(p, 10));
   if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  // Range validation — ป้องกัน Date constructor accept "99/99/2026"
+  // ที่ overflow ไปวันที่อื่นโดยไม่ throw error
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (year < 1900 || year > 2200) return null;
   // สร้างวันที่ใน timezone Bangkok โดยตรง
   const bangkokDateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00`;
   const date = fromZonedTime(new Date(bangkokDateStr), TZ);

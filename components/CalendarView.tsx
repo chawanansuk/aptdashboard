@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
+import { isClosedStatus } from "@/lib/constants";
 import EmptyState from "./EmptyState";
 
 interface Props {
@@ -41,10 +42,7 @@ function dayLabelShort(d: Date): string {
   return `${DAY_NAMES[dowIdx]} ${d.getDate()} ${MONTH_NAMES_SHORT[d.getMonth()]}`;
 }
 
-function isClosedStatus(s: string): boolean {
-  const t = (s || "").trim();
-  return t === "เสร็จ" || t === "done" || t === "ปิดแล้ว" || t === "ยกเลิก" || t === "cancelled";
-}
+// isClosedStatus moved to lib/constants for shared use
 
 export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoom }: Props) {
   const roomMap = useMemo(() => {
