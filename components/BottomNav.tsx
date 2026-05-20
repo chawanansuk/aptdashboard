@@ -7,7 +7,8 @@ import { Icon, type IconName } from "@/lib/icons";
 export type BottomNavView =
   | "overview" | "today" | "ready" | "tenants"
   | "qc" | "repair" | "maintenance" | "facilities"
-  | "income" | "calendar";
+  | "income" | "calendar"
+  | "salespipeline" | "engineerkanban";
 
 interface Tab {
   key: BottomNavView | "add";
@@ -54,15 +55,19 @@ function pickRoleTabs(roles: Role[] | undefined): Tab[] {
     ];
   }
   if (has("engineer")) {
+    // First tab = mode landing page (engineerkanban) so the active-state
+    // indicator works when the user is on their home view.
     return [
-      { key: "repair",      label: "งานซ่อม",   icon: "tasks" },
-      { key: "maintenance", label: "บำรุง",     icon: "maintenance" },
+      { key: "engineerkanban", label: "กระดาน",    icon: "maintenance" },
+      { key: "repair",         label: "งานซ่อม",   icon: "tasks" },
     ];
   }
   if (has("sales")) {
+    // First tab = mode landing (salespipeline) — was missing, so sales
+    // users had no active state on the bottom bar when on their home view.
     return [
-      { key: "ready",   label: "ห้องว่าง",  icon: "grid" },
-      { key: "tenants", label: "ผู้เช่า",   icon: "tenants" },
+      { key: "salespipeline", label: "ภาพรวมขาย", icon: "tenants" },
+      { key: "ready",         label: "ห้องว่าง",  icon: "grid" },
     ];
   }
   // Unknown / no role — should never normally happen since middleware

@@ -38,7 +38,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
   const [editTarget, setEditTarget] = useState<Facility | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async (opts?: { force?: boolean }) => {
+  const load = useCallback(async (opts?: { force?: boolean; signal?: AbortSignal }) => {
     setErr(null);
     if (!opts?.force) {
       const cached = loadFacilityCache();
@@ -49,20 +49,26 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/facilities", { cache: "no-store" });
+      const res = await fetch("/api/facilities", { cache: "no-store", signal: opts?.signal });
       const j = await res.json().catch(() => ({ error: "invalid JSON" }));
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       const list: Facility[] = Array.isArray(j.rows) ? j.rows : [];
+      if (opts?.signal?.aborted) return;
       setRows(list);
       saveFacilityCache(list);
     } catch (e) {
+      if (opts?.signal?.aborted) return;
       setErr(e instanceof Error ? e.message : "Network error");
     } finally {
-      setLoading(false);
+      if (!opts?.signal?.aborted) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load({ signal: ctrl.signal });
+    return () => ctrl.abort();
+  }, [load]);
 
   const filtered = useMemo(() => {
     if (!rows) return [];

@@ -44,7 +44,7 @@ export default function RoomEquipmentTab({ building, room }: Props) {
   const [editTarget, setEditTarget] = useState<RoomEquipment | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async (opts?: { force?: boolean }) => {
+  const load = useCallback(async (opts?: { force?: boolean; signal?: AbortSignal }) => {
     setErr(null);
     if (!opts?.force) {
       const cached = loadEquipmentCache(building, room);
@@ -56,24 +56,30 @@ export default function RoomEquipmentTab({ building, room }: Props) {
     setLoading(true);
     try {
       const url = `/api/room-equipment?building=${encodeURIComponent(building)}&room=${encodeURIComponent(room)}`;
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(url, { cache: "no-store", signal: opts?.signal });
       const j = await res.json().catch(() => ({ error: "invalid JSON" }));
       if (!res.ok) {
         throw new Error(j.error || `HTTP ${res.status}`);
       }
       const list: RoomEquipment[] = Array.isArray(j.rows) ? j.rows : [];
+      // Guard against late completion overwriting newer data after the
+      // user switched to a different room.
+      if (opts?.signal?.aborted) return;
       setRows(list);
       saveEquipmentCache(building, room, list);
     } catch (e) {
+      if (opts?.signal?.aborted) return;
       setErr(e instanceof Error ? e.message : "Network error");
     } finally {
-      setLoading(false);
+      if (!opts?.signal?.aborted) setLoading(false);
     }
   }, [building, room]);
 
   useEffect(() => {
+    const ctrl = new AbortController();
     setRows(null);
-    load();
+    load({ signal: ctrl.signal });
+    return () => ctrl.abort();
   }, [load]);
 
   const filtered = useMemo(() => {

@@ -40,23 +40,29 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { signal?: AbortSignal }) => {
     setErr(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/maintenance-plan", { cache: "no-store" });
+      const res = await fetch("/api/maintenance-plan", { cache: "no-store", signal: opts?.signal });
       const j = await res.json().catch(() => ({ error: "invalid JSON" }));
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
       const list: RoomEquipment[] = Array.isArray(j.rows) ? j.rows : [];
+      if (opts?.signal?.aborted) return;
       setRows(list);
     } catch (e) {
+      if (opts?.signal?.aborted) return;
       setErr(e instanceof Error ? e.message : "Network error");
     } finally {
-      setLoading(false);
+      if (!opts?.signal?.aborted) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load({ signal: ctrl.signal });
+    return () => ctrl.abort();
+  }, [load]);
 
   /** Filtered + sorted equipment list (respects activeBuilding + filters). */
   const filtered = useMemo(() => {

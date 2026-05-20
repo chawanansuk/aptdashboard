@@ -52,21 +52,22 @@ export default function MaintenanceTodaySection({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { signal?: AbortSignal }) => {
     setErr(null);
     setLoading(true);
     try {
       // Fetch equipment + facility in parallel — both contribute to "due today"
       const [equipRes, facRes] = await Promise.all([
-        fetch("/api/maintenance-plan", { cache: "no-store" })
+        fetch("/api/maintenance-plan", { cache: "no-store", signal: opts?.signal })
           .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
           .then((j) => (j.rows || []) as RoomEquipment[])
           .catch(() => [] as RoomEquipment[]),
-        fetch("/api/facilities", { cache: "no-store" })
+        fetch("/api/facilities", { cache: "no-store", signal: opts?.signal })
           .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
           .then((j) => (j.rows || []) as Facility[])
           .catch(() => [] as Facility[]),
       ]);
+      if (opts?.signal?.aborted) return;
 
       const out: BriefingItem[] = [];
       const consider = (list: Array<RoomEquipment | Facility>, kind: ServiceableKind) => {
@@ -91,15 +92,21 @@ export default function MaintenanceTodaySection({
 
       // Most-overdue first, then today
       out.sort((a, b) => a.days - b.days);
+      if (opts?.signal?.aborted) return;
       setItems(out);
     } catch (e) {
+      if (opts?.signal?.aborted) return;
       setErr(e instanceof Error ? e.message : "Network error");
     } finally {
-      setLoading(false);
+      if (!opts?.signal?.aborted) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load({ signal: ctrl.signal });
+    return () => ctrl.abort();
+  }, [load]);
 
   const filtered = useMemo(() => {
     if (!items) return null;
