@@ -99,7 +99,13 @@ export default function Home() {
   // from sales → engineer would leave activeView on a sales-only route
   // and trigger the "ไม่มีสิทธิ์เข้าถึงหน้านี้" toast incorrectly.
   useEffect(() => {
-    if (!effectiveRoles || effectiveRoles.length === 0) return;
+    if (!effectiveRoles || effectiveRoles.length === 0) {
+      // Sign-out / role-loss: reset the ref so a NEW user who signs in
+      // within the same SPA session will still get redirected to their
+      // landing view (previous ref would mark "already landed").
+      lastLandedModeRef.current = null;
+      return;
+    }
     if (lastLandedModeRef.current === modeConfig.mode) return;
     lastLandedModeRef.current = modeConfig.mode;
     const target = modeConfig.defaultLandingView as typeof activeView;

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
 import { loadCache, saveCache } from "@/lib/cacheData";
+import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 
 const STATUS_FROM_ROOM: Record<string, RoomStatus> = {
   // occupied
@@ -79,19 +80,20 @@ export function mergeRoomsAndTasks(
     const k = buildingRoomKey(r.building, r.room);
     const all = tasksByRoom.get(k) || [];
 
+    // r.today flag: task dated today AND not closed (done OR cancelled).
+    // Fix: use central helpers — was missing "done"/"ปิดแล้ว"/"ยกเลิก"
+    // aliases, causing rooms with only cancelled tasks today to show the
+    // red "งานวันนี้" badge.
     const todayTasks = all.filter(
-      (t) => t.date === tKey && t.status !== "เสร็จ"
+      (t) => t.date === tKey && !isDoneStatus(t.status) && !isCancelledStatus(t.status)
     );
     const upcomingTasks = all.filter((t) => {
-      const s = (t.status || "").trim();
-      if (s === "เสร็จ" || s === "done" || s === "ปิดแล้ว" || s === "ยกเลิก" || s === "cancelled") return false;
+      if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
       const d = parseDateDMY(t.date);
       return d && startOfDay(d).getTime() >= today.getTime();
     });
     const pastTasks = all.filter((t) => {
-      const s = (t.status || "").trim();
-      const isClosed = s === "เสร็จ" || s === "done" || s === "ปิดแล้ว" || s === "ยกเลิก" || s === "cancelled";
-      if (isClosed) return true;
+      if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return true;
       const d = parseDateDMY(t.date);
       return d ? startOfDay(d).getTime() < today.getTime() : false;
     }).sort((a, b) => {
