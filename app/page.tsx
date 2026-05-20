@@ -935,9 +935,22 @@ export default function Home() {
               setSummaryOpen(false);
               setShowAddTask(true);
             }}
-            onTaskClick={() => {
+            onTaskClick={(task) => {
+              // Use the task argument so the user lands somewhere useful:
+              // - if the task targets a known room, open that room's modal
+              //   (matches what the user actually clicked on)
+              // - else fall back to filtering by the task's building and
+              //   navigating to today
               setSummaryOpen(false);
-              setActiveView("today");
+              const r = rooms.find(
+                (x) => x.building === task.building && x.room === task.room,
+              );
+              if (r) {
+                setSelectedRoom(r);
+              } else {
+                if (task.building) setActiveBuilding(task.building);
+                setActiveView("today");
+              }
             }}
           />
         </Suspense>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { Role } from "@/auth";
 
@@ -73,8 +73,17 @@ export function useEffectiveRoles(): {
     }
   }, []);
 
-  const effectiveRoles =
-    viewAs === ALL ? actualRoles : actualRoles.includes(viewAs) ? [viewAs] : actualRoles;
+  // Memoize so the array reference is stable when neither actualRoles nor
+  // viewAs changes. Otherwise every render of a parent re-allocates
+  // `[viewAs]`, breaking useMemo/useCallback identity in downstream code.
+  const effectiveRoles = useMemo(() => {
+    if (viewAs === ALL) return actualRoles;
+    return actualRoles.includes(viewAs) ? [viewAs] : actualRoles;
+    // Depend on the joined string of actualRoles so identity is stable
+    // across unchanged content (session re-fires set a new array even
+    // when contents match).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewAs, actualRoles.join("|")]);
 
   return { actualRoles, effectiveRoles, viewAs, setViewAs, isMultiRole };
 }

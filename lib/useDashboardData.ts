@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
 import { loadCache, saveCache } from "@/lib/cacheData";
 
@@ -200,6 +200,9 @@ export function useDashboardData(): DashboardState {
   const [lastUpdated, setLastUpdated] = useState("");
   const [isInitial, setIsInitial] = useState(true);
   const [tick, setTick] = useState(0);
+  // Timestamp of most recent optimistic write — background poll skips for
+  // 30s after to avoid CSV-publish-lag race overwriting the user's change
+  const lastOptimisticAtRef = useRef<number>(0);
 
   // Hydrate from cache synchronously on mount → instant first render with stale data
   useEffect(() => {
@@ -313,15 +316,19 @@ export function useDashboardData(): DashboardState {
   // Background polling: refresh every 60s while the tab is visible.
   // Pauses on hidden tabs to spare Apps Script quota. Survives across
   // visibilitychange — we re-check on resume.
+  // Pause polling for 30s after an optimistic write so the canonical CSV
+  // doesn't race with the user's recent change (CSV publish can lag).
   useEffect(() => {
     if (typeof window === "undefined") return;
     let timer: ReturnType<typeof setInterval> | null = null;
     function start() {
       if (timer) return;
       timer = setInterval(() => {
-        if (document.visibilityState === "visible") {
-          setTick((t) => t + 1);
-        }
+        if (document.visibilityState !== "visible") return;
+        // Skip this tick if user just wrote — let optimistic value settle
+        const sinceWrite = Date.now() - lastOptimisticAtRef.current;
+        if (sinceWrite < 30_000) return;
+        setTick((t) => t + 1);
       }, 60_000);
     }
     function stop() {
@@ -343,6 +350,10 @@ export function useDashboardData(): DashboardState {
     (building: string, room: string, patch: Partial<RoomRow>) => {
       const b = (building || "").trim();
       const r = (room || "").trim();
+      // Stamp so the background poller skips for 30s (gives the canonical
+      // CSV time to publish the same write — otherwise it'd overwrite the
+      // optimistic value with stale data)
+      lastOptimisticAtRef.current = Date.now();
       setRooms((prev) =>
         prev.map((row) =>
           (row.building || "").trim() === b && (row.room || "").trim() === r

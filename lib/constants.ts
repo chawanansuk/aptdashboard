@@ -59,6 +59,12 @@ export function isCancelledStatus(s: string): boolean {
   return t === "ยกเลิก" || t === "cancelled";
 }
 
+/** Closed = done OR cancelled. Convenience helper to avoid duplicated
+ *  `isDone || isCancelled` checks scattered through views. */
+export function isClosedStatus(s: string): boolean {
+  return isDoneStatus(s) || isCancelledStatus(s);
+}
+
 // ===== Equipment (v3.6.0) =====
 export const EQUIPMENT_TYPES: EquipmentType[] = [
   "แอร์", "เครื่องซักผ้า", "ตู้เย็น", "เครื่องทำน้ำอุ่น",

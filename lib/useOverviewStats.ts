@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Facility, RoomEquipment, RoomView, SheetRow } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { getMaintenanceStatus } from "@/lib/maintenanceUtils";
+import { isClosedStatus } from "@/lib/constants";
 
 /* ====================================================================
  * Pure computation helpers — exported for testing.
@@ -22,10 +23,7 @@ function todayDDMMYYYY(): string {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
-function isClosedStatus(s: string): boolean {
-  const t = (s || "").trim();
-  return t === "เสร็จ" || t === "done" || t === "ปิดแล้ว" || t === "ยกเลิก" || t === "cancelled";
-}
+// isClosedStatus moved to lib/constants for shared use
 
 export interface OccupancyStats {
   total: number;
