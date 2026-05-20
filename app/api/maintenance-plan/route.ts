@@ -90,6 +90,10 @@ interface BuildOpts {
 function buildResponse({ body, etag, status, timings, ifNoneMatch }: BuildOpts): NextResponse {
   const headers: Record<string, string> = {
     "Server-Timing": timings.map((t) => timing(t.name, t.ms, t.desc)).join(", "),
+    // Browser-only cache (`private`). Engineer-side data so no PII variance,
+    // but auth-gated by canAddEngTask → keep private to avoid sharing across
+    // sessions/users via any future CDN config.
+    "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
   };
   if (etag) {
     headers["ETag"] = etag;

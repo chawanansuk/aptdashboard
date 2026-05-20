@@ -86,6 +86,11 @@ interface BuildOpts {
 function buildResponse({ body, etag, status, timings, ifNoneMatch }: BuildOpts): NextResponse {
   const headers: Record<string, string> = {
     "Server-Timing": timings.map((t) => timing(t.name, t.ms, t.desc)).join(", "),
+    // Browser cache only (`private`) — NOT `s-maxage` because the response
+    // varies by user role (PR #61 strips tenant PII per role). A shared
+    // CDN cache would risk serving an admin's full response to a sales
+    // user. 15s fresh + 60s SWR matches the data's natural change rate.
+    "Cache-Control": "private, max-age=15, stale-while-revalidate=60",
   };
   if (etag) {
     headers["ETag"] = etag;
