@@ -6030,3 +6030,34 @@ html.dark .ac-skel-rc {
   .ac-rg::-webkit-scrollbar { display: none; }
   .ac-rg > .ac-rc { scroll-snap-align: start; }
 }
+
+/* ============================================================
+ * Skip-to-main-content link (a11y)
+ * Hidden off-screen until keyboard-focused; jumps over header/sidebar
+ * for screen reader / keyboard-only users.
+ * ============================================================ */
+.ac-skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 9999;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--color-accent, #4F46E5);
+  color: #fff;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  /* Hide off-screen until focused */
+  transform: translateY(-200%);
+  transition: transform 150ms ease;
+}
+.ac-skip-link:focus,
+.ac-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+/* Don't trap mouse users in :focus state on click */
+.ac-skip-link:focus:not(:focus-visible) {
+  transform: translateY(-200%);
+}

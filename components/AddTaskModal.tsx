@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { Role } from "@/auth";
 import { canAddSalesTask, canAddEngTask } from "@/lib/permissions";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 interface Props {
   open: boolean;
@@ -92,6 +93,8 @@ export default function AddTaskModal({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [touched, setTouched] = useState<Set<FieldKey>>(new Set());
   const firstFieldRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, dialogRef);
 
   // Reset validation flags when the modal opens/closes
   useEffect(() => {
@@ -182,6 +185,7 @@ export default function AddTaskModal({
   return (
     <div className="ac-modal-backdrop" onClick={() => !saving && onClose()}>
       <div
+        ref={dialogRef}
         className="ac-modal ac-modal-form"
         onClick={(e) => e.stopPropagation()}
         role="dialog"

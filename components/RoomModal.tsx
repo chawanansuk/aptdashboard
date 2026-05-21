@@ -1,12 +1,13 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
 import { canEditTenant, canViewTenant } from "@/lib/permissions";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { sumCompletedCosts, formatBaht as formatTaskBaht } from "@/lib/taskCost";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
 
 // Lazy-load equipment tab: fetches the chunk + first API call only when
@@ -106,6 +107,8 @@ export default function RoomModal({
   const canEdit = canEditTenant(session?.user?.roles);
   const canSeeTenant = canViewTenant(session?.user?.roles);
   const [tab, setTab] = useState<TabKey>(defaultTab || "info");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(true, dialogRef);
   const [showHistory, setShowHistory] = useState(false);
 
   // Validation state — same UX as the redesigned add modals (PR #31)
@@ -171,6 +174,7 @@ export default function RoomModal({
   return (
     <div className="ac-modal-backdrop" onClick={() => !saving && onClose()}>
       <div
+        ref={dialogRef}
         className="ac-modal ac-modal-form"
         onClick={(e) => e.stopPropagation()}
         role="dialog"

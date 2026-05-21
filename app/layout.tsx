@@ -58,6 +58,12 @@ export default async function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
           }}
         />
+        {/* Skip-to-main-content link — keyboard-only users (Tab from address
+            bar) get to bypass the header/sidebar nav. CSS .ac-skip-link
+            hides off-screen until focused. */}
+        <a href="#main-content" className="ac-skip-link">
+          ข้ามไปยังเนื้อหาหลัก
+        </a>
         <SessionProviderClient session={session}>
           <PWAClient />
           <HealthBanner />

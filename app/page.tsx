@@ -657,7 +657,7 @@ export default function Home() {
           groupOrder={modeConfig.sidebarGroupOrder}
         />
 
-        <main className="ac-main">
+        <main className="ac-main" id="main-content" tabIndex={-1}>
           {errors.length > 0 && (
             <div className="ac-banner ac-banner-warn">
               <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
