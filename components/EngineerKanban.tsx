@@ -103,6 +103,9 @@ export function ageLabel(taskDate: string, now: Date = new Date()): string {
 export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEditTask }: Props) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Mobile-only: which single column to show (CSS hides others at <md).
+  // Initial = "pending" because that's where new work arrives.
+  const [activeMobileCol, setActiveMobileCol] = useState<ColumnKey>("pending");
 
   const todayStr = useMemo(() => todayThai(), []);
 
@@ -165,7 +168,32 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
         </div>
       )}
 
-      <div className="ac-kanban-board">
+      {/* Mobile-only tab nav — at <md (768px) the board hides other columns
+          and only shows the one matching activeMobileCol. Desktop ≥md shows
+          all 4 columns as a normal grid. */}
+      <nav
+        className="ac-kanban-mobile-tabs ac-show-mobile-only"
+        role="tablist"
+        aria-label="สลับคอลัมน์งาน"
+      >
+        {COLUMNS.map((col) => (
+          <button
+            key={col.key}
+            type="button"
+            role="tab"
+            aria-selected={activeMobileCol === col.key}
+            className={`ac-kanban-mobile-tab ${activeMobileCol === col.key ? "is-active" : ""}`}
+            onClick={() => setActiveMobileCol(col.key)}
+            style={{ borderBottomColor: activeMobileCol === col.key ? col.accent : "transparent" }}
+          >
+            <span aria-hidden>{col.emoji}</span>
+            <span>{col.label}</span>
+            <span className="ac-kanban-mobile-tab-count">{buckets[col.key].length}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="ac-kanban-board" data-active-col={activeMobileCol}>
         {COLUMNS.map((col) => (
           <KanbanColumn
             key={col.key}

@@ -5950,3 +5950,83 @@ html.dark .ac-skel-rc {
     background: color-mix(in srgb, var(--color-text) 8%, transparent);
   }
 }
+/* ============================================================
+ * Engineer Kanban — mobile tab nav (<md)
+ * At small viewports the 4-column board is too wide to scroll
+ * comfortably. Tabs let the engineer focus on one column at a time.
+ * Desktop ≥md keeps the original grid (rules below override at min-width).
+ * ============================================================ */
+.ac-kanban-mobile-tabs {
+  display: none;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: none;
+}
+.ac-kanban-mobile-tabs::-webkit-scrollbar { display: none; }
+.ac-kanban-mobile-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font-size: 13px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ac-kanban-mobile-tab.is-active {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+.ac-kanban-mobile-tab-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 767.98px) {
+  /* Show tabs; hide non-active columns */
+  .ac-kanban-mobile-tabs { display: flex; }
+  .ac-kanban-board {
+    /* Single column full-width on mobile */
+    grid-template-columns: 1fr !important;
+    overflow-x: visible !important;
+    scroll-snap-type: none !important;
+    padding-bottom: 0 !important;
+  }
+  /* Hide columns whose key doesn't match the active mobile tab.
+     Uses CSS attribute selector on data-column / data-active-col. */
+  .ac-kanban-board[data-active-col="pending"]     .ac-kanban-col[data-column]:not([data-column="pending"]),
+  .ac-kanban-board[data-active-col="in_progress"] .ac-kanban-col[data-column]:not([data-column="in_progress"]),
+  .ac-kanban-board[data-active-col="blocked"]     .ac-kanban-col[data-column]:not([data-column="blocked"]),
+  .ac-kanban-board[data-active-col="done"]        .ac-kanban-col[data-column]:not([data-column="done"]) {
+    display: none;
+  }
+}
+
+/* ============================================================
+ * Heatmap scroll-snap on mobile (room grid horizontal scroll)
+ * .ac-fs is the floor section, .ac-rg is the room grid inside.
+ * On viewports where the grid overflows, snap to room boundaries
+ * so the user can scrub through cleanly with one swipe.
+ * ============================================================ */
+@media (max-width: 767.98px) {
+  .ac-rg {
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .ac-rg::-webkit-scrollbar { display: none; }
+  .ac-rg > .ac-rc { scroll-snap-align: start; }
+}
