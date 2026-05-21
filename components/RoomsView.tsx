@@ -2,10 +2,61 @@
 
 import { useMemo, useState } from "react";
 import type { Role } from "@/auth";
-import type { RoomStatus, RoomView } from "@/types";
+import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
+import { parseThaiDate } from "@/lib/dateUtils";
 import { useRoomDensity, ROOM_DENSITY_VALUES, type RoomDensity } from "@/lib/useRoomDensity";
 import RoomQuickActions from "./RoomQuickActions";
+
+/**
+ * Format relative time (วันนี้ / พรุ่งนี้ / X วันที่แล้ว) — Thai.
+ * Used in heatmap tooltip to give context on the most recent task
+ * without forcing the user to click in.
+ */
+function relativeDateLabel(dmy: string, now: Date = new Date()): string {
+  const d = parseThaiDate(dmy);
+  if (!d) return dmy || "";
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return "วันนี้";
+  if (diff === 1) return "พรุ่งนี้";
+  if (diff === -1) return "เมื่อวาน";
+  if (diff > 1)  return `อีก ${diff} วัน`;
+  return `${Math.abs(diff)} วันที่แล้ว`;
+}
+
+/**
+ * Pick the "most relevant" task to show in heatmap tooltip.
+ *   Priority: today → upcoming → past (newest)
+ */
+function latestTaskFor(r: RoomView): { task: SheetRow; section: "วันนี้" | "ข้างหน้า" | "ผ่านไป" } | null {
+  if (r.todayTasks.length > 0)    return { task: r.todayTasks[0],    section: "วันนี้" };
+  if (r.upcomingTasks.length > 0) return { task: r.upcomingTasks[0], section: "ข้างหน้า" };
+  if (r.pastTasks.length > 0)     return { task: r.pastTasks[0],     section: "ผ่านไป" };
+  return null;
+}
+
+/**
+ * Multi-line tooltip text for a heatmap room cell.
+ * Browser-native `title` accepts \n for line breaks — no custom popover
+ * needed for this level of detail.
+ */
+function buildRoomTooltip(r: RoomView): string {
+  const lines: string[] = [
+    `ห้อง ${r.room} · ${r.building}${r.floor ? ` · ชั้น ${r.floor}` : ""}`,
+    `สถานะ: ${STATUS_LABEL[r.status]}`,
+  ];
+  const latest = latestTaskFor(r);
+  if (latest) {
+    lines.push(
+      `งานล่าสุด (${latest.section}): ${latest.task.type}${
+        latest.task.note ? ` · ${latest.task.note}` : ""
+      }`,
+      relativeDateLabel(latest.task.date),
+    );
+  }
+  return lines.join("\n");
+}
 
 interface Props {
   visibleRooms: RoomView[];
@@ -141,7 +192,11 @@ export default function RoomsView({
                         bulkMode ? onToggleBulkRoom(r.building, r.room) : onSelectRoom(r);
                       }
                     }}
-                    title={`${r.building} ${r.room} • ${STATUS_LABEL[r.status]}`}
+                    // Rich tooltip — multi-line, shows status + latest task
+                    // + relative time. Browser-native title accepts \n so
+                    // we don't need a custom popover for the basic info.
+                    title={buildRoomTooltip(r)}
+                    data-tooltip={buildRoomTooltip(r)}
                   >
                     {r.today && <span className="ac-rc-today" />}
                     {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
