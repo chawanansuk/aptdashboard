@@ -5918,3 +5918,35 @@ html.dark .ac-sales-vacant-card:hover {
     text-overflow: ellipsis;
   }
 }
+
+/* ============================================================
+ * HeatmapSkeleton (components/skeletons/ViewSkeletons.tsx)
+ * Reuses .ac-fs / .ac-rg layout containers from RoomsView so the
+ * skeleton sits in the same grid the real cards will. Cards are
+ * matched to .ac-rc dimensions (66×58, radius 10) to prevent CLS.
+ * ============================================================ */
+.ac-skel-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.ac-skel-rc {
+  width: 66px;
+  height: 58px;
+  border-radius: 10px;
+  /* Re-use the shimmer from .ac-skel by composing both classes? We use
+     a direct background here to avoid coupling shape to text-block styles. */
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 37%, #F1F5F9 63%);
+  background-size: 800px 100%;
+  animation: ac-shimmer 1.4s linear infinite;
+}
+html.dark .ac-skel-rc {
+  background: linear-gradient(90deg, #1E293B 25%, #334155 37%, #1E293B 63%);
+  background-size: 800px 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-skel-rc {
+    animation: none;
+    background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  }
+}
