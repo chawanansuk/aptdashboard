@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { SheetRow } from "@/types";
-import { groupTasksForKanban, ageLabel } from "./EngineerKanban";
+import { groupTasksForKanban, ageLabel, creatorLabel } from "./EngineerKanban";
 import { TASK_STATUS } from "@/lib/taskStatus";
+
+describe("creatorLabel (Task 39)", () => {
+  it("strips @domain from email so card stays compact", () => {
+    expect(creatorLabel("john@example.com")).toBe("john");
+  });
+  it("returns the string as-is when no @", () => {
+    expect(creatorLabel("admin")).toBe("admin");
+  });
+  it("returns '—' for undefined/empty (consistent fallback)", () => {
+    expect(creatorLabel(undefined)).toBe("—");
+    expect(creatorLabel("")).toBe("—");
+  });
+});
 
 function task(overrides: Partial<SheetRow>): SheetRow {
   return {
