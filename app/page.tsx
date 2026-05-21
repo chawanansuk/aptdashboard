@@ -807,6 +807,7 @@ export default function Home() {
                   activeBuilding={activeBuilding}
                   onSelectRoom={(r) => setSelectedRoom(r)}
                   onQuickAddLead={openQuickAddLead}
+                  onChangeView={(v) => setActiveView(v)}
                 />
               </Suspense>
             </ErrorBoundary>

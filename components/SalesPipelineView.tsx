@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import type { RoomView, SheetRow } from "@/types";
+import { useMemo, useRef } from "react";
+import type { RoomView, SheetRow, RoomStatus } from "@/types";
 import { STATUS_DOT } from "@/lib/constants";
 import { Icon } from "@/lib/icons";
 import { parseThaiDate } from "@/lib/dateUtils";
@@ -13,6 +13,8 @@ interface Props {
   activeBuilding: string;
   onSelectRoom: (r: RoomView) => void;
   onQuickAddLead: () => void;
+  /** Navigate to a different sidebar view (e.g. clicking KPI ห้องว่าง → ready). */
+  onChangeView?: (v: RoomStatus) => void;
 }
 
 /**
@@ -95,8 +97,18 @@ interface Appointment {
 }
 
 export default function SalesPipelineView({
-  rooms, tasks, activeBuilding, onSelectRoom, onQuickAddLead,
+  rooms, tasks, activeBuilding, onSelectRoom, onQuickAddLead, onChangeView,
 }: Props) {
+  // Ref → scroll the "นัดหมายข้างหน้า" section into view when KPI clicked.
+  const appointmentsSectionRef = useRef<HTMLDivElement | null>(null);
+  function focusAppointments() {
+    const el = appointmentsSectionRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Briefly highlight so the user sees what they jumped to.
+    el.classList.add("is-flash");
+    setTimeout(() => el.classList.remove("is-flash"), 1200);
+  }
   // Scope by active building once — every section uses the same scope.
   const scopedRooms = useMemo(
     () => activeBuilding === "ทั้งหมด"
@@ -216,11 +228,31 @@ export default function SalesPipelineView({
 
   return (
     <section className="ac-sales-pipeline" aria-label="ภาพรวมขาย">
-      {/* KPI strip */}
+      {/* KPI strip — every card is clickable (Task 29). Vacant + moveout
+          jump to their sidebar view; appointments scrolls to the section
+          on this page since it has no dedicated route yet. */}
       <div className="ac-sales-kpi">
-        <KpiCard label="ห้องว่าง" value={vacantRooms.length} accent="green" />
-        <KpiCard label="นัดสัปดาห์นี้" value={appointmentsThisWeek} accent="sky" />
-        <KpiCard label="รอย้ายออก" value={moveoutRooms.length} accent="orange" />
+        <KpiCard
+          label="ห้องว่าง"
+          value={vacantRooms.length}
+          accent="green"
+          onClick={onChangeView ? () => onChangeView("ready") : undefined}
+          ariaLabel={`ห้องว่าง ${vacantRooms.length} ห้อง — ไปยังหน้าห้องว่าง`}
+        />
+        <KpiCard
+          label="นัดสัปดาห์นี้"
+          value={appointmentsThisWeek}
+          accent="sky"
+          onClick={focusAppointments}
+          ariaLabel={`นัดสัปดาห์นี้ ${appointmentsThisWeek} นัด — เลื่อนไปดูรายการ`}
+        />
+        <KpiCard
+          label="รอย้ายออก"
+          value={moveoutRooms.length}
+          accent="orange"
+          onClick={onChangeView ? () => onChangeView("moveout") : undefined}
+          ariaLabel={`รอย้ายออก ${moveoutRooms.length} ห้อง — ไปยังหน้ารอย้ายออก`}
+        />
       </div>
 
       {/* Section 1 — ห้องว่างพร้อมขาย (จัดกลุ่มตาม ตึก > ชั้น) */}
@@ -282,7 +314,7 @@ export default function SalesPipelineView({
       </div>
 
       {/* Section 2 — นัดหมายข้างหน้า */}
-      <div className="ac-sales-section">
+      <div className="ac-sales-section" ref={appointmentsSectionRef}>
         <div className="ac-sales-section-head">
           <h3 className="ac-sales-section-title">📅 นัดหมายข้างหน้า</h3>
           <span className="ac-sales-section-count">{upcomingAppointments.length} นัด</span>
@@ -367,9 +399,28 @@ export default function SalesPipelineView({
   );
 }
 
-function KpiCard({ label, value, accent }: { label: string; value: number; accent: "green" | "sky" | "orange" }) {
+interface KpiCardProps {
+  label: string;
+  value: number;
+  accent: "green" | "sky" | "orange";
+  onClick?: () => void;
+  ariaLabel?: string;
+}
+
+function KpiCard({ label, value, accent, onClick, ariaLabel }: KpiCardProps) {
+  const className = `ac-sales-kpi-card ac-sales-kpi-${accent}${onClick ? " is-clickable" : ""}`;
+  // Render as a button when interactive — gets keyboard + focus styles
+  // for free. Static card otherwise (no role inflation).
+  if (onClick) {
+    return (
+      <button type="button" className={className} onClick={onClick} aria-label={ariaLabel}>
+        <div className="ac-sales-kpi-value">{value}</div>
+        <div className="ac-sales-kpi-label">{label}</div>
+      </button>
+    );
+  }
   return (
-    <div className={`ac-sales-kpi-card ac-sales-kpi-${accent}`}>
+    <div className={className}>
       <div className="ac-sales-kpi-value">{value}</div>
       <div className="ac-sales-kpi-label">{label}</div>
     </div>
