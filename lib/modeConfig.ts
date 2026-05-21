@@ -22,6 +22,13 @@ export interface GreetingStats {
   total: number;
   occupancyRate: number;     // 0..1
   tasksToday: number;
+  /** Rooms with moveout notice — re-sell pipeline signal for sales. */
+  moveoutCount: number;
+  /**
+   * Contracts expiring this calendar month. Kept for management mode
+   * (oversight) but unused in sales mode — at this property contracts
+   * auto-renew, so the actionable signal is moveout, not expiry.
+   */
   expiringContractsThisMonth: number;
   maintenanceOverdue: number;
   maintenanceDueSoon: number;
@@ -76,8 +83,8 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
     greetingSubtitle: (s) => {
       const parts: string[] = [];
       if (s.vacant > 0) parts.push(`ห้องว่าง ${s.vacant} ห้อง`);
-      if (s.expiringContractsThisMonth > 0) {
-        parts.push(`สัญญาหมดเดือนนี้ ${s.expiringContractsThisMonth} ราย`);
+      if (s.moveoutCount > 0) {
+        parts.push(`รอย้ายออก ${s.moveoutCount} ห้อง`);
       }
       if (s.tasksToday > 0) parts.push(`งานวันนี้ ${s.tasksToday} รายการ`);
       return parts.length ? parts.join(" · ") : "ยังไม่มีงานเร่งด่วน";

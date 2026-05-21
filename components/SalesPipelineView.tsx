@@ -21,15 +21,17 @@ interface Props {
  *
  *   🏠 ห้องว่างพร้อมขาย      — supply
  *   📅 นัดหมายข้างหน้า        — pipeline (viewings + move-ins, future-dated)
- *   ⏰ สัญญาใกล้หมด          — churn risk + re-sell opportunity (next 30 days)
+ *   🚪 รอย้ายออก             — re-sell pipeline (rooms with notice given)
+ *
+ * Why not "สัญญาใกล้หมด": at this property contracts auto-renew until
+ * the tenant gives notice, so contractEnd is left blank in the source
+ * sheet. The actionable signal is the moveout status — those rooms
+ * become available stock soon and sales should pre-list them.
  *
  * Top KPI strip summarises the three counts so the user can scan in 1s.
- * Floating action button "บันทึกนัดชม" jumps straight to a pre-filled
- * AddTaskModal — handle a phone call without losing context.
  */
 
 const SALES_TASK_TYPES = new Set(["ชมห้อง", "ย้ายเข้า"]);
-const CONTRACT_SOON_DAYS = 30;
 
 /**
  * Preferred building order for grouped views (matches the sales team's
@@ -157,22 +159,31 @@ export default function SalesPipelineView({
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [tasks, activeBuilding]);
 
-  // Contracts expiring within CONTRACT_SOON_DAYS — early warning for sales
-  const expiringContracts = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    type Row = { room: RoomView; daysLeft: number };
+  // Rooms with moveout notice — actionable: sales should pre-list these
+  // for upcoming viewings. We surface the most recent "ย้ายออก" task
+  // date (if any) as a proxy for "noticed on", since the sheet has no
+  // dedicated notice-date column. Falls back to "ไม่ระบุ" when unknown.
+  const moveoutRooms = useMemo(() => {
+    type Row = { room: RoomView; noticedDate: Date | null };
     const out: Row[] = [];
     for (const r of scopedRooms) {
-      if (r.status !== "occupied") continue;
-      if (!r.contractEnd) continue;
-      const d = parseThaiDate(r.contractEnd);
-      if (!d) continue;
-      const daysLeft = Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysLeft < 0 || daysLeft > CONTRACT_SOON_DAYS) continue;
-      out.push({ room: r, daysLeft });
+      if (r.status !== "moveout") continue;
+      const allTasks = [...(r.pastTasks || []), ...(r.upcomingTasks || []), ...(r.todayTasks || [])];
+      let latest: Date | null = null;
+      for (const t of allTasks) {
+        if (t.type !== "ย้ายออก") continue;
+        const d = parseThaiDate(t.date);
+        if (!d) continue;
+        if (!latest || d.getTime() > latest.getTime()) latest = d;
+      }
+      out.push({ room: r, noticedDate: latest });
     }
-    return out.sort((a, b) => a.daysLeft - b.daysLeft);
+    // Sort: most recently noticed first (null/unknown to end)
+    return out.sort((a, b) => {
+      const ta = a.noticedDate?.getTime() ?? -Infinity;
+      const tb = b.noticedDate?.getTime() ?? -Infinity;
+      return tb - ta;
+    });
   }, [scopedRooms]);
 
   // KPI: count upcoming appointments in the next 7 days for the chip
@@ -188,7 +199,7 @@ export default function SalesPipelineView({
       <div className="ac-sales-kpi">
         <KpiCard label="ห้องว่าง" value={vacantRooms.length} accent="green" />
         <KpiCard label="นัดสัปดาห์นี้" value={appointmentsThisWeek} accent="sky" />
-        <KpiCard label="สัญญาใกล้หมด (30 วัน)" value={expiringContracts.length} accent="orange" />
+        <KpiCard label="รอย้ายออก" value={moveoutRooms.length} accent="orange" />
       </div>
 
       {/* Section 1 — ห้องว่างพร้อมขาย (จัดกลุ่มตาม ตึก > ชั้น) */}
@@ -289,23 +300,23 @@ export default function SalesPipelineView({
         )}
       </div>
 
-      {/* Section 3 — สัญญาใกล้หมด */}
+      {/* Section 3 — รอย้ายออก (re-sell pipeline) */}
       <div className="ac-sales-section">
         <div className="ac-sales-section-head">
-          <h3 className="ac-sales-section-title">⏰ สัญญาใกล้หมด</h3>
-          <span className="ac-sales-section-count">{expiringContracts.length} ห้อง</span>
+          <h3 className="ac-sales-section-title">🚪 รอย้ายออก</h3>
+          <span className="ac-sales-section-count">{moveoutRooms.length} ห้อง</span>
         </div>
-        {expiringContracts.length === 0 ? (
-          <div className="ac-sales-empty">ไม่มีสัญญาที่ใกล้หมดใน 30 วัน</div>
+        {moveoutRooms.length === 0 ? (
+          <div className="ac-sales-empty">ไม่มีห้องที่แจ้งย้ายออก</div>
         ) : (
           <div className="ac-sales-list">
-            {expiringContracts.map(({ room, daysLeft }) => (
+            {moveoutRooms.map(({ room, noticedDate }) => (
               <button
                 key={`${room.building}|${room.room}`}
                 className="ac-sales-row"
                 onClick={() => onSelectRoom(room)}
               >
-                <span className="ac-sales-row-dot" style={{ background: STATUS_DOT.occupied }} aria-hidden />
+                <span className="ac-sales-row-dot" style={{ background: STATUS_DOT.moveout }} aria-hidden />
                 <span className="ac-sales-row-main">
                   <span className="ac-sales-row-title">ห้อง {room.room}</span>
                   <span className="ac-sales-row-sub">
@@ -314,8 +325,8 @@ export default function SalesPipelineView({
                     {room.phone ? ` · ${room.phone}` : ""}
                   </span>
                 </span>
-                <span className={`ac-sales-row-meta ${daysLeft <= 7 ? "is-urgent" : ""}`}>
-                  เหลือ {daysLeft} วัน
+                <span className="ac-sales-row-meta">
+                  {noticedDate ? `แจ้ง ${formatDateShort(noticedDate)}` : "—"}
                 </span>
               </button>
             ))}
