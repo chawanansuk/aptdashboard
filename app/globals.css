@@ -6061,3 +6061,68 @@ html.dark .ac-skel-rc {
 .ac-skip-link:focus:not(:focus-visible) {
   transform: translateY(-200%);
 }
+
+/* ============================================================
+ * Heatmap perf + rich tooltip (Task 9)
+ * ============================================================ */
+
+/* Perf: tell the browser each room cell is an independent layout
+   subtree so it can skip work when adjacent cells repaint. */
+.ac-rc {
+  contain: layout style paint;
+}
+
+/* Optional richer tooltip — pure CSS, no JS. Triggered on hover
+   when data-tooltip attribute is present. Falls back gracefully if
+   the native `title` is also set (browser shows one or the other). */
+.ac-rc[data-tooltip] {
+  position: relative;
+}
+.ac-rc[data-tooltip]:hover::after,
+.ac-rc[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  white-space: pre-line;
+  background: rgba(15, 23, 42, 0.96);
+  color: #F8FAFC;
+  font-size: 11px;
+  font-weight: var(--font-weight-regular);
+  line-height: 1.45;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  max-width: 240px;
+  min-width: 160px;
+  text-align: left;
+  /* Reveal after 150ms — spec asks "<150ms" */
+  animation: ac-tooltip-in 150ms ease-out;
+}
+html.dark .ac-rc[data-tooltip]:hover::after,
+html.dark .ac-rc[data-tooltip]:focus-visible::after {
+  background: rgba(241, 245, 249, 0.96);
+  color: #0F172A;
+}
+@keyframes ac-tooltip-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+/* Disable custom tooltip on touch devices — relies on hover state.
+   Native `title` attribute still works for long-press on iOS. */
+@media (hover: none) {
+  .ac-rc[data-tooltip]:hover::after,
+  .ac-rc[data-tooltip]:focus-visible::after {
+    display: none;
+  }
+}
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .ac-rc[data-tooltip]:hover::after,
+  .ac-rc[data-tooltip]:focus-visible::after {
+    animation: none;
+  }
+}
