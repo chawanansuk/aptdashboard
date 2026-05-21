@@ -7,6 +7,7 @@ import {
   bucketTasks, daysOverdue, URGENCY_META, type Urgency,
 } from "@/lib/taskUrgency";
 import { TASK_STATUS } from "@/lib/taskStatus";
+import { publishBusEvent } from "@/lib/realtimeBus";
 import EmptyState from "./EmptyState";
 
 // dd/MM/yyyy <-> yyyy-MM-dd conversion for <input type="date">
@@ -93,6 +94,9 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
       const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
       throw new Error(`${data.error || "ไม่สำเร็จ"}${statusSuffix}`);
     }
+    // Broadcast to other tabs so they refresh — sender refreshes
+    // via the onChanged callback already wired in the parent.
+    publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
   }
 
   async function changeStatus(t: SheetRow, newStatus: string) {
