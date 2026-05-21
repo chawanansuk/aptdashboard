@@ -21,10 +21,51 @@ interface Props {
 }
 
 const GROUP_LABEL: Record<number, string> = {
+  // -1 reserved for "ล่าสุด" (recent) — see RECENT_GROUP_ORDER below
+  [-1]: "ล่าสุด",
   0: "ห้อง",
   1: "หน้า",
   2: "คำสั่ง",
 };
+
+/** localStorage key for recent palette selections. v1 schema. */
+const RECENT_KEY = "aptdash:cmdkRecent:v1";
+const RECENT_MAX = 5;
+
+/** Stored recent entry — minimal so we can survive schema changes. */
+interface RecentEntry {
+  id: string;          // PaletteAction.id
+  type: PaletteAction["type"];
+  label: string;       // snapshot at the time it was used
+  hint?: string;
+}
+
+function loadRecent(): RecentEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as RecentEntry[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(0, RECENT_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function pushRecent(a: PaletteAction): void {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = loadRecent().filter((r) => r.id !== a.id);
+    const next: RecentEntry[] = [
+      { id: a.id, type: a.type, label: a.label, hint: a.hint },
+      ...existing,
+    ].slice(0, RECENT_MAX);
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    // quota exceeded / private mode — ignore
+  }
+}
 
 export default function CommandPalette({
   open, onClose, rooms, roles, commands, onSelectRoom, onChangeView,
@@ -47,7 +88,30 @@ export default function CommandPalette({
 
   const actions = useMemo<PaletteAction[]>(() => {
     if (!open) return [];
-    return buildActions({ rooms, roles, commands, query, onSelectRoom, onChangeView });
+    const base = buildActions({ rooms, roles, commands, query, onSelectRoom, onChangeView });
+    // When the user hasn't typed yet, surface recent selections at the top.
+    // Skip recents that no longer resolve (e.g. room deleted) so we don't
+    // confuse the user with dead links.
+    if (!query.trim()) {
+      const recents = loadRecent();
+      const validIds = new Set(base.map((a) => a.id));
+      const recentActions: PaletteAction[] = recents
+        .filter((r) => validIds.has(r.id) || r.type === "command")
+        .map((r) => ({
+          type: r.type,
+          id: r.id,
+          label: r.label,
+          hint: r.hint,
+          groupOrder: -1,
+          rank: 0,
+        }));
+      // Recents first; deduplicate against base (so the same action doesn't
+      // appear in both "Recent" and its native section)
+      const recentIds = new Set(recentActions.map((r) => r.id));
+      const deduped = base.filter((a) => !recentIds.has(a.id));
+      return [...recentActions, ...deduped];
+    }
+    return base;
   }, [open, rooms, roles, commands, query, onSelectRoom, onChangeView]);
 
   // Reset selection when result list changes shape
@@ -70,6 +134,9 @@ export default function CommandPalette({
       const cmd = commands.find((c) => c.id === cmdId);
       cmd?.run();
     }
+    // Track this selection as a recent item so the next open shows it
+    // at the top (when query is empty)
+    pushRecent(a);
     onClose();
   }
 

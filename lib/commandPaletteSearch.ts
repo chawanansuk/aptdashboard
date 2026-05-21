@@ -174,7 +174,11 @@ export function buildActions(params: {
     actions.push({
       type: "room",
       id: `room:${r.building}:${r.room}`,
-      label: `${r.building} ${r.room}`,
+      // Detailed label: "ห้อง 201 · มั่งมี · ชั้น 2" so the user can
+      // distinguish room 201 across all 5 buildings at a glance instead
+      // of seeing "มั่งมี 201" / "มายทรี48 201" rows that look similar.
+      label: `ห้อง ${r.room} · ${r.building}${r.floor ? ` · ชั้น ${r.floor}` : ""}`,
+      // Hint = status + tenant/phone for quick context
       hint: [
         STATUS_LABEL[r.status],
         r.tenant && `ผู้เช่า ${r.tenant}`,
