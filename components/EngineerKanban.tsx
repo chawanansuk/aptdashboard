@@ -106,6 +106,11 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
   // Mobile-only: which single column to show (CSS hides others at <md).
   // Initial = "pending" because that's where new work arrives.
   const [activeMobileCol, setActiveMobileCol] = useState<ColumnKey>("pending");
+  // Briefly-highlighted column after a KPI click (Task 32). Cleared
+  // by a timeout — desktop sees a ring pulse, mobile sees tab switch.
+  const [flashCol, setFlashCol] = useState<ColumnKey | null>(null);
+  // Briefly-highlighted task keys (e.g. all overdue) after KPI click.
+  const [flashKeys, setFlashKeys] = useState<Set<string>>(new Set());
 
   const todayStr = useMemo(() => todayThai(), []);
 
@@ -145,20 +150,61 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
   }
 
   const totalOpen = buckets.pending.length + buckets.in_progress.length + buckets.blocked.length;
-  const overdueCount = filtered.filter((t) => {
+  const overdueTasks = useMemo(() => filtered.filter((t) => {
     if (categorizeStatus(t.status) === "done") return false;
     if (categorizeStatus(t.status) === "cancelled") return false;
     const d = parseThaiDate(t.date);
     if (!d) return false;
     return d.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
-  }).length;
+  }), [filtered]);
+  const overdueCount = overdueTasks.length;
+
+  /**
+   * Focus a column — switch mobile tab + flash desktop column. Cleared
+   * after 1.2s so the highlight is a brief signal, not a sticky filter.
+   */
+  function focusColumn(col: ColumnKey) {
+    setActiveMobileCol(col);
+    setFlashCol(col);
+    setTimeout(() => setFlashCol((c) => (c === col ? null : c)), 1200);
+  }
+
+  /**
+   * Briefly outline all overdue cards (response to "เลยกำหนด" KPI click).
+   * Cleared after 1.5s. If a card moves columns mid-flash, the class
+   * falls off naturally since `flashKeys` is keyed on task identity.
+   */
+  function flashOverdue() {
+    const keys = new Set(overdueTasks.map(taskKey));
+    if (keys.size === 0) return;
+    setFlashKeys(keys);
+    setTimeout(() => setFlashKeys(new Set()), 1500);
+  }
 
   return (
     <section className="ac-kanban" aria-label="Engineer Kanban">
       <div className="ac-kanban-strip">
-        <KpiCell label="งานเปิดอยู่" value={totalOpen} accent="teal" />
-        <KpiCell label="เลยกำหนด"   value={overdueCount} accent="red" />
-        <KpiCell label="เสร็จวันนี้" value={buckets.done.length} accent="green" />
+        <KpiCell
+          label="งานเปิดอยู่"
+          value={totalOpen}
+          accent="teal"
+          onClick={() => focusColumn("pending")}
+          ariaLabel={`งานเปิดอยู่ ${totalOpen} งาน — โฟกัสคอลัมน์รอเริ่ม`}
+        />
+        <KpiCell
+          label="เลยกำหนด"
+          value={overdueCount}
+          accent="red"
+          onClick={overdueCount > 0 ? flashOverdue : undefined}
+          ariaLabel={`เลยกำหนด ${overdueCount} งาน — ไฮไลต์การ์ดทั้งหมด`}
+        />
+        <KpiCell
+          label="เสร็จวันนี้"
+          value={buckets.done.length}
+          accent="green"
+          onClick={() => focusColumn("done")}
+          ariaLabel={`เสร็จวันนี้ ${buckets.done.length} งาน — โฟกัสคอลัมน์เสร็จ`}
+        />
       </div>
 
       {err && (
@@ -205,6 +251,8 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
             onMove={moveTo}
             onEditTask={onEditTask}
             column={col.key}
+            isFlashing={flashCol === col.key}
+            flashKeys={flashKeys}
           />
         ))}
       </div>
@@ -212,9 +260,26 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
   );
 }
 
-function KpiCell({ label, value, accent }: { label: string; value: number; accent: "teal" | "red" | "green" }) {
+interface KpiCellProps {
+  label: string;
+  value: number;
+  accent: "teal" | "red" | "green";
+  onClick?: () => void;
+  ariaLabel?: string;
+}
+
+function KpiCell({ label, value, accent, onClick, ariaLabel }: KpiCellProps) {
+  const className = `ac-kanban-kpi ac-kanban-kpi-${accent}${onClick ? " is-clickable" : ""}`;
+  if (onClick) {
+    return (
+      <button type="button" className={className} onClick={onClick} aria-label={ariaLabel}>
+        <div className="ac-kanban-kpi-value">{value}</div>
+        <div className="ac-kanban-kpi-label">{label}</div>
+      </button>
+    );
+  }
   return (
-    <div className={`ac-kanban-kpi ac-kanban-kpi-${accent}`}>
+    <div className={className}>
       <div className="ac-kanban-kpi-value">{value}</div>
       <div className="ac-kanban-kpi-label">{label}</div>
     </div>
@@ -223,6 +288,7 @@ function KpiCell({ label, value, accent }: { label: string; value: number; accen
 
 function KanbanColumn({
   label, emoji, accent, tasks, busyKey, onMove, onEditTask, column,
+  isFlashing, flashKeys,
 }: {
   label: string;
   emoji: string;
@@ -232,9 +298,14 @@ function KanbanColumn({
   onMove: (t: SheetRow, newStatus: string) => void;
   onEditTask?: (t: SheetRow) => void;
   column: ColumnKey;
+  isFlashing?: boolean;
+  flashKeys?: Set<string>;
 }) {
   return (
-    <div className="ac-kanban-col" data-column={column}>
+    <div
+      className={`ac-kanban-col ${isFlashing ? "is-flash" : ""}`}
+      data-column={column}
+    >
       <div className="ac-kanban-col-head" style={{ borderTopColor: accent }}>
         <span className="ac-kanban-col-emoji" aria-hidden>{emoji}</span>
         <span className="ac-kanban-col-label">{label}</span>
@@ -252,6 +323,7 @@ function KanbanColumn({
               onMove={onMove}
               onEdit={onEditTask}
               column={column}
+              flashing={flashKeys?.has(taskKey(t)) ?? false}
             />
           ))
         )}
@@ -261,20 +333,24 @@ function KanbanColumn({
 }
 
 function KanbanCard({
-  task, busy, onMove, onEdit, column,
+  task, busy, onMove, onEdit, column, flashing,
 }: {
   task: SheetRow;
   busy: boolean;
   onMove: (t: SheetRow, newStatus: string) => void;
   onEdit?: (t: SheetRow) => void;
   column: ColumnKey;
+  flashing?: boolean;
 }) {
   const typeIcon = task.type === "ซ่อม" ? "🔧" : task.type === "ทำสะอาด" ? "🧹" : "•";
   const age = ageLabel(task.date);
   const overdue = age.startsWith("เลย");
 
   return (
-    <article className={`ac-kanban-card ${busy ? "is-busy" : ""}`} data-type={task.type}>
+    <article
+      className={`ac-kanban-card ${busy ? "is-busy" : ""} ${flashing ? "is-flash" : ""}`}
+      data-type={task.type}
+    >
       <header className="ac-kanban-card-head">
         <span className="ac-kanban-card-type" aria-hidden>{typeIcon}</span>
         <span className="ac-kanban-card-title">
