@@ -527,19 +527,27 @@ export default function Home() {
     },
   ], [isDark]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleAddTask() {
-    if (!tBuilding || !tRoom) { toast.error("กรอกตึกและเลขห้อง"); return; }
+  /**
+   * Submit handler รับค่าที่ validate แล้วจาก AddTaskModal (RHF + zod).
+   * Schema ใน lib/taskSchema.ts ตรวจ structure + room-exists ก่อน;
+   * ที่นี่เหลือแค่ parse cost → number แล้วยิงไป API
+   */
+  async function handleAddTask(values: import("@/lib/taskSchema").TaskFormValues) {
     setSavingTask(true);
     try {
-      // Parse cost client-side so the server gets a clean number (or undefined)
-      const costNum = tCost ? parseCostInput(tCost) : 0;
+      const costNum = values.cost ? parseCostInput(values.cost) : 0;
       const res = await fetch("/api/sheet/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "addTask",
-          date: tDate, type: tType, building: tBuilding, room: tRoom,
-          customer: tCustomer, phone: tPhone, note: tNote,
+          date: values.date,
+          type: values.type,
+          building: values.building,
+          room: values.room,
+          customer: values.customer,
+          phone: values.phone,
+          note: values.note,
           ...(costNum > 0 ? { cost: costNum } : {}),
         }),
       });
@@ -548,6 +556,7 @@ export default function Home() {
       if (data.ok) {
         toast.success("เพิ่มงานแล้ว — รีเฟรชข้อมูล");
         setShowAddTask(false);
+        // Clear quick-add pre-fills so the next open opens fresh
         setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");
         refresh();
       } else {
@@ -872,18 +881,22 @@ export default function Home() {
         saving={savingTask}
         buildings={buildings}
         defaultType={modeConfig.defaultTaskType}
-        date={tDate} type={tType} building={tBuilding} room={tRoom}
-        customer={tCustomer} phone={tPhone} note={tNote} cost={tCost}
-        onChange={(p) => {
-          if (p.date !== undefined) setTDate(p.date);
-          if (p.type !== undefined) setTType(p.type);
-          if (p.building !== undefined) setTBuilding(p.building);
-          if (p.room !== undefined) setTRoom(p.room);
-          if (p.customer !== undefined) setTCustomer(p.customer);
-          if (p.phone !== undefined) setTPhone(p.phone);
-          if (p.note !== undefined) setTNote(p.note);
-          if (p.cost !== undefined) setTCost(p.cost);
+        // initialValues snapshot — parent state plumbs pre-fill from
+        // openAddTaskForRoom / openMaintenanceTask / openQuickAddLead.
+        // Inside the modal, react-hook-form takes over and manages
+        // edits without bouncing back through parent setters.
+        initialValues={{
+          date: tDate,
+          type: tType as never, // schema enum — runtime guard inside modal
+          building: tBuilding as never,
+          room: tRoom,
+          customer: tCustomer,
+          phone: tPhone,
+          note: tNote,
+          cost: tCost,
         }}
+        // Rooms list for "ห้องนี้มีในตึก" cross-field zod validation
+        rooms={rooms.map((r) => ({ building: r.building, room: r.room }))}
         onClose={() => setShowAddTask(false)}
         onSubmit={handleAddTask}
       />
