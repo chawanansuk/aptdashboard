@@ -910,8 +910,9 @@ export default function Home() {
           note: tNote,
           cost: tCost,
         }}
-        // Rooms list for "ห้องนี้มีในตึก" cross-field zod validation
-        rooms={rooms.map((r) => ({ building: r.building, room: r.room }))}
+        // Rooms list for "ห้องนี้มีในตึก" cross-field zod validation +
+        // building-aware placeholder hints (room convention, median price).
+        rooms={rooms.map((r) => ({ building: r.building, room: r.room, price: r.price }))}
         onClose={() => setShowAddTask(false)}
         onSubmit={handleAddTask}
       />

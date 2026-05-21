@@ -13,6 +13,11 @@ import {
   type TaskFormValues,
   type RoomRef,
 } from "@/lib/taskSchema";
+import {
+  getRoomPlaceholder,
+  getCostPlaceholder,
+  getRoomHint,
+} from "@/lib/buildingPlaceholders";
 
 /**
  * Task types ที่แต่ละ role เพิ่มได้:
@@ -119,6 +124,22 @@ export default function AddTaskModal({
 
   const currentType = watch("type");
   const showCustomerSection = TYPES_WITH_CUSTOMER.has(currentType);
+
+  // Building-aware placeholders — adapt to the selected building's naming
+  // convention (e.g. ตึกมีทรัพย์ uses "1.1, 1.2") and price band (median).
+  const currentBuilding = watch("building");
+  const roomPlaceholder = useMemo(
+    () => getRoomPlaceholder(rooms || [], currentBuilding),
+    [rooms, currentBuilding],
+  );
+  const costPlaceholder = useMemo(
+    () => getCostPlaceholder(rooms || [], currentBuilding),
+    [rooms, currentBuilding],
+  );
+  const roomHint = useMemo(
+    () => getRoomHint(rooms || [], currentBuilding),
+    [rooms, currentBuilding],
+  );
 
   // Reset form to fresh initialValues when modal opens (handles "open
   // again with different prefill" scenarios like openAddTaskForRoom).
@@ -246,13 +267,15 @@ export default function AddTaskModal({
                   <input
                     id="ac-addtask-room"
                     type="text"
-                    placeholder="เช่น 101"
+                    placeholder={roomPlaceholder}
                     aria-invalid={!!errors.room}
                     {...register("room")}
                   />
-                  {errors.room && (
+                  {errors.room ? (
                     <span className="ac-field-error">{errors.room.message}</span>
-                  )}
+                  ) : roomHint ? (
+                    <span className="ac-field-hint">{roomHint}</span>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -295,7 +318,7 @@ export default function AddTaskModal({
                   id="ac-addtask-cost"
                   type="text"
                   inputMode="numeric"
-                  placeholder="เช่น 1500"
+                  placeholder={costPlaceholder}
                   {...register("cost")}
                 />
                 <span className="ac-field-hint">

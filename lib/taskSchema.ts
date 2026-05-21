@@ -31,6 +31,9 @@ export const BUILDINGS = ["Kl", "มั่งมี", "มายทรี48", "�
 export interface RoomRef {
   building: string;
   room: string;
+  /** Optional sheet price (raw string from "ราคา" column). Used for
+   *  building-aware placeholders in AddTaskModal — not by the schema. */
+  price?: string;
 }
 
 /**
