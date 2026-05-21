@@ -1,33 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
 import type { Role } from "@/auth";
 import { canAddSalesTask, canAddEngTask } from "@/lib/permissions";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-
-interface Props {
-  open: boolean;
-  saving: boolean;
-  buildings: string[];
-  date: string;
-  type: string;
-  building: string;
-  room: string;
-  customer: string;
-  phone: string;
-  note: string;
-  /** v3.10.0 — optional cost (raw string input; parent owns it) */
-  cost: string;
-  onChange: (patch: Partial<{
-    date: string; type: string; building: string; room: string;
-    customer: string; phone: string; note: string; cost: string;
-  }>) => void;
-  onClose: () => void;
-  onSubmit: () => void;
-  /** Mode-specific preferred default type ("ชมห้อง" for sales, "ซ่อม" for engineer, etc.). */
-  defaultType?: string;
-}
+import {
+  BUILDINGS,
+  makeTaskSchema,
+  type TaskFormValues,
+  type RoomRef,
+} from "@/lib/taskSchema";
 
 /**
  * Task types ที่แต่ละ role เพิ่มได้:
@@ -46,68 +31,84 @@ function defaultTypeFor(
   roles: Role[] | undefined,
   current: string,
   preferred?: string,
-): string {
+): TaskFormValues["type"] {
   // multi-role: keep current if still allowed; otherwise pick default
-  // that matches the user's "primary" focus (sales first, then engineer)
   const list = roles || [];
   const canSales = list.includes("sales") || list.includes("management");
   const canEng   = list.includes("engineer") || list.includes("management");
-  if (canSales && SALES_TASK_TYPES.includes(current as never)) return current;
-  if (canEng && ENG_TASK_TYPES.includes(current as never)) return current;
-  // Mode preference wins next (if allowed for this role mix)
+  if (canSales && SALES_TASK_TYPES.includes(current as never)) return current as TaskFormValues["type"];
+  if (canEng && ENG_TASK_TYPES.includes(current as never)) return current as TaskFormValues["type"];
   if (preferred) {
-    if (canSales && SALES_TASK_TYPES.includes(preferred as never)) return preferred;
-    if (canEng   && ENG_TASK_TYPES.includes(preferred as never))   return preferred;
+    if (canSales && SALES_TASK_TYPES.includes(preferred as never)) return preferred as TaskFormValues["type"];
+    if (canEng   && ENG_TASK_TYPES.includes(preferred as never))   return preferred as TaskFormValues["type"];
   }
   if (canSales) return "ชมห้อง";
   if (canEng)   return "ซ่อม";
-  return current || "ย้ายเข้า";
+  return "ย้ายเข้า";
 }
 
-/* ====================================================================
- * Validation — pure, returns errors keyed by field name
- * ==================================================================== */
-type FieldKey = "building" | "room" | "date" | "type";
-type Errors = Partial<Record<FieldKey, string>>;
+interface Props {
+  open: boolean;
+  saving: boolean;
+  buildings: string[]; // ใช้ list ที่ parent ส่งให้ (อาจ subset ของ BUILDINGS)
+  /** Initial values when opening — Partial so parent can pre-fill some fields
+      (e.g. building+room from openAddTaskForRoom) without supplying all. */
+  initialValues?: Partial<TaskFormValues>;
+  /** Known rooms for cross-field "ห้องนี้มีในตึก" validation */
+  rooms?: RoomRef[];
+  /** Mode-specific preferred default type */
+  defaultType?: string;
+  onClose: () => void;
+  /** Called with validated form values when user submits successfully */
+  onSubmit: (values: TaskFormValues) => Promise<void> | void;
+}
 
-function validate(values: {
-  date: string; type: string; building: string; room: string;
-}): Errors {
-  const e: Errors = {};
-  if (!values.date) e.date = "กรอกวันที่";
-  if (!values.type) e.type = "เลือกประเภทงาน";
-  if (!values.building) e.building = "เลือกตึก";
-  if (!values.room.trim()) e.room = "กรอกเลขห้อง";
-  return e;
+/** Sensible defaults so RHF defaultValues satisfies the schema shape. */
+function buildDefaults(partial: Partial<TaskFormValues> | undefined): TaskFormValues {
+  return {
+    date: partial?.date || new Date().toISOString().slice(0, 10),
+    type: (partial?.type as TaskFormValues["type"]) || "ย้ายเข้า",
+    building: (partial?.building as TaskFormValues["building"]) || ("" as TaskFormValues["building"]),
+    room: partial?.room || "",
+    customer: partial?.customer || "",
+    phone: partial?.phone || "",
+    note: partial?.note || "",
+    cost: partial?.cost || "",
+  };
 }
 
 export default function AddTaskModal({
-  open, saving, buildings, date, type, building, room, customer, phone, note, cost,
-  onChange, onClose, onSubmit, defaultType,
+  open, saving, buildings, initialValues, rooms, defaultType,
+  onClose, onSubmit,
 }: Props) {
   const { data: session } = useSession();
   const roles = session?.user?.roles;
 
-  // Local UI state: errors shown only after a submit attempt or after a
-  // field is blurred. This avoids "screaming red" on a fresh modal.
-  const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [touched, setTouched] = useState<Set<FieldKey>>(new Set());
-  const firstFieldRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, dialogRef);
 
-  // Reset validation flags when the modal opens/closes
-  useEffect(() => {
-    if (open) {
-      setSubmitAttempted(false);
-      setTouched(new Set());
-      // Auto-focus the date field on open for fast keyboard entry
-      const t = setTimeout(() => firstFieldRef.current?.focus(), 30);
-      return () => clearTimeout(t);
-    }
-  }, [open]);
+  // Schema with current rooms list — falls back to base schema when rooms
+  // not yet loaded (avoid blocking submit on transient empty state).
+  const schema = useMemo(() => makeTaskSchema(rooms || []), [rooms]);
 
-  // เลือกประเภทที่ role อนุญาต
+  const defaults = useMemo(() => buildDefaults(initialValues), [initialValues]);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setFocus,
+    formState: { errors, isSubmitting, isValid },
+  } = useForm<TaskFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: defaults,
+    // Validate on blur — feels natural (no screaming red on fresh fields)
+    mode: "onBlur",
+    reValidateMode: "onChange",
+  });
+
+  // ประเภทที่ role อนุญาตให้สร้าง
   const allowedTypes = useMemo(() => {
     const list: string[] = [];
     if (canAddSalesTask(roles)) list.push(...SALES_TASK_TYPES);
@@ -116,74 +117,49 @@ export default function AddTaskModal({
     return list;
   }, [roles]);
 
-  // Reset type when role's allowed set changes
+  const currentType = watch("type");
+  const showCustomerSection = TYPES_WITH_CUSTOMER.has(currentType);
+
+  // Reset form to fresh initialValues when modal opens (handles "open
+  // again with different prefill" scenarios like openAddTaskForRoom).
   useEffect(() => {
     if (!open) return;
-    if (!allowedTypes.includes(type)) {
-      onChange({ type: defaultTypeFor(roles, type, defaultType) });
+    reset(defaults);
+    const t = setTimeout(() => setFocus("date"), 30);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, reset]);
+
+  // Coerce type to allowed value when role mix changes
+  useEffect(() => {
+    if (!open) return;
+    if (!allowedTypes.includes(currentType)) {
+      const next = defaultTypeFor(roles, currentType, defaultType);
+      reset({ ...defaults, type: next });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, roles]);
-
-  const errors = useMemo(
-    () => validate({ date, type, building, room }),
-    [date, type, building, room]
-  );
-  const showCustomerSection = TYPES_WITH_CUSTOMER.has(type);
-
-  // A field shows its error if (a) submit was attempted, or (b) the user
-  // already touched (blurred) that specific field. Both feel natural.
-  function shouldShowError(field: FieldKey): boolean {
-    if (!errors[field]) return false;
-    return submitAttempted || touched.has(field);
-  }
-  function markTouched(field: FieldKey) {
-    setTouched((prev) => {
-      if (prev.has(field)) return prev;
-      const next = new Set(prev);
-      next.add(field);
-      return next;
-    });
-  }
-
-  function attemptSubmit() {
-    setSubmitAttempted(true);
-    if (Object.keys(errors).length > 0) {
-      // Focus the first invalid field
-      const order: FieldKey[] = ["date", "type", "building", "room"];
-      const firstBad = order.find((k) => errors[k]);
-      if (firstBad === "room") {
-        // room is the only text input; let parent handle focus by re-rendering
-        const el = document.getElementById("ac-addtask-room") as HTMLInputElement | null;
-        el?.focus();
-      } else if (firstBad === "building") {
-        const el = document.getElementById("ac-addtask-building") as HTMLSelectElement | null;
-        el?.focus();
-      }
-      return;
-    }
-    onSubmit();
-  }
+  }, [open, roles, allowedTypes]);
 
   // Esc to close, Cmd/Ctrl+Enter to submit
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        if (!saving) onClose();
+        if (!saving && !isSubmitting) onClose();
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        attemptSubmit();
+        handleSubmit(onSubmit)();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, saving, errors]);
+  }, [open, saving, isSubmitting, handleSubmit, onSubmit, onClose]);
 
   if (!open) return null;
+  const busy = saving || isSubmitting;
+
   return (
-    <div className="ac-modal-backdrop" onClick={() => !saving && onClose()}>
+    <div className="ac-modal-backdrop" onClick={() => !busy && onClose()}>
       <div
         ref={dialogRef}
         className="ac-modal ac-modal-form"
@@ -197,174 +173,172 @@ export default function AddTaskModal({
             <div className="ac-modal-title" id="ac-addtask-title">เพิ่มงานใหม่</div>
             <div className="ac-modal-sub">บันทึกลงชีต &quot;งาน&quot;</div>
           </div>
-          <button className="ac-modal-close" onClick={onClose} aria-label="ปิด">✕</button>
+          <button className="ac-modal-close" onClick={onClose} aria-label="ปิด" type="button">✕</button>
         </header>
 
-        <div className="ac-modal-body">
-          {/* SECTION 1 — เมื่อไหร่ + ทำอะไร */}
-          <div className="ac-form-section">
-            <div className="ac-form-section-label">เมื่อไหร่ · ทำอะไร</div>
-            <div className="ac-form-row">
-              <div className={`ac-field ${shouldShowError("date") ? "has-error" : ""}`}>
-                <label htmlFor="ac-addtask-date">
-                  วันที่ <span className="ac-required" aria-hidden>*</span>
-                </label>
-                <input
-                  id="ac-addtask-date"
-                  ref={firstFieldRef}
-                  type="date"
-                  value={date}
-                  onChange={(e) => onChange({ date: e.target.value })}
-                  onBlur={() => markTouched("date")}
-                  aria-invalid={shouldShowError("date") ? "true" : "false"}
-                  aria-describedby={shouldShowError("date") ? "err-date" : undefined}
-                />
-                {shouldShowError("date") && (
-                  <span className="ac-field-error" id="err-date">{errors.date}</span>
-                )}
-              </div>
-              <div className={`ac-field ${shouldShowError("type") ? "has-error" : ""}`}>
-                <label htmlFor="ac-addtask-type">
-                  ประเภท <span className="ac-required" aria-hidden>*</span>
-                </label>
-                <select
-                  id="ac-addtask-type"
-                  value={type}
-                  onChange={(e) => onChange({ type: e.target.value })}
-                  onBlur={() => markTouched("type")}
-                  aria-invalid={shouldShowError("type") ? "true" : "false"}
-                >
-                  {allowedTypes.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                {shouldShowError("type") && (
-                  <span className="ac-field-error">{errors.type}</span>
-                )}
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div className="ac-modal-body">
+            {/* SECTION 1 — เมื่อไหร่ + ทำอะไร */}
+            <div className="ac-form-section">
+              <div className="ac-form-section-label">เมื่อไหร่ · ทำอะไร</div>
+              <div className="ac-form-row">
+                <div className={`ac-field ${errors.date ? "has-error" : ""}`}>
+                  <label htmlFor="ac-addtask-date">
+                    วันที่ <span className="ac-required" aria-hidden>*</span>
+                  </label>
+                  <input
+                    id="ac-addtask-date"
+                    type="date"
+                    aria-invalid={!!errors.date}
+                    aria-describedby={errors.date ? "err-date" : undefined}
+                    {...register("date")}
+                  />
+                  {errors.date && (
+                    <span className="ac-field-error" id="err-date">{errors.date.message}</span>
+                  )}
+                </div>
+                <div className={`ac-field ${errors.type ? "has-error" : ""}`}>
+                  <label htmlFor="ac-addtask-type">
+                    ประเภท <span className="ac-required" aria-hidden>*</span>
+                  </label>
+                  <select
+                    id="ac-addtask-type"
+                    aria-invalid={!!errors.type}
+                    {...register("type")}
+                  >
+                    {allowedTypes.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  {errors.type && (
+                    <span className="ac-field-error">{errors.type.message}</span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* SECTION 2 — ที่ไหน */}
-          <div className="ac-form-section">
-            <div className="ac-form-section-label">ที่ไหน</div>
-            <div className="ac-form-row">
-              <div className={`ac-field ${shouldShowError("building") ? "has-error" : ""}`}>
-                <label htmlFor="ac-addtask-building">
-                  ตึก <span className="ac-required" aria-hidden>*</span>
-                </label>
-                <select
-                  id="ac-addtask-building"
-                  value={building}
-                  onChange={(e) => onChange({ building: e.target.value })}
-                  onBlur={() => markTouched("building")}
-                  aria-invalid={shouldShowError("building") ? "true" : "false"}
-                >
-                  <option value="">— เลือกตึก —</option>
-                  {buildings.map((b) => (<option key={b} value={b}>{b}</option>))}
-                </select>
-                {shouldShowError("building") && (
-                  <span className="ac-field-error">{errors.building}</span>
-                )}
-              </div>
-              <div className={`ac-field ${shouldShowError("room") ? "has-error" : ""}`}>
-                <label htmlFor="ac-addtask-room">
-                  เลขห้อง <span className="ac-required" aria-hidden>*</span>
-                </label>
-                <input
-                  id="ac-addtask-room"
-                  type="text"
-                  value={room}
-                  onChange={(e) => onChange({ room: e.target.value })}
-                  onBlur={() => markTouched("room")}
-                  placeholder="เช่น 101"
-                  aria-invalid={shouldShowError("room") ? "true" : "false"}
-                />
-                {shouldShowError("room") && (
-                  <span className="ac-field-error">{errors.room}</span>
-                )}
+            {/* SECTION 2 — ที่ไหน */}
+            <div className="ac-form-section">
+              <div className="ac-form-section-label">ที่ไหน</div>
+              <div className="ac-form-row">
+                <div className={`ac-field ${errors.building ? "has-error" : ""}`}>
+                  <label htmlFor="ac-addtask-building">
+                    ตึก <span className="ac-required" aria-hidden>*</span>
+                  </label>
+                  <select
+                    id="ac-addtask-building"
+                    aria-invalid={!!errors.building}
+                    {...register("building")}
+                  >
+                    <option value="">— เลือกตึก —</option>
+                    {buildings.filter((b) => b !== "ทั้งหมด").map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                  {errors.building && (
+                    <span className="ac-field-error">{errors.building.message}</span>
+                  )}
+                </div>
+                <div className={`ac-field ${errors.room ? "has-error" : ""}`}>
+                  <label htmlFor="ac-addtask-room">
+                    เลขห้อง <span className="ac-required" aria-hidden>*</span>
+                  </label>
+                  <input
+                    id="ac-addtask-room"
+                    type="text"
+                    placeholder="เช่น 101"
+                    aria-invalid={!!errors.room}
+                    {...register("room")}
+                  />
+                  {errors.room && (
+                    <span className="ac-field-error">{errors.room.message}</span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* SECTION 3 — ผู้ติดต่อ (only for sales-side tasks where it makes sense) */}
-          {showCustomerSection && (
+            {/* SECTION 3 — ผู้ติดต่อ */}
+            {showCustomerSection && (
+              <div className="ac-form-section">
+                <div className="ac-form-section-label">
+                  ผู้ติดต่อ <span className="ac-form-section-optional">(ไม่บังคับ)</span>
+                </div>
+                <div className="ac-field">
+                  <label htmlFor="ac-addtask-customer">ชื่อลูกค้า</label>
+                  <input
+                    id="ac-addtask-customer"
+                    type="text"
+                    {...register("customer")}
+                  />
+                </div>
+                <div className="ac-field">
+                  <label htmlFor="ac-addtask-phone">เบอร์โทร</label>
+                  <input
+                    id="ac-addtask-phone"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="08x-xxx-xxxx"
+                    {...register("phone")}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 4 — ค่าใช้จ่าย + หมายเหตุ */}
             <div className="ac-form-section">
               <div className="ac-form-section-label">
-                ผู้ติดต่อ <span className="ac-form-section-optional">(ไม่บังคับ)</span>
+                ค่าใช้จ่าย · หมายเหตุ <span className="ac-form-section-optional">(ไม่บังคับ)</span>
               </div>
               <div className="ac-field">
-                <label htmlFor="ac-addtask-customer">ชื่อลูกค้า</label>
+                <label htmlFor="ac-addtask-cost">ค่าใช้จ่าย (บาท)</label>
                 <input
-                  id="ac-addtask-customer"
+                  id="ac-addtask-cost"
                   type="text"
-                  value={customer}
-                  onChange={(e) => onChange({ customer: e.target.value })}
+                  inputMode="numeric"
+                  placeholder="เช่น 1500"
+                  {...register("cost")}
                 />
+                <span className="ac-field-hint">
+                  ใส่ตอนสร้าง หรือมาเพิ่มภายหลังตอนทำงานเสร็จก็ได้
+                </span>
               </div>
               <div className="ac-field">
-                <label htmlFor="ac-addtask-phone">เบอร์โทร</label>
-                <input
-                  id="ac-addtask-phone"
-                  type="tel"
-                  inputMode="tel"
-                  value={phone}
-                  onChange={(e) => onChange({ phone: e.target.value })}
-                  placeholder="08x-xxx-xxxx"
+                <label htmlFor="ac-addtask-note">หมายเหตุ</label>
+                <textarea
+                  id="ac-addtask-note"
+                  rows={2}
+                  placeholder="รายละเอียดเพิ่มเติม เช่น เวลานัด, ข้อจำกัด..."
+                  {...register("note")}
                 />
+                {errors.note && (
+                  <span className="ac-field-error">{errors.note.message}</span>
+                )}
               </div>
-            </div>
-          )}
-
-          {/* SECTION 4 — ค่าใช้จ่าย + หมายเหตุ */}
-          <div className="ac-form-section">
-            <div className="ac-form-section-label">
-              ค่าใช้จ่าย · หมายเหตุ{" "}
-              <span className="ac-form-section-optional">(ไม่บังคับ)</span>
-            </div>
-            <div className="ac-field">
-              <label htmlFor="ac-addtask-cost">ค่าใช้จ่าย (บาท)</label>
-              <input
-                id="ac-addtask-cost"
-                type="text"
-                inputMode="numeric"
-                value={cost}
-                onChange={(e) => onChange({ cost: e.target.value })}
-                placeholder="เช่น 1500"
-              />
-              <span className="ac-field-hint">
-                ใส่ตอนสร้าง หรือมาเพิ่มภายหลังตอนทำงานเสร็จก็ได้
-              </span>
-            </div>
-            <div className="ac-field">
-              <label htmlFor="ac-addtask-note">หมายเหตุ</label>
-              <textarea
-                id="ac-addtask-note"
-                rows={2}
-                value={note}
-                onChange={(e) => onChange({ note: e.target.value })}
-                placeholder="รายละเอียดเพิ่มเติม เช่น เวลานัด, ข้อจำกัด..."
-              />
             </div>
           </div>
-        </div>
 
-        <footer className="ac-modal-foot ac-modal-foot-sticky">
-          <span className="ac-modal-foot-hint" aria-hidden>
-            <kbd>⌘</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
-          </span>
-          <button className="ac-btn ac-btn-ghost" onClick={onClose} disabled={saving}>
-            ยกเลิก
-          </button>
-          <button
-            className="ac-btn ac-btn-primary"
-            onClick={attemptSubmit}
-            disabled={saving}
-          >
-            {saving && <span className="ac-btn-spinner" aria-hidden />}
-            {saving ? "กำลังบันทึก..." : "บันทึก"}
-          </button>
-        </footer>
+          <footer className="ac-modal-foot ac-modal-foot-sticky">
+            <span className="ac-modal-foot-hint" aria-hidden>
+              <kbd>⌘</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
+            </span>
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost"
+              onClick={onClose}
+              disabled={busy}
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              className="ac-btn ac-btn-primary"
+              disabled={busy || !isValid}
+            >
+              {busy && <span className="ac-btn-spinner" aria-hidden />}
+              {busy ? "กำลังบันทึก..." : "บันทึก"}
+            </button>
+          </footer>
+        </form>
       </div>
     </div>
   );
