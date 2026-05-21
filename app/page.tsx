@@ -375,7 +375,8 @@ export default function Home() {
       && !isCancelledStatus(t.status)
       && (activeBuilding === "ทั้งหมด" || t.building === activeBuilding)
     ).length;
-    // Contracts expiring this calendar month
+    // Contracts expiring this calendar month — used by management greeting only;
+    // sales greeting uses moveoutCount instead (contracts auto-renew here).
     const thisMonth = d.getMonth();
     const thisYear  = d.getFullYear();
     let expiringContractsThisMonth = 0;
@@ -387,6 +388,8 @@ export default function Home() {
         expiringContractsThisMonth++;
       }
     }
+    // Rooms with moveout notice — re-sell pipeline signal for sales mode.
+    const moveoutCount = scope.filter((r) => r.status === "moveout").length;
     // Monthly income proxy: sum of occupied-room prices
     let monthlyIncome = 0;
     for (const r of scope) {
@@ -399,7 +402,7 @@ export default function Home() {
     // be wired in once a lightweight summary endpoint exists.
     return {
       vacant, occupied, total, occupancyRate,
-      tasksToday, expiringContractsThisMonth,
+      tasksToday, expiringContractsThisMonth, moveoutCount,
       maintenanceOverdue: 0, maintenanceDueSoon: 0,
       monthlyIncome,
     };

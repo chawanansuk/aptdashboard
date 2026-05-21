@@ -87,17 +87,25 @@ describe("MODE_CONFIG", () => {
 describe("greetingSubtitle outputs", () => {
   const baseStats = {
     vacant: 0, occupied: 0, total: 0, occupancyRate: 0,
-    tasksToday: 0, expiringContractsThisMonth: 0,
+    tasksToday: 0, moveoutCount: 0, expiringContractsThisMonth: 0,
     maintenanceOverdue: 0, maintenanceDueSoon: 0, monthlyIncome: 0,
   };
 
-  it("sales mentions vacant + expiring contracts when present", () => {
+  it("sales mentions vacant + moveout pipeline when present", () => {
     const out = MODE_CONFIG.sales.greetingSubtitle({
-      ...baseStats, vacant: 23, expiringContractsThisMonth: 3, tasksToday: 2,
+      ...baseStats, vacant: 23, moveoutCount: 3, tasksToday: 2,
     });
     expect(out).toContain("23");
-    expect(out).toContain("3");
+    expect(out).toContain("รอย้ายออก 3");
     expect(out).toContain("2");
+  });
+
+  it("sales does NOT show expiring contracts (contracts auto-renew here)", () => {
+    const out = MODE_CONFIG.sales.greetingSubtitle({
+      ...baseStats, vacant: 0, expiringContractsThisMonth: 7, tasksToday: 0,
+    });
+    expect(out).not.toContain("สัญญาหมด");
+    expect(out).not.toContain("7");
   });
 
   it("engineer mentions overdue maintenance + today tasks", () => {
