@@ -55,7 +55,7 @@ export type Route =
   // engineer-side jobs + assets
   | "qc" | "repair" | "inactive" | "maintenance" | "facilities" | "engineerkanban"
   // management-only
-  | "income";
+  | "income" | "reports";
 
 const ROUTE_ALLOW: Record<Route, Role[]> = {
   // shared — every authenticated user
@@ -81,6 +81,7 @@ const ROUTE_ALLOW: Record<Route, Role[]> = {
   engineerkanban: ["engineer", "management"],
   // management-only
   income:      ["management"],
+  reports:     ["management"],
 };
 
 export function canAccess(input: RoleInput, route: Route): boolean {
