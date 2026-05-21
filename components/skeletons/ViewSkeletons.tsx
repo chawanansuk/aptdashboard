@@ -209,3 +209,66 @@ export function RoomEquipmentSkeleton() {
     </div>
   );
 }
+
+/* ====================================================================
+ * HeatmapSkeleton — 297-room grid placeholder
+ * Matches RoomsView .ac-rc layout (66×58 cards) to avoid CLS when real
+ * data replaces it. Renders 5 floor sections × N cards/floor; tuned to
+ * look like the real grid without trying to be exact (CLS-safe enough).
+ * ==================================================================== */
+export function HeatmapSkeleton({ floorCount = 4, perFloor = 14 }: { floorCount?: number; perFloor?: number } = {}) {
+  return (
+    <section className="ac-skel-heatmap" aria-busy="true" aria-label="กำลังโหลดผังห้อง">
+      {Array.from({ length: floorCount }).map((_, floor) => (
+        <div key={floor} className="ac-fs">
+          <Skeleton shape="text" width={120} height={18} ariaLabel="" style={{ marginBottom: 12 }} />
+          <div className="ac-rg">
+            {Array.from({ length: perFloor }).map((_, i) => (
+              <div
+                key={i}
+                className="ac-skel-rc"
+                role="status"
+                aria-busy="true"
+                aria-label=""
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/* ====================================================================
+ * KanbanCardSkeleton — single card (granular, used when one column
+ * is loading or a card is mid-write). Matches `.ac-kanban-card` shape.
+ * ==================================================================== */
+export function KanbanCardSkeleton({ withActions = true }: { withActions?: boolean } = {}) {
+  return (
+    <article className="ac-kanban-card" aria-busy="true" aria-label="กำลังโหลดการ์ดงาน">
+      {/* Title row: icon + room + age */}
+      <header className="ac-kanban-card-head">
+        <Skeleton shape="circle" width={14} height={14} ariaLabel="" />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Skeleton shape="text" width="60%" height={14} ariaLabel="" />
+        </div>
+        <Skeleton shape="text" width={48} ariaLabel="" />
+      </header>
+      {/* Note */}
+      <Skeleton shape="text" width="92%" ariaLabel="" style={{ display: "block", marginTop: 4 }} />
+      <Skeleton shape="text" width="64%" ariaLabel="" style={{ display: "block" }} />
+      {/* Customer meta */}
+      <div className="ac-kanban-card-meta">
+        <Skeleton shape="text" width={80} ariaLabel="" />
+        <Skeleton shape="text" width={100} ariaLabel="" />
+      </div>
+      {/* Action buttons */}
+      {withActions && (
+        <footer className="ac-kanban-card-actions">
+          <Skeleton width={64} height={26} ariaLabel="" />
+          <Skeleton width={44} height={26} ariaLabel="" />
+        </footer>
+      )}
+    </article>
+  );
+}

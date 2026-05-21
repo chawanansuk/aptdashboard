@@ -169,8 +169,20 @@ async function fetchWithRetry(url: string, signal: AbortSignal): Promise<Respons
       const res = await fetch(url, { cache: "no-store", signal });
       if (res.ok) {
         const dt = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
+        // Tag the timing line with a hint about likely cache layer so the
+        // acceptance criterion "console.log shows response time < 200ms
+        // after cache warm" is easy to verify in DevTools.
+        const cacheState = res.headers.get("x-vercel-cache") ||
+          (res.status === 304 ? "304-not-modified" : "");
+        const tag =
+          res.status === 304 ? " · etag-304" :
+          dt < 100 ? " · cache-warm" :
+          dt < 300 ? " · cache-ok" :
+          dt < 1000 ? " · network" :
+          " · slow";
+        const cacheNote = cacheState ? ` [${cacheState}]` : "";
         // eslint-disable-next-line no-console
-        console.log(`[dashboard] ${url} ${dt}ms${attempts > 1 ? ` (attempt ${attempts})` : ""}`);
+        console.log(`[dashboard] ${url} ${dt}ms${tag}${cacheNote}${attempts > 1 ? ` (attempt ${attempts})` : ""}`);
         return res;
       }
       if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {

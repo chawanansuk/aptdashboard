@@ -120,6 +120,37 @@ function ItemIcon({ icon: ic }: { icon: SidebarIcon }) {
   return <Icon name={ic.name} size={16} />;
 }
 
+/**
+ * Map a sidebar view key to the API endpoint(s) that the view will fetch
+ * once mounted. Hovering the nav item prefetches these in the background
+ * — browser cache (Cache-Control: private) absorbs the response so the
+ * eventual click renders from cache instead of network.
+ *
+ * Returns `null` for views that don't fetch on mount (overview/today
+ * already use the shared dashboard data hook; no extra fetch needed).
+ */
+function prefetchUrlsFor(key: SidebarView): string[] | null {
+  switch (key) {
+    case "maintenance":     return ["/api/maintenance-plan"];
+    case "facilities":      return ["/api/facilities"];
+    // Sales/Engineer/Tenants views consume the already-loaded dashboard
+    // data — no extra prefetch necessary.
+    default:                return null;
+  }
+}
+
+function prefetch(url: string) {
+  // GET with `cache: "force-cache"` lets browser hit disk cache fast if
+  // we already fetched within Cache-Control max-age window; otherwise
+  // the request goes to network and primes both Vercel SWR + browser cache.
+  // Errors are silent — this is best-effort warmup.
+  try {
+    fetch(url, { cache: "force-cache", credentials: "include" }).catch(() => {});
+  } catch {
+    // ignore — sandbox / SSR
+  }
+}
+
 export default function AppSidebar({
   isOpen, activeView, onChangeView, counts, onBackdropClick, roles, groupOrder,
 }: Props) {
@@ -131,11 +162,15 @@ export default function AppSidebar({
         {groups.map((group) => (
           <div key={group.label} className="ac-side-group">
             <div className="ac-side-label">{group.label}</div>
-            {group.items.map((item) => (
+            {group.items.map((item) => {
+              const prefetchUrls = prefetchUrlsFor(item.key);
+              return (
               <button
                 key={item.key}
                 className={`ac-side-item ${activeView === item.key ? "is-active" : ""}`}
                 onClick={() => onChangeView(item.key)}
+                onMouseEnter={prefetchUrls ? () => prefetchUrls.forEach(prefetch) : undefined}
+                onFocus={prefetchUrls ? () => prefetchUrls.forEach(prefetch) : undefined}
               >
                 <span className="ac-side-icon">
                   <ItemIcon icon={item.icon} />
@@ -145,7 +180,8 @@ export default function AppSidebar({
                   <span className={`ac-badge ${item.badgeClass || ""}`}>{item.badge}</span>
                 )}
               </button>
-            ))}
+              );
+            })}
           </div>
         ))}
       </aside>
