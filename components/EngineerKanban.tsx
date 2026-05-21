@@ -8,6 +8,7 @@ import {
   categorizeStatus,
   type StatusCategory,
 } from "@/lib/taskStatus";
+import { computeSla, slaBadgeLabel } from "@/lib/sla";
 
 interface Props {
   tasks: SheetRow[];
@@ -345,10 +346,17 @@ function KanbanCard({
   const typeIcon = task.type === "ซ่อม" ? "🔧" : task.type === "ทำสะอาด" ? "🧹" : "•";
   const age = ageLabel(task.date);
   const overdue = age.startsWith("เลย");
+  // SLA state — drives the card's color cue (warn/overdue) + optional badge.
+  const sla = computeSla(task);
+  const slaClass =
+    sla.state === "overdue" ? "is-sla-overdue"
+    : sla.state === "warn" ? "is-sla-warn"
+    : "";
+  const slaBadge = slaBadgeLabel(sla);
 
   return (
     <article
-      className={`ac-kanban-card ${busy ? "is-busy" : ""} ${flashing ? "is-flash" : ""}`}
+      className={`ac-kanban-card ${busy ? "is-busy" : ""} ${flashing ? "is-flash" : ""} ${slaClass}`}
       data-type={task.type}
     >
       <header className="ac-kanban-card-head">
@@ -359,6 +367,10 @@ function KanbanCard({
         </span>
         <span className={`ac-kanban-card-age ${overdue ? "is-overdue" : ""}`}>{age}</span>
       </header>
+
+      {slaBadge && (
+        <div className="ac-kanban-card-sla" role="status">⏰ {slaBadge}</div>
+      )}
 
       {task.note && (
         <div className="ac-kanban-card-note" title={task.note}>{task.note}</div>

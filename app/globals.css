@@ -5277,6 +5277,31 @@ button.ac-kanban-kpi:focus-visible {
 .ac-kanban-card[data-type="ซ่อม"]    { border-left: 3px solid #F97316; }
 .ac-kanban-card[data-type="ทำสะอาด"] { border-left: 3px solid #EAB308; }
 
+/* SLA state cues (Task 36) — subtle background tint + ring so the
+   card is identifiable at a glance without screaming. */
+.ac-kanban-card.is-sla-warn {
+  background: color-mix(in srgb, #EAB308 8%, var(--color-surface));
+  border-color: color-mix(in srgb, #EAB308 50%, var(--color-border));
+}
+.ac-kanban-card.is-sla-overdue {
+  background: color-mix(in srgb, #DC2626 8%, var(--color-surface));
+  border-color: color-mix(in srgb, #DC2626 60%, var(--color-border));
+}
+.ac-kanban-card-sla {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, #DC2626 14%, transparent);
+  color: #DC2626;
+  align-self: flex-start;
+  white-space: nowrap;
+}
+.ac-kanban-card.is-sla-warn .ac-kanban-card-sla {
+  background: color-mix(in srgb, #EAB308 14%, transparent);
+  color: #B45309;
+}
+
 .ac-kanban-card-head {
   display: flex;
   align-items: baseline;
