@@ -4875,6 +4875,10 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   background: color-mix(in srgb, #22C55E 16%, transparent);
   color: #22C55E;
 }
+.ac-sales-tag-moveout {
+  background: color-mix(in srgb, #EF4444 16%, transparent);
+  color: #EF4444;
+}
 
 /* Floating action button — bottom-right */
 .ac-sales-fab {

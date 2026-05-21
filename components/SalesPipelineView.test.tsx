@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { formatBaht, formatDateShort, relativeDays } from "./SalesPipelineView";
+import {
+  formatBaht, formatDateShort, relativeDays,
+  SALES_TASK_TYPES, countAppointmentsWithinDays,
+} from "./SalesPipelineView";
 
 describe("SalesPipelineView helpers", () => {
   describe("formatBaht", () => {
@@ -48,6 +51,48 @@ describe("SalesPipelineView helpers", () => {
     });
     it("returns empty string for past dates", () => {
       expect(relativeDays(new Date(2026, 4, 18), now)).toBe("");
+    });
+  });
+
+  describe("SALES_TASK_TYPES (Task 23)", () => {
+    it("includes ย้ายออก so move-out dates count as appointments", () => {
+      expect(SALES_TASK_TYPES.has("ย้ายออก")).toBe(true);
+    });
+    it("includes ชมห้อง and ย้ายเข้า", () => {
+      expect(SALES_TASK_TYPES.has("ชมห้อง")).toBe(true);
+      expect(SALES_TASK_TYPES.has("ย้ายเข้า")).toBe(true);
+    });
+    it("excludes engineer task types", () => {
+      expect(SALES_TASK_TYPES.has("ทำสะอาด")).toBe(false);
+      expect(SALES_TASK_TYPES.has("ซ่อม")).toBe(false);
+    });
+  });
+
+  describe("countAppointmentsWithinDays (Task 23)", () => {
+    const from = new Date(2026, 4, 21); // Thu 21 May 2026
+    it("counts an appointment exactly on day 7 (was off-by-one before)", () => {
+      const items = [{ date: new Date(2026, 4, 28) }]; // day +7
+      expect(countAppointmentsWithinDays(items, 7, from)).toBe(1);
+    });
+    it("excludes appointments past day+7 (day 8)", () => {
+      const items = [{ date: new Date(2026, 4, 29) }]; // day +8
+      expect(countAppointmentsWithinDays(items, 7, from)).toBe(0);
+    });
+    it("includes today's appointments", () => {
+      const items = [{ date: new Date(2026, 4, 21, 9, 0) }]; // today 09:00
+      expect(countAppointmentsWithinDays(items, 7, from)).toBe(1);
+    });
+    it("excludes past appointments", () => {
+      const items = [{ date: new Date(2026, 4, 20) }];
+      expect(countAppointmentsWithinDays(items, 7, from)).toBe(0);
+    });
+    it("counts multiple within window", () => {
+      const items = [
+        { date: new Date(2026, 4, 22) },
+        { date: new Date(2026, 4, 25) },
+        { date: new Date(2026, 4, 28) },
+      ];
+      expect(countAppointmentsWithinDays(items, 7, from)).toBe(3);
     });
   });
 });
