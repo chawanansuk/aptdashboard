@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
 import { loadCache, saveCache } from "@/lib/cacheData";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { subscribeBus } from "@/lib/realtimeBus";
 
 const STATUS_FROM_ROOM: Record<string, RoomStatus> = {
   // occupied
@@ -338,6 +339,17 @@ export function useDashboardData(): DashboardState {
   const merged = useMemo(() => mergeRoomsAndTasks(rooms, tasks), [rooms, tasks]);
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
+
+  // Cross-tab realtime sync — subscribe to bus events from other tabs.
+  // When another tab writes (data-changed event), refresh here so the
+  // user sees the update without waiting for the next polling cycle.
+  useEffect(() => {
+    return subscribeBus((evt) => {
+      if (evt.kind === "data-changed") {
+        refresh();
+      }
+    });
+  }, [refresh]);
 
   // Background polling: refresh every 60s while the tab is visible.
   // Pauses on hidden tabs to spare Apps Script quota. Survives across

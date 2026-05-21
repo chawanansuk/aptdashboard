@@ -39,6 +39,7 @@ import {
 } from "@/components/skeletons/ViewSkeletons";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { toast } from "@/lib/toast";
+import { publishBusEvent } from "@/lib/realtimeBus";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
@@ -450,6 +451,7 @@ export default function Home() {
     setBulkAddOpen(false);
     if (failCount === 0) {
       toast.success(`เพิ่ม ${okCount} งานสำเร็จ`);
+      publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
       exitBulk();
     } else {
       toast.error(`สำเร็จ ${okCount}, ล้มเหลว ${failCount}`);
@@ -555,6 +557,7 @@ export default function Home() {
       console.log("[write] addTask response", res.status, data);
       if (data.ok) {
         toast.success("เพิ่มงานแล้ว — รีเฟรชข้อมูล");
+        publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
         setShowAddTask(false);
         // Clear quick-add pre-fills so the next open opens fresh
         setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");
@@ -587,6 +590,7 @@ export default function Home() {
       console.log("[write] updateRoomStatus response", res.status, data);
       if (data.ok) {
         toast.success("บันทึกแล้ว — รีเฟรชข้อมูล");
+        publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
         // Optimistic local update — shows the change immediately even if the
         // canonical CSV publish behind /api/sheet/rooms hasn't refreshed yet
         optimisticUpdateRoom(selectedRoom.building, selectedRoom.room, {
