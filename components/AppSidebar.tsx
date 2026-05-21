@@ -6,7 +6,7 @@ import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
 import { canAccess, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
 
-export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban";
+export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports";
 
 interface Props {
   isOpen: boolean;
@@ -86,6 +86,7 @@ function buildGroups(
   if (has("calendar")) dataItems.push({ key: "calendar", label: "ปฏิทิน", icon: icon("calendar") });
   if (has("tenants"))  dataItems.push({ key: "tenants",  label: "ผู้เช่า",  icon: icon("tenants") });
   if (has("income"))   dataItems.push({ key: "income",   label: "รายได้",  icon: icon("income") });
+  if (has("reports"))  dataItems.push({ key: "reports",  label: "รายงาน",   icon: icon("summary") });
 
   const groups: NavGroup[] = [todayGroup];
   if (statusItems.length) groups.push({ label: "สถานะห้อง", items: statusItems });
