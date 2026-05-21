@@ -31,7 +31,27 @@ interface Props {
  * Top KPI strip summarises the three counts so the user can scan in 1s.
  */
 
-const SALES_TASK_TYPES = new Set(["ชมห้อง", "ย้ายเข้า"]);
+// All sales-relevant task types — ชมห้อง (viewing), ย้ายเข้า (move-in),
+// ย้ายออก (move-out date confirmed). Previously excluded ย้ายออก so the
+// "นัดสัปดาห์นี้" KPI didn't count actual move-out dates that sales
+// needs on the calendar (Task 23). Exported for unit testing.
+export const SALES_TASK_TYPES = new Set(["ชมห้อง", "ย้ายเข้า", "ย้ายออก"]);
+
+/**
+ * Count items in `items` whose `.date` falls within [from, from+days+1) —
+ * inclusive of the last day. Pure for testability.
+ */
+export function countAppointmentsWithinDays(
+  items: { date: Date }[],
+  days: number,
+  from: Date = new Date(),
+): number {
+  const startOfFrom = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const cutoff = new Date(startOfFrom.getFullYear(), startOfFrom.getMonth(), startOfFrom.getDate() + days + 1);
+  return items.filter(
+    (a) => a.date.getTime() >= startOfFrom.getTime() && a.date.getTime() < cutoff.getTime(),
+  ).length;
+}
 
 /**
  * Preferred building order for grouped views (matches the sales team's
@@ -186,12 +206,13 @@ export default function SalesPipelineView({
     });
   }, [scopedRooms]);
 
-  // KPI: count upcoming appointments in the next 7 days for the chip
-  const appointmentsThisWeek = useMemo(() => {
-    const now = new Date();
-    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
-    return upcomingAppointments.filter((a) => a.date.getTime() < cutoff.getTime()).length;
-  }, [upcomingAppointments]);
+  // KPI: count upcoming appointments in the next 7 days for the chip.
+  // Inclusive of the 7th day — previously a task exactly today+7 fell
+  // off due to strict `<` boundary (Task 23).
+  const appointmentsThisWeek = useMemo(
+    () => countAppointmentsWithinDays(upcomingAppointments, 7),
+    [upcomingAppointments],
+  );
 
   return (
     <section className="ac-sales-pipeline" aria-label="ภาพรวมขาย">
@@ -280,7 +301,11 @@ export default function SalesPipelineView({
           <div className="ac-sales-list">
             {upcomingAppointments.map((a, idx) => (
               <div key={`${a.task.date}|${a.task.building}|${a.task.room}|${idx}`} className="ac-sales-row ac-sales-row-static">
-                <span className={`ac-sales-tag ac-sales-tag-${a.task.type === "ชมห้อง" ? "view" : "movein"}`}>
+                <span className={`ac-sales-tag ac-sales-tag-${
+                  a.task.type === "ชมห้อง" ? "view"
+                  : a.task.type === "ย้ายออก" ? "moveout"
+                  : "movein"
+                }`}>
                   {a.task.type}
                 </span>
                 <span className="ac-sales-row-main">
