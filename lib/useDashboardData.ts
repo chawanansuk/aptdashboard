@@ -170,26 +170,29 @@ async function fetchWithRetry(url: string, signal: AbortSignal): Promise<Respons
       const res = await fetch(url, { cache: "no-store", signal });
       if (res.ok) {
         const dt = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
-        // Tag the timing line with a hint about likely cache layer so the
-        // acceptance criterion "console.log shows response time < 200ms
-        // after cache warm" is easy to verify in DevTools.
-        const cacheState = res.headers.get("x-vercel-cache") ||
-          (res.status === 304 ? "304-not-modified" : "");
-        const tag =
-          res.status === 304 ? " · etag-304" :
-          dt < 100 ? " · cache-warm" :
-          dt < 300 ? " · cache-ok" :
-          dt < 1000 ? " · network" :
-          " · slow";
-        const cacheNote = cacheState ? ` [${cacheState}]` : "";
-        // eslint-disable-next-line no-console
-        console.log(`[dashboard] ${url} ${dt}ms${tag}${cacheNote}${attempts > 1 ? ` (attempt ${attempts})` : ""}`);
+        // Success-path timing log: dev-only (noisy in prod). Failure
+        // path below still logs always so support can diagnose user
+        // bug reports from console.
+        if (process.env.NODE_ENV !== "production") {
+          const cacheState = res.headers.get("x-vercel-cache") ||
+            (res.status === 304 ? "304-not-modified" : "");
+          const tag =
+            res.status === 304 ? " · etag-304" :
+            dt < 100 ? " · cache-warm" :
+            dt < 300 ? " · cache-ok" :
+            dt < 1000 ? " · network" :
+            " · slow";
+          const cacheNote = cacheState ? ` [${cacheState}]` : "";
+          // eslint-disable-next-line no-console
+          console.log(`[dashboard] ${url} ${dt}ms${tag}${cacheNote}${attempts > 1 ? ` (attempt ${attempts})` : ""}`);
+        }
         return res;
       }
       if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
         const dt = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
+        // 4xx is useful in prod for support — keep this one.
         // eslint-disable-next-line no-console
-        console.log(`[dashboard] ${url} ${dt}ms (status ${res.status}, no retry)`);
+        console.warn(`[dashboard] ${url} ${dt}ms (status ${res.status}, no retry)`);
         return res;
       }
       lastErr = new Error(`HTTP ${res.status}`);
@@ -202,8 +205,9 @@ async function fetchWithRetry(url: string, signal: AbortSignal): Promise<Respons
     await new Promise((r) => setTimeout(r, delay));
   }
   const dt = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
+  // Final failure — keep in prod so support can see it in user reports.
   // eslint-disable-next-line no-console
-  console.log(`[dashboard] ${url} ${dt}ms (failed after ${attempts} attempts)`);
+  console.warn(`[dashboard] ${url} ${dt}ms (failed after ${attempts} attempts)`);
   throw lastErr instanceof Error ? lastErr : new Error("fetch failed");
 }
 
