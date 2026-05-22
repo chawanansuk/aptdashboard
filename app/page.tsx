@@ -16,6 +16,7 @@ import OverviewCards from "@/components/OverviewCards";
 import InsightsCards from "@/components/InsightsCards";
 import RecentTasks from "@/components/RecentTasks";
 import KeyboardHelpModal from "@/components/KeyboardHelpModal";
+import ServiceDueBanner from "@/components/ServiceDueBanner";
 import RoomsView from "@/components/RoomsView";
 import CommandPalette from "@/components/CommandPalette";
 import { useCommandPalette } from "@/lib/useCommandPalette";
@@ -763,6 +764,13 @@ export default function Home() {
 
           {activeView === "overview" && rooms.length > 0 && (
             <WelcomeHero config={modeConfig} stats={greetingStats} />
+          )}
+
+          {activeView === "overview" && (
+            <ServiceDueBanner
+              activeBuilding={activeBuilding}
+              onNavigate={(v) => setActiveView(v)}
+            />
           )}
 
           {activeView === "overview" && rooms.length > 0 && (
