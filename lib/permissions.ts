@@ -56,6 +56,7 @@ export type Route =
   | "qc" | "repair" | "inactive" | "maintenance" | "facilities" | "engineerkanban" | "parts"
   // shared operational
   | "vehicles"
+  | "leads"
   // management-only
   | "income" | "reports";
 
@@ -85,6 +86,9 @@ export const ROUTE_ALLOW: Record<Route, Role[]> = {
   // vehicles: shared operational info (not PII); all authenticated
   // users have visibility per the product decision.
   vehicles:    ["sales", "engineer", "management"],
+  // Lead CRM: sales pipeline data. Sales + management; engineer doesn't
+  // need it (different workflow).
+  leads:       ["sales", "management"],
   // management-only
   income:      ["management"],
   reports:     ["management"],
@@ -138,6 +142,7 @@ export type Action =
   | "part.edit"
   | "time.track"
   | "vehicle.edit"
+  | "lead.edit"
   // financials
   | "finance.view";
 
@@ -167,6 +172,8 @@ export const ACTION_ALLOW: Record<Action, Role[]> = {
   "time.track":     ["engineer", "management"],
   // vehicles: all roles edit (per product decision — see route allow)
   "vehicle.edit":   ["sales", "engineer", "management"],
+  // Lead CRM: sales + management
+  "lead.edit":      ["sales", "management"],
   // financials
   "finance.view":   ["management"],
 };

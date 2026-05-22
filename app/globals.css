@@ -7492,3 +7492,209 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   border-color: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
   cursor: default;
 }
+
+/* ====================================================================
+ * Lead CRM (Task 26)
+ * ==================================================================== */
+.ac-leads {
+  padding: var(--space-4);
+  max-width: 1480px;
+  margin: 0 auto;
+}
+.ac-leads-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+.ac-leads-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-bold);
+}
+.ac-leads-count {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-base);
+}
+.ac-leads-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ac-leads-toolbar {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+.ac-leads-search {
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+.ac-leads-stage-chips {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Kanban-style board */
+.ac-leads-board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(220px, 1fr));
+  gap: var(--space-3);
+  overflow-x: auto;
+}
+@media (max-width: 1100px) {
+  .ac-leads-board { grid-template-columns: repeat(3, minmax(240px, 1fr)); }
+}
+@media (max-width: 720px) {
+  .ac-leads-board { grid-template-columns: 1fr; }
+}
+.ac-lead-col {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-top-width: 3px;
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+.ac-lead-col.is-new       { border-top-color: #3B82F6; }
+.ac-lead-col.is-scheduled { border-top-color: #8B5CF6; }
+.ac-lead-col.is-talking   { border-top-color: #F59E0B; }
+.ac-lead-col.is-contract  { border-top-color: #14B8A6; }
+.ac-lead-col.is-won       { border-top-color: #22C55E; }
+.ac-lead-col.is-lost      { border-top-color: #94A3B8; }
+.ac-lead-col-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+.ac-lead-col-title {
+  flex: 1;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.ac-lead-col-count {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+}
+.ac-lead-col-add {
+  appearance: none;
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  width: 24px; height: 24px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-bold);
+}
+.ac-lead-col-add:hover { color: var(--color-text); border-color: var(--color-accent); }
+.ac-lead-col-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+}
+.ac-lead-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color 100ms ease, box-shadow 100ms ease;
+}
+.ac-lead-card.is-busy { opacity: 0.6; pointer-events: none; }
+.ac-lead-card:hover { border-color: color-mix(in srgb, var(--color-accent) 50%, var(--color-border)); }
+.ac-lead-card-main {
+  display: block;
+  width: 100%;
+  padding: var(--space-2);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.ac-lead-card-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  margin-bottom: 2px;
+}
+.ac-lead-card-phone {
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+  font-family: ui-monospace, monospace;
+}
+.ac-lead-card-interest {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.ac-lead-card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: 6px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ac-lead-card-src {
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+}
+.ac-lead-card-actions {
+  display: flex;
+  gap: 4px;
+  padding: 0 var(--space-2) var(--space-2);
+  align-items: center;
+}
+.ac-lead-card-stage-select {
+  flex: 1;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-xs);
+}
+.ac-lead-card-del {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-base);
+}
+.ac-lead-card-del:hover { background: color-mix(in srgb, #EF4444 14%, transparent); }
+
