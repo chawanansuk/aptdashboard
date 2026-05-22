@@ -4,7 +4,8 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
-import { canEditTenant, canViewTenant } from "@/lib/permissions";
+import { canEditTenant, canViewTenant, canViewFinancials } from "@/lib/permissions";
+import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { sumCompletedCosts, formatBaht as formatTaskBaht } from "@/lib/taskCost";
 import { useFocusTrap } from "@/lib/useFocusTrap";
@@ -115,8 +116,14 @@ export default function RoomModal({
   onMoveoutInspect, onMoveoutClean,
 }: Props) {
   const { data: session } = useSession();
+  // Edit/view-tenant gates use ACTUAL roles — view-as preview must
+  // not grant write capability. Cost display uses EFFECTIVE roles so
+  // management can preview the engineer experience (no ฿ leakage).
   const canEdit = canEditTenant(session?.user?.roles);
   const canSeeTenant = canViewTenant(session?.user?.roles);
+  const { actualRoles, effectiveRoles } = useEffectiveRoles();
+  const effRoles = effectiveRoles.length ? effectiveRoles : actualRoles;
+  const canSeeCost = canViewFinancials(effRoles);
   const [tab, setTab] = useState<TabKey>(defaultTab || "info");
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(true, dialogRef);
@@ -228,7 +235,7 @@ export default function RoomModal({
                   ประวัติงาน {room.pastTasks.length} รายการ
                 </span>
               )}
-              {completedCostsTotal > 0 && (
+              {canSeeCost && completedCostsTotal > 0 && (
                 <span className="ac-room-modal-chip ac-room-modal-chip-muted">
                   <span className="ac-room-modal-chip-icon">฿</span>
                   รวมที่ใช้จ่าย {formatTaskBaht(completedCostsTotal)}
@@ -501,7 +508,7 @@ export default function RoomModal({
                                 {t.creator && (
                                   <span className="ac-room-history-by">· โดย {t.creator}</span>
                                 )}
-                                {typeof t.cost === "number" && t.cost > 0 && (
+                                {canSeeCost && typeof t.cost === "number" && t.cost > 0 && (
                                   <span className="ac-room-history-cost">
                                     · {formatTaskBaht(t.cost)}
                                   </span>

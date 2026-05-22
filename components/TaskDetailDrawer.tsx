@@ -7,7 +7,8 @@ import { parseTaskLocation } from "@/lib/taskLocation";
 import { computeSla, slaBadgeLabel } from "@/lib/sla";
 import { categorizeStatus, TASK_STATUS } from "@/lib/taskStatus";
 import { useSession } from "next-auth/react";
-import { canPerform } from "@/lib/permissions";
+import { canPerform, canViewFinancials } from "@/lib/permissions";
+import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { taskKey } from "@/lib/taskKey";
 import { useTaskTimer, formatDuration } from "@/lib/useTaskTimer";
 import { ageLabel } from "./EngineerKanban";
@@ -60,7 +61,12 @@ export default function TaskDetailDrawer({ task, onClose, onMove, busy }: Props)
 
   // Time tracking (Task 35) — gated by role; sales doesn't track hours
   const { data: session } = useSession();
-  const canTrackTime = canPerform(session?.user?.roles, "time.track");
+  void session; // kept for future per-user gating
+  // Use effective roles so "view as" works for both feature gates.
+  const { actualRoles, effectiveRoles } = useEffectiveRoles();
+  const roles = effectiveRoles.length ? effectiveRoles : actualRoles;
+  const canTrackTime = canPerform(roles, "time.track");
+  const canSeeCost = canViewFinancials(roles);
   // useTaskTimer accepts null to no-op when no task is open — keeps
   // hook order stable for the conditional render.
   const tKey = task ? taskKey(task) : null;
@@ -138,8 +144,12 @@ export default function TaskDetailDrawer({ task, onClose, onMove, busy }: Props)
             <dt>วันที่แจ้ง</dt>
             <dd>{task.createdAt || "—"}</dd>
 
-            <dt>ค่าใช้จ่าย</dt>
-            <dd>{fmtBaht(task.cost)}</dd>
+            {canSeeCost && (
+              <>
+                <dt>ค่าใช้จ่าย</dt>
+                <dd>{fmtBaht(task.cost)}</dd>
+              </>
+            )}
 
             {(task.customer || task.phone) && (
               <>

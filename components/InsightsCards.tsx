@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { useSession } from "next-auth/react";
 import type { RoomView, SheetRow } from "@/types";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
-import { canPerform } from "@/lib/permissions";
+import { canViewFinancials } from "@/lib/permissions";
+import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 
 /**
  * Insights cards — Task 27 (light).
@@ -54,11 +54,13 @@ function scopeTasks(tasks: SheetRow[], activeBuilding: string): SheetRow[] {
 }
 
 export default function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
-  // Gate revenue card by finance permission — engineer mode shouldn't
-  // see income figures (consistent with OverviewCards which already
-  // gates "รายได้เดือนนี้" the same way).
-  const { data: session } = useSession();
-  const canSeeIncome = canPerform(session?.user?.roles, "finance.view");
+  // Gate revenue card by finance permission. IMPORTANT: use the
+  // effective roles (respects "view as" override) rather than the
+  // raw session — management viewing-as-engineer must see the
+  // engineer experience, including hiding the income card.
+  const { actualRoles, effectiveRoles } = useEffectiveRoles();
+  const roles = effectiveRoles.length ? effectiveRoles : actualRoles;
+  const canSeeIncome = canViewFinancials(roles);
   const insights = useMemo(() => {
     const scopedRooms = scopeRooms(rooms, activeBuilding);
     const scopedTasks = scopeTasks(tasks, activeBuilding);
