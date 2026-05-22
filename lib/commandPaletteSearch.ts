@@ -3,6 +3,15 @@ import type { RoomView } from "@/types";
 import { canAccess, canPerform, type Route } from "@/lib/permissions";
 import { STATUS_LABEL } from "@/lib/constants";
 
+/** Minimal vehicle shape used for plate/model search in the palette. */
+export interface VehicleHit {
+  building: string;
+  room: string;
+  plate: string;
+  model: string;
+  color: string;
+}
+
 /**
  * Command palette search — pure functions, no React.
  *
@@ -62,18 +71,64 @@ function bestRank(fields: string[], needle: string): number {
  * Room search
  * ==================================================================== */
 
+/**
+ * Search result with optional vehicle hit — when the room matched
+ * via a vehicle plate/model, the matching vehicle is returned so
+ * the UI can surface "🏍 ทะเบียน 1กข-1234" as a hint suffix.
+ */
+export interface RoomSearchResult {
+  room: RoomView;
+  rank: number;
+  /** The vehicle that drove the match (only set when match came from a vehicle field). */
+  matchedVehicle?: VehicleHit;
+}
+
 export function searchRooms(
   rooms: RoomView[],
   query: string,
-  limit = 8
-): Array<{ room: RoomView; rank: number }> {
-  const out: Array<{ room: RoomView; rank: number }> = [];
+  limit = 8,
+  vehicles: VehicleHit[] = [],
+): RoomSearchResult[] {
+  // Index vehicles by building|room — multiple per room ok
+  const vehiclesByRoom = new Map<string, VehicleHit[]>();
+  for (const v of vehicles) {
+    const k = `${v.building}|${v.room}`;
+    if (!vehiclesByRoom.has(k)) vehiclesByRoom.set(k, []);
+    vehiclesByRoom.get(k)!.push(v);
+  }
+
+  const out: RoomSearchResult[] = [];
   for (const r of rooms) {
-    const rank = bestRank(
+    // First check standard room fields
+    const baseRank = bestRank(
       [r.room, r.building, r.tenant, r.phone],
-      query
+      query,
     );
-    if (rank !== -1) out.push({ room: r, rank });
+
+    // Then check vehicles for this room; capture best matching vehicle
+    let bestVehicleRank = -1;
+    let bestVehicle: VehicleHit | undefined;
+    const vs = vehiclesByRoom.get(`${r.building}|${r.room}`) || [];
+    for (const v of vs) {
+      const rk = bestRank([v.plate, v.model, v.color], query);
+      if (rk !== -1 && (bestVehicleRank === -1 || rk < bestVehicleRank)) {
+        bestVehicleRank = rk;
+        bestVehicle = v;
+      }
+    }
+
+    // Pick the best rank between room fields and vehicle fields.
+    // If a vehicle drove the better match, surface that as the hint.
+    if (baseRank === -1 && bestVehicleRank === -1) continue;
+    const useVehicle =
+      baseRank === -1 ||
+      (bestVehicleRank !== -1 && bestVehicleRank < baseRank);
+    const finalRank = useVehicle ? bestVehicleRank : baseRank;
+    out.push({
+      room: r,
+      rank: finalRank,
+      matchedVehicle: useVehicle ? bestVehicle : undefined,
+    });
   }
   out.sort((a, b) => a.rank - b.rank || a.room.building.localeCompare(b.room.building) || a.room.room.localeCompare(b.room.room, undefined, { numeric: true }));
   return out.slice(0, limit);
@@ -161,16 +216,35 @@ export function buildActions(params: {
   query: string;
   onSelectRoom: (r: RoomView) => void;
   onChangeView: (v: Route) => void;
+  /** Optional vehicle list — when present, plate/model are searchable
+   *  alongside room fields. The UI fetches this lazily on palette open. */
+  vehicles?: VehicleHit[];
 }): PaletteAction[] {
-  const { rooms, roles, commands, query, onSelectRoom, onChangeView } = params;
+  const { rooms, roles, commands, query, onSelectRoom, onChangeView, vehicles = [] } = params;
 
-  const roomHits = searchRooms(rooms, query);
+  const roomHits = searchRooms(rooms, query, 8, vehicles);
   const viewHits = searchViews(roles, query);
   const cmdHits  = searchCommands(roles, commands, query);
 
   const actions: PaletteAction[] = [];
 
-  for (const { room: r, rank } of roomHits) {
+  for (const { room: r, rank, matchedVehicle } of roomHits) {
+    // When the match came from a vehicle plate/model, lead the hint
+    // with that so the user immediately sees why their query landed
+    // on this room. Otherwise use the standard status/tenant hint.
+    const hint = matchedVehicle
+      ? [
+          `🏍 ${matchedVehicle.plate}`,
+          matchedVehicle.model || null,
+          STATUS_LABEL[r.status],
+          r.tenant && `ผู้เช่า ${r.tenant}`,
+        ].filter(Boolean).join(" · ")
+      : [
+          STATUS_LABEL[r.status],
+          r.tenant && `ผู้เช่า ${r.tenant}`,
+          r.phone && r.phone,
+        ].filter(Boolean).join(" · ");
+
     actions.push({
       type: "room",
       id: `room:${r.building}:${r.room}`,
@@ -178,12 +252,7 @@ export function buildActions(params: {
       // distinguish room 201 across all 5 buildings at a glance instead
       // of seeing "มั่งมี 201" / "มายทรี48 201" rows that look similar.
       label: `ห้อง ${r.room} · ${r.building}${r.floor ? ` · ชั้น ${r.floor}` : ""}`,
-      // Hint = status + tenant/phone for quick context
-      hint: [
-        STATUS_LABEL[r.status],
-        r.tenant && `ผู้เช่า ${r.tenant}`,
-        r.phone && r.phone,
-      ].filter(Boolean).join(" · "),
+      hint,
       groupOrder: 0,
       rank,
     });

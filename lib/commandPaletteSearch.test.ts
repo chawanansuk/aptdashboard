@@ -82,6 +82,95 @@ describe("searchRooms", () => {
   });
 });
 
+describe("searchRooms with vehicles", () => {
+  const rooms = [
+    mkRoom({ building: "Kl", room: "101", tenant: "" }),
+    mkRoom({ building: "Kl", room: "202", tenant: "" }),
+    mkRoom({ building: "G48", room: "303", tenant: "" }),
+  ];
+  const vehicles = [
+    { building: "Kl",  room: "101", plate: "1กข-1234", model: "Honda Click", color: "แดง" },
+    { building: "Kl",  room: "202", plate: "2ขค-5678", model: "Yamaha Aerox", color: "ดำ" },
+    { building: "G48", room: "303", plate: "3คง-9999", model: "Yamaha NMAX",  color: "ขาว" },
+  ];
+
+  it("matches by exact plate", () => {
+    const hits = searchRooms(rooms, "1กข-1234", 8, vehicles);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].room.room).toBe("101");
+    expect(hits[0].matchedVehicle?.plate).toBe("1กข-1234");
+    expect(hits[0].rank).toBe(0);
+  });
+
+  it("matches by partial plate substring", () => {
+    const hits = searchRooms(rooms, "5678", 8, vehicles);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].room.room).toBe("202");
+    expect(hits[0].matchedVehicle?.model).toBe("Yamaha Aerox");
+  });
+
+  it("matches by model name", () => {
+    const hits = searchRooms(rooms, "click", 8, vehicles);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].room.room).toBe("101");
+  });
+
+  it("matches by color", () => {
+    const hits = searchRooms(rooms, "ขาว", 8, vehicles);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].room.room).toBe("303");
+  });
+
+  it("matches multiple rooms with same model query", () => {
+    const hits = searchRooms(rooms, "yamaha", 8, vehicles);
+    expect(hits).toHaveLength(2);
+    expect(hits.map((h) => h.room.room).sort()).toEqual(["202", "303"]);
+  });
+
+  it("returns matchedVehicle = undefined when match came from room fields", () => {
+    const hits = searchRooms(rooms, "101", 8, vehicles);
+    expect(hits[0].room.room).toBe("101");
+    expect(hits[0].matchedVehicle).toBeUndefined();
+  });
+
+  it("works with empty vehicles list (backward compat)", () => {
+    const hits = searchRooms(rooms, "1กข-1234", 8, []);
+    expect(hits).toHaveLength(0);
+  });
+
+  it("works with empty vehicles list default arg (backward compat)", () => {
+    const hits = searchRooms(rooms, "101");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].matchedVehicle).toBeUndefined();
+  });
+
+  it("prefers stronger rank from vehicles over weaker rank from room fields", () => {
+    // Room "Kl/abc" matches "ab" as substring (rank 2). Vehicle plate
+    // "abc-123" prefix-matches "ab" (rank 1). Vehicle wins → hint
+    // surfaces the matched vehicle.
+    const v = [
+      { building: "Kl", room: "abc", plate: "abc-123", model: "", color: "" },
+    ];
+    const r = [mkRoom({ building: "Kl", room: "abc" })];
+    const hits = searchRooms(r, "ab", 8, v);
+    // Room field "abc" prefix-matches "ab" (rank 1) — same as plate
+    // prefix. Tie → keep base hint (matchedVehicle undefined).
+    expect(hits[0].rank).toBe(1);
+    expect(hits[0].matchedVehicle).toBeUndefined();
+  });
+
+  it("uses vehicle when room fields don't match at all", () => {
+    // Query "honda" matches no room field but matches a vehicle model.
+    // Vehicle wins, hint surfaces it.
+    const v = [
+      { building: "Kl", room: "101", plate: "x", model: "Honda Click", color: "" },
+    ];
+    const r = [mkRoom({ building: "Kl", room: "101" })];
+    const hits = searchRooms(r, "honda", 8, v);
+    expect(hits[0].matchedVehicle?.model).toBe("Honda Click");
+  });
+});
+
 describe("searchViews — permission filtering", () => {
   it("sales sees room/calendar views, NOT tenants (PII) / income / maintenance", () => {
     const hits = searchViews(["sales"], "");
