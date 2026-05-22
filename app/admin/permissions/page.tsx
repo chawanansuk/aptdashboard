@@ -75,6 +75,7 @@ const ACTION_DESC: Record<Action, string> = {
   "facility.edit": "แก้สาธารณูปโภคอาคาร",
   "part.view": "ดูคลังอะไหล่",
   "part.edit": "เพิ่ม/แก้/ปรับสต๊อกอะไหล่",
+  "time.track": "จับเวลาทำงาน (start/stop timer)",
   "finance.view": "ดูข้อมูลการเงิน",
 };
 

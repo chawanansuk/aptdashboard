@@ -6,6 +6,10 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 import { parseTaskLocation } from "@/lib/taskLocation";
 import { computeSla, slaBadgeLabel } from "@/lib/sla";
 import { categorizeStatus, TASK_STATUS } from "@/lib/taskStatus";
+import { useSession } from "next-auth/react";
+import { canPerform } from "@/lib/permissions";
+import { taskKey } from "@/lib/taskKey";
+import { useTaskTimer, formatDuration } from "@/lib/useTaskTimer";
 import { ageLabel } from "./EngineerKanban";
 
 /**
@@ -53,6 +57,14 @@ export default function TaskDetailDrawer({ task, onClose, onMove, busy }: Props)
   const ref = useRef<HTMLDivElement>(null);
   const open = !!task;
   useFocusTrap(open, ref);
+
+  // Time tracking (Task 35) — gated by role; sales doesn't track hours
+  const { data: session } = useSession();
+  const canTrackTime = canPerform(session?.user?.roles, "time.track");
+  // useTaskTimer accepts null to no-op when no task is open — keeps
+  // hook order stable for the conditional render.
+  const tKey = task ? taskKey(task) : null;
+  const timer = useTaskTimer(canTrackTime && open ? tKey : null);
 
   // Esc to close — mirrors AddTaskModal's pattern.
   useEffect(() => {
@@ -147,6 +159,68 @@ export default function TaskDetailDrawer({ task, onClose, onMove, busy }: Props)
             <dt>หมายเหตุ</dt>
             <dd className="ac-task-drawer-note">{task.note?.trim() || "—"}</dd>
           </dl>
+
+          {/* Time tracker (Task 35) — engineer/management only */}
+          {canTrackTime && (
+            <section className="ac-task-timer" aria-label="จับเวลาทำงาน">
+              <header className="ac-task-timer-head">
+                <span className="ac-task-timer-label">เวลาทำงาน</span>
+                <span className={`ac-task-timer-total ${timer.status === "running" ? "is-running" : ""}`}>
+                  {timer.status === "running" && <span className="ac-task-timer-pulse" aria-hidden />}
+                  {formatDuration(timer.totalMin)} ชม.
+                </span>
+              </header>
+              <div className="ac-task-timer-actions">
+                {timer.status === "idle" && (
+                  <button
+                    type="button"
+                    className="ac-btn ac-btn-primary"
+                    onClick={timer.start}
+                  >▶ เริ่มจับเวลา</button>
+                )}
+                {timer.status === "running" && (
+                  <button
+                    type="button"
+                    className="ac-btn ac-btn-danger"
+                    onClick={timer.stop}
+                  >⏸ หยุดจับเวลา</button>
+                )}
+                {timer.status === "submitting" && (
+                  <button type="button" className="ac-btn ac-btn-ghost" disabled>
+                    กำลังบันทึก…
+                  </button>
+                )}
+              </div>
+              {timer.error && (
+                <div className="ac-task-timer-error" role="alert">
+                  ⚠ {timer.error}{" "}
+                  <button
+                    type="button"
+                    className="ac-btn ac-btn-ghost ac-btn-sm"
+                    onClick={timer.clearError}
+                  >ปิด</button>
+                </div>
+              )}
+              {timer.logs.length > 0 && (
+                <details className="ac-task-timer-logs">
+                  <summary>{timer.logs.length} ครั้งที่ผ่านมา</summary>
+                  <ul>
+                    {timer.logs.slice().reverse().slice(0, 10).map((l) => (
+                      <li key={l.id}>
+                        <span className="ac-task-timer-log-time">
+                          {l.startedAt.split(" ")[1]?.slice(0, 5)}–{l.endedAt.split(" ")[1]?.slice(0, 5) || "…"}
+                        </span>
+                        {" · "}
+                        <strong>{formatDuration(l.durationMin)} ชม.</strong>
+                        {" · "}
+                        <span className="ac-task-timer-log-user">{l.user.split("@")[0]}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </section>
+          )}
         </div>
 
         {(canStart || canDone || canBlock || canCancel) && (
