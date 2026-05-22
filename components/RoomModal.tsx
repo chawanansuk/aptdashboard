@@ -13,6 +13,7 @@ import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
 // Lazy-load equipment tab: fetches the chunk + first API call only when
 // the user clicks the "อุปกรณ์" tab
 const RoomEquipmentTab = lazy(() => import("./RoomEquipmentTab"));
+const RoomVehiclesTab = lazy(() => import("./RoomVehiclesTab"));
 
 interface Props {
   room: RoomView;
@@ -31,10 +32,10 @@ interface Props {
   onSave: () => void;
   onAddTaskHere: () => void;
   /** Mode-specific initial tab ("info" or "equipment"). Defaults to "info". */
-  defaultTab?: "info" | "equipment";
+  defaultTab?: "info" | "equipment" | "vehicles";
 }
 
-type TabKey = "info" | "equipment";
+type TabKey = "info" | "equipment" | "vehicles";
 type FieldKey = "price" | "phone" | "contractEnd";
 type Errors = Partial<Record<FieldKey, string>>;
 
@@ -241,6 +242,12 @@ export default function RoomModal({
             className={`ac-modal-tab ${tab === "equipment" ? "is-active" : ""}`}
             onClick={() => setTab("equipment")}
           >อุปกรณ์</button>
+          <button
+            role="tab"
+            aria-selected={tab === "vehicles"}
+            className={`ac-modal-tab ${tab === "vehicles" ? "is-active" : ""}`}
+            onClick={() => setTab("vehicles")}
+          >ยานพาหนะ</button>
         </nav>
 
         <div className="ac-modal-body">
@@ -466,6 +473,12 @@ export default function RoomModal({
           {tab === "equipment" && (
             <Suspense fallback={<RoomEquipmentSkeleton />}>
               <RoomEquipmentTab building={room.building} room={room.room} />
+            </Suspense>
+          )}
+
+          {tab === "vehicles" && (
+            <Suspense fallback={<RoomEquipmentSkeleton />}>
+              <RoomVehiclesTab building={room.building} room={room.room} />
             </Suspense>
           )}
         </div>
