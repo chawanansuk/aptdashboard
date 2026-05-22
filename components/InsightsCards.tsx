@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
+import { useSession } from "next-auth/react";
 import type { RoomView, SheetRow } from "@/types";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { canPerform } from "@/lib/permissions";
 
 /**
  * Insights cards — Task 27 (light).
@@ -52,6 +54,11 @@ function scopeTasks(tasks: SheetRow[], activeBuilding: string): SheetRow[] {
 }
 
 export default function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
+  // Gate revenue card by finance permission — engineer mode shouldn't
+  // see income figures (consistent with OverviewCards which already
+  // gates "รายได้เดือนนี้" the same way).
+  const { data: session } = useSession();
+  const canSeeIncome = canPerform(session?.user?.roles, "finance.view");
   const insights = useMemo(() => {
     const scopedRooms = scopeRooms(rooms, activeBuilding);
     const scopedTasks = scopeTasks(tasks, activeBuilding);
@@ -125,13 +132,15 @@ export default function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
           </div>
         </article>
 
-        <article className="ac-insights-card">
-          <div className="ac-insights-label">รายได้คงค้าง/เดือน</div>
-          <div className="ac-insights-value">{fmtBaht(insights.income)}</div>
-          <div className="ac-insights-sub">
-            จากห้องมีผู้เช่า · estimate
-          </div>
-        </article>
+        {canSeeIncome && (
+          <article className="ac-insights-card">
+            <div className="ac-insights-label">รายได้คงค้าง/เดือน</div>
+            <div className="ac-insights-value">{fmtBaht(insights.income)}</div>
+            <div className="ac-insights-sub">
+              จากห้องมีผู้เช่า · estimate
+            </div>
+          </article>
+        )}
 
         <article className="ac-insights-card">
           <div className="ac-insights-label">งาน 7 วัน</div>
