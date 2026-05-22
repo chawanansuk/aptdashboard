@@ -7042,6 +7042,13 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   border-left: 3px solid #F97316;
   border-radius: var(--radius-md);
 }
+/* Move-IN variant — same shape, blue tint to differentiate from
+   move-out's orange (inbound vs outbound) */
+.ac-moveout-workflow--in {
+  background: color-mix(in srgb, #0D9488 8%, transparent);
+  border: 1px solid color-mix(in srgb, #0D9488 30%, transparent);
+  border-left: 3px solid #0D9488;
+}
 .ac-moveout-head {
   display: flex;
   align-items: flex-start;
