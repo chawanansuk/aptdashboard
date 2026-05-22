@@ -12,6 +12,7 @@ import AppHeader from "@/components/AppHeader";
 import AppSidebar from "@/components/AppSidebar";
 import OverviewCards from "@/components/OverviewCards";
 import InsightsCards from "@/components/InsightsCards";
+import RecentTasks from "@/components/RecentTasks";
 import RoomsView from "@/components/RoomsView";
 import CommandPalette from "@/components/CommandPalette";
 import { useCommandPalette } from "@/lib/useCommandPalette";
@@ -734,6 +735,15 @@ export default function Home() {
               rooms={rooms}
               tasks={tasks}
               activeBuilding={activeBuilding}
+            />
+          )}
+
+          {activeView === "overview" && rooms.length > 0 && (
+            <RecentTasks
+              tasks={tasks}
+              rooms={rooms}
+              activeBuilding={activeBuilding}
+              onSelectRoom={(r) => setSelectedRoom(r)}
             />
           )}
 
