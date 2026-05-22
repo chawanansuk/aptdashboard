@@ -584,7 +584,11 @@ export default function RoomModal({
 
           {tab === "equipment" && (
             <Suspense fallback={<RoomEquipmentSkeleton />}>
-              <RoomEquipmentTab building={room.building} room={room.room} />
+              <RoomEquipmentTab
+                building={room.building}
+                room={room.room}
+                pastTasks={room.pastTasks}
+              />
             </Suspense>
           )}
 

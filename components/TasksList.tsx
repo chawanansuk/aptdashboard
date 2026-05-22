@@ -84,6 +84,47 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
    *  or just งานทำสะอาด without scrolling. */
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
+  /** Bulk-select state — keyed by taskKey "date|bldg|room|type". When
+   *  size > 0, the floating action bar appears at the bottom of the
+   *  list with options to mark done / cancel / pending on all selected. */
+  const [bulkSel, setBulkSel] = useState<Set<string>>(new Set());
+  const [bulkRunning, setBulkRunning] = useState(false);
+  function taskKeyOf(t: SheetRow): string {
+    return `${t.date}|${t.building}|${t.room}|${t.type}`;
+  }
+  function toggleBulk(t: SheetRow) {
+    const k = taskKeyOf(t);
+    setBulkSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+  }
+  function clearBulk() { setBulkSel(new Set()); }
+  async function bulkSetStatus(newStatus: string) {
+    if (bulkSel.size === 0) return;
+    setBulkRunning(true);
+    setErr(null);
+    const selected = tasks.filter((t) => bulkSel.has(taskKeyOf(t)));
+    try {
+      // Serial — Apps Script writes are lock-protected; parallel would
+      // contend on the same row range anyway. Visible progress is OK.
+      for (const t of selected) {
+        await postUpdate({
+          action: "updateTaskStatus",
+          date: t.date, building: t.building, room: t.room, type: t.type,
+          status: newStatus,
+        });
+      }
+      clearBulk();
+      onChanged?.();
+    } catch (e) {
+      setErr(e instanceof Error ? `Bulk: ${e.message}` : "Bulk update failed");
+    } finally {
+      setBulkRunning(false);
+    }
+  }
+
   const visible = useMemo(() => {
     let out = tasks;
     if (hideDone) {
@@ -295,6 +336,8 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
           tasks={bucket.tasks}
           busyKey={busyKey}
           canDelete={canDelete}
+          bulkSel={bulkSel}
+          onToggleSelect={toggleBulk}
           onPickStatus={changeStatus}
           onPickEdit={openEdit}
           onPickDelete={(t) => setConfirmDel(t)}
@@ -367,6 +410,41 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
           </div>
         </div>
       )}
+
+      {/* Bulk action bar — floating at bottom when ≥1 task selected. */}
+      {bulkSel.size > 0 && (
+        <div className="ac-bulk-bar" role="region" aria-label="เลือกหลายงาน">
+          <span className="ac-bulk-bar-count">
+            เลือก {bulkSel.size} งาน
+          </span>
+          <div className="ac-bulk-bar-actions">
+            <button
+              type="button"
+              className="ac-btn ac-btn-primary ac-btn-sm"
+              disabled={bulkRunning}
+              onClick={() => bulkSetStatus(TASK_STATUS.DONE)}
+            >✓ ทำเสร็จทั้งหมด</button>
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost ac-btn-sm"
+              disabled={bulkRunning}
+              onClick={() => bulkSetStatus(TASK_STATUS.PENDING)}
+            >↶ คืนทั้งหมด</button>
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost ac-btn-sm"
+              disabled={bulkRunning}
+              onClick={() => bulkSetStatus(TASK_STATUS.CANCELLED)}
+            >✗ ยกเลิกทั้งหมด</button>
+            <button
+              type="button"
+              className="ac-btn ac-btn-ghost ac-btn-sm"
+              disabled={bulkRunning}
+              onClick={clearBulk}
+            >ล้าง</button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -380,13 +458,16 @@ interface BucketSectionProps {
   tasks: SheetRow[];
   busyKey: string | null;
   canDelete: boolean;
+  /** Bulk selection — set of task keys currently checked. */
+  bulkSel: Set<string>;
+  onToggleSelect: (t: SheetRow) => void;
   onPickStatus: (t: SheetRow, newStatus: string) => void;
   onPickEdit: (t: SheetRow) => void;
   onPickDelete: (t: SheetRow) => void;
 }
 
 function BucketSection({
-  urgency, tasks, busyKey, canDelete,
+  urgency, tasks, busyKey, canDelete, bulkSel, onToggleSelect,
   onPickStatus, onPickEdit, onPickDelete,
 }: BucketSectionProps) {
   const meta = URGENCY_META[urgency];
@@ -398,18 +479,23 @@ function BucketSection({
         <span className="ac-task-bucket-count">{tasks.length}</span>
       </header>
       <div className="ac-tasks-list">
-        {tasks.map((t) => (
-          <TaskCard
-            key={`${t.date}|${t.building}|${t.room}|${t.type}`}
-            task={t}
-            urgency={urgency}
-            busyKey={busyKey}
-            canDelete={canDelete}
-            onPickStatus={onPickStatus}
-            onPickEdit={onPickEdit}
-            onPickDelete={onPickDelete}
-          />
-        ))}
+        {tasks.map((t) => {
+          const tk = `${t.date}|${t.building}|${t.room}|${t.type}`;
+          return (
+            <TaskCard
+              key={tk}
+              task={t}
+              urgency={urgency}
+              busyKey={busyKey}
+              canDelete={canDelete}
+              selected={bulkSel.has(tk)}
+              onToggleSelect={onToggleSelect}
+              onPickStatus={onPickStatus}
+              onPickEdit={onPickEdit}
+              onPickDelete={onPickDelete}
+            />
+          );
+        })}
       </div>
     </section>
   );
@@ -424,13 +510,15 @@ interface TaskCardProps {
   urgency: Urgency;
   busyKey: string | null;
   canDelete: boolean;
+  selected: boolean;
+  onToggleSelect: (t: SheetRow) => void;
   onPickStatus: (t: SheetRow, newStatus: string) => void;
   onPickEdit: (t: SheetRow) => void;
   onPickDelete: (t: SheetRow) => void;
 }
 
 function TaskCard({
-  task, urgency, busyKey, canDelete,
+  task, urgency, busyKey, canDelete, selected, onToggleSelect,
   onPickStatus, onPickEdit, onPickDelete,
 }: TaskCardProps) {
   const t = task;
@@ -443,8 +531,16 @@ function TaskCard({
 
   return (
     <div
-      className={`ac-task ac-task-urgency-${urgency} ${done ? "is-done" : ""} ${cancelled ? "is-cancelled" : ""}`}
+      className={`ac-task ac-task-urgency-${urgency} ${done ? "is-done" : ""} ${cancelled ? "is-cancelled" : ""} ${selected ? "is-bulk-selected" : ""}`}
     >
+      <input
+        type="checkbox"
+        className="ac-task-bulk-check"
+        checked={selected}
+        onChange={() => onToggleSelect(t)}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="เลือกเพื่อแก้ไขรวม"
+      />
       <div className="ac-task-dot" style={{ background: dot }} />
       <div className="ac-task-main">
         <div className="ac-task-line1">

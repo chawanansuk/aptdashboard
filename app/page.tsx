@@ -201,13 +201,24 @@ export default function Home() {
 
   // ---- Theme ----
   useEffect(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
-    const prefersDark = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : false;
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('theme');
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const prefersDark = mql.matches;
     const dark = saved ? saved === 'dark' : prefersDark;
     setIsDark(dark);
-    if (typeof document !== 'undefined') {
-      document.documentElement.classList.toggle('dark', dark);
+    document.documentElement.classList.toggle('dark', dark);
+
+    // Live-track system preference when user hasn't manually picked.
+    // Touching the toggle persists "theme" in localStorage → from that
+    // point the listener is a no-op until user clears localStorage.
+    function onChange(e: MediaQueryListEvent) {
+      if (localStorage.getItem('theme')) return;
+      setIsDark(e.matches);
+      document.documentElement.classList.toggle('dark', e.matches);
     }
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
   }, []);
 
   function toggleTheme() {
