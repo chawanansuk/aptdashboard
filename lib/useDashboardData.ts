@@ -5,37 +5,7 @@ import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
 import { loadCache, saveCache } from "@/lib/cacheData";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { subscribeBus } from "@/lib/realtimeBus";
-
-const STATUS_FROM_ROOM: Record<string, RoomStatus> = {
-  // occupied
-  "มีคนอยู่": "occupied",
-  "มีผู้เช่า": "occupied",
-  "อยู่": "occupied",
-  // ready / vacant
-  "ว่าง": "ready",
-  "พร้อมขาย": "ready",
-  "พร้อม": "ready",
-  // repair / maintenance
-  "ปรับปรุง": "repair",
-  "รอเข้าซ่อม": "repair",
-  "ซ่อม": "repair",
-  "รอซ่อม": "repair",
-  // pending (waiting move-in / contract)
-  "รอสัญญา": "pending",
-  "รอย้ายเข้า": "pending",
-  // moveout
-  "แจ้งย้ายออก": "moveout",
-  "รอย้ายออก": "moveout",
-  // qc / cleaning
-  "รอตรวจ": "qc",
-  "QC": "qc",
-  "รอทำสะอาด": "qc",
-  // inactive / reserved / ER
-  "ไม่ได้ใช้งาน": "inactive",
-  "ห้องสำรอง": "inactive",
-  "สำรอง": "inactive",
-  "ER": "inactive",
-};
+import { normalizeRoomStatus, isKnownRoomStatus } from "@/lib/roomStatus";
 
 function parseDateDMY(s: string): Date | null {
   if (!s) return null;
@@ -104,9 +74,20 @@ export function mergeRoomsAndTasks(
       return db - da;
     });
 
-    // base status from rooms sheet
+    // base status from rooms sheet — normalize through the canonical
+    // alias map (lib/roomStatus.ts). Unknown values fall back to
+    // "inactive" so the room still surfaces; we also log once per
+    // unknown value in dev so we know to add an alias.
     const baseRaw = (r.status || "").trim();
-    let status: RoomStatus = STATUS_FROM_ROOM[baseRaw] || "inactive";
+    if (baseRaw && !isKnownRoomStatus(baseRaw) && process.env.NODE_ENV !== "production") {
+      const seen = (globalThis as { __seenUnknownStatus?: Set<string> }).__seenUnknownStatus ||= new Set();
+      if (!seen.has(baseRaw)) {
+        seen.add(baseRaw);
+        // eslint-disable-next-line no-console
+        console.warn(`[room-status] unknown raw status "${baseRaw}" — add alias to lib/roomStatus.ts`);
+      }
+    }
+    let status: RoomStatus = normalizeRoomStatus(baseRaw);
 
     // override by upcoming tasks
     const hasMoveOut = upcomingTasks.some((t) => t.type === "ย้ายออก");
