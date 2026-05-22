@@ -57,7 +57,7 @@ export type Route =
   // management-only
   | "income" | "reports";
 
-const ROUTE_ALLOW: Record<Route, Role[]> = {
+export const ROUTE_ALLOW: Record<Route, Role[]> = {
   // shared — every authenticated user
   overview:    ["sales", "engineer", "management"],
   today:       ["sales", "engineer", "management"],
@@ -131,7 +131,7 @@ export type Action =
   // financials
   | "finance.view";
 
-const ACTION_ALLOW: Record<Action, Role[]> = {
+export const ACTION_ALLOW: Record<Action, Role[]> = {
   // tasks — all authenticated users can create/edit generic; deletion is mgmt-only
   "task.add":       ["sales", "engineer", "management"],
   "task.add.sales": ["sales", "management"],
