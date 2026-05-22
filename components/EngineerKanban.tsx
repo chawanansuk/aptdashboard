@@ -9,6 +9,7 @@ import {
   type StatusCategory,
 } from "@/lib/taskStatus";
 import { computeSla, slaBadgeLabel } from "@/lib/sla";
+import { parseTaskLocation, isCommonAreaTask } from "@/lib/taskLocation";
 
 interface Props {
   tasks: SheetRow[];
@@ -357,6 +358,8 @@ function KanbanCard({
   const typeIcon = task.type === "ซ่อม" ? "🔧" : task.type === "ทำสะอาด" ? "🧹" : "•";
   const age = ageLabel(task.date);
   const overdue = age.startsWith("เลย");
+  const location = parseTaskLocation(task);
+  const isCommon = location.kind === "common";
   // SLA state — drives the card's color cue (warn/overdue) + optional badge.
   const sla = computeSla(task);
   const slaClass =
@@ -373,9 +376,11 @@ function KanbanCard({
       data-type={task.type}
     >
       <header className="ac-kanban-card-head">
-        <span className="ac-kanban-card-type" aria-hidden>{typeIcon}</span>
+        <span className="ac-kanban-card-type" aria-hidden>
+          {isCommon ? "🏢" : typeIcon}
+        </span>
         <span className="ac-kanban-card-title">
-          ห้อง {task.room}
+          {isCommon ? location.label : `ห้อง ${task.room}`}
           <span className="ac-kanban-card-building"> · {task.building}</span>
         </span>
         <span className={`ac-kanban-card-age ${overdue ? "is-overdue" : ""}`}>{age}</span>

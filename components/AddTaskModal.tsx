@@ -18,6 +18,11 @@ import {
   getCostPlaceholder,
   getRoomHint,
 } from "@/lib/buildingPlaceholders";
+import {
+  COMMON_AREA_PREFIX,
+  COMMON_AREA_TYPES,
+  formatCommonArea,
+} from "@/lib/taskLocation";
 
 /**
  * Task types ที่แต่ละ role เพิ่มได้:
@@ -103,6 +108,7 @@ export default function AddTaskModal({
     handleSubmit,
     reset,
     watch,
+    setValue,
     setFocus,
     formState: { errors, isSubmitting, isValid, isDirty },
   } = useForm<TaskFormValues>({
@@ -124,6 +130,27 @@ export default function AddTaskModal({
 
   const currentType = watch("type");
   const showCustomerSection = TYPES_WITH_CUSTOMER.has(currentType);
+
+  // Common-area toggle (Task 38) — show only for engineer task types
+  // (ซ่อม / ทำสะอาด). Sales appointments always target a tenant room.
+  const allowCommonArea = currentType === "ซ่อม" || currentType === "ทำสะอาด" || currentType === "อื่นๆ";
+  const currentRoom = watch("room");
+  const isCommonMode = allowCommonArea && currentRoom?.startsWith(COMMON_AREA_PREFIX);
+  const selectedCommonType = isCommonMode
+    ? (currentRoom || "").slice(COMMON_AREA_PREFIX.length) || COMMON_AREA_TYPES[0]
+    : COMMON_AREA_TYPES[0];
+
+  function setLocationKind(kind: "room" | "common") {
+    if (kind === "common") {
+      setValue("room", formatCommonArea(COMMON_AREA_TYPES[0]), { shouldDirty: true, shouldValidate: false });
+    } else {
+      // Switching back to room mode — clear so user sees the placeholder
+      setValue("room", "", { shouldDirty: true, shouldValidate: false });
+    }
+  }
+  function setCommonAreaType(t: string) {
+    setValue("room", formatCommonArea(t), { shouldDirty: true, shouldValidate: true });
+  }
 
   // Building-aware placeholders — adapt to the selected building's naming
   // convention (e.g. ตึกมีทรัพย์ uses "1.1, 1.2") and price band (median).
@@ -279,19 +306,57 @@ export default function AddTaskModal({
                 </div>
                 <div className={`ac-field ${errors.room ? "has-error" : ""}`}>
                   <label htmlFor="ac-addtask-room">
-                    เลขห้อง <span className="ac-required" aria-hidden>*</span>
+                    {isCommonMode ? "พื้นที่ส่วนกลาง" : "เลขห้อง"} <span className="ac-required" aria-hidden>*</span>
                   </label>
-                  <input
-                    id="ac-addtask-room"
-                    type="text"
-                    placeholder={roomPlaceholder}
-                    aria-invalid={!!errors.room}
-                    {...register("room")}
-                  />
+
+                  {/* Location-kind toggle — only for engineer task types
+                      (Task 38). Sales appointments always target a room. */}
+                  {allowCommonArea && (
+                    <div className="ac-form-toggle" role="radiogroup" aria-label="เลือกประเภทที่ตั้ง">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={!isCommonMode}
+                        className={`ac-form-toggle-btn ${!isCommonMode ? "is-active" : ""}`}
+                        onClick={() => setLocationKind("room")}
+                      >🚪 ห้องเช่า</button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={!!isCommonMode}
+                        className={`ac-form-toggle-btn ${isCommonMode ? "is-active" : ""}`}
+                        onClick={() => setLocationKind("common")}
+                      >🏢 ส่วนกลาง</button>
+                    </div>
+                  )}
+
+                  {isCommonMode ? (
+                    <select
+                      id="ac-addtask-room"
+                      aria-invalid={!!errors.room}
+                      value={selectedCommonType}
+                      onChange={(e) => setCommonAreaType(e.target.value)}
+                    >
+                      {COMMON_AREA_TYPES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      id="ac-addtask-room"
+                      type="text"
+                      placeholder={roomPlaceholder}
+                      aria-invalid={!!errors.room}
+                      {...register("room")}
+                    />
+                  )}
+
                   {errors.room ? (
                     <span className="ac-field-error">{errors.room.message}</span>
-                  ) : roomHint ? (
+                  ) : !isCommonMode && roomHint ? (
                     <span className="ac-field-hint">{roomHint}</span>
+                  ) : isCommonMode ? (
+                    <span className="ac-field-hint">งานสาธารณูปโภค/พื้นที่รวม ไม่ผูกห้องผู้เช่า</span>
                   ) : null}
                 </div>
               </div>
