@@ -12,6 +12,7 @@ import {
 import { TASK_STATUS } from "@/lib/taskStatus";
 import { TASK_TYPES } from "@/lib/taskSchema";
 import { publishBusEvent } from "@/lib/realtimeBus";
+import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
 
 // dd/MM/yyyy <-> yyyy-MM-dd conversion for <input type="date">
@@ -78,11 +79,25 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
   const [edit, setEdit] = useState<EditState | null>(null);
   const [confirmDel, setConfirmDel] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
-  const [hideDone, setHideDone] = useState(true);
+  // Persist hideDone + typeFilter across reloads — user-specific
+  // workflow preferences. Keyed by title so each TasksList (today /
+  // calendar / by-status) keeps its own setting.
+  const persistTag = title.replace(/[^\w฀-๿]+/g, "_").slice(0, 40);
+  const [hideDoneRaw, setHideDoneRaw] = usePersistedString(
+    `tasksList:${persistTag}:hideDone`,
+    "1",
+    (v) => v === "0" || v === "1",
+  );
+  const hideDone = hideDoneRaw === "1";
+  const setHideDone = (v: boolean) => setHideDoneRaw(v ? "1" : "0");
   /** Filter by task type ("all" or specific TaskType label). Surface as
    *  chip row above the table so the engineer can scope to just งานซ่อม
    *  or just งานทำสะอาด without scrolling. */
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = usePersistedString(
+    `tasksList:${persistTag}:type`,
+    "all",
+    (v) => v === "all" || (TASK_TYPES as readonly string[]).includes(v),
+  );
 
   /** Bulk-select state — keyed by taskKey "date|bldg|room|type". When
    *  size > 0, the floating action bar appears at the bottom of the
@@ -120,6 +135,29 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
       onChanged?.();
     } catch (e) {
       setErr(e instanceof Error ? `Bulk: ${e.message}` : "Bulk update failed");
+    } finally {
+      setBulkRunning(false);
+    }
+  }
+
+  async function bulkDelete() {
+    if (bulkSel.size === 0) return;
+    if (!canDelete) return;
+    if (!confirm(`ลบงาน ${bulkSel.size} รายการ?\n\nการลบนี้ไม่สามารถย้อนกลับได้`)) return;
+    setBulkRunning(true);
+    setErr(null);
+    const selected = tasks.filter((t) => bulkSel.has(taskKeyOf(t)));
+    try {
+      for (const t of selected) {
+        await postUpdate({
+          action: "deleteTask",
+          match: { date: t.date, building: t.building, room: t.room, type: t.type },
+        });
+      }
+      clearBulk();
+      onChanged?.();
+    } catch (e) {
+      setErr(e instanceof Error ? `Bulk delete: ${e.message}` : "Bulk delete failed");
     } finally {
       setBulkRunning(false);
     }
@@ -436,6 +474,14 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
               disabled={bulkRunning}
               onClick={() => bulkSetStatus(TASK_STATUS.CANCELLED)}
             >✗ ยกเลิกทั้งหมด</button>
+            {canDelete && (
+              <button
+                type="button"
+                className="ac-btn ac-btn-danger ac-btn-sm"
+                disabled={bulkRunning}
+                onClick={bulkDelete}
+              >🗑 ลบทั้งหมด</button>
+            )}
             <button
               type="button"
               className="ac-btn ac-btn-ghost ac-btn-sm"
