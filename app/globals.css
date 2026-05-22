@@ -1054,20 +1054,27 @@ html.dark .ac-mode-badge.is-management {
 /* Vehicle badge — appears at bottom-right when room has registered
    vehicles. Position absolute so it sits outside the flex flow and
    doesn't push the status label around. */
-.ac-rc-veh {
+/* Badges container — bottom-right of card, stacks vehicle + equipment */
+.ac-rc-badges {
   position: absolute;
   bottom: 2px; right: 4px;
+  display: inline-flex;
+  gap: 2px;
+}
+.ac-rc-veh,
+.ac-rc-eq {
   font-size: 9px;
   line-height: 1;
   font-weight: 600;
   color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
   padding: 1px 4px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
 }
-/* In compact density, only show count digit (no "🏍 ") to fit */
-.ac-rg-compact .ac-rc-veh { display: none; }
+.ac-rc-veh { background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.ac-rc-eq  { background: color-mix(in srgb, #F97316 14%, transparent); }
+/* In compact density, hide badges entirely — no room to fit */
+.ac-rg-compact .ac-rc-badges { display: none; }
 
 /* Density variants — compact / comfy (default) / large */
 .ac-rg-compact .ac-rc { width: 44px; height: 36px; padding: 2px; gap: 0; }

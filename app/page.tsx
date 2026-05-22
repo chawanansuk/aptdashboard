@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
+import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
@@ -66,6 +67,7 @@ export default function Home() {
   // Independent fetch from rooms/tasks since vehicles have different
   // refresh cadence (Task 30 follow-up).
   const vehicleCounts = useVehicleCountByRoom();
+  const equipmentCounts = useEquipmentCountByRoom();
 
   // ---- UI state ----
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -780,6 +782,7 @@ export default function Home() {
               roles={roles}
               onRepairRoom={openRepairForRoom}
               vehicleCountByRoom={vehicleCounts.get}
+              equipmentCountByRoom={equipmentCounts.get}
             />
           )}
 
