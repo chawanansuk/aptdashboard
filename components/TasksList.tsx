@@ -10,6 +10,7 @@ import {
   bucketTasks, daysOverdue, URGENCY_META, type Urgency,
 } from "@/lib/taskUrgency";
 import { TASK_STATUS } from "@/lib/taskStatus";
+import { TASK_TYPES } from "@/lib/taskSchema";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import EmptyState from "./EmptyState";
 
@@ -78,13 +79,21 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
   const [confirmDel, setConfirmDel] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [hideDone, setHideDone] = useState(true);
+  /** Filter by task type ("all" or specific TaskType label). Surface as
+   *  chip row above the table so the engineer can scope to just งานซ่อม
+   *  or just งานทำสะอาด without scrolling. */
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const visible = useMemo(
-    () => hideDone
-      ? tasks.filter((t) => !isDone(t.status) && !isCancelled(t.status))
-      : tasks,
-    [tasks, hideDone]
-  );
+  const visible = useMemo(() => {
+    let out = tasks;
+    if (hideDone) {
+      out = out.filter((t) => !isDone(t.status) && !isCancelled(t.status));
+    }
+    if (typeFilter !== "all") {
+      out = out.filter((t) => t.type === typeFilter);
+    }
+    return out;
+  }, [tasks, hideDone, typeFilter]);
   const hiddenCount = tasks.length - visible.length;
 
   // Group remaining tasks into urgency buckets — drives sort + section headers
@@ -246,6 +255,28 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
           >⬇ CSV</button>
         </div>
       </header>
+
+      {/* Type filter chips — quick scope to one task type (e.g. ซ่อม only) */}
+      <nav className="ac-tasks-type-chips" role="radiogroup" aria-label="กรองตามประเภทงาน">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={typeFilter === "all"}
+          className={`ac-chip ${typeFilter === "all" ? "is-active" : ""}`}
+          onClick={() => setTypeFilter("all")}
+        >ทั้งหมด</button>
+        {TASK_TYPES.map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="radio"
+            aria-checked={typeFilter === t}
+            className={`ac-chip ${typeFilter === t ? "is-active" : ""}`}
+            onClick={() => setTypeFilter(t)}
+          >{t}</button>
+        ))}
+      </nav>
+
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
 
       {visible.length === 0 && (
