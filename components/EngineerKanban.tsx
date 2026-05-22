@@ -9,7 +9,11 @@ import {
   type StatusCategory,
 } from "@/lib/taskStatus";
 import { computeSla, slaBadgeLabel } from "@/lib/sla";
-import { parseTaskLocation, isCommonAreaTask } from "@/lib/taskLocation";
+import {
+  parseTaskLocation,
+  filterTasksByLocation,
+  type LocationFilter,
+} from "@/lib/taskLocation";
 
 interface Props {
   tasks: SheetRow[];
@@ -113,17 +117,22 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
   const [flashCol, setFlashCol] = useState<ColumnKey | null>(null);
   // Briefly-highlighted task keys (e.g. all overdue) after KPI click.
   const [flashKeys, setFlashKeys] = useState<Set<string>>(new Set());
+  // Filter chip: ห้องเช่า vs ส่วนกลาง vs ทั้งหมด (Task 38 follow-up).
+  // Default "all" — preserves the prior behaviour for users not yet
+  // using common-area tasks.
+  const [locFilter, setLocFilter] = useState<LocationFilter>("all");
 
   const todayStr = useMemo(() => todayThai(), []);
 
-  // Filter: engineer-side tasks + active building
+  // Filter: engineer-side tasks + active building + location kind
   const filtered = useMemo(() => {
-    return (tasks || []).filter((t) => {
+    const base = (tasks || []).filter((t) => {
       if (!ENG_TASK_TYPES.has(t.type)) return false;
       if (activeBuilding !== "ทั้งหมด" && t.building !== activeBuilding) return false;
       return true;
     });
-  }, [tasks, activeBuilding]);
+    return filterTasksByLocation(base, locFilter);
+  }, [tasks, activeBuilding, locFilter]);
 
   const buckets = useMemo(() => groupTasksForKanban(filtered, todayStr), [filtered, todayStr]);
 
@@ -215,6 +224,35 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setErr(null)}>ปิด</button>
         </div>
       )}
+
+      {/* Location filter chips (Task 38) — let the engineer narrow the
+          board to tenant rooms or common-area items. Default "all"
+          preserves the prior view for users not using common-area yet. */}
+      <nav
+        className="ac-kanban-loc-chips"
+        role="radiogroup"
+        aria-label="กรองตามประเภทที่ตั้ง"
+      >
+        {(
+          [
+            { key: "all",    label: "ทั้งหมด",  icon: "" },
+            { key: "room",   label: "ห้องเช่า", icon: "🚪" },
+            { key: "common", label: "ส่วนกลาง", icon: "🏢" },
+          ] as Array<{ key: LocationFilter; label: string; icon: string }>
+        ).map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            role="radio"
+            aria-checked={locFilter === chip.key}
+            className={`ac-chip ${locFilter === chip.key ? "is-active" : ""}`}
+            onClick={() => setLocFilter(chip.key)}
+          >
+            {chip.icon && <span aria-hidden>{chip.icon} </span>}
+            {chip.label}
+          </button>
+        ))}
+      </nav>
 
       {/* Mobile-only tab nav — at <md (768px) the board hides other columns
           and only shows the one matching activeMobileCol. Desktop ≥md shows
