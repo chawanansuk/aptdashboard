@@ -235,7 +235,7 @@ export default function CommandPalette({
             ref={inputRef}
             type="text"
             value={query}
-            placeholder="ค้นหาห้อง / หน้า / คำสั่ง..."
+            placeholder="ค้นหา ห้อง / ผู้เช่า / เบอร์ / ทะเบียนรถ / หน้า / คำสั่ง..."
             onChange={(e) => { setQuery(e.target.value); setSelectedIdx(0); }}
             aria-autocomplete="list"
           />

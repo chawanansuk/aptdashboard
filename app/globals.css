@@ -3202,6 +3202,11 @@ html.dark .ac-equipment-card-brand { color: #CBD5E1; }
 
 /* ===== Maintenance view (v3.7.0) ===== */
 .ac-maintenance { display: flex; flex-direction: column; gap: 12px; }
+.ac-maintenance-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
 .ac-maintenance-summary {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
 }

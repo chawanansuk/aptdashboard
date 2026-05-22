@@ -11,6 +11,7 @@ import {
 } from "@/lib/maintenanceUtils";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
+import { exportCsv } from "@/lib/csvExport";
 
 interface Props {
   activeBuilding: string;
@@ -149,8 +150,38 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
       });
   }, [filtered, activeBuilding]);
 
+  function handleExport() {
+    if (filtered.length === 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const tag = activeBuilding === "ทั้งหมด" ? "ทั้งหมด" : activeBuilding;
+    exportCsv(
+      `อุปกรณ์_${tag}_${today}.csv`,
+      filtered,
+      [
+        { header: "ตึก",          value: (e: RoomEquipment) => e.building },
+        { header: "ห้อง",         value: (e: RoomEquipment) => e.room },
+        { header: "ประเภท",       value: (e: RoomEquipment) => e.type },
+        { header: "ยี่ห้อ/รุ่น",    value: (e: RoomEquipment) => e.brand },
+        { header: "วันติดตั้ง",    value: (e: RoomEquipment) => e.installDate },
+        { header: "วันซ่อมล่าสุด",  value: (e: RoomEquipment) => e.lastService },
+        { header: "สถานะ",        value: (e: RoomEquipment) => e.status },
+        { header: "รอบบำรุง(วัน)", value: (e: RoomEquipment) => e.intervalDays || "" },
+        { header: "หมายเหตุ",     value: (e: RoomEquipment) => e.note },
+      ],
+    );
+  }
+
   return (
     <div className="ac-maintenance">
+      <div className="ac-maintenance-toolbar">
+        <button
+          type="button"
+          className="ac-btn ac-btn-ghost ac-btn-sm"
+          onClick={handleExport}
+          disabled={filtered.length === 0}
+          title={filtered.length === 0 ? "ไม่มีข้อมูล" : `ดาวน์โหลด ${filtered.length} รายการ`}
+        >⬇ CSV</button>
+      </div>
       <div className="ac-maintenance-summary">
         <div className="ac-maint-stat" style={{ borderColor: MAINTENANCE_STATUS_COLOR.overdue }}>
           <div className="ac-maint-stat-num" style={{ color: MAINTENANCE_STATUS_COLOR.overdue }}>{counts.overdue}</div>
