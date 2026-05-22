@@ -333,6 +333,17 @@ function KanbanColumn({
   );
 }
 
+/**
+ * Render the creator (email) compactly — show local-part only so the
+ * card stays readable when the email is long. Falls back to "—" so
+ * cards have a consistent meta row (Task 39). Exported for unit test.
+ */
+export function creatorLabel(creator: string | undefined): string {
+  if (!creator) return "—";
+  const at = creator.indexOf("@");
+  return at > 0 ? creator.slice(0, at) : creator;
+}
+
 function KanbanCard({
   task, busy, onMove, onEdit, column, flashing,
 }: {
@@ -353,6 +364,8 @@ function KanbanCard({
     : sla.state === "warn" ? "is-sla-warn"
     : "";
   const slaBadge = slaBadgeLabel(sla);
+  const reporter = creatorLabel(task.creator);
+  const note = task.note?.trim() || "—";
 
   return (
     <article
@@ -372,20 +385,22 @@ function KanbanCard({
         <div className="ac-kanban-card-sla" role="status">⏰ {slaBadge}</div>
       )}
 
-      {task.note && (
-        <div className="ac-kanban-card-note" title={task.note}>{task.note}</div>
-      )}
+      {/* Note row — always rendered for layout consistency. "—" when
+          empty so cards stack uniformly across the column (Task 39). */}
+      <div
+        className={`ac-kanban-card-note ${note === "—" ? "is-empty" : ""}`}
+        title={note === "—" ? "ไม่มีหมายเหตุ" : note}
+      >{note}</div>
 
-      {(task.customer || task.phone) && (
-        <div className="ac-kanban-card-meta">
-          {task.customer && <span>{task.customer}</span>}
-          {task.phone && (
-            <a href={`tel:${task.phone}`} className="ac-kanban-card-phone" onClick={(e) => e.stopPropagation()}>
-              📞 {task.phone}
-            </a>
-          )}
-        </div>
-      )}
+      {/* Reporter row — always present, "—" if creator field empty in
+          the source sheet. Phone block dropped (engineer tasks
+          historically don't fill customer/phone; sales-side tasks
+          live in a different view). */}
+      <div className="ac-kanban-card-meta">
+        <span className="ac-kanban-card-reporter" title={task.creator || "ไม่ระบุผู้แจ้ง"}>
+          👤 {reporter}
+        </span>
+      </div>
 
       <footer className="ac-kanban-card-actions">
         {busy && <span className="ac-btn-spinner" aria-label="กำลังบันทึก" />}

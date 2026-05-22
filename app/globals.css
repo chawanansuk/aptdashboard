@@ -5340,6 +5340,16 @@ button.ac-kanban-kpi:focus-visible {
   overflow: hidden;
   line-height: 1.4;
 }
+.ac-kanban-card-note.is-empty {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.ac-kanban-card-reporter {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
 .ac-kanban-card-meta {
   display: flex;
   gap: var(--space-2);
