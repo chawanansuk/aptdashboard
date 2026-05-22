@@ -6952,3 +6952,55 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   gap: var(--space-1);
   flex-wrap: wrap;
 }
+
+/* Room modal — Vehicles tab */
+.ac-room-vehicles { padding: var(--space-2) 0; }
+.ac-room-vehicles-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.ac-room-vehicles-count {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.ac-room-vehicles-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ac-room-vehicles-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.ac-room-vehicles-main { flex: 1; min-width: 0; }
+.ac-room-vehicles-plate {
+  font-family: var(--font-family-mono, monospace);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--text-base);
+  color: var(--color-accent);
+}
+.ac-room-vehicles-meta {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  margin-top: 2px;
+}
+.ac-room-vehicles-note {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+.ac-room-vehicles-actions {
+  display: flex;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
