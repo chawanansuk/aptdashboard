@@ -111,7 +111,17 @@ export default function Home() {
   // refreshes page and lands back in their last context (sales had
   // "ตึก KL" + "ภาพรวมขาย" view → see same on next visit).
   const [activeBuilding, setActiveBuilding] = usePersistedString("activeBuilding", "ทั้งหมด");
-  const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
+  type ActiveFilter = "all" | RoomStatus;
+  const VALID_FILTERS: ActiveFilter[] = [
+    "all", "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive",
+  ];
+  const [activeFilterRaw, setActiveFilterRaw] = usePersistedString(
+    "activeFilter",
+    "all",
+    (v) => (VALID_FILTERS as string[]).includes(v),
+  );
+  const activeFilter = activeFilterRaw as ActiveFilter;
+  const setActiveFilter = (v: ActiveFilter) => setActiveFilterRaw(v);
   const [search, setSearch] = useState("");
   type ActiveView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "parts" | "vehicles" | "salespipeline" | "engineerkanban" | "reports";
   const VALID_VIEWS: ActiveView[] = [
