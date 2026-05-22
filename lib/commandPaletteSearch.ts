@@ -98,12 +98,28 @@ export function searchRooms(
   }
 
   const out: RoomSearchResult[] = [];
+  // Phone-aware: strip non-digits from query so "081-234-5678"
+  // and "0812345678" both match. Activated only when query has
+  // at least 4 digits — short numeric queries (e.g. room "101")
+  // shouldn't accidentally match phone substrings.
+  const digitsOnlyQuery = query.replace(/\D+/g, "");
+
   for (const r of rooms) {
-    // First check standard room fields
-    const baseRank = bestRank(
+    // Standard room fields
+    let baseRank = bestRank(
       [r.room, r.building, r.tenant, r.phone],
       query,
     );
+    // Phone-aware fallback: when the query is mostly digits and
+    // didn't match the raw phone, try the normalized form.
+    if (baseRank === -1 && digitsOnlyQuery.length >= 4 && r.phone) {
+      const phoneDigits = r.phone.replace(/\D+/g, "");
+      if (phoneDigits) {
+        if (phoneDigits === digitsOnlyQuery) baseRank = 0;
+        else if (phoneDigits.startsWith(digitsOnlyQuery)) baseRank = 1;
+        else if (phoneDigits.includes(digitsOnlyQuery)) baseRank = 2;
+      }
+    }
 
     // Then check vehicles for this room; capture best matching vehicle
     let bestVehicleRank = -1;
