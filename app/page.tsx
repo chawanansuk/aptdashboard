@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
+import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
@@ -59,6 +60,11 @@ const ReportsView     = lazy(() => import("@/components/ReportsView"));
 export default function Home() {
   const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing, optimisticUpdateRoom } =
     useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
+
+  // Vehicle counts per room — used to render 🏍 N badge on RoomCard.
+  // Independent fetch from rooms/tasks since vehicles have different
+  // refresh cadence (Task 30 follow-up).
+  const vehicleCounts = useVehicleCountByRoom();
 
   // ---- UI state ----
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -745,6 +751,7 @@ export default function Home() {
               onSelectRoom={(r) => setSelectedRoom(r)}
               roles={roles}
               onRepairRoom={openRepairForRoom}
+              vehicleCountByRoom={vehicleCounts.get}
             />
           )}
 

@@ -72,6 +72,9 @@ interface Props {
   roles: Role[] | undefined;
   /** Quick-action callbacks — passed through to RoomQuickActions popover. */
   onRepairRoom: (r: RoomView) => void;
+  /** Optional: vehicle count per room ("Building|Room" → count). When
+   *  supplied, each card shows a `🏍 N` badge when N > 0. */
+  vehicleCountByRoom?: (building: string, room: string) => number;
 }
 
 const DENSITY_LABEL: Record<RoomDensity, string> = {
@@ -89,7 +92,7 @@ const DENSITY_TITLE: Record<RoomDensity, string> = {
 export default function RoomsView({
   visibleRooms, activeFilter, onChangeFilter,
   search, onChangeSearch, bulkMode, bulkSelected, onToggleBulkMode, onToggleBulkRoom, onSelectRoom,
-  roles, onRepairRoom,
+  roles, onRepairRoom, vehicleCountByRoom,
 }: Props) {
   const { density, setDensity } = useRoomDensity();
   const [quickFor, setQuickFor] = useState<{ room: RoomView; anchor: DOMRect } | null>(null);
@@ -202,6 +205,16 @@ export default function RoomsView({
                     {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
                     <span className="ac-rc-num">{r.room}</span>
                     <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
+                    {(() => {
+                      const n = vehicleCountByRoom?.(r.building, r.room) ?? 0;
+                      return n > 0 ? (
+                        <span
+                          className="ac-rc-veh"
+                          title={`${n} คัน`}
+                          aria-label={`มียานพาหนะ ${n} คัน`}
+                        >🏍 {n}</span>
+                      ) : null;
+                    })()}
                     {!bulkMode && (
                       <button
                         type="button"
