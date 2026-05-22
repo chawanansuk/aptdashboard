@@ -14,6 +14,7 @@ import AppSidebar from "@/components/AppSidebar";
 import OverviewCards from "@/components/OverviewCards";
 import InsightsCards from "@/components/InsightsCards";
 import RecentTasks from "@/components/RecentTasks";
+import KeyboardHelpModal from "@/components/KeyboardHelpModal";
 import RoomsView from "@/components/RoomsView";
 import CommandPalette from "@/components/CommandPalette";
 import { useCommandPalette } from "@/lib/useCommandPalette";
@@ -155,6 +156,7 @@ export default function Home() {
 
   // ---- Add task ----
   const [showAddTask, setShowAddTask] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [tDate, setTDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [tType, setTType] = useState<string>(() => modeConfig.defaultTaskType);
@@ -259,6 +261,7 @@ export default function Home() {
       const isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable;
 
       if (e.key === "Escape") {
+        if (showHelp) { setShowHelp(false); return; }
         if (selectedRoom) { setSelectedRoom(null); return; }
         if (showAddTask) { setShowAddTask(false); return; }
         if (summaryOpen) { setSummaryOpen(false); return; }
@@ -271,6 +274,11 @@ export default function Home() {
       if (e.key === "/") {
         const input = document.querySelector<HTMLInputElement>(".ac-search input");
         if (input) { e.preventDefault(); input.focus(); input.select(); }
+      } else if (e.key === "?") {
+        // "?" requires Shift on US layout — captured via the key
+        // value (not code). Show shortcut cheatsheet.
+        e.preventDefault();
+        setShowHelp((s) => !s);
       } else if (e.key.toLowerCase() === "n") {
         e.preventDefault();
         setShowAddTask(true);
@@ -281,7 +289,7 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedRoom, showAddTask, summaryOpen, sidebarOpen, isRefreshing, refresh]);
+  }, [selectedRoom, showAddTask, summaryOpen, sidebarOpen, showHelp, isRefreshing, refresh]);
 
   // ---- Derived data ----
   const buildings = useMemo(() => {
@@ -707,6 +715,7 @@ export default function Home() {
         onOpenSummary={() => setSummaryOpen(true)}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onOpenSearch={() => cmdk.setOpen(true)}
+        onOpenHelp={() => setShowHelp(true)}
         addLabel={modeConfig.addButtonLabel}
         modeLabel={modeConfig.label}
       />
@@ -1027,6 +1036,8 @@ export default function Home() {
           onMoveinSchedule={() => openMoveinSchedule(selectedRoom.building, selectedRoom.room)}
         />
       )}
+
+      <KeyboardHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
 
       {bulkMode && (
         <BulkActionBar

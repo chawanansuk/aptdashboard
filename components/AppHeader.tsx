@@ -21,6 +21,8 @@ interface Props {
   onToggleTheme: () => void;
   onOpenSummary: () => void;
   onToggleSidebar: () => void;
+  /** Open the keyboard-shortcut help modal (`?` key). */
+  onOpenHelp?: () => void;
   /** Open the global command palette. Mobile users tap this; desktop users press Cmd+K / `/`. */
   onOpenSearch?: () => void;
   /** Mode-specific label for the add button (e.g. "+ นัดลูกค้า"). Falls back to "เพิ่มงาน". */
@@ -68,7 +70,7 @@ const ROLE_LABEL: Record<Role | typeof VIEW_AS_ALL, string> = {
 export default function AppHeader({
   buildings, activeBuilding, onChangeBuilding,
   isRefreshing, lastUpdated, isDark,
-  onAddTask, onRefresh, onToggleTheme, onOpenSummary, onToggleSidebar, onOpenSearch,
+  onAddTask, onRefresh, onToggleTheme, onOpenSummary, onToggleSidebar, onOpenSearch, onOpenHelp,
   addLabel, modeLabel,
 }: Props) {
   const { data: session } = useSession();
@@ -268,6 +270,18 @@ export default function AppHeader({
                     <span>อัปเดตล่าสุด {lastUpdated || "-"}</span>
                   </div>
                 </div>
+
+                {/* Keyboard shortcut help — visible to everyone */}
+                {onOpenHelp && (
+                  <button
+                    type="button"
+                    className="ac-user-menu-item"
+                    onClick={() => { closeMenu(); onOpenHelp(); }}
+                  >
+                    <Icon name="alert" size={16} />
+                    <span>คีย์ลัด <span className="ac-user-menu-meta">?</span></span>
+                  </button>
+                )}
 
                 {/* Management-only — admin/permissions matrix viewer (Task 19) */}
                 {isManagement(session?.user?.roles) && (
