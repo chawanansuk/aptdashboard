@@ -910,6 +910,7 @@ export default function Home() {
                 <EngineerKanban
                   tasks={tasks}
                   activeBuilding={activeBuilding}
+                  rooms={rooms}
                   onChanged={refresh}
                 />
               </Suspense>

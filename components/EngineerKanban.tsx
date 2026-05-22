@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { SheetRow } from "@/types";
+import type { SheetRow, RoomView } from "@/types";
+import { useSession } from "next-auth/react";
+import { applyAutoRoomStatus } from "@/lib/applyAutoRoomStatus";
 import { parseThaiDate } from "@/lib/dateUtils";
 import {
   TASK_STATUS,
@@ -20,6 +22,8 @@ import { taskKey } from "@/lib/taskKey";
 interface Props {
   tasks: SheetRow[];
   activeBuilding: string;
+  /** Live rooms — used by auto-room-status side effect after task done. */
+  rooms?: RoomView[];
   onChanged?: () => void;
   /** Called when a card click should open the legacy task editor (optional). */
   onEditTask?: (t: SheetRow) => void;
@@ -105,7 +109,8 @@ export function ageLabel(taskDate: string, now: Date = new Date()): string {
   return `เลย ${Math.abs(diff)} วัน`;
 }
 
-export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEditTask }: Props) {
+export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged, onEditTask }: Props) {
+  const { data: session } = useSession();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // Mobile-only: which single column to show (CSS hides others at <md).
@@ -154,6 +159,13 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       onChanged?.();
+      // Post-task side effect: auto room status update (or hint toast)
+      // when the transition is unambiguous (cleaning done → ready, etc.)
+      if (rooms) {
+        await applyAutoRoomStatus({
+          task: t, newTaskStatus: newStatus, rooms, roles: session?.user?.roles,
+        });
+      }
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "เปลี่ยนสถานะไม่สำเร็จ");
     } finally {
