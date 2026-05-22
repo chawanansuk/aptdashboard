@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.14.0 — Dashboard หอพัก
+ * Code.gs v3.15.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -59,6 +59,13 @@
  *   - ROOM_STATUS dropdown เพิ่มค่า 'ไม่ได้ใช้งาน' (inactive) — ใช้กับ
  *     ห้องเก็บของ/ห้องสำรอง ที่ไม่ปล่อยเช่า; dashboard map → status
  *     'inactive' อยู่แล้ว แต่เดิม dropdown ไม่ให้กรอกค่านี้ ต้องพิมพ์เอง
+ * NEW v3.15.0:
+ *   - tab "ลูกค้าสนใจ" auto-create (Lead CRM — Task 26)
+ *     10 columns: id | ชื่อ | เบอร์โทร | ช่องทาง | สนใจ | stage |
+ *                 หมายเหตุ | ผู้บันทึก | วันที่บันทึก | วันที่ปรับปรุง
+ *   - stages: ใหม่ / นัดดูแล้ว / กำลังคุย / ทำสัญญา / ปิดดีล / ปิดเลิก
+ *   - actions getLeads / addLead / updateLead / deleteLead
+ *   - cache 60s + invalidate ตอน write
  */
 
 const SHEET_NAMES = {
@@ -71,6 +78,7 @@ const SHEET_NAMES = {
   PART: 'อะไหล่', // v3.11.0 — inventory (Task 37)
   TIME_LOG: 'บันทึกเวลา', // v3.12.0 — time tracking (Task 35)
   VEHICLE: 'ยานพาหนะ', // v3.13.0 — vehicles per room
+  LEAD: 'ลูกค้าสนใจ', // v3.15.0 — Lead CRM (Task 26)
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
@@ -84,6 +92,10 @@ const FACILITY_STATUS  = ['ใช้งานได้', 'ต้องซ่อ�
 // v3.11.0 — Inventory categories (Task 37). "อื่นๆ" fallback ensures
 // any free-text new category still passes the dropdown.
 const PART_CATEGORIES  = ['ประปา', 'ไฟฟ้า', 'แอร์', 'ของใช้ในห้องน้ำ', 'ทั่วไป', 'อื่นๆ'];
+
+// v3.15.0 — Lead CRM stages (Task 26). Kanban columns left → right.
+const LEAD_STAGES = ['ใหม่', 'นัดดูแล้ว', 'กำลังคุย', 'ทำสัญญา', 'ปิดดีล', 'ปิดเลิก'];
+const LEAD_SOURCES = ['Facebook', 'LINE', 'ป้ายหน้าหอ', 'แนะนำ', 'Walk-in', 'อื่นๆ'];
 
 // คอลัมน์ของ tab "งาน" (1-based)
 const TASK_COL = {
@@ -224,6 +236,25 @@ function clearVehicleCache_() {
   try { CacheService.getScriptCache().remove(VEHICLE_CACHE_KEY); } catch (e) {}
 }
 
+/* ========== LEAD CACHE (NEW v3.15.0) ========== */
+const LEAD_CACHE_KEY = 'leadCache_v1';
+const LEAD_CACHE_TTL_SEC = 60;
+
+function getAllLeadsCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(LEAD_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+  const fresh = getAllLeads_();
+  try { cache.put(LEAD_CACHE_KEY, JSON.stringify(fresh), LEAD_CACHE_TTL_SEC); } catch (e) {}
+  return fresh;
+}
+
+function clearLeadCache_() {
+  try { CacheService.getScriptCache().remove(LEAD_CACHE_KEY); } catch (e) {}
+}
+
 /* ========== UTIL ========== */
 function norm(v) {
   if (v === null || v === undefined) return '';
@@ -306,6 +337,11 @@ function doPost(e) {
       case 'addVehicle':       return ok_(withWriteLock_(function () { return addVehicle_(body); }));
       case 'updateVehicle':    return ok_(withWriteLock_(function () { return updateVehicle_(body); }));
       case 'deleteVehicle':    return ok_(withWriteLock_(function () { return deleteVehicle_(body); }));
+      // v3.15.0 — Lead CRM (Task 26)
+      case 'getLeads':         return ok_({ result: { rows: getAllLeadsCached_() } });
+      case 'addLead':          return ok_(withWriteLock_(function () { return addLead_(body); }));
+      case 'updateLead':       return ok_(withWriteLock_(function () { return updateLead_(body); }));
+      case 'deleteLead':       return ok_(withWriteLock_(function () { return deleteLead_(body); }));
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -1269,6 +1305,118 @@ function deleteVehicle_(b) {
   if (found < 0) throw new Error('vehicle not found: ' + b.id);
   sh.deleteRow(found);
   clearVehicleCache_();
+  return { deleted: true, row: found };
+}
+
+/* ========== LEAD CRM (NEW v3.15.0 — Task 26) ========== */
+/**
+ * Auto-create tab 'ลูกค้าสนใจ' on first write. Returns the sheet.
+ * 10 columns; row 1 frozen.
+ *
+ * Schema (1-based):
+ *   1:id  2:ชื่อ  3:เบอร์โทร  4:ช่องทาง  5:สนใจ (text: ตึก/ห้อง/ราคา)
+ *   6:stage  7:หมายเหตุ  8:ผู้บันทึก  9:วันที่บันทึก  10:วันที่ปรับปรุง
+ *
+ * Stage values must match LEAD_STAGES. Frontend renders a Kanban
+ * board with one column per stage; moving a lead = updating stage.
+ */
+function getOrCreateLeadSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.LEAD);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.LEAD);
+    sh.appendRow([
+      'id', 'ชื่อ', 'เบอร์โทร', 'ช่องทาง', 'สนใจ',
+      'stage', 'หมายเหตุ', 'ผู้บันทึก', 'วันที่บันทึก', 'วันที่ปรับปรุง',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#FEF9C3');
+    sh.setColumnWidth(2, 180); // name
+    sh.setColumnWidth(5, 260); // interest
+    sh.setColumnWidth(7, 280); // note
+  }
+  return sh;
+}
+
+function getAllLeads_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.LEAD);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getRange(2, 1, lastRow - 1, 10).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const id = norm(r[0]);
+    if (!id) continue;
+    rows.push({
+      id:        id,
+      name:      norm(r[1]),
+      phone:     norm(r[2]),
+      source:    norm(r[3]),
+      interest:  norm(r[4]),
+      stage:     norm(r[5]) || 'ใหม่',
+      note:      norm(r[6]),
+      creator:   norm(r[7]),
+      createdAt: norm(r[8]),
+      updatedAt: norm(r[9]),
+    });
+  }
+  return rows;
+}
+
+function addLead_(b) {
+  if (!b.name) throw new Error('name required');
+  const sh = getOrCreateLeadSheet_();
+  const id = Utilities.getUuid();
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  sh.appendRow([
+    id, b.name, b.phone || '', b.source || '', b.interest || '',
+    b.stage || 'ใหม่', b.note || '', b.creator || '', now, now,
+  ]);
+  clearLeadCache_();
+  return { appended: true, id: id, row: sh.getLastRow() };
+}
+
+function updateLead_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.LEAD);
+  if (!sh) throw new Error('sheet "ลูกค้าสนใจ" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no lead rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('lead not found: ' + b.id);
+  // 2:name 3:phone 4:source 5:interest 6:stage 7:note 10:updatedAt
+  if (b.name     !== undefined) sh.getRange(found, 2).setValue(b.name);
+  if (b.phone    !== undefined) sh.getRange(found, 3).setValue(b.phone);
+  if (b.source   !== undefined) sh.getRange(found, 4).setValue(b.source);
+  if (b.interest !== undefined) sh.getRange(found, 5).setValue(b.interest);
+  if (b.stage    !== undefined) sh.getRange(found, 6).setValue(b.stage);
+  if (b.note     !== undefined) sh.getRange(found, 7).setValue(b.note);
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  sh.getRange(found, 10).setValue(now);
+  clearLeadCache_();
+  return { updated: true, row: found };
+}
+
+function deleteLead_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.LEAD);
+  if (!sh) throw new Error('sheet "ลูกค้าสนใจ" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no lead rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('lead not found: ' + b.id);
+  sh.deleteRow(found);
+  clearLeadCache_();
   return { deleted: true, row: found };
 }
 

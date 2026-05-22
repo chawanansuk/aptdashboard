@@ -57,6 +57,7 @@ const ROUTE_DESC: Record<Route, string> = {
   engineerkanban: "Engineer Kanban",
   parts: "อะไหล่ (Inventory)",
   vehicles: "ยานพาหนะ (Vehicles per room)",
+  leads: "Lead CRM (ลูกค้าสนใจ)",
   income: "รายได้",
   reports: "รายงาน",
 };
@@ -78,6 +79,7 @@ const ACTION_DESC: Record<Action, string> = {
   "part.edit": "เพิ่ม/แก้/ปรับสต๊อกอะไหล่",
   "time.track": "จับเวลาทำงาน (start/stop timer)",
   "vehicle.edit": "เพิ่ม/แก้/ลบยานพาหนะของห้อง",
+  "lead.edit": "เพิ่ม/แก้/ลบ Lead CRM",
   "finance.view": "ดูข้อมูลการเงิน",
 };
 

@@ -222,3 +222,45 @@ export interface Vehicle {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * Lead CRM entry (Task 26) — potential renter tracked through a sales
+ * funnel. Stage moves left-to-right in the Kanban view; loss/win at
+ * end columns close the lead.
+ */
+export const LEAD_STAGES = [
+  "ใหม่", "นัดดูแล้ว", "กำลังคุย", "ทำสัญญา", "ปิดดีล", "ปิดเลิก",
+] as const;
+export type LeadStage = typeof LEAD_STAGES[number];
+
+export const LEAD_SOURCES = [
+  "Facebook", "LINE", "ป้ายหน้าหอ", "แนะนำ", "Walk-in", "อื่นๆ",
+] as const;
+export type LeadSource = typeof LEAD_SOURCES[number];
+
+export interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  source: LeadSource | string;
+  /** Free-text: ตึก / ช่วงราคา / ความต้องการอื่น */
+  interest: string;
+  stage: LeadStage | string;
+  note: string;
+  creator: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Group leads by stage in insertion order. Returns Map preserving stage order. */
+export function groupLeadsByStage(leads: Lead[]): Map<LeadStage, Lead[]> {
+  const map = new Map<LeadStage, Lead[]>();
+  for (const s of LEAD_STAGES) map.set(s, []);
+  for (const l of leads) {
+    const s = (LEAD_STAGES as readonly string[]).includes(l.stage)
+      ? (l.stage as LeadStage)
+      : "ใหม่";
+    map.get(s)!.push(l);
+  }
+  return map;
+}
