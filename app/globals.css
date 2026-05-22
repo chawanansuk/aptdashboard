@@ -6836,3 +6836,119 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
 .ac-task-timer-log-user {
   color: var(--color-accent);
 }
+
+/* ====================================================================
+ * Vehicles per room (v3.13.0)
+ * ==================================================================== */
+.ac-vehicles {
+  padding: var(--space-4);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.ac-vehicles-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+.ac-vehicles-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-bold);
+}
+.ac-vehicles-count {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-base);
+}
+.ac-vehicles-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ac-vehicles-toolbar {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.ac-vehicles-search {
+  flex: 1;
+  min-width: 220px;
+  max-width: 480px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+.ac-vehicles-active-building {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  border-radius: var(--radius-full);
+}
+.ac-vehicles-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.ac-vehicles-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.ac-vehicles-table th,
+.ac-vehicles-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+.ac-vehicles-table thead th {
+  background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+  font-weight: var(--font-weight-semibold);
+}
+.ac-vehicles-table tbody tr:last-child td { border-bottom: 0; }
+.ac-vehicles-table tbody tr:hover { background: color-mix(in srgb, var(--color-accent) 3%, transparent); }
+.ac-vehicles-room {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ac-vehicles-building {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ac-vehicles-room-num {
+  font-weight: var(--font-weight-medium);
+}
+.ac-vehicles-plate {
+  font-family: var(--font-family-mono, monospace);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent);
+}
+.ac-vehicles-note {
+  color: var(--color-text-muted);
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ac-vehicles-time {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ac-vehicles-row-actions {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}

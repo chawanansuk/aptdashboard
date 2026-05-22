@@ -54,6 +54,8 @@ export type Route =
   | "ready" | "pending" | "occupied" | "moveout" | "tenants" | "salespipeline"
   // engineer-side jobs + assets
   | "qc" | "repair" | "inactive" | "maintenance" | "facilities" | "engineerkanban" | "parts"
+  // shared operational
+  | "vehicles"
   // management-only
   | "income" | "reports";
 
@@ -80,6 +82,9 @@ export const ROUTE_ALLOW: Record<Route, Role[]> = {
   facilities:  ["engineer", "management"],
   engineerkanban: ["engineer", "management"],
   parts:       ["engineer", "management"],
+  // vehicles: shared operational info (not PII); all authenticated
+  // users have visibility per the product decision.
+  vehicles:    ["sales", "engineer", "management"],
   // management-only
   income:      ["management"],
   reports:     ["management"],
@@ -132,6 +137,7 @@ export type Action =
   | "part.view"
   | "part.edit"
   | "time.track"
+  | "vehicle.edit"
   // financials
   | "finance.view";
 
@@ -159,6 +165,8 @@ export const ACTION_ALLOW: Record<Action, Role[]> = {
   // time tracking — only roles that physically do the work
   // (sales doesn't log task hours).
   "time.track":     ["engineer", "management"],
+  // vehicles: all roles edit (per product decision — see route allow)
+  "vehicle.edit":   ["sales", "engineer", "management"],
   // financials
   "finance.view":   ["management"],
 };

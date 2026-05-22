@@ -1,0 +1,266 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import type { Vehicle } from "@/types";
+import type { RoomChoice } from "./AddVehicleModal";
+import { canPerform } from "@/lib/permissions";
+import { Icon } from "@/lib/icons";
+import { exportCsv } from "@/lib/csvExport";
+import AddVehicleModal from "./AddVehicleModal";
+import EmptyState from "./EmptyState";
+import LoadingState from "./LoadingState";
+
+/**
+ * Vehicles per room (v3.13.0).
+ *
+ * Flat list with search + building filter + CSV export. Vehicles
+ * link to a room via {building, room} — multiple vehicles per room
+ * are supported. Delete is confirm-then-act (no soft-delete; the
+ * sheet row goes away).
+ */
+
+interface Props {
+  buildings: string[];
+  activeBuilding: string;
+  rooms: RoomChoice[];
+}
+
+export default function VehiclesView({ buildings, activeBuilding, rooms }: Props) {
+  const { data: session } = useSession();
+  const canWrite = canPerform(session?.user?.roles, "vehicle.edit");
+
+  const [rows, setRows] = useState<Vehicle[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Vehicle | null>(null);
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+
+  const load = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/vehicles", { cache: "no-store", signal });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      setRows(data.rows || []);
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+      setErr(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
+  }, [load]);
+
+  async function remove(v: Vehicle) {
+    if (!confirm(`ลบยานพาหนะ "${v.plate}" ของห้อง ${v.room}?\n\nการลบนี้ไม่สามารถย้อนกลับได้`)) return;
+    setBusyIds((s) => new Set(s).add(v.id));
+    try {
+      const res = await fetch("/api/vehicles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id: v.id }),
+      });
+      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+      if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setRows((prev) => (prev || []).filter((r) => r.id !== v.id));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "ลบไม่สำเร็จ");
+    } finally {
+      setBusyIds((s) => {
+        const next = new Set(s);
+        next.delete(v.id);
+        return next;
+      });
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const list = rows || [];
+    const q = search.trim().toLowerCase();
+    return list.filter((v) => {
+      if (activeBuilding !== "ทั้งหมด" && v.building !== activeBuilding) return false;
+      if (q) {
+        const hay = `${v.plate} ${v.model} ${v.color} ${v.room} ${v.note}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, search, activeBuilding]);
+
+  function handleExport() {
+    if (filtered.length === 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const tag = activeBuilding === "ทั้งหมด" ? "ทั้งหมด" : activeBuilding;
+    exportCsv(
+      `ยานพาหนะ_${tag}_${today}.csv`,
+      filtered,
+      [
+        { header: "ตึก",        value: (v: Vehicle) => v.building },
+        { header: "ห้อง",       value: (v: Vehicle) => v.room },
+        { header: "ทะเบียน",    value: (v: Vehicle) => v.plate },
+        { header: "ยี่ห้อ/รุ่น", value: (v: Vehicle) => v.model },
+        { header: "สี",         value: (v: Vehicle) => v.color },
+        { header: "หมายเหตุ",   value: (v: Vehicle) => v.note },
+        { header: "ผู้บันทึก",   value: (v: Vehicle) => v.creator },
+        { header: "วันที่บันทึก",  value: (v: Vehicle) => v.createdAt },
+        { header: "วันที่ปรับปรุง", value: (v: Vehicle) => v.updatedAt },
+      ],
+    );
+  }
+
+  return (
+    <section className="ac-vehicles" aria-label="ยานพาหนะ">
+      <header className="ac-vehicles-head">
+        <div>
+          <h1 className="ac-vehicles-title">
+            <Icon name="vehicle" size={22} />
+            <span>ยานพาหนะ</span>
+            {rows && <span className="ac-vehicles-count">({rows.length})</span>}
+          </h1>
+        </div>
+        <div className="ac-vehicles-actions">
+          <button
+            type="button"
+            className="ac-btn ac-btn-ghost"
+            onClick={handleExport}
+            disabled={!rows || filtered.length === 0}
+            title={filtered.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${filtered.length} รายการ`}
+          >
+            ⬇ ดาวน์โหลด CSV
+          </button>
+          {canWrite && (
+            <button
+              type="button"
+              className="ac-btn ac-btn-primary"
+              onClick={() => setAddOpen(true)}
+            >
+              <Icon name="add" size={16} /> เพิ่ม
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div className="ac-vehicles-toolbar">
+        <input
+          type="search"
+          className="ac-vehicles-search"
+          placeholder="ค้นหาทะเบียน / ห้อง / ยี่ห้อ / สี / หมายเหตุ"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="ค้นหายานพาหนะ"
+        />
+        {activeBuilding !== "ทั้งหมด" && (
+          <span className="ac-vehicles-active-building">ตึก {activeBuilding}</span>
+        )}
+      </div>
+
+      {err && (
+        <div className="ac-banner ac-banner-warn" role="alert">
+          <strong>⚠ </strong>{err}{" "}
+          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setErr(null)}>ปิด</button>
+        </div>
+      )}
+
+      {loading && !rows ? (
+        <LoadingState />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon="equipment"
+          title={rows && rows.length === 0 ? "ยังไม่มียานพาหนะในระบบ" : "ไม่พบรายการตามที่ค้นหา"}
+          description={
+            rows && rows.length === 0
+              ? "เพิ่มยานพาหนะของผู้เช่าเพื่อบันทึกไว้"
+              : "ลองเปลี่ยนคำค้นหรือตึกที่เลือก"
+          }
+          action={
+            canWrite && rows && rows.length === 0
+              ? { label: "+ เพิ่มคันแรก", onClick: () => setAddOpen(true) }
+              : undefined
+          }
+        />
+      ) : (
+        <div className="ac-vehicles-table-wrap">
+          <table className="ac-vehicles-table">
+            <thead>
+              <tr>
+                <th scope="col">ตึก/ห้อง</th>
+                <th scope="col">ทะเบียน</th>
+                <th scope="col">ยี่ห้อ/รุ่น</th>
+                <th scope="col">สี</th>
+                <th scope="col">หมายเหตุ</th>
+                <th scope="col">อัปเดต</th>
+                {canWrite && <th scope="col">จัดการ</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((v) => {
+                const busy = busyIds.has(v.id);
+                return (
+                  <tr key={v.id}>
+                    <td>
+                      <div className="ac-vehicles-room">
+                        <span className="ac-vehicles-building">{v.building}</span>
+                        <span className="ac-vehicles-room-num">ห้อง {v.room}</span>
+                      </div>
+                    </td>
+                    <td className="ac-vehicles-plate">{v.plate}</td>
+                    <td>{v.model || "—"}</td>
+                    <td>{v.color || "—"}</td>
+                    <td className="ac-vehicles-note">{v.note || "—"}</td>
+                    <td>
+                      <span className="ac-vehicles-time" title={v.updatedAt || v.createdAt}>
+                        {(v.updatedAt || v.createdAt || "—").split(" ")[0]}
+                      </span>
+                    </td>
+                    {canWrite && (
+                      <td>
+                        <div className="ac-vehicles-row-actions">
+                          <button
+                            type="button"
+                            className="ac-btn ac-btn-ghost ac-btn-sm"
+                            onClick={() => setEditTarget(v)}
+                            disabled={busy}
+                          >แก้ไข</button>
+                          <button
+                            type="button"
+                            className="ac-btn ac-btn-danger ac-btn-sm"
+                            onClick={() => remove(v)}
+                            disabled={busy}
+                          >ลบ</button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <AddVehicleModal
+        open={addOpen}
+        rooms={rooms}
+        prefillRoom={activeBuilding !== "ทั้งหมด" ? { building: activeBuilding, room: "" } : null}
+        onClose={() => setAddOpen(false)}
+        onSaved={() => load()}
+      />
+      <AddVehicleModal
+        open={!!editTarget}
+        initial={editTarget}
+        rooms={rooms}
+        onClose={() => setEditTarget(null)}
+        onSaved={() => load()}
+      />
+    </section>
+  );
+}
