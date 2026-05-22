@@ -484,6 +484,24 @@ export default function Home() {
     setShowAddTask(true);
   }
 
+  /** Move-out workflow (Task 30): pre-fill task for inspection/clean. */
+  function openMoveoutInspection(building: string, room: string) {
+    setTType("อื่นๆ");
+    setTBuilding(building);
+    setTRoom(room);
+    setTNote("ตรวจห้องก่อนคืนมัดจำ — เช็คเฟอร์ฯ / อุปกรณ์ / ความเรียบร้อย");
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+  function openMoveoutCleaning(building: string, room: string) {
+    setTType("ทำสะอาด");
+    setTBuilding(building);
+    setTRoom(room);
+    setTNote("ทำสะอาดหลังย้ายออก — ปล่อยห้องใหม่ต่อ");
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+
   /** Quick "บันทึกนัดชม" — pre-fill AddTaskModal with type=ชมห้อง (sales FAB). */
   function openQuickAddLead() {
     setTType("ชมห้อง");
@@ -965,6 +983,8 @@ export default function Home() {
           onClose={() => setSelectedRoom(null)}
           onSave={handleSave}
           onAddTaskHere={() => openAddTaskForRoom(selectedRoom.building, selectedRoom.room)}
+          onMoveoutInspect={() => openMoveoutInspection(selectedRoom.building, selectedRoom.room)}
+          onMoveoutClean={() => openMoveoutCleaning(selectedRoom.building, selectedRoom.room)}
         />
       )}
 

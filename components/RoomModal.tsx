@@ -33,6 +33,15 @@ interface Props {
   onAddTaskHere: () => void;
   /** Mode-specific initial tab ("info" or "equipment"). Defaults to "info". */
   defaultTab?: "info" | "equipment" | "vehicles";
+  /**
+   * Move-out workflow (Task 30). Optional — only used when the room's
+   * current status is moveout. Each callback opens AddTaskModal with
+   * a pre-filled task type + note appropriate for that step. Modal
+   * closes the room view first (caller decision), so user lands on
+   * the new task form directly.
+   */
+  onMoveoutInspect?: () => void;
+  onMoveoutClean?: () => void;
 }
 
 type TabKey = "info" | "equipment" | "vehicles";
@@ -103,6 +112,7 @@ function validate(values: { price: string; phone: string; contractEnd: string })
 export default function RoomModal({
   room, saving, status, tenant, phone, contractEnd, note, price,
   onChange, onClose, onSave, onAddTaskHere, defaultTab,
+  onMoveoutInspect, onMoveoutClean,
 }: Props) {
   const { data: session } = useSession();
   const canEdit = canEditTenant(session?.user?.roles);
@@ -256,6 +266,50 @@ export default function RoomModal({
               {!canEdit && (
                 <div className="ac-banner ac-banner-info ac-room-readonly-banner">
                   ดูข้อมูลอย่างเดียว · เฉพาะ <strong>management</strong> แก้ไขข้อมูลห้องได้
+                </div>
+              )}
+
+              {/* Move-out workflow (Task 30) — surface when room status
+                  is moveout so the user knows the next steps without
+                  digging through tabs. Each button opens AddTaskModal
+                  pre-filled. "เคลียร์ข้อมูลผู้เช่า" stages a local
+                  field clear; user still presses Save to commit. */}
+              {room.status === "moveout" && canEdit && (
+                <div className="ac-moveout-workflow" role="region" aria-label="ขั้นตอนย้ายออก">
+                  <header className="ac-moveout-head">
+                    <span className="ac-moveout-icon" aria-hidden>📤</span>
+                    <div>
+                      <h3 className="ac-moveout-title">ขั้นตอนย้ายออก</h3>
+                      <p className="ac-moveout-sub">
+                        ห้องแจ้งย้ายออก — ดำเนินการต่อด้านล่าง
+                      </p>
+                    </div>
+                  </header>
+                  <div className="ac-moveout-actions">
+                    {onMoveoutInspect && (
+                      <button
+                        type="button"
+                        className="ac-btn ac-btn-secondary"
+                        onClick={onMoveoutInspect}
+                      >📋 จองตรวจห้อง</button>
+                    )}
+                    {onMoveoutClean && (
+                      <button
+                        type="button"
+                        className="ac-btn ac-btn-secondary"
+                        onClick={onMoveoutClean}
+                      >🧹 จองทำสะอาด</button>
+                    )}
+                    <button
+                      type="button"
+                      className="ac-btn ac-btn-ghost"
+                      onClick={() => {
+                        // Stage tenant info clear — user still presses Save
+                        onChange({ tenant: "", phone: "", contractEnd: "" });
+                      }}
+                      title="ล้างชื่อ/เบอร์/วันสัญญา — กด 'บันทึก' เพื่อยืนยัน"
+                    >👤 ล้างข้อมูลผู้เช่า</button>
+                  </div>
                 </div>
               )}
 
