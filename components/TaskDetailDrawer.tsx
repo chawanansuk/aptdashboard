@@ -1,0 +1,193 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import type { SheetRow } from "@/types";
+import { useFocusTrap } from "@/lib/useFocusTrap";
+import { parseTaskLocation } from "@/lib/taskLocation";
+import { computeSla, slaBadgeLabel } from "@/lib/sla";
+import { categorizeStatus, TASK_STATUS } from "@/lib/taskStatus";
+import { ageLabel } from "./EngineerKanban";
+
+/**
+ * Task Detail Drawer — Task 33.
+ *
+ * Slides from the right when an engineer clicks a Kanban card. Shows
+ * every field on the task (so the engineer doesn't need to open a
+ * separate edit modal to see context), plus the same status-change
+ * buttons that live inline on the card. Inline buttons stay — drawer
+ * is the "give me more context" path, not the only path.
+ *
+ * Single tab for now. Multi-tab (ประวัติ / ผู้เช่า) deferred — both
+ * need data the dashboard doesn't currently expose:
+ *   - ประวัติ: audit log (Task 18, blocked on schema)
+ *   - ผู้เช่า: tenant.view PII (management only) + room lookup wiring
+ *
+ * Esc + click-outside + focus-trap follow the same conventions as
+ * RoomModal / AddTaskModal so the keyboard shortcuts feel consistent.
+ */
+
+interface Props {
+  task: SheetRow | null;
+  onClose: () => void;
+  /** Status change — same shape as Kanban inline actions. */
+  onMove: (t: SheetRow, newStatus: string) => void | Promise<void>;
+  busy?: boolean;
+}
+
+function fmtBaht(cost: number | undefined): string {
+  if (cost == null || cost === 0) return "—";
+  return `฿ ${cost.toLocaleString("th-TH")}`;
+}
+
+function statusLabel(status: string): { label: string; tone: "ok" | "warn" | "info" | "muted" } {
+  const t = (status || "").trim();
+  const cat = categorizeStatus(t);
+  if (cat === "done")        return { label: t || "เสร็จ", tone: "ok" };
+  if (cat === "cancelled")   return { label: t || "ยกเลิก", tone: "muted" };
+  if (cat === "in_progress") return { label: t || "กำลังทำ", tone: "info" };
+  if (cat === "blocked")     return { label: t || "ติดขัด", tone: "warn" };
+  return { label: t || "รอเริ่ม", tone: "muted" };
+}
+
+export default function TaskDetailDrawer({ task, onClose, onMove, busy }: Props) {
+  const ref = useRef<HTMLDivElement>(null);
+  const open = !!task;
+  useFocusTrap(open, ref);
+
+  // Esc to close — mirrors AddTaskModal's pattern.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!task) return null;
+
+  const loc = parseTaskLocation(task);
+  const sla = computeSla(task);
+  const slaBadge = slaBadgeLabel(sla);
+  const stat = statusLabel(task.status);
+  const cat = categorizeStatus(task.status);
+  const age = ageLabel(task.date);
+
+  // Action visibility — same rules as inline KanbanCard buttons,
+  // centralised here so changing one doesn't desync the other.
+  const canStart  = cat === "pending";
+  const canDone   = cat === "in_progress" || cat === "blocked";
+  const canBlock  = cat === "in_progress";
+  const canCancel = cat !== "done" && cat !== "cancelled";
+
+  return (
+    <>
+      <div className="ac-summary-overlay" onClick={onClose} aria-hidden />
+      <aside
+        ref={ref}
+        className="ac-summary-drawer is-open"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ac-task-drawer-title"
+      >
+        <header className="ac-summary-head">
+          <div>
+            <h2 id="ac-task-drawer-title" className="ac-task-drawer-title">
+              {loc.kind === "common" ? <>🏢 {loc.label}</> : <>🚪 {loc.label}</>}
+            </h2>
+            <div className="ac-task-drawer-sub">
+              {task.building}{task.type ? ` · ${task.type}` : ""}
+            </div>
+          </div>
+          <button className="ac-summary-close" onClick={onClose} aria-label="ปิด" type="button">×</button>
+        </header>
+
+        <div className="ac-summary-body">
+          <dl className="ac-task-drawer-grid">
+            <dt>สถานะ</dt>
+            <dd>
+              <span className={`ac-task-status-badge is-${stat.tone}`}>{stat.label}</span>
+              {age && <span className="ac-task-drawer-age"> · {age}</span>}
+            </dd>
+
+            <dt>วันที่กำหนด</dt>
+            <dd>{task.date || "—"}</dd>
+
+            {slaBadge && (
+              <>
+                <dt>SLA</dt>
+                <dd className="ac-task-drawer-sla">⏰ {slaBadge}</dd>
+              </>
+            )}
+
+            <dt>ผู้แจ้ง</dt>
+            <dd>{task.creator || "—"}</dd>
+
+            <dt>วันที่แจ้ง</dt>
+            <dd>{task.createdAt || "—"}</dd>
+
+            <dt>ค่าใช้จ่าย</dt>
+            <dd>{fmtBaht(task.cost)}</dd>
+
+            {(task.customer || task.phone) && (
+              <>
+                <dt>ผู้ติดต่อ</dt>
+                <dd>
+                  {task.customer || "—"}
+                  {task.phone && (
+                    <>
+                      {" · "}
+                      <a className="ac-task-drawer-phone" href={`tel:${task.phone}`}>📞 {task.phone}</a>
+                    </>
+                  )}
+                </dd>
+              </>
+            )}
+
+            <dt>หมายเหตุ</dt>
+            <dd className="ac-task-drawer-note">{task.note?.trim() || "—"}</dd>
+          </dl>
+        </div>
+
+        {(canStart || canDone || canBlock || canCancel) && (
+          <footer className="ac-task-drawer-foot">
+            {busy && <span className="ac-btn-spinner" aria-label="กำลังบันทึก" />}
+            {canStart && (
+              <button
+                type="button"
+                className="ac-btn ac-btn-primary"
+                onClick={() => onMove(task, TASK_STATUS.IN_PROGRESS)}
+                disabled={busy}
+              >▶ เริ่ม</button>
+            )}
+            {canDone && (
+              <button
+                type="button"
+                className="ac-btn ac-btn-success"
+                onClick={() => onMove(task, TASK_STATUS.DONE)}
+                disabled={busy}
+              >✓ เสร็จ</button>
+            )}
+            {canBlock && (
+              <button
+                type="button"
+                className="ac-btn ac-btn-ghost"
+                onClick={() => onMove(task, TASK_STATUS.BLOCKED)}
+                disabled={busy}
+              >⏸ ติดขัด</button>
+            )}
+            {canCancel && (
+              <button
+                type="button"
+                className="ac-btn ac-btn-ghost"
+                onClick={() => onMove(task, TASK_STATUS.CANCELLED)}
+                disabled={busy}
+                title="ยกเลิกงานนี้"
+              >✗ ยกเลิก</button>
+            )}
+          </footer>
+        )}
+      </aside>
+    </>
+  );
+}

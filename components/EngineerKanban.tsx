@@ -14,6 +14,7 @@ import {
   filterTasksByLocation,
   type LocationFilter,
 } from "@/lib/taskLocation";
+import TaskDetailDrawer from "./TaskDetailDrawer";
 
 interface Props {
   tasks: SheetRow[];
@@ -121,6 +122,8 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
   // Default "all" — preserves the prior behaviour for users not yet
   // using common-area tasks.
   const [locFilter, setLocFilter] = useState<LocationFilter>("all");
+  // Task selected for the detail drawer (Task 33). Null when no drawer.
+  const [drawerTask, setDrawerTask] = useState<SheetRow | null>(null);
 
   const todayStr = useMemo(() => todayThai(), []);
 
@@ -290,12 +293,25 @@ export default function EngineerKanban({ tasks, activeBuilding, onChanged, onEdi
             busyKey={busyKey}
             onMove={moveTo}
             onEditTask={onEditTask}
+            onSelectTask={setDrawerTask}
             column={col.key}
             isFlashing={flashCol === col.key}
             flashKeys={flashKeys}
           />
         ))}
       </div>
+
+      <TaskDetailDrawer
+        task={drawerTask}
+        busy={drawerTask ? busyKey === taskKey(drawerTask) : false}
+        onClose={() => setDrawerTask(null)}
+        onMove={async (t, st) => {
+          await moveTo(t, st);
+          // Close drawer after a status change so the user sees the
+          // updated board state; the next click can re-open with fresh data.
+          setDrawerTask(null);
+        }}
+      />
     </section>
   );
 }
@@ -327,7 +343,7 @@ function KpiCell({ label, value, accent, onClick, ariaLabel }: KpiCellProps) {
 }
 
 function KanbanColumn({
-  label, emoji, accent, tasks, busyKey, onMove, onEditTask, column,
+  label, emoji, accent, tasks, busyKey, onMove, onEditTask, onSelectTask, column,
   isFlashing, flashKeys,
 }: {
   label: string;
@@ -337,6 +353,7 @@ function KanbanColumn({
   busyKey: string | null;
   onMove: (t: SheetRow, newStatus: string) => void;
   onEditTask?: (t: SheetRow) => void;
+  onSelectTask?: (t: SheetRow) => void;
   column: ColumnKey;
   isFlashing?: boolean;
   flashKeys?: Set<string>;
@@ -362,6 +379,7 @@ function KanbanColumn({
               busy={busyKey === taskKey(t)}
               onMove={onMove}
               onEdit={onEditTask}
+              onSelect={onSelectTask}
               column={column}
               flashing={flashKeys?.has(taskKey(t)) ?? false}
             />
@@ -384,12 +402,14 @@ export function creatorLabel(creator: string | undefined): string {
 }
 
 function KanbanCard({
-  task, busy, onMove, onEdit, column, flashing,
+  task, busy, onMove, onEdit, onSelect, column, flashing,
 }: {
   task: SheetRow;
   busy: boolean;
   onMove: (t: SheetRow, newStatus: string) => void;
   onEdit?: (t: SheetRow) => void;
+  /** Click anywhere on the card body → opens TaskDetailDrawer (Task 33). */
+  onSelect?: (t: SheetRow) => void;
   column: ColumnKey;
   flashing?: boolean;
 }) {
@@ -410,8 +430,17 @@ function KanbanCard({
 
   return (
     <article
-      className={`ac-kanban-card ${busy ? "is-busy" : ""} ${flashing ? "is-flash" : ""} ${slaClass}`}
+      className={`ac-kanban-card ${onSelect ? "is-clickable" : ""} ${busy ? "is-busy" : ""} ${flashing ? "is-flash" : ""} ${slaClass}`}
       data-type={task.type}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect ? () => onSelect(task) : undefined}
+      onKeyDown={onSelect ? (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(task);
+        }
+      } : undefined}
     >
       <header className="ac-kanban-card-head">
         <span className="ac-kanban-card-type" aria-hidden>
@@ -445,7 +474,10 @@ function KanbanCard({
         </span>
       </div>
 
-      <footer className="ac-kanban-card-actions">
+      <footer
+        className="ac-kanban-card-actions"
+        onClick={(e) => e.stopPropagation()}
+      >
         {busy && <span className="ac-btn-spinner" aria-label="กำลังบันทึก" />}
 
         {column === "pending" && !busy && (
