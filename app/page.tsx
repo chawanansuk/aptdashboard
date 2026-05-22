@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
+import { usePersistedString } from "@/lib/usePersistedString";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
@@ -105,10 +106,25 @@ export default function Home() {
   useEffect(() => { setPresets(loadPresets()); }, []);
 
   // ---- Filter state ----
-  const [activeBuilding, setActiveBuilding] = useState<string>("ทั้งหมด");
+  // Persist activeBuilding + activeView across reloads — UX: user
+  // refreshes page and lands back in their last context (sales had
+  // "ตึก KL" + "ภาพรวมขาย" view → see same on next visit).
+  const [activeBuilding, setActiveBuilding] = usePersistedString("activeBuilding", "ทั้งหมด");
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "parts" | "vehicles" | "salespipeline" | "engineerkanban" | "reports">("overview");
+  type ActiveView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "parts" | "vehicles" | "salespipeline" | "engineerkanban" | "reports";
+  const VALID_VIEWS: ActiveView[] = [
+    "overview", "today", "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive",
+    "income", "tenants", "calendar", "maintenance", "facilities", "parts", "vehicles",
+    "salespipeline", "engineerkanban", "reports",
+  ];
+  const [activeViewRaw, setActiveViewRaw] = usePersistedString(
+    "activeView",
+    "overview",
+    (v) => (VALID_VIEWS as string[]).includes(v),
+  );
+  const activeView = activeViewRaw as ActiveView;
+  const setActiveView = (v: ActiveView) => setActiveViewRaw(v);
   // Re-apply mode default landing view whenever the effective mode
   // changes (initial load OR View-as switch). Without this, switching
   // from sales → engineer would leave activeView on a sales-only route
