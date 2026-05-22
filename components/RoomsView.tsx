@@ -6,6 +6,7 @@ import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { useRoomDensity, ROOM_DENSITY_VALUES, type RoomDensity } from "@/lib/useRoomDensity";
+import { canViewTenant } from "@/lib/permissions";
 import RoomQuickActions from "./RoomQuickActions";
 
 /**
@@ -99,6 +100,10 @@ export default function RoomsView({
   roles, onRepairRoom, vehicleCountByRoom, equipmentCountByRoom,
 }: Props) {
   const { density, setDensity } = useRoomDensity();
+  // Contract-expiring chip — only visible to roles that can see
+  // tenant info (management). Contract date isn't strictly PII but
+  // mirrors the gate to avoid sales/engineer seeing renewal cues.
+  const canSeeTenant = canViewTenant(roles);
   const [quickFor, setQuickFor] = useState<{ room: RoomView; anchor: DOMRect } | null>(null);
 
   const floorGroups = useMemo(() => {
@@ -206,6 +211,27 @@ export default function RoomsView({
                     data-tooltip={buildRoomTooltip(r)}
                   >
                     {r.today && <span className="ac-rc-today" />}
+                    {(() => {
+                      if (!canSeeTenant || r.status !== "occupied" || !r.contractEnd) return null;
+                      const d = parseThaiDate(r.contractEnd);
+                      if (!d) return null;
+                      const now = new Date();
+                      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                      const days = Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                      if (days > 30 || days < -1) return null;
+                      const tone = days < 0 ? "is-expired" : days <= 7 ? "is-soon" : "is-warn";
+                      return (
+                        <span
+                          className={`ac-rc-contract ${tone}`}
+                          title={
+                            days < 0 ? `สัญญาหมดแล้ว ${Math.abs(days)} วัน`
+                            : days === 0 ? "สัญญาหมดวันนี้"
+                            : `สัญญาหมดในอีก ${days} วัน`
+                          }
+                          aria-label="สัญญาใกล้หมดหรือหมดแล้ว"
+                        >⏰</span>
+                      );
+                    })()}
                     {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
                     <span className="ac-rc-num">{r.room}</span>
                     <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>

@@ -1051,6 +1051,36 @@ html.dark .ac-mode-badge.is-management {
   background: #EF4444;
   border-radius: 50%;
 }
+/* Contract-expiring chip (management only) — top-left of card, small
+   clock emoji. Tone scales with urgency:
+     is-warn   30..8 days  amber
+     is-soon    7..0 days  orange
+     is-expired   <0 days  red */
+.ac-rc-contract {
+  position: absolute;
+  top: 2px; left: 4px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+.ac-rc-contract.is-warn    { background: color-mix(in srgb, #EAB308 28%, transparent); }
+.ac-rc-contract.is-soon    { background: color-mix(in srgb, #F97316 36%, transparent); }
+.ac-rc-contract.is-expired { background: color-mix(in srgb, #EF4444 42%, transparent); }
+/* Hide in compact density to save space */
+.ac-rg-compact .ac-rc-contract { display: none; }
+/* Phone call link in RoomModal label */
+.ac-room-phone-call {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+  text-decoration: none;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.ac-room-phone-call:hover { background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
 /* Vehicle badge — appears at bottom-right when room has registered
    vehicles. Position absolute so it sits outside the flex flow and
    doesn't push the status label around. */

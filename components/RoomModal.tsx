@@ -379,7 +379,16 @@ export default function RoomModal({
                       />
                     </div>
                     <div className={`ac-field ${shouldShowError("phone") ? "has-error" : ""}`}>
-                      <label htmlFor="ac-room-phone">เบอร์ติดต่อ</label>
+                      <label htmlFor="ac-room-phone">
+                        เบอร์ติดต่อ
+                        {phone && (
+                          <a
+                            className="ac-room-phone-call"
+                            href={`tel:${phone.replace(/[^0-9+]/g, "")}`}
+                            title={`โทรหา ${phone}`}
+                          >📞 โทร</a>
+                        )}
+                      </label>
                       <input
                         id="ac-room-phone"
                         type="tel"
