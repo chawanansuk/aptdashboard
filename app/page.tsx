@@ -10,6 +10,7 @@ import TasksList from "@/components/TasksList";
 import AppHeader from "@/components/AppHeader";
 import AppSidebar from "@/components/AppSidebar";
 import OverviewCards from "@/components/OverviewCards";
+import InsightsCards from "@/components/InsightsCards";
 import RoomsView from "@/components/RoomsView";
 import CommandPalette from "@/components/CommandPalette";
 import { useCommandPalette } from "@/lib/useCommandPalette";
@@ -701,6 +702,14 @@ export default function Home() {
               activeBuilding={activeBuilding}
               roles={roles}
               onNavigate={(v) => setActiveView(v)}
+            />
+          )}
+
+          {activeView === "overview" && rooms.length > 0 && (
+            <InsightsCards
+              rooms={rooms}
+              tasks={tasks}
+              activeBuilding={activeBuilding}
             />
           )}
 

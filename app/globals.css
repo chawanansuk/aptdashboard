@@ -7012,3 +7012,65 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+
+/* ====================================================================
+ * Insights cards (Task 27 — light version on Overview)
+ * ==================================================================== */
+.ac-insights {
+  margin: var(--space-4) 0;
+}
+.ac-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+.ac-insights-card {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 120ms ease;
+}
+.ac-insights-card:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+}
+.ac-insights-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.ac-insights-value {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  line-height: 1.1;
+}
+.ac-insights-sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ac-insights-bar {
+  margin-top: 4px;
+  height: 6px;
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.ac-insights-bar-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: var(--radius-full);
+  transition: width 300ms ease;
+}
+/* Tones — color the value + bar based on threshold */
+.ac-insights-card.is-good .ac-insights-value { color: #15803D; }
+.ac-insights-card.is-good .ac-insights-bar-fill { background: #22C55E; }
+.ac-insights-card.is-mid  .ac-insights-value { color: #B45309; }
+.ac-insights-card.is-mid  .ac-insights-bar-fill { background: #F59E0B; }
+.ac-insights-card.is-low  .ac-insights-value { color: #B91C1C; }
+.ac-insights-card.is-low  .ac-insights-bar-fill { background: #EF4444; }
