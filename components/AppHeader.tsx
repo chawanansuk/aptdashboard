@@ -7,6 +7,7 @@ import { useEffectiveRoles, VIEW_AS_ALL, type ViewAsValue } from "@/lib/useEffec
 import { Icon } from "@/lib/icons";
 import { toast } from "@/lib/toast";
 import type { Role } from "@/auth";
+import { isManagement } from "@/lib/permissions";
 
 interface Props {
   buildings: string[]; // includes "ทั้งหมด" first
@@ -267,6 +268,18 @@ export default function AppHeader({
                     <span>อัปเดตล่าสุด {lastUpdated || "-"}</span>
                   </div>
                 </div>
+
+                {/* Management-only — admin/permissions matrix viewer (Task 19) */}
+                {isManagement(session?.user?.roles) && (
+                  <a
+                    className="ac-user-menu-item"
+                    href="/admin/permissions"
+                    onClick={() => closeMenu()}
+                  >
+                    <Icon name="settings" size={16} />
+                    <span>เมทริกซ์สิทธิ์</span>
+                  </a>
+                )}
 
                 <button
                   className="ac-user-signout"
