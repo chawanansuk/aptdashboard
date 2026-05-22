@@ -6,7 +6,7 @@ import type { RoomView } from "@/types";
 import type { Route } from "@/lib/permissions";
 import {
   buildActions, searchRooms, searchViews, searchCommands,
-  type CommandDef, type PaletteAction,
+  type CommandDef, type PaletteAction, type VehicleHit,
 } from "@/lib/commandPaletteSearch";
 import { Icon } from "@/lib/icons";
 
@@ -74,6 +74,35 @@ export default function CommandPalette({
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  // Vehicles for plate/model search — fetched lazily the first time
+  // the palette opens. Stays in state across opens so we don't refetch
+  // on every Cmd+K. Background refresh skipped (low churn data).
+  const [vehicles, setVehicles] = useState<VehicleHit[]>([]);
+  const vehiclesLoadedRef = useRef(false);
+
+  // Lazy-fetch vehicles on first open. Single fetch per session is
+  // enough — vehicle data changes rarely (move-in/out, new bike). If
+  // the user adds a vehicle via the page and immediately searches in
+  // Cmd+K, they won't see it until a refresh — acceptable tradeoff
+  // for now (vs. polling or invalidating on write).
+  useEffect(() => {
+    if (!open || vehiclesLoadedRef.current) return;
+    vehiclesLoadedRef.current = true;
+    let cancelled = false;
+    fetch("/api/vehicles", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const rows = (data?.rows || []) as VehicleHit[];
+        setVehicles(rows);
+      })
+      .catch(() => {
+        // Silent fail — palette still works without vehicle search.
+        // Reset so a later open retries.
+        vehiclesLoadedRef.current = false;
+      });
+    return () => { cancelled = true; };
+  }, [open]);
 
   // Reset when opening
   useEffect(() => {
@@ -100,7 +129,7 @@ export default function CommandPalette({
 
   const actions = useMemo<PaletteAction[]>(() => {
     if (!open) return [];
-    const base = buildActions({ rooms, roles, commands, query, onSelectRoom, onChangeView });
+    const base = buildActions({ rooms, roles, commands, query, onSelectRoom, onChangeView, vehicles });
     // When the user hasn't typed yet, surface recent selections at the top.
     // Skip recents that no longer resolve (e.g. room deleted) so we don't
     // confuse the user with dead links.
@@ -124,7 +153,7 @@ export default function CommandPalette({
       return [...recentActions, ...deduped];
     }
     return base;
-  }, [open, rooms, roles, commands, query, onSelectRoom, onChangeView]);
+  }, [open, rooms, roles, commands, query, onSelectRoom, onChangeView, vehicles]);
 
   // Reset selection when result list changes shape
   useEffect(() => {
