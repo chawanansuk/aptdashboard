@@ -7070,6 +7070,105 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
 }
 
 /* ====================================================================
+ * Recent Tasks widget (Overview)
+ * ==================================================================== */
+.ac-recent-tasks {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.ac-recent-tasks-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-2);
+}
+.ac-recent-tasks-head h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+}
+.ac-recent-tasks-sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ac-recent-tasks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ac-recent-tasks-list li + li { border-top: 1px dashed color-mix(in srgb, var(--color-border) 60%, transparent); }
+.ac-recent-task-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  color: inherit;
+}
+.ac-recent-task-row.is-clickable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+  margin-left: calc(-1 * var(--space-2));
+  margin-right: calc(-1 * var(--space-2));
+  transition: background 100ms ease;
+}
+.ac-recent-task-row.is-clickable:hover {
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+.ac-recent-task-row.is-clickable:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.ac-recent-task-icon {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+.ac-recent-task-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.ac-recent-task-title {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ac-recent-task-bldg {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+}
+.ac-recent-task-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ac-recent-task-status {
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.ac-recent-task-status[data-status="เสร็จ"] { background: color-mix(in srgb, #22C55E 14%, transparent); color: #15803D; }
+.ac-recent-task-status[data-status="กำลังทำ"] { background: color-mix(in srgb, #0D9488 14%, transparent); color: #115E59; }
+.ac-recent-task-status[data-status="ติดขัด"] { background: color-mix(in srgb, #F97316 14%, transparent); color: #9A3412; }
+.ac-recent-task-status[data-status="ยกเลิก"] { background: transparent; color: var(--color-text-muted); text-decoration: line-through; }
+
+/* ====================================================================
  * Insights cards (Task 27 — light version on Overview)
  * ==================================================================== */
 .ac-insights {
