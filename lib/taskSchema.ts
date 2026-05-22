@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COMMON_AREA_PREFIX } from "@/lib/taskLocation";
 
 /**
  * Schema กลางสำหรับ "เพิ่มงาน" (AddTaskModal + server validation)
@@ -75,7 +76,12 @@ export function makeTaskSchema(rooms: RoomRef[] = []) {
     rooms.map((r) => `${(r.building || "").trim()}|${(r.room || "").trim()}`),
   );
   return baseTaskSchema.refine(
-    (v) => lookup.has(`${v.building}|${v.room.trim()}`),
+    (v) => {
+      // Common-area tasks (Task 38) target a building-level facility, not
+      // a specific tenant room — skip the "room exists" check for them.
+      if (v.room.startsWith(COMMON_AREA_PREFIX)) return true;
+      return lookup.has(`${v.building}|${v.room.trim()}`);
+    },
     {
       message: "ไม่พบห้องนี้ในตึกที่เลือก",
       path: ["room"],
