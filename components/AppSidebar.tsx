@@ -6,7 +6,7 @@ import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
 import { canAccess, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
 
-export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports";
+export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports" | "parts";
 
 interface Props {
   isOpen: boolean;
@@ -81,6 +81,7 @@ function buildGroups(
   const assetItems: NavItem[] = [];
   if (has("maintenance")) assetItems.push({ key: "maintenance", label: "บำรุงรักษา",    icon: icon("maintenance") });
   if (has("facilities"))  assetItems.push({ key: "facilities",  label: "สาธารณูปโภค",   icon: icon("facilities") });
+  if (has("parts"))       assetItems.push({ key: "parts",       label: "อะไหล่",        icon: icon("inventory") });
 
   const dataItems: NavItem[] = [];
   if (has("calendar")) dataItems.push({ key: "calendar", label: "ปฏิทิน", icon: icon("calendar") });
@@ -134,6 +135,7 @@ function prefetchUrlsFor(key: SidebarView): string[] | null {
   switch (key) {
     case "maintenance":     return ["/api/maintenance-plan"];
     case "facilities":      return ["/api/facilities"];
+    case "parts":           return ["/api/parts"];
     // Sales/Engineer/Tenants views consume the already-loaded dashboard
     // data — no extra prefetch necessary.
     default:                return null;

@@ -49,6 +49,7 @@ const EngineerKanban    = lazy(() => import("@/components/EngineerKanban"));
 const CalendarView    = lazy(() => import("@/components/CalendarView"));
 const MaintenanceView = lazy(() => import("@/components/MaintenanceView"));
 const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
+const PartsView       = lazy(() => import("@/components/PartsView"));
 const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
 const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 const ReportsView     = lazy(() => import("@/components/ReportsView"));
@@ -95,7 +96,7 @@ export default function Home() {
   const [activeBuilding, setActiveBuilding] = useState<string>("ทั้งหมด");
   const [activeFilter, setActiveFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "parts" | "salespipeline" | "engineerkanban" | "reports">("overview");
   // Re-apply mode default landing view whenever the effective mode
   // changes (initial load OR View-as switch). Without this, switching
   // from sales → engineer would leave activeView on a sales-only route
@@ -281,7 +282,7 @@ export default function Home() {
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
 
   const visibleRooms = useMemo(() => {
-    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
@@ -350,7 +351,7 @@ export default function Home() {
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
-  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
   // Stats for the welcome hero — same data the rest of the page already
@@ -869,6 +870,13 @@ export default function Home() {
                   activeBuilding={activeBuilding}
                   onScheduleService={openMaintenanceTask}
                 />
+              </Suspense>
+            </ErrorBoundary>
+          )}
+          {activeView === "parts" && (
+            <ErrorBoundary level="route" label="คลังอะไหล่">
+              <Suspense fallback={<FacilitiesSkeleton />}>
+                <PartsView />
               </Suspense>
             </ErrorBoundary>
           )}

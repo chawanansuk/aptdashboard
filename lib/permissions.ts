@@ -53,7 +53,7 @@ export type Route =
   // sales-side rooms
   | "ready" | "pending" | "occupied" | "moveout" | "tenants" | "salespipeline"
   // engineer-side jobs + assets
-  | "qc" | "repair" | "inactive" | "maintenance" | "facilities" | "engineerkanban"
+  | "qc" | "repair" | "inactive" | "maintenance" | "facilities" | "engineerkanban" | "parts"
   // management-only
   | "income" | "reports";
 
@@ -79,6 +79,7 @@ export const ROUTE_ALLOW: Record<Route, Role[]> = {
   maintenance: ["engineer", "management"],
   facilities:  ["engineer", "management"],
   engineerkanban: ["engineer", "management"],
+  parts:       ["engineer", "management"],
   // management-only
   income:      ["management"],
   reports:     ["management"],
@@ -128,6 +129,8 @@ export type Action =
   | "equipment.edit"
   | "facility.add"
   | "facility.edit"
+  | "part.view"
+  | "part.edit"
   // financials
   | "finance.view";
 
@@ -148,6 +151,10 @@ export const ACTION_ALLOW: Record<Action, Role[]> = {
   "equipment.edit": ["engineer", "management"],
   "facility.add":   ["engineer", "management"],
   "facility.edit":  ["engineer", "management"],
+  // inventory — engineer/management can view + edit. Sales doesn't
+  // touch parts inventory in current workflow.
+  "part.view":      ["engineer", "management"],
+  "part.edit":      ["engineer", "management"],
   // financials
   "finance.view":   ["management"],
 };

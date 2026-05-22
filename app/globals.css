@@ -6606,3 +6606,148 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   color: var(--color-text-muted);
 }
 .ac-perm-foot p { margin: 0; }
+
+/* ====================================================================
+ * Parts / Inventory view (Task 37)
+ * ==================================================================== */
+.ac-parts {
+  padding: var(--space-4);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.ac-parts-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+.ac-parts-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-bold);
+}
+.ac-parts-low-banner {
+  display: inline-block;
+  margin-top: var(--space-2);
+  padding: 4px 12px;
+  background: color-mix(in srgb, #F97316 14%, transparent);
+  color: #9A3412;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.ac-parts-toolbar {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.ac-parts-search {
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+.ac-parts-cat-chips {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ac-parts-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.ac-parts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.ac-parts-table th,
+.ac-parts-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+.ac-parts-table thead th {
+  background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+  font-weight: var(--font-weight-semibold);
+}
+.ac-parts-table tbody tr:last-child td { border-bottom: 0; }
+.ac-parts-table tbody tr.is-low {
+  background: color-mix(in srgb, #F97316 5%, transparent);
+}
+.ac-parts-num { text-align: right; }
+.ac-parts-name { font-weight: var(--font-weight-medium); }
+.ac-parts-note {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+.ac-parts-cat {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  font-size: var(--text-xs);
+}
+.ac-parts-stock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+.ac-parts-stock-btn {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ac-parts-stock-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  border-color: var(--color-accent);
+}
+.ac-parts-stock-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ac-parts-stock-num {
+  min-width: 70px;
+  text-align: center;
+  font-weight: var(--font-weight-semibold);
+}
+.ac-parts-stock-num.is-low { color: #DC2626; }
+.ac-parts-unit {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+}
+.ac-parts-time {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ac-field-hint-inline {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+}

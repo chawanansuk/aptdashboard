@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.10.0 — Dashboard หอพัก
+ * Code.gs v3.11.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -30,6 +30,14 @@
  * NEW v3.10.0:
  *   - column K "ค่าใช้จ่าย" ใน tab งาน (auto-expand backward compat)
  *   - addTask_ / updateTask_ รับ b.cost (number); read แสดงใน SheetRow.cost
+ * NEW v3.11.0:
+ *   - tab "อะไหล่" auto-create (inventory of spare parts — Task 37)
+ *     10 columns: id | ชื่อ | หมวด | จำนวนคงเหลือ | จุดสั่งซื้อ |
+ *                 หน่วย | หมายเหตุ | ผู้บันทึก | วันที่บันทึก | วันที่ปรับปรุง
+ *   - actions getParts / addPart / updatePart / adjustStockPart
+ *     (cache 60s + invalidate ตอน write; engineer + management)
+ *   - adjustStockPart รับ delta (+/-) สำหรับ inline stock adjust
+ *     atomic ภายใต้ withWriteLock; stock < 0 → clamp ที่ 0
  */
 
 const SHEET_NAMES = {
@@ -39,6 +47,7 @@ const SHEET_NAMES = {
   METER: 'มิเตอร์',
   EQUIPMENT: 'อุปกรณ์',
   FACILITY: 'สาธารณูปโภค',
+  PART: 'อะไหล่', // v3.11.0 — inventory (Task 37)
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
@@ -48,6 +57,10 @@ const EQUIPMENT_TYPES  = ['แอร์', 'เครื่องซักผ้�
 const EQUIPMENT_STATUS = ['ปกติ', 'ต้องซ่อม', 'กำลังซ่อม', 'ใช้ไม่ได้'];
 const FACILITY_TYPES   = ['ลิฟต์', 'สระว่ายน้ำ', 'เครื่องปั่นไฟ', 'ปั๊มน้ำ', 'WiFi', 'CCTV', 'อื่นๆ'];
 const FACILITY_STATUS  = ['ใช้งานได้', 'ต้องซ่อม', 'กำลังซ่อม', 'ปิดใช้งาน'];
+
+// v3.11.0 — Inventory categories (Task 37). "อื่นๆ" fallback ensures
+// any free-text new category still passes the dropdown.
+const PART_CATEGORIES  = ['ประปา', 'ไฟฟ้า', 'แอร์', 'ของใช้ในห้องน้ำ', 'ทั่วไป', 'อื่นๆ'];
 
 // คอลัมน์ของ tab "งาน" (1-based)
 const TASK_COL = {
@@ -146,6 +159,27 @@ function clearFacilityCache_() {
   try { CacheService.getScriptCache().remove(FACILITY_CACHE_KEY); } catch (e) {}
 }
 
+/* ========== PART (INVENTORY) CACHE (NEW v3.11.0) ========== */
+const PART_CACHE_KEY = 'partCache_v1';
+const PART_CACHE_TTL_SEC = 60;
+
+function getAllPartsCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(PART_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+  const fresh = getAllParts_();
+  try {
+    cache.put(PART_CACHE_KEY, JSON.stringify(fresh), PART_CACHE_TTL_SEC);
+  } catch (e) {}
+  return fresh;
+}
+
+function clearPartCache_() {
+  try { CacheService.getScriptCache().remove(PART_CACHE_KEY); } catch (e) {}
+}
+
 /* ========== UTIL ========== */
 function norm(v) {
   if (v === null || v === undefined) return '';
@@ -212,6 +246,11 @@ function doPost(e) {
       case 'updateEquipment':  return ok_(withWriteLock_(function () { return updateEquipment_(body); }));
       case 'addFacility':      return ok_(withWriteLock_(function () { return addFacility_(body); }));
       case 'updateFacility':   return ok_(withWriteLock_(function () { return updateFacility_(body); }));
+      // v3.11.0 — Parts/Inventory (Task 37)
+      case 'getParts':         return ok_({ result: { rows: getAllPartsCached_() } });
+      case 'addPart':          return ok_(withWriteLock_(function () { return addPart_(body); }));
+      case 'updatePart':       return ok_(withWriteLock_(function () { return updatePart_(body); }));
+      case 'adjustStockPart':  return ok_(withWriteLock_(function () { return adjustStockPart_(body); }));
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -686,6 +725,161 @@ function updateFacility_(b) {
   }
   clearFacilityCache_();
   return { updated: true, row: found };
+}
+
+/* ========== PART / INVENTORY (NEW v3.11.0 — Task 37) ========== */
+/**
+ * Auto-create tab 'อะไหล่' on first write. Returns the sheet.
+ * 10 columns; row 1 frozen.
+ *
+ * Schema (1-based):
+ *   1:id  2:ชื่อ  3:หมวด  4:จำนวนคงเหลือ  5:จุดสั่งซื้อ
+ *   6:หน่วย  7:หมายเหตุ  8:ผู้บันทึก  9:วันที่บันทึก  10:วันที่ปรับปรุง
+ *
+ * "จุดสั่งซื้อ" (reorder threshold) drives the low-stock alert badge
+ * in the UI. Empty = no alert.
+ */
+function getOrCreatePartSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.PART);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.PART);
+    sh.appendRow([
+      'id', 'ชื่อ', 'หมวด', 'จำนวนคงเหลือ', 'จุดสั่งซื้อ',
+      'หน่วย', 'หมายเหตุ', 'ผู้บันทึก', 'วันที่บันทึก', 'วันที่ปรับปรุง',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#FEF3C7');
+    sh.setColumnWidth(2, 220); // name
+    sh.setColumnWidth(7, 260); // note
+  }
+  return sh;
+}
+
+function getAllParts_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PART);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getRange(2, 1, lastRow - 1, 10).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const name = norm(r[1]);
+    if (!name) continue;
+    const stockNum = parseFloat(r[3]);
+    const threshNum = parseFloat(r[4]);
+    rows.push({
+      id:        norm(r[0]),
+      name:      name,
+      category:  norm(r[2]) || 'ทั่วไป',
+      stock:     isFinite(stockNum) ? stockNum : 0,
+      threshold: isFinite(threshNum) && threshNum >= 0 ? threshNum : 0,
+      unit:      norm(r[5]) || 'ชิ้น',
+      note:      norm(r[6]),
+      creator:   norm(r[7]),
+      createdAt: norm(r[8]),
+      updatedAt: norm(r[9]),
+    });
+  }
+  return rows;
+}
+
+/**
+ * Append a new part. Required: name. Optional: category, stock,
+ * threshold, unit, note. New rows stamp creator + createdAt + updatedAt.
+ */
+function addPart_(b) {
+  if (!b.name) throw new Error('name required');
+  const sh = getOrCreatePartSheet_();
+  const id = Utilities.getUuid();
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  const stockNum = parseFloat(b.stock);
+  const threshNum = parseFloat(b.threshold);
+  sh.appendRow([
+    id,
+    b.name,
+    b.category || 'ทั่วไป',
+    isFinite(stockNum) ? stockNum : 0,
+    isFinite(threshNum) && threshNum >= 0 ? threshNum : '',
+    b.unit || 'ชิ้น',
+    b.note || '',
+    b.creator || '',
+    now,
+    now,
+  ]);
+  clearPartCache_();
+  return { appended: true, id: id, row: sh.getLastRow() };
+}
+
+/**
+ * Update an existing part by id. Only provided fields are written.
+ * Always bumps the updatedAt timestamp so the UI can show "เพิ่ง
+ * อัปเดต" relative time.
+ */
+function updatePart_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PART);
+  if (!sh) throw new Error('sheet "อะไหล่" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no part rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('part not found: ' + b.id);
+  // Cols: 2:name 3:category 4:stock 5:threshold 6:unit 7:note 10:updatedAt
+  if (b.name      !== undefined) sh.getRange(found, 2).setValue(b.name);
+  if (b.category  !== undefined) sh.getRange(found, 3).setValue(b.category);
+  if (b.stock     !== undefined) {
+    const n = parseFloat(b.stock);
+    sh.getRange(found, 4).setValue(isFinite(n) ? n : 0);
+  }
+  if (b.threshold !== undefined) {
+    const n = parseFloat(b.threshold);
+    sh.getRange(found, 5).setValue(isFinite(n) && n >= 0 ? n : '');
+  }
+  if (b.unit      !== undefined) sh.getRange(found, 6).setValue(b.unit);
+  if (b.note      !== undefined) sh.getRange(found, 7).setValue(b.note);
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  sh.getRange(found, 10).setValue(now);
+  clearPartCache_();
+  return { updated: true, row: found };
+}
+
+/**
+ * Convenient stock adjustment — atomic +/- delta. Frontend uses this
+ * for inline "+/-" buttons so a race between two users adjusting
+ * the same row doesn't lose updates (the cell read+write happens
+ * inside withWriteLock at the caller).
+ */
+function adjustStockPart_(b) {
+  if (!b.id) throw new Error('id required');
+  if (b.delta === undefined || b.delta === null) throw new Error('delta required');
+  const delta = parseFloat(b.delta);
+  if (!isFinite(delta)) throw new Error('delta must be a number');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PART);
+  if (!sh) throw new Error('sheet "อะไหล่" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no part rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('part not found: ' + b.id);
+  const cell = sh.getRange(found, 4);
+  const current = parseFloat(cell.getValue());
+  const next = (isFinite(current) ? current : 0) + delta;
+  // Clamp at 0 — stock can't go negative. The frontend should prevent
+  // this too, but enforce server-side as the source of truth.
+  const clamped = next < 0 ? 0 : next;
+  cell.setValue(clamped);
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  sh.getRange(found, 10).setValue(now);
+  clearPartCache_();
+  return { adjusted: true, row: found, stock: clamped };
 }
 
 /* ========== PHASE 1: SETUP / FORMATTING / DROPDOWNS / FILTER VIEWS ========== */

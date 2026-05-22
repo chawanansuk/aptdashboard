@@ -21,7 +21,7 @@ import {
   LayoutGrid, Calendar, FileText, BarChart3, Users, Wrench, Building2, Settings,
   Eye, Edit3, History, X, ChevronDown, ChevronRight, MoreHorizontal,
   Check, Circle, AlertCircle, Bell, ListChecks,
-  LogOut,
+  LogOut, Package,
 } from "lucide-react";
 
 export const ICON_REGISTRY = {
@@ -45,6 +45,7 @@ export const ICON_REGISTRY = {
   tenants: Users,
   maintenance: Wrench,
   facilities: Building2,
+  inventory: Package,
   settings: Settings,
   tasks: ListChecks,
 
