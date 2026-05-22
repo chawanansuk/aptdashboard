@@ -2,7 +2,10 @@
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { SheetRow } from "@/types";
-import { canDeleteTask } from "@/lib/permissions";
+import { canDeleteTask, canViewFinancials } from "@/lib/permissions";
+import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
+import { exportCsv, type CsvColumn } from "@/lib/csvExport";
+import { parseTaskLocation } from "@/lib/taskLocation";
 import {
   bucketTasks, daysOverdue, URGENCY_META, type Urgency,
 } from "@/lib/taskUrgency";
@@ -63,6 +66,11 @@ type EditState = {
 export default function TasksList({ tasks, title, emptyText, onChanged }: Props) {
   const { data: session } = useSession();
   const canDelete = canDeleteTask(session?.user?.roles);
+  // Cost column in CSV exposed only to roles that can view financials
+  // (effective roles so "view as" hides too).
+  const { actualRoles, effectiveRoles } = useEffectiveRoles();
+  const effRoles = effectiveRoles.length ? effectiveRoles : actualRoles;
+  const canExportCost = canViewFinancials(effRoles);
 
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -207,6 +215,35 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
             <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
             <span>ซ่อนงานเสร็จ/ยกเลิก{hideDone && hiddenCount > 0 ? ` (${hiddenCount})` : ""}</span>
           </label>
+          <button
+            type="button"
+            className="ac-btn ac-btn-ghost ac-btn-sm"
+            disabled={visible.length === 0}
+            title={visible.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${visible.length} งาน`}
+            onClick={() => {
+              const today = new Date().toISOString().slice(0, 10);
+              // Slug title for filename — fall back to "งาน" if empty.
+              const tag = (title || "งาน").replace(/[^\w฀-๿]+/g, "_").slice(0, 40);
+              const columns: CsvColumn<SheetRow>[] = [
+                { header: "วันที่",    value: (t) => t.date },
+                { header: "ประเภท",    value: (t) => t.type },
+                { header: "ตึก",       value: (t) => t.building },
+                { header: "ห้อง/พื้นที่",value: (t) => parseTaskLocation(t).label },
+                { header: "สถานะ",     value: (t) => t.status },
+                { header: "ลูกค้า",    value: (t) => t.customer },
+                { header: "โทร",       value: (t) => t.phone },
+                { header: "หมายเหตุ",  value: (t) => t.note },
+                { header: "ผู้สร้าง",   value: (t) => t.creator || "" },
+                { header: "วันที่สร้าง",  value: (t) => t.createdAt || "" },
+              ];
+              // Append cost column only for management (parity with
+              // TaskDetailDrawer / InsightsCards gating).
+              if (canExportCost) {
+                columns.push({ header: "ค่าใช้จ่าย", value: (t) => t.cost ?? "" });
+              }
+              exportCsv(`${tag}_${today}.csv`, visible, columns);
+            }}
+          >⬇ CSV</button>
         </div>
       </header>
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
