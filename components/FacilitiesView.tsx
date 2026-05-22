@@ -17,6 +17,7 @@ import {
 import AddFacilityModal from "./AddFacilityModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
+import { exportCsv } from "@/lib/csvExport";
 
 interface Props {
   buildings: string[];
@@ -253,11 +254,40 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
             );
           })}
         </div>
-        {canWrite && (
-          <button className="ac-btn ac-btn-primary ac-btn-sm" onClick={() => setAddOpen(true)}>
-            + เพิ่ม
-          </button>
-        )}
+        <div className="ac-facilities-head-actions">
+          <button
+            type="button"
+            className="ac-btn ac-btn-ghost ac-btn-sm"
+            onClick={() => {
+              if (filtered.length === 0) return;
+              const today = new Date().toISOString().slice(0, 10);
+              const tag = activeBuilding === "ทั้งหมด" ? "ทั้งหมด" : activeBuilding;
+              exportCsv(
+                `สาธารณูปโภค_${tag}_${today}.csv`,
+                filtered,
+                [
+                  { header: "ตึก",          value: (f: Facility) => f.building },
+                  { header: "ประเภท",       value: (f: Facility) => f.type },
+                  { header: "ชื่อ/รุ่น",     value: (f: Facility) => f.name },
+                  { header: "วันติดตั้ง",    value: (f: Facility) => f.installDate },
+                  { header: "วันบริการล่าสุด",  value: (f: Facility) => f.lastService },
+                  { header: "สถานะ",        value: (f: Facility) => f.status },
+                  { header: "รอบบำรุง(วัน)",  value: (f: Facility) => f.intervalDays || "" },
+                  { header: "หมายเหตุ",     value: (f: Facility) => f.note },
+                  { header: "ผู้บันทึก",     value: (f: Facility) => f.creator },
+                  { header: "วันที่บันทึก",   value: (f: Facility) => f.createdAt },
+                ],
+              );
+            }}
+            disabled={!rows || filtered.length === 0}
+            title={filtered.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${filtered.length} รายการ`}
+          >⬇ CSV</button>
+          {canWrite && (
+            <button className="ac-btn ac-btn-primary ac-btn-sm" onClick={() => setAddOpen(true)}>
+              + เพิ่ม
+            </button>
+          )}
+        </div>
       </div>
 
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}

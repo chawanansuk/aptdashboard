@@ -7004,3 +7004,11 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   gap: var(--space-1);
   align-items: flex-start;
 }
+
+/* Header action group — pairs CSV-export + add buttons */
+.ac-parts-head-actions,
+.ac-facilities-head-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

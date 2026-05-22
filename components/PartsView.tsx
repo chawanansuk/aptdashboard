@@ -10,6 +10,7 @@ import {
 } from "@/types";
 import { canAddEngTask } from "@/lib/permissions";
 import { Icon } from "@/lib/icons";
+import { exportCsv } from "@/lib/csvExport";
 import AddPartModal from "./AddPartModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -117,6 +118,28 @@ export default function PartsView() {
     [rows],
   );
 
+  function handleExport() {
+    if (filtered.length === 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const tag = catFilter === "all" ? "ทั้งหมด" : catFilter;
+    exportCsv(
+      `อะไหล่_${tag}_${today}.csv`,
+      filtered,
+      [
+        { header: "ชื่อ",          value: (p: Part) => p.name },
+        { header: "หมวด",         value: (p: Part) => p.category },
+        { header: "คงเหลือ",      value: (p: Part) => p.stock },
+        { header: "หน่วย",        value: (p: Part) => p.unit },
+        { header: "จุดสั่งซื้อ",   value: (p: Part) => p.threshold || "" },
+        { header: "ใกล้หมด",      value: (p: Part) => (isLowStock(p) ? "ใช่" : "") },
+        { header: "หมายเหตุ",     value: (p: Part) => p.note },
+        { header: "ผู้บันทึก",     value: (p: Part) => p.creator },
+        { header: "วันที่บันทึก",   value: (p: Part) => p.createdAt },
+        { header: "วันที่ปรับปรุง",  value: (p: Part) => p.updatedAt },
+      ],
+    );
+  }
+
   return (
     <section className="ac-parts" aria-label="คลังอะไหล่">
       <header className="ac-parts-head">
@@ -131,15 +154,24 @@ export default function PartsView() {
             </div>
           )}
         </div>
-        {canWrite && (
+        <div className="ac-parts-head-actions">
           <button
             type="button"
-            className="ac-btn ac-btn-primary"
-            onClick={() => setAddOpen(true)}
-          >
-            <Icon name="add" size={16} /> เพิ่มอะไหล่
-          </button>
-        )}
+            className="ac-btn ac-btn-ghost"
+            onClick={handleExport}
+            disabled={!rows || filtered.length === 0}
+            title={filtered.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${filtered.length} รายการ`}
+          >⬇ ดาวน์โหลด CSV</button>
+          {canWrite && (
+            <button
+              type="button"
+              className="ac-btn ac-btn-primary"
+              onClick={() => setAddOpen(true)}
+            >
+              <Icon name="add" size={16} /> เพิ่มอะไหล่
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="ac-parts-toolbar">
