@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.13.0 — Dashboard หอพัก
+ * Code.gs v3.14.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -55,6 +55,10 @@
  *   - actions getVehicles / addVehicle / updateVehicle / deleteVehicle
  *   - multiple vehicles per room supported (FK ผ่าน {ตึก, ห้อง})
  *   - cache 60s + invalidate on write
+ * NEW v3.14.0:
+ *   - ROOM_STATUS dropdown เพิ่มค่า 'ไม่ได้ใช้งาน' (inactive) — ใช้กับ
+ *     ห้องเก็บของ/ห้องสำรอง ที่ไม่ปล่อยเช่า; dashboard map → status
+ *     'inactive' อยู่แล้ว แต่เดิม dropdown ไม่ให้กรอกค่านี้ ต้องพิมพ์เอง
  */
 
 const SHEET_NAMES = {
@@ -71,7 +75,7 @@ const SHEET_NAMES = {
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
 const STATUS_OPTIONS = ['ว่าง', 'pending', 'กำลังทำ', 'เสร็จ', 'ยกเลิก'];
-const ROOM_STATUS    = ['ว่าง', 'มีผู้เช่า', 'จอง', 'ซ่อม'];
+const ROOM_STATUS    = ['ว่าง', 'มีผู้เช่า', 'จอง', 'ซ่อม', 'ไม่ได้ใช้งาน'];
 const EQUIPMENT_TYPES  = ['แอร์', 'เครื่องซักผ้า', 'ตู้เย็น', 'เครื่องทำน้ำอุ่น', 'โทรทัศน์', 'ไมโครเวฟ', 'อื่นๆ'];
 const EQUIPMENT_STATUS = ['ปกติ', 'ต้องซ่อม', 'กำลังซ่อม', 'ใช้ไม่ได้'];
 const FACILITY_TYPES   = ['ลิฟต์', 'สระว่ายน้ำ', 'เครื่องปั่นไฟ', 'ปั๊มน้ำ', 'WiFi', 'CCTV', 'อื่นๆ'];
