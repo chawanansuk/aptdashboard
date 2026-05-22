@@ -55,6 +55,7 @@ const ROUTE_DESC: Record<Route, string> = {
   maintenance: "บำรุงรักษาห้อง",
   facilities: "สาธารณูปโภคอาคาร",
   engineerkanban: "Engineer Kanban",
+  parts: "อะไหล่ (Inventory)",
   income: "รายได้",
   reports: "รายงาน",
 };
@@ -72,6 +73,8 @@ const ACTION_DESC: Record<Action, string> = {
   "equipment.edit": "แก้อุปกรณ์ในห้อง",
   "facility.add": "เพิ่มสาธารณูปโภคอาคาร",
   "facility.edit": "แก้สาธารณูปโภคอาคาร",
+  "part.view": "ดูคลังอะไหล่",
+  "part.edit": "เพิ่ม/แก้/ปรับสต๊อกอะไหล่",
   "finance.view": "ดูข้อมูลการเงิน",
 };
 

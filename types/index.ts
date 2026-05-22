@@ -136,3 +136,31 @@ export interface Facility {
   createdAt: string;
   intervalDays?: number;
 }
+
+/**
+ * Spare-parts inventory entry (Task 37). One row per SKU; stock is the
+ * current count, threshold is the "warn" point for the UI badge.
+ * unit defaults to "ชิ้น" but can be any unit ("ม.", "ลิตร", "ลูก").
+ */
+export const PART_CATEGORIES = [
+  "ประปา", "ไฟฟ้า", "แอร์", "ของใช้ในห้องน้ำ", "ทั่วไป", "อื่นๆ",
+] as const;
+export type PartCategory = typeof PART_CATEGORIES[number];
+
+export interface Part {
+  id: string;
+  name: string;
+  category: PartCategory | string;
+  stock: number;
+  threshold: number;       // reorder point; 0 = no alert
+  unit: string;            // default "ชิ้น"
+  note: string;
+  creator: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** True iff stock has dropped to or below the reorder threshold. */
+export function isLowStock(p: Pick<Part, "stock" | "threshold">): boolean {
+  return p.threshold > 0 && p.stock <= p.threshold;
+}
