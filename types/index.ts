@@ -164,3 +164,42 @@ export interface Part {
 export function isLowStock(p: Pick<Part, "stock" | "threshold">): boolean {
   return p.threshold > 0 && p.stock <= p.threshold;
 }
+
+/**
+ * Time-tracking log entry (Task 35). One row per start/stop pair.
+ * `endedAt === ""` means the timer is still running. `durationMin`
+ * is computed server-side on stop, never client-side, to avoid
+ * clock-skew between users.
+ */
+export interface TimeLog {
+  id: string;
+  /** Composite key: "date|building|room|type" — matches client taskKey(). */
+  taskKey: string;
+  startedAt: string;       // yyyy-MM-dd HH:mm:ss
+  endedAt: string;         // empty while running
+  durationMin: number;     // 0 while running, set on stop
+  user: string;            // email
+  note: string;
+  createdAt: string;
+}
+
+/** Lightweight payload for "is there a running timer?" check. */
+export interface ActiveTimer {
+  id: string;
+  taskKey: string;
+  startedAt: string;
+  user: string;
+}
+
+/** True iff the timer hasn't been stopped yet (endedAt empty). */
+export function isRunningTimer(t: Pick<TimeLog, "endedAt">): boolean {
+  return !t.endedAt;
+}
+
+/**
+ * Sum durations (minutes) for closed timers in the list. Running
+ * timers contribute 0 — UI overlays the live ticking elsewhere.
+ */
+export function totalDurationMin(logs: TimeLog[]): number {
+  return logs.reduce((s, l) => s + (l.durationMin || 0), 0);
+}

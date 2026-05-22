@@ -131,6 +131,7 @@ export type Action =
   | "facility.edit"
   | "part.view"
   | "part.edit"
+  | "time.track"
   // financials
   | "finance.view";
 
@@ -155,6 +156,9 @@ export const ACTION_ALLOW: Record<Action, Role[]> = {
   // touch parts inventory in current workflow.
   "part.view":      ["engineer", "management"],
   "part.edit":      ["engineer", "management"],
+  // time tracking — only roles that physically do the work
+  // (sales doesn't log task hours).
+  "time.track":     ["engineer", "management"],
   // financials
   "finance.view":   ["management"],
 };

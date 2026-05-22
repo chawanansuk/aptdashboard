@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.11.0 — Dashboard หอพัก
+ * Code.gs v3.12.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -38,6 +38,16 @@
  *     (cache 60s + invalidate ตอน write; engineer + management)
  *   - adjustStockPart รับ delta (+/-) สำหรับ inline stock adjust
  *     atomic ภายใต้ withWriteLock; stock < 0 → clamp ที่ 0
+ * NEW v3.12.0:
+ *   - tab "บันทึกเวลา" auto-create (time tracking — Task 35)
+ *     8 columns: id | taskKey | startedAt | endedAt | durationMin |
+ *                user | note | createdAt
+ *   - actions startTimer / stopTimer / getTimeLogs / getActiveTimer
+ *     - startTimer: refuse if user already has open timer for same task
+ *     - stopTimer: find open row for {user, taskKey}, compute duration
+ *     - getActiveTimer: return open row for user (if any)
+ *     - getTimeLogs: list all, optionally filtered by taskKey or user
+ *   - timer rows ไม่ cache (need fresh state for resume detection)
  */
 
 const SHEET_NAMES = {
@@ -48,6 +58,7 @@ const SHEET_NAMES = {
   EQUIPMENT: 'อุปกรณ์',
   FACILITY: 'สาธารณูปโภค',
   PART: 'อะไหล่', // v3.11.0 — inventory (Task 37)
+  TIME_LOG: 'บันทึกเวลา', // v3.12.0 — time tracking (Task 35)
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
@@ -251,6 +262,12 @@ function doPost(e) {
       case 'addPart':          return ok_(withWriteLock_(function () { return addPart_(body); }));
       case 'updatePart':       return ok_(withWriteLock_(function () { return updatePart_(body); }));
       case 'adjustStockPart':  return ok_(withWriteLock_(function () { return adjustStockPart_(body); }));
+      // v3.12.0 — Time tracking (Task 35). Reads not cached — fresh
+      // state needed so a parallel tab sees "running" within seconds.
+      case 'getTimeLogs':      return ok_({ result: getTimeLogs_(body) });
+      case 'getActiveTimer':   return ok_({ result: getActiveTimer_(body) });
+      case 'startTimer':       return ok_(withWriteLock_(function () { return startTimer_(body); }));
+      case 'stopTimer':        return ok_(withWriteLock_(function () { return stopTimer_(body); }));
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -880,6 +897,205 @@ function adjustStockPart_(b) {
   sh.getRange(found, 10).setValue(now);
   clearPartCache_();
   return { adjusted: true, row: found, stock: clamped };
+}
+
+/* ========== TIME LOG (NEW v3.12.0 — Task 35) ========== */
+/**
+ * Auto-create tab 'บันทึกเวลา' on first write. Returns the sheet.
+ * 8 columns; row 1 frozen.
+ *
+ * Schema (1-based):
+ *   1:id  2:taskKey  3:startedAt  4:endedAt
+ *   5:durationMin  6:user  7:note  8:createdAt
+ *
+ * taskKey = "date|building|room|type" — same composite key used by
+ * the dashboard client to identify a task row. We don't FK to the
+ * task sheet directly because the user may delete a task without
+ * affecting its historical time records (useful for payroll).
+ *
+ * endedAt empty + durationMin empty = "running" state.
+ */
+function getOrCreateTimeLogSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.TIME_LOG);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.TIME_LOG);
+    sh.appendRow([
+      'id', 'taskKey', 'startedAt', 'endedAt',
+      'durationMin', 'user', 'note', 'createdAt',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 8).setFontWeight('bold').setBackground('#DBEAFE');
+    sh.setColumnWidth(2, 280); // taskKey
+    sh.setColumnWidth(7, 240); // note
+  }
+  return sh;
+}
+
+/** Parse all rows; helper for the read actions. Skips header. */
+function readTimeLogRows_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TIME_LOG);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getRange(2, 1, lastRow - 1, 8).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const id = norm(r[0]);
+    if (!id) continue;
+    const durRaw = parseFloat(r[4]);
+    rows.push({
+      id:          id,
+      taskKey:     norm(r[1]),
+      startedAt:   norm(r[2]),
+      endedAt:     norm(r[3]),
+      durationMin: isFinite(durRaw) ? durRaw : 0,
+      user:        norm(r[5]),
+      note:        norm(r[6]),
+      createdAt:   norm(r[7]),
+      sheetRow:    i + 2,
+    });
+  }
+  return rows;
+}
+
+/**
+ * GET: optionally filter by taskKey or user. Empty filter returns all.
+ * Returned rows omit `sheetRow` (internal pointer).
+ */
+function getTimeLogs_(b) {
+  const taskKey = b && b.taskKey ? norm(b.taskKey) : '';
+  const user = b && b.user ? norm(b.user) : '';
+  const rows = readTimeLogRows_();
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (taskKey && r.taskKey !== taskKey) continue;
+    if (user && r.user !== user) continue;
+    out.push({
+      id: r.id,
+      taskKey: r.taskKey,
+      startedAt: r.startedAt,
+      endedAt: r.endedAt,
+      durationMin: r.durationMin,
+      user: r.user,
+      note: r.note,
+      createdAt: r.createdAt,
+    });
+  }
+  return rows.length ? { rows: out } : { rows: [] };
+}
+
+/**
+ * Find the user's currently-running timer (open row = endedAt empty),
+ * if any. Frontend uses this to render the "▶ resume" / "⏸ stop" state
+ * on page load.
+ */
+function getActiveTimer_(b) {
+  const user = b && b.user ? norm(b.user) : '';
+  if (!user) throw new Error('user required');
+  const rows = readTimeLogRows_();
+  // If a user has multiple open timers (shouldn't happen — startTimer
+  // refuses — but defensive), return the most recent.
+  let found = null;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.user !== user) continue;
+    if (r.endedAt) continue;
+    if (!found || r.startedAt > found.startedAt) found = r;
+  }
+  if (!found) return { active: null };
+  return {
+    active: {
+      id: found.id,
+      taskKey: found.taskKey,
+      startedAt: found.startedAt,
+      user: found.user,
+    },
+  };
+}
+
+/**
+ * Start a timer. Requires taskKey + user. Refuses if user already has
+ * an open timer for the same task (avoids double-start), but allows
+ * the user to have one open timer per distinct task.
+ */
+function startTimer_(b) {
+  if (!b.taskKey) throw new Error('taskKey required');
+  if (!b.user) throw new Error('user required');
+  const taskKey = norm(b.taskKey);
+  const user = norm(b.user);
+  // Refuse if there's already an open row for this {user, taskKey}
+  const rows = readTimeLogRows_();
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.user === user && r.taskKey === taskKey && !r.endedAt) {
+      throw new Error('มี timer ที่กำลังจับเวลาอยู่แล้วสำหรับงานนี้');
+    }
+  }
+  const sh = getOrCreateTimeLogSheet_();
+  const id = Utilities.getUuid();
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
+  sh.appendRow([
+    id,
+    taskKey,
+    now,           // startedAt
+    '',            // endedAt
+    '',            // durationMin
+    user,
+    norm(b.note),
+    now,           // createdAt
+  ]);
+  return { started: true, id: id, startedAt: now, row: sh.getLastRow() };
+}
+
+/**
+ * Stop a timer. Two lookup modes:
+ *   - by id: explicit row
+ *   - by {user, taskKey}: find the user's open row for that task
+ *
+ * Computes durationMin (rounded) and writes both endedAt and duration.
+ * Optional note appended.
+ */
+function stopTimer_(b) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TIME_LOG);
+  if (!sh) throw new Error('sheet "บันทึกเวลา" not found');
+  const rows = readTimeLogRows_();
+  let target = null;
+  if (b.id) {
+    const id = norm(b.id);
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].id === id) { target = rows[i]; break; }
+    }
+  } else if (b.user && b.taskKey) {
+    const user = norm(b.user);
+    const taskKey = norm(b.taskKey);
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (r.user === user && r.taskKey === taskKey && !r.endedAt) {
+        target = r; break;
+      }
+    }
+  } else {
+    throw new Error('id or {user, taskKey} required');
+  }
+  if (!target) throw new Error('ไม่พบ timer ที่กำลังจับเวลา');
+  if (target.endedAt) throw new Error('timer นี้หยุดไปแล้ว');
+
+  const startMs = new Date(target.startedAt.replace(' ', 'T')).getTime();
+  const nowDate = new Date();
+  const endStr = Utilities.formatDate(nowDate, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
+  const durMin = Math.max(0, Math.round((nowDate.getTime() - startMs) / 60000));
+
+  sh.getRange(target.sheetRow, 4).setValue(endStr);
+  sh.getRange(target.sheetRow, 5).setValue(durMin);
+  if (b.note !== undefined) {
+    // Append to existing note (don't blow away the user's note from start)
+    const existing = target.note ? target.note + ' / ' : '';
+    sh.getRange(target.sheetRow, 7).setValue(existing + norm(b.note));
+  }
+  return { stopped: true, id: target.id, durationMin: durMin, endedAt: endStr };
 }
 
 /* ========== PHASE 1: SETUP / FORMATTING / DROPDOWNS / FILTER VIEWS ========== */

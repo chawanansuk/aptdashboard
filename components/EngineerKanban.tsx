@@ -15,6 +15,7 @@ import {
   type LocationFilter,
 } from "@/lib/taskLocation";
 import TaskDetailDrawer from "./TaskDetailDrawer";
+import { taskKey } from "@/lib/taskKey";
 
 interface Props {
   tasks: SheetRow[];
@@ -58,9 +59,6 @@ function todayThai(): string {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
-function taskKey(t: SheetRow): string {
-  return `${t.date}|${t.building}|${t.room}|${t.type}`;
-}
 
 /** Pure: bucket a list of tasks into the 4 Kanban columns. */
 export function groupTasksForKanban(
