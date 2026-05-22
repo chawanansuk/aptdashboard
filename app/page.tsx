@@ -509,6 +509,24 @@ export default function Home() {
     setShowAddTask(true);
   }
 
+  /** Move-in workflow companions. */
+  function openMoveinCleaning(building: string, room: string) {
+    setTType("ทำสะอาด");
+    setTBuilding(building);
+    setTRoom(room);
+    setTNote("ทำสะอาดก่อนรับลูกค้าใหม่");
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+  function openMoveinSchedule(building: string, room: string) {
+    setTType("ย้ายเข้า");
+    setTBuilding(building);
+    setTRoom(room);
+    setTNote("");
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+
   /** Quick "บันทึกนัดชม" — pre-fill AddTaskModal with type=ชมห้อง (sales FAB). */
   function openQuickAddLead() {
     setTType("ชมห้อง");
@@ -1002,6 +1020,8 @@ export default function Home() {
           onAddTaskHere={() => openAddTaskForRoom(selectedRoom.building, selectedRoom.room)}
           onMoveoutInspect={() => openMoveoutInspection(selectedRoom.building, selectedRoom.room)}
           onMoveoutClean={() => openMoveoutCleaning(selectedRoom.building, selectedRoom.room)}
+          onMoveinClean={() => openMoveinCleaning(selectedRoom.building, selectedRoom.room)}
+          onMoveinSchedule={() => openMoveinSchedule(selectedRoom.building, selectedRoom.room)}
         />
       )}
 

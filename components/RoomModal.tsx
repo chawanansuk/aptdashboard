@@ -43,6 +43,9 @@ interface Props {
    */
   onMoveoutInspect?: () => void;
   onMoveoutClean?: () => void;
+  /** Move-in workflow companions — surface when room status = pending. */
+  onMoveinClean?: () => void;
+  onMoveinSchedule?: () => void;
 }
 
 type TabKey = "info" | "equipment" | "vehicles";
@@ -114,6 +117,7 @@ export default function RoomModal({
   room, saving, status, tenant, phone, contractEnd, note, price,
   onChange, onClose, onSave, onAddTaskHere, defaultTab,
   onMoveoutInspect, onMoveoutClean,
+  onMoveinClean, onMoveinSchedule,
 }: Props) {
   const { data: session } = useSession();
   // Edit/view-tenant gates use ACTUAL roles — view-as preview must
@@ -273,6 +277,44 @@ export default function RoomModal({
               {!canEdit && (
                 <div className="ac-banner ac-banner-info ac-room-readonly-banner">
                   ดูข้อมูลอย่างเดียว · เฉพาะ <strong>management</strong> แก้ไขข้อมูลห้องได้
+                </div>
+              )}
+
+              {/* Move-IN workflow — surface when room is waiting for a
+                  new tenant. Mirrors the move-OUT banner below for
+                  symmetry; covers: schedule pre-arrival cleaning,
+                  log the move-in event with customer details. */}
+              {room.status === "pending" && canEdit && (
+                <div
+                  className="ac-moveout-workflow ac-moveout-workflow--in"
+                  role="region"
+                  aria-label="ขั้นตอนย้ายเข้า"
+                >
+                  <header className="ac-moveout-head">
+                    <span className="ac-moveout-icon" aria-hidden>📥</span>
+                    <div>
+                      <h3 className="ac-moveout-title">ขั้นตอนย้ายเข้า</h3>
+                      <p className="ac-moveout-sub">
+                        ห้องรอลูกค้าใหม่ — เตรียมห้องและบันทึกนัด
+                      </p>
+                    </div>
+                  </header>
+                  <div className="ac-moveout-actions">
+                    {onMoveinClean && (
+                      <button
+                        type="button"
+                        className="ac-btn ac-btn-secondary"
+                        onClick={onMoveinClean}
+                      >🧹 จองทำสะอาด</button>
+                    )}
+                    {onMoveinSchedule && (
+                      <button
+                        type="button"
+                        className="ac-btn ac-btn-secondary"
+                        onClick={onMoveinSchedule}
+                      >📥 บันทึกวันย้ายเข้า</button>
+                    )}
+                  </div>
                 </div>
               )}
 
