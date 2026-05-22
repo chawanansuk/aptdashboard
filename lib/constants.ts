@@ -32,7 +32,7 @@ export const FILTER_CHIPS: { key: "all" | RoomStatus; label: string }[] = [
   { key: "repair", label: "รอซ่อม" },
 ];
 
-export const RAW_STATUS_OPTIONS = ["มีคนอยู่", "ว่าง", "รอสัญญา", "แจ้งย้ายออก", "ปรับปรุง"];
+export const RAW_STATUS_OPTIONS = ["มีคนอยู่", "ว่าง", "รอสัญญา", "แจ้งย้ายออก", "ปรับปรุง", "ไม่ได้ใช้งาน"];
 
 export const VIEW_TO_TASK_TYPE: Partial<Record<RoomStatus, string[]>> = {
   moveout: ["ย้ายออก"],
