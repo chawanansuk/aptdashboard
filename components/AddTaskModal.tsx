@@ -134,6 +134,20 @@ export default function AddTaskModal({
   // Common-area toggle (Task 38) — show only for engineer task types
   // (ซ่อม / ทำสะอาด). Sales appointments always target a tenant room.
   const allowCommonArea = currentType === "ซ่อม" || currentType === "ทำสะอาด" || currentType === "อื่นๆ";
+  // Cost field — only meaningful for engineer task types. Sales tasks
+  // (ย้ายเข้า/ย้ายออก/ชมห้อง) don't carry costs; hiding cleans the form
+  // and avoids accidental entry by sales role.
+  const showCostField =
+    currentType === "ซ่อม" || currentType === "ทำสะอาด" || currentType === "อื่นๆ";
+
+  // Clear any leftover cost when switching to a sales task type, so
+  // a stale value doesn't sneak into the submit payload.
+  const currentCost = watch("cost");
+  useEffect(() => {
+    if (!showCostField && currentCost) {
+      setValue("cost", "");
+    }
+  }, [showCostField, currentCost, setValue]);
   const currentRoom = watch("room");
   const isCommonMode = allowCommonArea && currentRoom?.startsWith(COMMON_AREA_PREFIX);
   const selectedCommonType = isCommonMode
@@ -389,24 +403,29 @@ export default function AddTaskModal({
               </div>
             )}
 
-            {/* SECTION 4 — ค่าใช้จ่าย + หมายเหตุ */}
+            {/* SECTION 4 — ค่าใช้จ่าย + หมายเหตุ
+                Cost shown only for engineer task types — sales tasks
+                (ย้ายเข้า/ย้ายออก/ชมห้อง) don't carry costs. */}
             <div className="ac-form-section">
               <div className="ac-form-section-label">
-                ค่าใช้จ่าย · หมายเหตุ <span className="ac-form-section-optional">(ไม่บังคับ)</span>
+                {showCostField ? "ค่าใช้จ่าย · หมายเหตุ" : "หมายเหตุ"}
+                {" "}<span className="ac-form-section-optional">(ไม่บังคับ)</span>
               </div>
-              <div className="ac-field">
-                <label htmlFor="ac-addtask-cost">ค่าใช้จ่าย (บาท)</label>
-                <input
-                  id="ac-addtask-cost"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder={costPlaceholder}
-                  {...register("cost")}
-                />
-                <span className="ac-field-hint">
-                  ใส่ตอนสร้าง หรือมาเพิ่มภายหลังตอนทำงานเสร็จก็ได้
-                </span>
-              </div>
+              {showCostField && (
+                <div className="ac-field">
+                  <label htmlFor="ac-addtask-cost">ค่าใช้จ่าย (บาท)</label>
+                  <input
+                    id="ac-addtask-cost"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder={costPlaceholder}
+                    {...register("cost")}
+                  />
+                  <span className="ac-field-hint">
+                    ใส่ตอนสร้าง หรือมาเพิ่มภายหลังตอนทำงานเสร็จก็ได้
+                  </span>
+                </div>
+              )}
               <div className="ac-field">
                 <label htmlFor="ac-addtask-note">หมายเหตุ</label>
                 <textarea
