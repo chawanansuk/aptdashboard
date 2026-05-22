@@ -2345,6 +2345,11 @@ html.dark .ac-empty-desc { color: #64748B; }
   gap: 12px;
   flex-wrap: wrap;
 }
+.ac-tenants-head-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
 
 /* ===== Calendar task clickable ===== */
 .ac-cal-task.is-clickable { cursor: pointer; transition: background 0.15s, transform 0.1s; }

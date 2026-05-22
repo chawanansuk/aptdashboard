@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { RoomView } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { exportCsv } from "@/lib/csvExport";
 import EmptyState from "./EmptyState";
 
 interface Props {
@@ -89,7 +90,32 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
           <h2 className="ac-page-title">ผู้เช่า {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
           <p className="ac-page-sub">ทั้งหมด {tenants.length} คน</p>
         </div>
-        <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨 พิมพ์</button>
+        <div className="ac-tenants-head-actions">
+          <button
+            className="ac-btn ac-btn-ghost ac-no-print"
+            disabled={tenants.length === 0}
+            title={tenants.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${tenants.length} รายการ`}
+            onClick={() => {
+              const today = new Date().toISOString().slice(0, 10);
+              const tag = activeBuilding === "ทั้งหมด" ? "ทั้งหมด" : activeBuilding;
+              exportCsv(
+                `ผู้เช่า_${tag}_${today}.csv`,
+                tenants,
+                [
+                  { header: "ตึก",           value: (r: RoomView) => r.building },
+                  { header: "ห้อง",          value: (r: RoomView) => r.room },
+                  { header: "ชั้น",          value: (r: RoomView) => r.floor },
+                  { header: "ชื่อผู้เช่า",    value: (r: RoomView) => r.tenant },
+                  { header: "เบอร์โทร",      value: (r: RoomView) => r.phone },
+                  { header: "วันสิ้นสุดสัญญา", value: (r: RoomView) => r.contractEnd },
+                  { header: "ราคา",         value: (r: RoomView) => r.price },
+                  { header: "สถานะ",        value: (r: RoomView) => r.rawStatus || r.status },
+                ],
+              );
+            }}
+          >⬇ CSV</button>
+          <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨 พิมพ์</button>
+        </div>
       </header>
 
       <section className="ac-fb">
