@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.12.0 — Dashboard หอพัก
+ * Code.gs v3.13.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -48,6 +48,13 @@
  *     - getActiveTimer: return open row for user (if any)
  *     - getTimeLogs: list all, optionally filtered by taskKey or user
  *   - timer rows ไม่ cache (need fresh state for resume detection)
+ * NEW v3.13.0:
+ *   - tab "ยานพาหนะ" auto-create (motorcycle/car per room)
+ *     10 columns: id | ตึก | ห้อง | ทะเบียน | ยี่ห้อ/รุ่น | สี |
+ *                 หมายเหตุ | ผู้บันทึก | วันที่บันทึก | วันที่ปรับปรุง
+ *   - actions getVehicles / addVehicle / updateVehicle / deleteVehicle
+ *   - multiple vehicles per room supported (FK ผ่าน {ตึก, ห้อง})
+ *   - cache 60s + invalidate on write
  */
 
 const SHEET_NAMES = {
@@ -59,6 +66,7 @@ const SHEET_NAMES = {
   FACILITY: 'สาธารณูปโภค',
   PART: 'อะไหล่', // v3.11.0 — inventory (Task 37)
   TIME_LOG: 'บันทึกเวลา', // v3.12.0 — time tracking (Task 35)
+  VEHICLE: 'ยานพาหนะ', // v3.13.0 — vehicles per room
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
@@ -191,6 +199,27 @@ function clearPartCache_() {
   try { CacheService.getScriptCache().remove(PART_CACHE_KEY); } catch (e) {}
 }
 
+/* ========== VEHICLE CACHE (NEW v3.13.0) ========== */
+const VEHICLE_CACHE_KEY = 'vehicleCache_v1';
+const VEHICLE_CACHE_TTL_SEC = 60;
+
+function getAllVehiclesCached_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(VEHICLE_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+  const fresh = getAllVehicles_();
+  try {
+    cache.put(VEHICLE_CACHE_KEY, JSON.stringify(fresh), VEHICLE_CACHE_TTL_SEC);
+  } catch (e) {}
+  return fresh;
+}
+
+function clearVehicleCache_() {
+  try { CacheService.getScriptCache().remove(VEHICLE_CACHE_KEY); } catch (e) {}
+}
+
 /* ========== UTIL ========== */
 function norm(v) {
   if (v === null || v === undefined) return '';
@@ -268,6 +297,11 @@ function doPost(e) {
       case 'getActiveTimer':   return ok_({ result: getActiveTimer_(body) });
       case 'startTimer':       return ok_(withWriteLock_(function () { return startTimer_(body); }));
       case 'stopTimer':        return ok_(withWriteLock_(function () { return stopTimer_(body); }));
+      // v3.13.0 — Vehicles per room
+      case 'getVehicles':      return ok_({ result: { rows: getAllVehiclesCached_() } });
+      case 'addVehicle':       return ok_(withWriteLock_(function () { return addVehicle_(body); }));
+      case 'updateVehicle':    return ok_(withWriteLock_(function () { return updateVehicle_(body); }));
+      case 'deleteVehicle':    return ok_(withWriteLock_(function () { return deleteVehicle_(body); }));
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -1096,6 +1130,142 @@ function stopTimer_(b) {
     sh.getRange(target.sheetRow, 7).setValue(existing + norm(b.note));
   }
   return { stopped: true, id: target.id, durationMin: durMin, endedAt: endStr };
+}
+
+/* ========== VEHICLE (NEW v3.13.0) ========== */
+/**
+ * Auto-create tab 'ยานพาหนะ' on first write. Returns the sheet.
+ * 10 columns; row 1 frozen.
+ *
+ * Schema (1-based):
+ *   1:id  2:ตึก  3:ห้อง  4:ทะเบียน  5:ยี่ห้อ/รุ่น
+ *   6:สี  7:หมายเหตุ  8:ผู้บันทึก  9:วันที่บันทึก  10:วันที่ปรับปรุง
+ *
+ * Multiple vehicles per room are supported — the {ตึก, ห้อง} pair is
+ * not unique. Vehicle stays even if tenant moves out (clean-up is a
+ * manual action). License plate is treated as the natural identifier
+ * the user remembers; uuid is for internal API.
+ */
+function getOrCreateVehicleSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.VEHICLE);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.VEHICLE);
+    sh.appendRow([
+      'id', 'ตึก', 'ห้อง', 'ทะเบียน', 'ยี่ห้อ/รุ่น',
+      'สี', 'หมายเหตุ', 'ผู้บันทึก', 'วันที่บันทึก', 'วันที่ปรับปรุง',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#FCE7F3');
+    sh.setColumnWidth(4, 140); // plate
+    sh.setColumnWidth(5, 200); // model
+    sh.setColumnWidth(7, 260); // note
+  }
+  return sh;
+}
+
+function getAllVehicles_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.VEHICLE);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getRange(2, 1, lastRow - 1, 10).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const id = norm(r[0]);
+    if (!id) continue;
+    rows.push({
+      id:        id,
+      building:  norm(r[1]),
+      room:      norm(r[2]),
+      plate:     norm(r[3]),
+      model:     norm(r[4]),
+      color:     norm(r[5]),
+      note:      norm(r[6]),
+      creator:   norm(r[7]),
+      createdAt: norm(r[8]),
+      updatedAt: norm(r[9]),
+    });
+  }
+  return rows;
+}
+
+/**
+ * Append a new vehicle. Required: building, room, plate. Optional:
+ * model, color, note. Server stamps creator + createdAt + updatedAt.
+ */
+function addVehicle_(b) {
+  if (!b.building) throw new Error('building required');
+  if (!b.room) throw new Error('room required');
+  if (!b.plate) throw new Error('plate required');
+  const sh = getOrCreateVehicleSheet_();
+  const id = Utilities.getUuid();
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  sh.appendRow([
+    id,
+    b.building,
+    b.room,
+    b.plate,
+    b.model || '',
+    b.color || '',
+    b.note || '',
+    b.creator || '',
+    now,
+    now,
+  ]);
+  clearVehicleCache_();
+  return { appended: true, id: id, row: sh.getLastRow() };
+}
+
+/**
+ * Update an existing vehicle by id. Partial — only provided fields
+ * are written. Always bumps updatedAt.
+ */
+function updateVehicle_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.VEHICLE);
+  if (!sh) throw new Error('sheet "ยานพาหนะ" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no vehicle rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('vehicle not found: ' + b.id);
+  // Cols: 2:ตึก 3:ห้อง 4:ทะเบียน 5:ยี่ห้อ/รุ่น 6:สี 7:หมายเหตุ 10:updatedAt
+  if (b.building !== undefined) sh.getRange(found, 2).setValue(b.building);
+  if (b.room     !== undefined) sh.getRange(found, 3).setValue(b.room);
+  if (b.plate    !== undefined) sh.getRange(found, 4).setValue(b.plate);
+  if (b.model    !== undefined) sh.getRange(found, 5).setValue(b.model);
+  if (b.color    !== undefined) sh.getRange(found, 6).setValue(b.color);
+  if (b.note     !== undefined) sh.getRange(found, 7).setValue(b.note);
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  sh.getRange(found, 10).setValue(now);
+  clearVehicleCache_();
+  return { updated: true, row: found };
+}
+
+/**
+ * Delete a vehicle by id. Used when the vehicle no longer belongs to
+ * the property (sold, moved out with tenant, etc.).
+ */
+function deleteVehicle_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.VEHICLE);
+  if (!sh) throw new Error('sheet "ยานพาหนะ" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no vehicle rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('vehicle not found: ' + b.id);
+  sh.deleteRow(found);
+  clearVehicleCache_();
+  return { deleted: true, row: found };
 }
 
 /* ========== PHASE 1: SETUP / FORMATTING / DROPDOWNS / FILTER VIEWS ========== */

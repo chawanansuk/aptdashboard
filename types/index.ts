@@ -203,3 +203,22 @@ export function isRunningTimer(t: Pick<TimeLog, "endedAt">): boolean {
 export function totalDurationMin(logs: TimeLog[]): number {
   return logs.reduce((s, l) => s + (l.durationMin || 0), 0);
 }
+
+/**
+ * Vehicle linked to a room (motorcycle, car, etc.). Multiple vehicles
+ * per room are supported — FK is the composite {building, room}.
+ * License plate is treated as the natural identifier the user
+ * remembers; `id` exists for API consistency.
+ */
+export interface Vehicle {
+  id: string;
+  building: string;
+  room: string;
+  plate: string;
+  model: string;        // ยี่ห้อ/รุ่น เช่น "Honda Click 125"
+  color: string;
+  note: string;
+  creator: string;
+  createdAt: string;
+  updatedAt: string;
+}
