@@ -7383,3 +7383,112 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   flex-wrap: wrap;
   margin: 0 0 var(--space-2) 0;
 }
+
+/* Bulk select checkbox in TaskCard + floating action bar */
+.ac-task-bulk-check {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  margin-right: 4px;
+}
+.ac-task.is-bulk-selected {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+  outline-offset: -1px;
+}
+.ac-bulk-bar {
+  position: sticky;
+  bottom: var(--space-3);
+  margin: var(--space-3) auto 0;
+  max-width: 720px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--color-text) 12%, transparent);
+  z-index: 40;
+}
+.ac-bulk-bar-count {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.ac-bulk-bar-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Service history collapsible */
+.ac-equipment-history {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--color-text-muted) 6%, transparent);
+  border-radius: var(--radius-md);
+}
+.ac-equipment-history summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+.ac-equipment-history summary:hover { color: var(--color-text); }
+.ac-equipment-history-list {
+  list-style: none;
+  margin: var(--space-2) 0 0 0;
+  padding: 0;
+}
+.ac-equipment-history-list li {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  padding: 4px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--color-border) 50%, transparent);
+  align-items: baseline;
+}
+.ac-equipment-history-list li:last-child { border-bottom: 0; }
+.ac-equipment-history-date {
+  font-family: ui-monospace, monospace;
+  color: var(--color-text-muted);
+  min-width: 90px;
+}
+.ac-equipment-history-status {
+  font-weight: var(--font-weight-semibold);
+}
+.ac-equipment-history-note {
+  color: var(--color-text-muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Skeleton line shimmer for loading banners */
+.ac-skel-line {
+  display: inline-block;
+  width: 60%;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-text-muted) 12%, transparent) 0%,
+    color-mix(in srgb, var(--color-text-muted) 22%, transparent) 50%,
+    color-mix(in srgb, var(--color-text-muted) 12%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: ac-skel-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes ac-skel-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.ac-service-due-banner.is-loading {
+  background: color-mix(in srgb, var(--color-text-muted) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
+  cursor: default;
+}

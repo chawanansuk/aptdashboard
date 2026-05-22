@@ -62,6 +62,19 @@ export default function ServiceDueBanner({ activeBuilding, onNavigate }: Props) 
   }, [rows, activeBuilding]);
 
   if (!canSee) return null;
+  if (rows === null) {
+    // Loading skeleton — same shape so layout doesn't shift when
+    // banner appears. Hidden when fetch returns empty/zero (below).
+    return (
+      <div
+        className="ac-service-due-banner is-loading"
+        aria-busy="true"
+        aria-label="กำลังตรวจอุปกรณ์"
+      >
+        <span className="ac-skel-line" />
+      </div>
+    );
+  }
   if (counts.overdue === 0 && counts.dueSoon === 0) return null;
 
   const tone = counts.overdue > 0 ? "is-overdue" : "is-soon";

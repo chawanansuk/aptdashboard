@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import type { RoomEquipment, EquipmentType, EquipmentStatus } from "@/types";
+import type { RoomEquipment, EquipmentType, EquipmentStatus, SheetRow } from "@/types";
 import {
   EQUIPMENT_TYPES, EQUIPMENT_TYPE_ICON, EQUIPMENT_STATUS_COLOR,
   MAINTENANCE_STATUS_COLOR, MAINTENANCE_STATUS_LABEL,
@@ -21,6 +21,10 @@ import AddEquipmentModal from "./AddEquipmentModal";
 interface Props {
   building: string;
   room: string;
+  /** Optional: past tasks for this room (from RoomView.pastTasks).
+   *  When supplied, a "ประวัติซ่อม" section lists past ซ่อม tasks
+   *  as a proxy for equipment service history. */
+  pastTasks?: SheetRow[];
 }
 
 type FilterKey = "all" | EquipmentType;
@@ -32,7 +36,7 @@ function formatDateLabel(s: string): string {
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
-export default function RoomEquipmentTab({ building, room }: Props) {
+export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
   const { data: session } = useSession();
   const canWrite = canAddEngTask(session?.user?.roles);
 
@@ -338,6 +342,31 @@ export default function RoomEquipmentTab({ building, room }: Props) {
         onClose={() => setEditTarget(null)}
         onSubmit={handleSubmit}
       />
+
+      {/* Service history (Task 30 / C4) — past ซ่อม tasks for this room.
+          Proxies "equipment service history" since tasks don't have an
+          equipment_id link in the current schema. */}
+      {pastTasks && pastTasks.filter((t) => t.type === "ซ่อม").length > 0 && (
+        <details className="ac-equipment-history">
+          <summary>
+            ประวัติซ่อม ({pastTasks.filter((t) => t.type === "ซ่อม").length})
+          </summary>
+          <ul className="ac-equipment-history-list">
+            {pastTasks
+              .filter((t) => t.type === "ซ่อม")
+              .slice()
+              .reverse()
+              .slice(0, 20)
+              .map((t, i) => (
+                <li key={`${t.date}-${i}`}>
+                  <span className="ac-equipment-history-date">{t.date}</span>
+                  <span className="ac-equipment-history-status">{t.status || "—"}</span>
+                  {t.note && <span className="ac-equipment-history-note">{t.note}</span>}
+                </li>
+              ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }
