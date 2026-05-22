@@ -80,11 +80,23 @@ export default function CommandPalette({
     if (open) {
       setQuery("");
       setSelectedIdx(0);
+      // Dev-only diagnostic — surface the distinct building names that
+      // came back from the sheet, so we can see if "มีทรัพย์" rooms
+      // are simply missing from upstream data vs. being a search bug
+      // (Task 12). Production keeps the console quiet.
+      if (process.env.NODE_ENV !== "production") {
+        const distinct = Array.from(new Set(rooms.map((r) => r.building))).sort();
+        const countsByBuilding = distinct.map(
+          (b) => `${b}=${rooms.filter((r) => r.building === b).length}`,
+        );
+        // eslint-disable-next-line no-console
+        console.log(`[cmdk] distinct buildings (${distinct.length}): ${countsByBuilding.join(", ")}`);
+      }
       // focus input after the paint
       const t = setTimeout(() => inputRef.current?.focus(), 0);
       return () => clearTimeout(t);
     }
-  }, [open]);
+  }, [open, rooms]);
 
   const actions = useMemo<PaletteAction[]>(() => {
     if (!open) return [];

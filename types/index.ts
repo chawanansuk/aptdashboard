@@ -17,7 +17,12 @@ export interface SheetRow {
 export type TaskType = "ทำสะอาด" | "ย้ายเข้า" | "ย้ายออก" | "ชมห้อง";
 export const TASK_ORDER: TaskType[] = ["ทำสะอาด", "ย้ายเข้า", "ย้ายออก", "ชมห้อง"];
 
-export const BUILDINGS = ["Kl", "มายทรี48", "G48", "มั่งมี", "มีทรัพย์"] as const;
+// BUILDINGS — single source of truth lives in `lib/taskSchema.ts` (zod
+// enum needs it there). Re-exported here for backward-compat consumers.
+// Previous duplicate had "G48"/no "มีทอง" and silently drifted from
+// taskSchema's "มีทอง"/no "G48", causing CleaningChart to render the
+// wrong building set (Task 12).
+export { BUILDINGS } from "@/lib/taskSchema";
 
 export interface CapacityWarning {
   building: string;
