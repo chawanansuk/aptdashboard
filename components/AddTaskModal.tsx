@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
@@ -104,7 +104,7 @@ export default function AddTaskModal({
     reset,
     watch,
     setFocus,
-    formState: { errors, isSubmitting, isValid },
+    formState: { errors, isSubmitting, isValid, isDirty },
   } = useForm<TaskFormValues>({
     resolver: zodResolver(schema),
     defaultValues: defaults,
@@ -161,12 +161,29 @@ export default function AddTaskModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, roles, allowedTypes]);
 
+  /**
+   * Guarded close — if the form is dirty, confirm before discarding so
+   * users don't lose 5 fields of input from a stray Esc/backdrop click
+   * (Task 34). Submitting/saving bypasses the guard since the action
+   * is explicit.
+   */
+  const requestClose = useCallback(() => {
+    if (saving || isSubmitting) return;
+    if (isDirty) {
+      const ok = typeof window !== "undefined"
+        ? window.confirm("ยกเลิกการแจ้งซ่อม? ข้อมูลที่กรอกจะหายไป")
+        : true;
+      if (!ok) return;
+    }
+    onClose();
+  }, [saving, isSubmitting, isDirty, onClose]);
+
   // Esc to close, Cmd/Ctrl+Enter to submit
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        if (!saving && !isSubmitting) onClose();
+        requestClose();
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         handleSubmit(onSubmit)();
@@ -174,13 +191,13 @@ export default function AddTaskModal({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, saving, isSubmitting, handleSubmit, onSubmit, onClose]);
+  }, [open, handleSubmit, onSubmit, requestClose]);
 
   if (!open) return null;
   const busy = saving || isSubmitting;
 
   return (
-    <div className="ac-modal-backdrop" onClick={() => !busy && onClose()}>
+    <div className="ac-modal-backdrop" onClick={() => requestClose()}>
       <div
         ref={dialogRef}
         className="ac-modal ac-modal-form"
@@ -194,7 +211,7 @@ export default function AddTaskModal({
             <div className="ac-modal-title" id="ac-addtask-title">เพิ่มงานใหม่</div>
             <div className="ac-modal-sub">บันทึกลงชีต &quot;งาน&quot;</div>
           </div>
-          <button className="ac-modal-close" onClick={onClose} aria-label="ปิด" type="button">✕</button>
+          <button className="ac-modal-close" onClick={requestClose} aria-label="ปิด" type="button">✕</button>
         </header>
 
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -347,7 +364,7 @@ export default function AddTaskModal({
             <button
               type="button"
               className="ac-btn ac-btn-ghost"
-              onClick={onClose}
+              onClick={requestClose}
               disabled={busy}
             >
               ยกเลิก
