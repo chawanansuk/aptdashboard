@@ -7014,6 +7014,45 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
 }
 
 /* ====================================================================
+ * Move-out workflow (Task 30) — surfaces inside RoomModal info tab
+ * when room.status === "moveout"
+ * ==================================================================== */
+.ac-moveout-workflow {
+  margin: 0 0 var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, #F97316 8%, transparent);
+  border: 1px solid color-mix(in srgb, #F97316 30%, transparent);
+  border-left: 3px solid #F97316;
+  border-radius: var(--radius-md);
+}
+.ac-moveout-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.ac-moveout-icon {
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+.ac-moveout-title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.ac-moveout-sub {
+  margin: 2px 0 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.ac-moveout-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ====================================================================
  * Insights cards (Task 27 — light version on Overview)
  * ==================================================================== */
 .ac-insights {
