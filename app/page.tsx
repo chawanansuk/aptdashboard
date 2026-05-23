@@ -26,6 +26,7 @@ import BottomNav, { type BottomNavView } from "@/components/BottomNav";
 import RoomModal from "@/components/RoomModal";
 import AddTaskModal from "@/components/AddTaskModal";
 import BulkAddModal from "@/components/BulkAddModal";
+import { buildNotifications } from "@/lib/notifications";
 import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import { parseThaiDate } from "@/lib/dateUtils";
@@ -92,6 +93,22 @@ export default function Home() {
   // Asset alert counts — only fetch when user has engineer-side access.
   // Skips parts+maintenance API calls for sales role entirely.
   const assetAlerts = useAssetAlertCounts(canAccess(roles, "parts") || canAccess(roles, "maintenance"));
+
+  // Header notification dropdown — derived from live data. Role filtering
+  // happens inside buildNotifications so the bell badge matches the
+  // dropdown contents (no item the user can't actually navigate to).
+  const notifications = useMemo(
+    () => buildNotifications({
+      tasks: tasks || [],
+      rooms: rooms || [],
+      roles,
+      assetAlerts: {
+        lowStockParts: assetAlerts.lowStockParts,
+        overdueEquipment: assetAlerts.overdueEquipment,
+      },
+    }),
+    [tasks, rooms, roles, assetAlerts.lowStockParts, assetAlerts.overdueEquipment],
+  );
 
   // ---- Mode personality (PR-O) ----
   // Derive the mode config from effective roles. View-as swap → mode swap.
@@ -790,6 +807,12 @@ export default function Home() {
         onOpenHelp={() => setShowHelp(true)}
         addLabel={modeConfig.addButtonLabel}
         modeLabel={modeConfig.label}
+        notifications={notifications}
+        onNotificationNavigate={(route) => {
+          if ((VALID_VIEWS as string[]).includes(route)) {
+            setActiveView(route as ActiveView);
+          }
+        }}
       />
 
       <div className="ac-body">

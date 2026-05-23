@@ -8,6 +8,8 @@ import { Icon } from "@/lib/icons";
 import { toast } from "@/lib/toast";
 import type { Role } from "@/auth";
 import { isManagement } from "@/lib/permissions";
+import NotificationDropdown from "./NotificationDropdown";
+import type { NotificationItem } from "@/lib/notifications";
 
 interface Props {
   buildings: string[]; // includes "ทั้งหมด" first
@@ -29,6 +31,11 @@ interface Props {
   addLabel?: string;
   /** Mode-specific label for the role/mode badge (e.g. "Sales Mode"). Falls back to MODE_LABEL map. */
   modeLabel?: string;
+  /** Notification dropdown content. Empty array = bell with no badge. */
+  notifications?: NotificationItem[];
+  /** Called when the user picks a notification row — typically the
+   *  parent flips activeView to the row's route. */
+  onNotificationNavigate?: (route: string) => void;
 }
 
 function initialsFromName(name?: string | null): string {
@@ -72,6 +79,7 @@ export default function AppHeader({
   isRefreshing, lastUpdated, isDark,
   onAddTask, onRefresh, onToggleTheme, onOpenSummary, onToggleSidebar, onOpenSearch, onOpenHelp,
   addLabel, modeLabel,
+  notifications, onNotificationNavigate,
 }: Props) {
   const { data: session } = useSession();
   const user = session?.user;
@@ -147,7 +155,7 @@ export default function AppHeader({
         </button>
       </div>
 
-      {/* === Cell: Utils (search + theme + summary + avatar) === */}
+      {/* === Cell: Utils (search + bell + theme + summary + avatar) === */}
       <div className="ac-nav-cell ac-nav-cell-utils">
         {onOpenSearch && (
           <button
@@ -158,6 +166,12 @@ export default function AppHeader({
           >
             <Icon name="search" size={16} />
           </button>
+        )}
+        {notifications !== undefined && (
+          <NotificationDropdown
+            items={notifications}
+            onNavigate={onNotificationNavigate}
+          />
         )}
         <button
           className="ac-theme-toggle ac-hide-mobile"
