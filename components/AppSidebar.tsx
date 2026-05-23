@@ -13,6 +13,9 @@ interface Props {
   activeView: SidebarView;
   onChangeView: (v: SidebarView) => void;
   counts: { total: number; today: number; overdue?: number } & Partial<Record<RoomStatus, number>>;
+  /** Optional asset alert counts — render badges on "อะไหล่" + "บำรุงรักษา"
+   *  nav items when value > 0. */
+  assetAlerts?: { lowStockParts: number; overdueEquipment: number };
   onBackdropClick: () => void;
   /** ผู้ใช้ปัจจุบัน — ถ้า undefined (loading) ให้แสดง safe default: overview + today เท่านั้น */
   roles?: Role[];
@@ -55,7 +58,8 @@ function icon(name: IconName): LucideIcon { return { kind: "icon", name }; }
 
 function buildGroups(
   counts: Props["counts"],
-  roles: Role[] | undefined
+  roles: Role[] | undefined,
+  assetAlerts?: Props["assetAlerts"]
 ): NavGroup[] {
   const has = (route: Route) => canAccess(roles, route);
 
@@ -86,9 +90,28 @@ function buildGroups(
   if (has("inactive")) taskItems.push({ key: "inactive", label: STATUS_LABEL.inactive, icon: dot(STATUS_DOT.inactive), badge: counts.inactive || 0, badgeClass: "ac-badge-empty" });
 
   const assetItems: NavItem[] = [];
-  if (has("maintenance")) assetItems.push({ key: "maintenance", label: "บำรุงรักษา",    icon: icon("maintenance") });
+  if (has("maintenance")) {
+    // Surface overdue equipment count — proactive engineer cue.
+    // Omit badge entirely when 0 so the asset section stays calm in
+    // a healthy state (vs. showing "0" alongside real alerts).
+    const overdue = assetAlerts?.overdueEquipment ?? 0;
+    assetItems.push({
+      key: "maintenance",
+      label: "บำรุงรักษา",
+      icon: icon("maintenance"),
+      ...(overdue > 0 && { badge: overdue, badgeClass: "ac-badge-red" }),
+    });
+  }
   if (has("facilities"))  assetItems.push({ key: "facilities",  label: "สาธารณูปโภค",   icon: icon("facilities") });
-  if (has("parts"))       assetItems.push({ key: "parts",       label: "อะไหล่",        icon: icon("inventory") });
+  if (has("parts")) {
+    const low = assetAlerts?.lowStockParts ?? 0;
+    assetItems.push({
+      key: "parts",
+      label: "อะไหล่",
+      icon: icon("inventory"),
+      ...(low > 0 && { badge: low, badgeClass: "ac-badge-orange" }),
+    });
+  }
   if (has("vehicles"))    assetItems.push({ key: "vehicles",    label: "ยานพาหนะ",      icon: icon("vehicle") });
 
   const dataItems: NavItem[] = [];
@@ -168,9 +191,9 @@ function prefetch(url: string) {
 }
 
 export default function AppSidebar({
-  isOpen, activeView, onChangeView, counts, onBackdropClick, roles, groupOrder,
+  isOpen, activeView, onChangeView, counts, onBackdropClick, roles, groupOrder, assetAlerts,
 }: Props) {
-  const groups = reorderGroups(buildGroups(counts, roles), groupOrder);
+  const groups = reorderGroups(buildGroups(counts, roles, assetAlerts), groupOrder);
 
   return (
     <>
