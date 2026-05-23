@@ -264,3 +264,25 @@ export function groupLeadsByStage(leads: Lead[]): Map<LeadStage, Lead[]> {
   }
   return map;
 }
+
+/**
+ * Parts requisition log entry (v3.16.0). Records each "เบิก" event:
+ * who took what part, how many, for which room, and when. The
+ * `partName` is a snapshot at the time of requisition so historical
+ * records stay meaningful even if the part is renamed/deleted.
+ *
+ * `taskKey` (optional) links the requisition to a specific task
+ * row using the same composite key as time-tracking.
+ */
+export interface Requisition {
+  id: string;
+  partId: string;
+  partName: string;
+  quantity: number;
+  building: string;
+  room: string;
+  taskKey: string;
+  user: string;
+  note: string;
+  createdAt: string;
+}

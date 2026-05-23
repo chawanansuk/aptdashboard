@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.15.0 — Dashboard หอพัก
+ * Code.gs v3.16.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -66,6 +66,14 @@
  *   - stages: ใหม่ / นัดดูแล้ว / กำลังคุย / ทำสัญญา / ปิดดีล / ปิดเลิก
  *   - actions getLeads / addLead / updateLead / deleteLead
  *   - cache 60s + invalidate ตอน write
+ * NEW v3.16.0:
+ *   - tab "เบิกอะไหล่" auto-create (parts requisition log)
+ *     10 columns: id | partId | partName | quantity | ตึก | ห้อง |
+ *                 taskKey | ผู้เบิก | หมายเหตุ | วันที่เบิก
+ *   - addRequisition: atomic (decrement stock + append log) under
+ *     withWriteLock; clamps stock at 0
+ *   - getRequisitions: list with optional partId filter
+ *   - clears Part cache on write so PartsView reflects new stock
  */
 
 const SHEET_NAMES = {
@@ -79,6 +87,7 @@ const SHEET_NAMES = {
   TIME_LOG: 'บันทึกเวลา', // v3.12.0 — time tracking (Task 35)
   VEHICLE: 'ยานพาหนะ', // v3.13.0 — vehicles per room
   LEAD: 'ลูกค้าสนใจ', // v3.15.0 — Lead CRM (Task 26)
+  REQUISITION: 'เบิกอะไหล่', // v3.16.0 — parts requisition log
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
@@ -342,6 +351,9 @@ function doPost(e) {
       case 'addLead':          return ok_(withWriteLock_(function () { return addLead_(body); }));
       case 'updateLead':       return ok_(withWriteLock_(function () { return updateLead_(body); }));
       case 'deleteLead':       return ok_(withWriteLock_(function () { return deleteLead_(body); }));
+      // v3.16.0 — Parts requisitions
+      case 'getRequisitions':  return ok_({ result: { rows: getAllRequisitions_(body) } });
+      case 'addRequisition':   return ok_(withWriteLock_(function () { return addRequisition_(body); }));
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -1418,6 +1430,133 @@ function deleteLead_(b) {
   sh.deleteRow(found);
   clearLeadCache_();
   return { deleted: true, row: found };
+}
+
+/* ========== REQUISITION (NEW v3.16.0 — parts checkout log) ========== */
+/**
+ * Auto-create tab 'เบิกอะไหล่' on first write. 10 columns; row 1 frozen.
+ *
+ * Schema:
+ *   1:id  2:partId  3:partName  4:quantity  5:ตึก  6:ห้อง
+ *   7:taskKey  8:ผู้เบิก  9:หมายเหตุ  10:วันที่เบิก
+ *
+ * `partName` is a snapshot at requisition time — historical record
+ * stays meaningful even if the part is renamed/deleted later.
+ *
+ * `taskKey` (optional) format: "date|building|room|type" — same key
+ * used by time-tracking + Kanban for cross-feature linking.
+ */
+function getOrCreateRequisitionSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.REQUISITION);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.REQUISITION);
+    sh.appendRow([
+      'id', 'partId', 'partName', 'quantity', 'ตึก', 'ห้อง',
+      'taskKey', 'ผู้เบิก', 'หมายเหตุ', 'วันที่เบิก',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#FCE7F3');
+    sh.setColumnWidth(3, 220); // partName
+    sh.setColumnWidth(9, 280); // note
+  }
+  return sh;
+}
+
+function getAllRequisitions_(b) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.REQUISITION);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const partFilter = b && b.partId ? norm(b.partId) : '';
+  const data = sh.getRange(2, 1, lastRow - 1, 10).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const id = norm(r[0]);
+    if (!id) continue;
+    const partId = norm(r[1]);
+    if (partFilter && partId !== partFilter) continue;
+    const qNum = parseFloat(r[3]);
+    rows.push({
+      id:        id,
+      partId:    partId,
+      partName:  norm(r[2]),
+      quantity:  isFinite(qNum) ? qNum : 0,
+      building:  norm(r[4]),
+      room:      norm(r[5]),
+      taskKey:   norm(r[6]),
+      user:      norm(r[7]),
+      note:      norm(r[8]),
+      createdAt: norm(r[9]),
+    });
+  }
+  return rows;
+}
+
+/**
+ * Atomically record a requisition + decrement stock. Both writes
+ * happen under withWriteLock at the caller, so a race between two
+ * concurrent requisitions can't double-deduct the same row.
+ *
+ * Required: partId, quantity (positive int). Optional: building, room,
+ * taskKey, note.
+ *
+ * Stock clamps at 0 — if requested qty > stock, log the requisition
+ * with what was actually deducted (returns `actualQuantity`).
+ */
+function addRequisition_(b) {
+  if (!b.partId) throw new Error('partId required');
+  const reqQty = parseFloat(b.quantity);
+  if (!isFinite(reqQty) || reqQty <= 0) throw new Error('quantity must be a positive number');
+
+  // 1. Decrement stock in อะไหล่ sheet
+  const partsSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PART);
+  if (!partsSh) throw new Error('sheet "อะไหล่" not found — เพิ่มอะไหล่ก่อนเบิก');
+  const lastRow = partsSh.getLastRow();
+  if (lastRow < 2) throw new Error('no part rows');
+  const ids = partsSh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let row = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.partId)) { row = i + 2; break; }
+  }
+  if (row < 0) throw new Error('part not found: ' + b.partId);
+  const nameCell = partsSh.getRange(row, 2).getValue();
+  const stockCell = partsSh.getRange(row, 4);
+  const current = parseFloat(stockCell.getValue());
+  const cur = isFinite(current) ? current : 0;
+  const actualQty = Math.min(reqQty, cur); // clamp at 0
+  const newStock = cur - actualQty;
+  stockCell.setValue(newStock);
+  // bump part's updatedAt
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  partsSh.getRange(row, 10).setValue(now);
+  clearPartCache_();
+
+  // 2. Append requisition log row
+  const reqSh = getOrCreateRequisitionSheet_();
+  const id = Utilities.getUuid();
+  reqSh.appendRow([
+    id,
+    b.partId,
+    norm(nameCell),
+    actualQty,
+    b.building || '',
+    b.room || '',
+    b.taskKey || '',
+    b.user || '',
+    b.note || '',
+    now,
+  ]);
+
+  return {
+    appended: true,
+    id: id,
+    requestedQuantity: reqQty,
+    actualQuantity: actualQty,
+    newStock: newStock,
+    clamped: actualQty < reqQty,
+  };
 }
 
 /* ========== PHASE 1: SETUP / FORMATTING / DROPDOWNS / FILTER VIEWS ========== */
