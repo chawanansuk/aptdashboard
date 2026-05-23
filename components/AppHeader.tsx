@@ -295,6 +295,18 @@ export default function AppHeader({
                   </a>
                 )}
 
+                {/* Management-only — audit log viewer (Task 18) */}
+                {isManagement(session?.user?.roles) && (
+                  <a
+                    className="ac-user-menu-item"
+                    href="/admin/audit"
+                    onClick={() => closeMenu()}
+                  >
+                    <Icon name="history" size={16} />
+                    <span>Audit log</span>
+                  </a>
+                )}
+
                 {/* Management-only — backup zip download. Best-effort:
                     a "loading..." replacement text would need state, skip
                     for now since 7 fetches are usually < 2s. */}
