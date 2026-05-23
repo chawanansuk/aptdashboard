@@ -31,6 +31,11 @@ import SkeletonLoader from "@/components/SkeletonLoader";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import {
+  MOVEOUT_PREP_KINDS,
+  hasOpenPrepTask,
+  todayThaiDate as moveoutTodayThaiDate,
+} from "@/lib/moveoutTasks";
 import { canAccess, getDefaultRoute, type Route } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
@@ -704,6 +709,42 @@ export default function Home() {
     } finally { setSavingTask(false); }
   }
 
+  /**
+   * Auto-create the two engineer prep tasks (ตรวจห้อง + ทำสะอาด) for a
+   * room that just entered "แจ้งย้ายออก". Silently skips a task type if
+   * one already exists open. Errors here don't block the room save — the
+   * user can still create tasks manually via the workflow buttons.
+   */
+  async function autoCreateMoveoutPrep(building: string, room: string) {
+    const created: string[] = [];
+    for (const kind of MOVEOUT_PREP_KINDS) {
+      if (hasOpenPrepTask(tasks, building, room, kind.type)) continue;
+      try {
+        const r = await fetch("/api/sheet/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "addTask",
+            date: moveoutTodayThaiDate(),
+            type: kind.type,
+            building,
+            room,
+            note: kind.note,
+          }),
+        });
+        const j = await r.json().catch(() => ({ ok: false }));
+        if (j.ok) created.push(kind.label);
+      } catch {
+        /* ignore — silent best-effort */
+      }
+    }
+    if (created.length > 0) {
+      toast.success(`สร้างงานเตรียมห้องอัตโนมัติ: ${created.join(" + ")}`);
+      publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+      refresh();
+    }
+  }
+
   async function handleSave() {
     if (!selectedRoom) return;
     setSaving(true);
@@ -732,6 +773,14 @@ export default function Home() {
           contractEnd: editContractEnd,
           price: editPrice,
         });
+        // Bridge sales → engineer: when a room flips into "แจ้งย้ายออก"
+        // for the first time, auto-create the prep tasks engineers need
+        // (inspection + post-tenant clean). Skip when one already exists.
+        const wasMoveout = selectedRoom.status === "moveout";
+        const isMoveout = editStatus === "moveout";
+        if (!wasMoveout && isMoveout) {
+          void autoCreateMoveoutPrep(selectedRoom.building, selectedRoom.room);
+        }
         setSelectedRoom(null);
         refresh();
       } else {
@@ -976,6 +1025,8 @@ export default function Home() {
                   activeBuilding={activeBuilding}
                   rooms={rooms}
                   onChanged={refresh}
+                  onSelectRoom={(r) => setSelectedRoom(r)}
+                  onAddTaskForRoom={openAddTaskForRoom}
                 />
               </Suspense>
             </ErrorBoundary>
