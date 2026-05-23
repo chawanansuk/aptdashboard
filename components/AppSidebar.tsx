@@ -121,11 +121,14 @@ function buildGroups(
   if (has("reports"))  dataItems.push({ key: "reports",  label: "รายงาน",   icon: icon("summary") });
 
   const groups: NavGroup[] = [todayGroup];
-  if (statusItems.length) groups.push({ label: "สถานะห้อง", items: statusItems });
-  // "สถานะห้อง" (was "งาน") — items are room-status filters (รอตรวจ /
-  // รอเข้าซ่อม / ไม่ได้ใช้งาน), not task entries. Renaming reduces
-  // confusion against "งานวันนี้" (which IS task entries).
-  if (taskItems.length)   groups.push({ label: "สถานะห้อง",   items: taskItems });
+  // Merge status + task items into ONE "สถานะห้อง" group — both are
+  // room-status filters from the user's POV (ready/pending/occupied
+  // alongside moveout/qc/repair/inactive). Keeping them as two groups
+  // collided in reorderGroups Map (same label → second overwrites
+  // first, dropping ready/pending/occupied from sales sidebar — bug
+  // reported via screenshot 2026-05-23).
+  const roomStatusItems = [...statusItems, ...taskItems];
+  if (roomStatusItems.length) groups.push({ label: "สถานะห้อง", items: roomStatusItems });
   if (assetItems.length)  groups.push({ label: "ทรัพย์สิน",  items: assetItems });
   if (dataItems.length)   groups.push({ label: "ดูข้อมูล",   items: dataItems });
   return groups;
