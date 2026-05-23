@@ -125,18 +125,21 @@ export default function AppHeader({
         ))}
       </nav>
 
-      {/* === Cell: Actions (refresh + lastUpdated + add button) === */}
+      {/* === Cell: Actions (refresh + add button) ===
+          The "อัปเดต hh:mm" stamp used to live here as a visible label
+          but it ate ~110px of the toolbar for a line most users never
+          read. It now lives as the refresh button's tooltip — same
+          information, zero pixels. */}
       <div className="ac-nav-cell ac-nav-cell-actions">
         <button
           className={`ac-icon-btn ac-hide-mobile ${isRefreshing ? "is-spinning" : ""}`}
-          aria-label="รีเฟรชข้อมูล"
+          aria-label={`รีเฟรชข้อมูล${lastUpdated ? ` · อัปเดตล่าสุด ${lastUpdated}` : ""}`}
           onClick={onRefresh}
           title={`รีเฟรชข้อมูล${lastUpdated ? ` · อัปเดตล่าสุด ${lastUpdated}` : ""}`}
           disabled={isRefreshing}
         >
           <Icon name="refresh" size={16} />
         </button>
-        <div className="ac-last-updated ac-hide-mobile">อัปเดต {lastUpdated || "-"}</div>
         <button
           className="ac-add-btn ac-hide-mobile"
           onClick={onAddTask}
