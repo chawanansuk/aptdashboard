@@ -1131,30 +1131,59 @@ export default function Home() {
         onSubmit={handleAddTask}
       />
 
-      {selectedRoom && (
-        <RoomModal
-          room={selectedRoom}
-          saving={saving}
-          defaultTab={modeConfig.roomModalDefaultTab}
-          status={editStatus} tenant={editTenant} phone={editPhone}
-          contractEnd={editContractEnd} note={editNote} price={editPrice}
-          onChange={(p) => {
-            if (p.status !== undefined) setEditStatus(p.status);
-            if (p.tenant !== undefined) setEditTenant(p.tenant);
-            if (p.phone !== undefined) setEditPhone(p.phone);
-            if (p.contractEnd !== undefined) setEditContractEnd(p.contractEnd);
-            if (p.note !== undefined) setEditNote(p.note);
-            if (p.price !== undefined) setEditPrice(p.price);
-          }}
-          onClose={() => setSelectedRoom(null)}
-          onSave={handleSave}
-          onAddTaskHere={() => openAddTaskForRoom(selectedRoom.building, selectedRoom.room)}
-          onMoveoutInspect={() => openMoveoutInspection(selectedRoom.building, selectedRoom.room)}
-          onMoveoutClean={() => openMoveoutCleaning(selectedRoom.building, selectedRoom.room)}
-          onMoveinClean={() => openMoveinCleaning(selectedRoom.building, selectedRoom.room)}
-          onMoveinSchedule={() => openMoveinSchedule(selectedRoom.building, selectedRoom.room)}
-        />
-      )}
+      {selectedRoom && (() => {
+        // RoomModal prev/next nav (#9). Prefer the user's current
+        // filtered view (so "next" follows what they actually see).
+        // If the selected room isn't in that list (e.g. opened from
+        // calendar task → outside visibleRooms), fall back to the
+        // full sorted rooms list so navigation still works.
+        const navList = (() => {
+          const inVisible = visibleRooms.findIndex(
+            (r) => r.building === selectedRoom.building && r.room === selectedRoom.room,
+          );
+          if (inVisible >= 0) return visibleRooms;
+          return [...rooms].sort((a, b) => {
+            if (a.building !== b.building) return a.building.localeCompare(b.building);
+            const fa = parseInt(a.floor || "0", 10) || 0;
+            const fb = parseInt(b.floor || "0", 10) || 0;
+            if (fa !== fb) return fa - fb;
+            return a.room.localeCompare(b.room, undefined, { numeric: true });
+          });
+        })();
+        const idx = navList.findIndex(
+          (r) => r.building === selectedRoom.building && r.room === selectedRoom.room,
+        );
+        const prev = idx > 0 ? navList[idx - 1] : null;
+        const next = idx >= 0 && idx < navList.length - 1 ? navList[idx + 1] : null;
+        return (
+          <RoomModal
+            room={selectedRoom}
+            saving={saving}
+            defaultTab={modeConfig.roomModalDefaultTab}
+            status={editStatus} tenant={editTenant} phone={editPhone}
+            contractEnd={editContractEnd} note={editNote} price={editPrice}
+            onChange={(p) => {
+              if (p.status !== undefined) setEditStatus(p.status);
+              if (p.tenant !== undefined) setEditTenant(p.tenant);
+              if (p.phone !== undefined) setEditPhone(p.phone);
+              if (p.contractEnd !== undefined) setEditContractEnd(p.contractEnd);
+              if (p.note !== undefined) setEditNote(p.note);
+              if (p.price !== undefined) setEditPrice(p.price);
+            }}
+            onClose={() => setSelectedRoom(null)}
+            onSave={handleSave}
+            onAddTaskHere={() => openAddTaskForRoom(selectedRoom.building, selectedRoom.room)}
+            onMoveoutInspect={() => openMoveoutInspection(selectedRoom.building, selectedRoom.room)}
+            onMoveoutClean={() => openMoveoutCleaning(selectedRoom.building, selectedRoom.room)}
+            onMoveinClean={() => openMoveinCleaning(selectedRoom.building, selectedRoom.room)}
+            onMoveinSchedule={() => openMoveinSchedule(selectedRoom.building, selectedRoom.room)}
+            onPrevRoom={prev ? () => setSelectedRoom(prev) : undefined}
+            onNextRoom={next ? () => setSelectedRoom(next) : undefined}
+            roomIndex={idx >= 0 ? idx + 1 : undefined}
+            roomTotal={navList.length}
+          />
+        );
+      })()}
 
       <KeyboardHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
 
