@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.16.0 — Dashboard หอพัก
+ * Code.gs v3.17.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -74,6 +74,15 @@
  *     withWriteLock; clamps stock at 0
  *   - getRequisitions: list with optional partId filter
  *   - clears Part cache on write so PartsView reflects new stock
+ * NEW v3.17.0:
+ *   - tab "audit_log" auto-create — track who edited what (Task 18)
+ *     7 cols: id | timestamp | user | action | entity | entityId | details
+ *     hooked into updateRoomStatus, deleteTask, addRequisition
+ *   - tab "งานประจำ" auto-create — recurring task templates
+ *     10 cols: id | name | type | building | room | intervalDays |
+ *              lastRunDate | nextRunDate | active | note | creator | createdAt
+ *   - actions getAudit / getRecurring / addRecurring / deleteRecurring /
+ *     runRecurringCheck (creates due tasks atomically)
  */
 
 const SHEET_NAMES = {
@@ -88,6 +97,8 @@ const SHEET_NAMES = {
   VEHICLE: 'ยานพาหนะ', // v3.13.0 — vehicles per room
   LEAD: 'ลูกค้าสนใจ', // v3.15.0 — Lead CRM (Task 26)
   REQUISITION: 'เบิกอะไหล่', // v3.16.0 — parts requisition log
+  AUDIT: 'audit_log', // v3.17.0 — Task 18 audit log
+  RECURRING: 'งานประจำ', // v3.17.0 — recurring task templates
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
@@ -354,6 +365,12 @@ function doPost(e) {
       // v3.16.0 — Parts requisitions
       case 'getRequisitions':  return ok_({ result: { rows: getAllRequisitions_(body) } });
       case 'addRequisition':   return ok_(withWriteLock_(function () { return addRequisition_(body); }));
+      // v3.17.0 — Audit log + recurring tasks
+      case 'getAudit':         return ok_({ result: { rows: getAllAudit_(body) } });
+      case 'getRecurring':     return ok_({ result: { rows: getAllRecurring_() } });
+      case 'addRecurring':     return ok_(withWriteLock_(function () { return addRecurring_(body); }));
+      case 'deleteRecurring':  return ok_(withWriteLock_(function () { return deleteRecurring_(body); }));
+      case 'runRecurringCheck':return ok_(withWriteLock_(function () { return runRecurringCheck_(body); }));
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -550,6 +567,10 @@ function deleteTask_(b) {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   sh.deleteRow(row);
   clearTasksCache_();
+  // Audit log — destructive op, always record
+  const match = (b && b.match) || b;
+  const taskId = (match.date || '') + '|' + (match.building || '') + '|' + (match.room || '') + '|' + (match.type || '');
+  logAudit_('deleteTask', 'task', taskId, '', b.creator);
   return { deleted: true, row: row };
 }
 
@@ -568,11 +589,18 @@ function updateRoomStatus_(b) {
   if (idxBld < 0 || idxRoom < 0 || idxStatus < 0) throw new Error('headers missing on ห้อง');
   for (let i = 1; i < data.length; i++) {
     if (norm(data[i][idxBld]) === norm(b.building) && norm(data[i][idxRoom]) === norm(b.room)) {
+      const oldStatus = norm(data[i][idxStatus]);
       if (b.status      !== undefined) sh.getRange(i+1, idxStatus+1).setValue(b.status);
       if (b.tenant      !== undefined && idxTenant >= 0) sh.getRange(i+1, idxTenant+1).setValue(b.tenant);
       if (b.phone       !== undefined && idxPhone  >= 0) sh.getRange(i+1, idxPhone+1).setValue(b.phone);
       if (b.contractEnd !== undefined && idxCntr   >= 0) sh.getRange(i+1, idxCntr+1).setValue(b.contractEnd);
       clearRoomsCache_();
+      // Audit log — only when status actually changed (skip pure
+      // tenant/phone edits to avoid noise)
+      if (b.status !== undefined && norm(b.status) !== oldStatus) {
+        logAudit_('updateRoomStatus', 'room', b.building + '|' + b.room,
+          oldStatus + ' → ' + norm(b.status), b.creator);
+      }
       return { updated: true, row: i+1 };
     }
   }
@@ -1549,6 +1577,12 @@ function addRequisition_(b) {
     now,
   ]);
 
+  // Audit log — captures full requisition context for "who took what
+  // when for which room" trail (Task 18 + v3.16 link).
+  logAudit_('addRequisition', 'part', b.partId,
+    norm(nameCell) + ' x' + actualQty + (b.building || b.room ? ' → ' + (b.building || '') + '/' + (b.room || '') : ''),
+    b.user);
+
   return {
     appended: true,
     id: id,
@@ -1557,6 +1591,241 @@ function addRequisition_(b) {
     newStock: newStock,
     clamped: actualQty < reqQty,
   };
+}
+
+/* ========== AUDIT LOG (NEW v3.17.0 — Task 18) ========== */
+/**
+ * Auto-create tab 'audit_log' on first write. 7 cols; row 1 frozen.
+ *
+ * Schema (1-based):
+ *   1:id  2:timestamp  3:user  4:action  5:entity  6:entityId  7:details
+ *
+ * Append-only. No deletes. Single source of truth for "ใครเปลี่ยน
+ * อะไรเมื่อไหร่" — investigators read the sheet directly when
+ * something looks off.
+ */
+function getOrCreateAuditSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.AUDIT);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.AUDIT);
+    sh.appendRow(['id', 'timestamp', 'user', 'action', 'entity', 'entityId', 'details']);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#E0E7FF');
+    sh.setColumnWidth(7, 360); // details
+  }
+  return sh;
+}
+
+/**
+ * Best-effort audit log append. Errors swallowed so business writes
+ * never fail because of audit-log issues (e.g. quota exhausted).
+ */
+function logAudit_(action, entity, entityId, details, user) {
+  try {
+    const sh = getOrCreateAuditSheet_();
+    const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
+    sh.appendRow([
+      Utilities.getUuid(), now, user || '', action || '', entity || '',
+      entityId || '', details || '',
+    ]);
+  } catch (e) { /* silent */ }
+}
+
+function getAllAudit_(b) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.AUDIT);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const limit = b && b.limit ? parseInt(b.limit, 10) : 200;
+  // Most recent first — Apps Script append puts new rows at bottom, so
+  // pull last `limit` rows.
+  const startRow = Math.max(2, lastRow - limit + 1);
+  const numRows = lastRow - startRow + 1;
+  const data = sh.getRange(startRow, 1, numRows, 7).getValues();
+  const rows = [];
+  for (let i = data.length - 1; i >= 0; i--) {
+    const r = data[i];
+    if (!norm(r[0])) continue;
+    rows.push({
+      id: norm(r[0]),
+      timestamp: norm(r[1]),
+      user: norm(r[2]),
+      action: norm(r[3]),
+      entity: norm(r[4]),
+      entityId: norm(r[5]),
+      details: norm(r[6]),
+    });
+  }
+  return rows;
+}
+
+/* ========== RECURRING TASK TEMPLATES (NEW v3.17.0) ========== */
+/**
+ * Auto-create tab 'งานประจำ' on first write. 11 cols; row 1 frozen.
+ *
+ * Schema (1-based):
+ *   1:id  2:name  3:type  4:ตึก  5:ห้อง  6:intervalDays
+ *   7:lastRunDate  8:nextRunDate  9:active  10:หมายเหตุ
+ *   11:ผู้สร้าง  12:วันที่สร้าง
+ *
+ * Run policy:
+ *   - User calls runRecurringCheck (manual button or daily)
+ *   - For each active template with nextRunDate <= today:
+ *       1. Create task row in งาน sheet (today's date)
+ *       2. Update template's lastRunDate=today, nextRunDate=today+interval
+ *   - Atomic per template (withWriteLock at the doPost layer)
+ */
+function getOrCreateRecurringSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.RECURRING);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.RECURRING);
+    sh.appendRow([
+      'id', 'ชื่อ', 'ประเภทงาน', 'ตึก', 'ห้อง', 'รอบ(วัน)',
+      'รันล่าสุด', 'รันถัดไป', 'active', 'หมายเหตุ',
+      'ผู้สร้าง', 'วันที่สร้าง',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 12).setFontWeight('bold').setBackground('#ECFCCB');
+    sh.setColumnWidth(2, 220); // name
+    sh.setColumnWidth(10, 280); // note
+  }
+  return sh;
+}
+
+function getAllRecurring_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.RECURRING);
+  if (!sh) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const data = sh.getRange(2, 1, lastRow - 1, 12).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    if (!norm(r[0])) continue;
+    const interval = parseInt(r[5], 10);
+    rows.push({
+      id: norm(r[0]),
+      name: norm(r[1]),
+      type: norm(r[2]),
+      building: norm(r[3]),
+      room: norm(r[4]),
+      intervalDays: isFinite(interval) ? interval : 0,
+      lastRunDate: fmtDate_(r[6]),
+      nextRunDate: fmtDate_(r[7]),
+      active: norm(r[8]) === 'TRUE' || norm(r[8]) === 'true' || r[8] === true || norm(r[8]) === '1',
+      note: norm(r[9]),
+      creator: norm(r[10]),
+      createdAt: norm(r[11]),
+    });
+  }
+  return rows;
+}
+
+function addRecurring_(b) {
+  if (!b.name) throw new Error('name required');
+  if (!b.type) throw new Error('type required');
+  const interval = parseInt(b.intervalDays, 10);
+  if (!isFinite(interval) || interval <= 0) throw new Error('intervalDays must be positive');
+  const sh = getOrCreateRecurringSheet_();
+  const id = Utilities.getUuid();
+  const today = new Date();
+  const next = new Date(today.getTime() + interval * 24 * 60 * 60 * 1000);
+  const todayStr = Utilities.formatDate(today, 'Asia/Bangkok', 'yyyy-MM-dd');
+  const nextStr = Utilities.formatDate(next, 'Asia/Bangkok', 'yyyy-MM-dd');
+  const createdAt = Utilities.formatDate(today, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  sh.appendRow([
+    id, b.name, b.type, b.building || '', b.room || '', interval,
+    '', // lastRunDate empty until first run
+    nextStr,
+    'TRUE',
+    b.note || '',
+    b.creator || '', createdAt,
+  ]);
+  logAudit_('add', 'recurring', id, b.name + ' / ' + b.type + ' / ' + interval + 'd', b.creator);
+  return { appended: true, id: id, nextRunDate: nextStr };
+}
+
+function deleteRecurring_(b) {
+  if (!b.id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.RECURRING);
+  if (!sh) throw new Error('sheet "งานประจำ" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('no recurring rows');
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let found = -1;
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
+  }
+  if (found < 0) throw new Error('recurring not found: ' + b.id);
+  sh.deleteRow(found);
+  logAudit_('delete', 'recurring', b.id, '', b.creator);
+  return { deleted: true, row: found };
+}
+
+/**
+ * Run the recurring check: for each active template with nextRunDate
+ * <= today, create a task in งาน sheet + update template's run dates.
+ *
+ * Returns { created: N, skipped: M } so the UI can show progress.
+ */
+function runRecurringCheck_(b) {
+  const recurringSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.RECURRING);
+  if (!recurringSh) return { created: 0, skipped: 0 };
+  const lastRow = recurringSh.getLastRow();
+  if (lastRow < 2) return { created: 0, skipped: 0 };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+  const todayStr = Utilities.formatDate(today, 'Asia/Bangkok', 'yyyy-MM-dd');
+  const taskDateStr = Utilities.formatDate(today, 'Asia/Bangkok', 'dd/MM/yyyy');
+
+  const data = recurringSh.getRange(2, 1, lastRow - 1, 12).getValues();
+  const taskSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
+  if (!taskSh) throw new Error('sheet "งาน" not found');
+  const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  const user = (b && b.user) || 'recurring';
+
+  let created = 0;
+  let skipped = 0;
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const id = norm(r[0]);
+    if (!id) { skipped++; continue; }
+    const active = norm(r[8]) === 'TRUE' || norm(r[8]) === 'true' || r[8] === true || norm(r[8]) === '1';
+    if (!active) { skipped++; continue; }
+    const interval = parseInt(r[5], 10);
+    if (!isFinite(interval) || interval <= 0) { skipped++; continue; }
+    const nextStr = fmtDate_(r[7]);
+    if (!nextStr) { skipped++; continue; }
+    const nextDate = new Date(nextStr.replace(/-/g, '/'));
+    if (isNaN(nextDate.getTime())) { skipped++; continue; }
+    nextDate.setHours(0, 0, 0, 0);
+    if (nextDate.getTime() > todayMs) { skipped++; continue; }
+
+    // Due — create task row
+    const name = norm(r[1]);
+    const type = norm(r[2]);
+    const building = norm(r[3]);
+    const room = norm(r[4]);
+    const note = (norm(r[9]) || '') + (norm(r[9]) ? ' · ' : '') + 'จากงานประจำ: ' + name;
+    // Task sheet cols: DATE, TYPE, BUILDING, ROOM, CUSTOMER, PHONE, NOTE,
+    // STATUS, CREATOR, CREATED_AT, COST
+    taskSh.appendRow([
+      taskDateStr, type, building, room, '', '', note,
+      'pending', user, createdAt, '',
+    ]);
+    // Bump template dates
+    const newNext = new Date(today.getTime() + interval * 24 * 60 * 60 * 1000);
+    const newNextStr = Utilities.formatDate(newNext, 'Asia/Bangkok', 'yyyy-MM-dd');
+    recurringSh.getRange(i + 2, 7).setValue(todayStr); // lastRunDate
+    recurringSh.getRange(i + 2, 8).setValue(newNextStr); // nextRunDate
+    logAudit_('run', 'recurring', id, name + ' → task ' + taskDateStr, user);
+    created++;
+  }
+  return { created: created, skipped: skipped };
 }
 
 /* ========== PHASE 1: SETUP / FORMATTING / DROPDOWNS / FILTER VIEWS ========== */

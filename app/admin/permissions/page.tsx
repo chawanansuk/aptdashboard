@@ -58,6 +58,7 @@ const ROUTE_DESC: Record<Route, string> = {
   parts: "อะไหล่ (Inventory)",
   vehicles: "ยานพาหนะ (Vehicles per room)",
   leads: "Lead CRM (ลูกค้าสนใจ)",
+  recurring: "งานประจำ (Recurring tasks)",
   income: "รายได้",
   reports: "รายงาน",
 };

@@ -60,6 +60,7 @@ const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
 const PartsView       = lazy(() => import("@/components/PartsView"));
 const VehiclesView    = lazy(() => import("@/components/VehiclesView"));
 const LeadsView       = lazy(() => import("@/components/LeadsView"));
+const RecurringView   = lazy(() => import("@/components/RecurringView"));
 const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
 const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 const ReportsView     = lazy(() => import("@/components/ReportsView"));
@@ -129,10 +130,10 @@ export default function Home() {
   const activeFilter = activeFilterRaw as ActiveFilter;
   const setActiveFilter = (v: ActiveFilter) => setActiveFilterRaw(v);
   const [search, setSearch] = useState("");
-  type ActiveView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "parts" | "vehicles" | "leads" | "salespipeline" | "engineerkanban" | "reports";
+  type ActiveView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "parts" | "vehicles" | "leads" | "recurring" | "salespipeline" | "engineerkanban" | "reports";
   const VALID_VIEWS: ActiveView[] = [
     "overview", "today", "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive",
-    "income", "tenants", "calendar", "maintenance", "facilities", "parts", "vehicles", "leads",
+    "income", "tenants", "calendar", "maintenance", "facilities", "parts", "vehicles", "leads", "recurring",
     "salespipeline", "engineerkanban", "reports",
   ];
   const [activeViewRaw, setActiveViewRaw] = usePersistedString(
@@ -345,7 +346,7 @@ export default function Home() {
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
 
   const visibleRooms = useMemo(() => {
-    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "recurring" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
@@ -414,7 +415,7 @@ export default function Home() {
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
   const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
-  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "recurring" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
   // Stats for the welcome hero — same data the rest of the page already
@@ -1050,6 +1051,13 @@ export default function Home() {
             <ErrorBoundary level="route" label="Lead CRM">
               <Suspense fallback={<FacilitiesSkeleton />}>
                 <LeadsView onCreateMoveinTask={(l) => openMoveinFromLead(l)} />
+              </Suspense>
+            </ErrorBoundary>
+          )}
+          {activeView === "recurring" && (
+            <ErrorBoundary level="route" label="งานประจำ">
+              <Suspense fallback={<FacilitiesSkeleton />}>
+                <RecurringView buildings={buildings} />
               </Suspense>
             </ErrorBoundary>
           )}

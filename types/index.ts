@@ -286,3 +286,37 @@ export interface Requisition {
   note: string;
   createdAt: string;
 }
+
+/**
+ * Audit log entry (Task 18) — append-only "who did what when" trail.
+ * Sourced from the `audit_log` sheet in Google Sheets.
+ */
+export interface AuditEntry {
+  id: string;
+  timestamp: string;     // yyyy-MM-dd HH:mm:ss
+  user: string;          // email
+  action: string;        // e.g. "updateRoomStatus", "deleteTask", "addRequisition"
+  entity: string;        // e.g. "room", "task", "part", "recurring"
+  entityId: string;      // composite ID (varies per entity)
+  details: string;       // free-text human description
+}
+
+/**
+ * Recurring task template (v3.17.0). Defines a task that should be
+ * created on a schedule (every N days). The "runRecurringCheck" API
+ * walks active templates and creates due tasks.
+ */
+export interface RecurringTemplate {
+  id: string;
+  name: string;
+  type: string;          // task type (ทำสะอาด/ซ่อม/etc.)
+  building: string;
+  room: string;
+  intervalDays: number;
+  lastRunDate: string;   // yyyy-MM-dd or ""
+  nextRunDate: string;   // yyyy-MM-dd
+  active: boolean;
+  note: string;
+  creator: string;
+  createdAt: string;
+}
