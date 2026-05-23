@@ -23,6 +23,7 @@ const ENTITY_LABEL: Record<string, string> = {
 
 const ACTION_LABEL: Record<string, string> = {
   updateRoomStatus: "เปลี่ยนสถานะห้อง",
+  updateRoomData: "แก้ไขข้อมูลห้อง",
   deleteTask: "ลบงาน",
   addRequisition: "เบิกอะไหล่",
   add: "เพิ่ม",
