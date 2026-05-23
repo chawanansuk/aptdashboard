@@ -241,6 +241,37 @@ export default function RoomsView({
                     {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
                     <span className="ac-rc-num">{r.room}</span>
                     <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
+                    {/* "วันเข้า" hint for pending rooms — sales/management need
+                        to plan ahead (PR per user request 2026-05-23). Picks
+                        the nearest upcoming ย้ายเข้า task; falls back to
+                        ชมห้อง if no move-in scheduled yet. */}
+                    {r.status === "pending" && (() => {
+                      const allUpcoming = [...(r.upcomingTasks || []), ...(r.todayTasks || [])];
+                      let bestMovein: Date | null = null;
+                      let bestView: Date | null = null;
+                      for (const t of allUpcoming) {
+                        const d = parseThaiDate(t.date);
+                        if (!d) continue;
+                        if (t.type === "ย้ายเข้า") {
+                          if (!bestMovein || d.getTime() < bestMovein.getTime()) bestMovein = d;
+                        } else if (t.type === "ชมห้อง") {
+                          if (!bestView || d.getTime() < bestView.getTime()) bestView = d;
+                        }
+                      }
+                      const target = bestMovein ?? bestView;
+                      if (!target) return null;
+                      const icon = bestMovein ? "📥" : "👀";
+                      const label = bestMovein ? "วันเข้า" : "นัดชม";
+                      const dd = String(target.getDate()).padStart(2, "0");
+                      const mm = String(target.getMonth() + 1).padStart(2, "0");
+                      return (
+                        <span
+                          className="ac-rc-movein"
+                          title={`${label} ${dd}/${mm}/${target.getFullYear()}`}
+                          aria-label={`${label} ${dd}/${mm}`}
+                        >{icon} {dd}/{mm}</span>
+                      );
+                    })()}
                     {(() => {
                       const veh = vehicleCountByRoom?.(r.building, r.room) ?? 0;
                       const eq  = equipmentCountByRoom?.(r.building, r.room) ?? 0;

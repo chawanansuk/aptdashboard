@@ -1044,6 +1044,20 @@ html.dark .ac-mode-badge.is-management {
 .ac-rc:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
 .ac-rc-num { font-size: 15px; font-weight: 800; line-height: 1.1; }
 .ac-rc-status { font-size: 9px; font-weight: 600; line-height: 1.1; }
+/* "วันเข้า" hint for pending rooms — small purple date pill under status */
+.ac-rc-movein {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #E9D5FF;
+  background: color-mix(in srgb, #A855F7 30%, transparent);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+.ac-rg-compact .ac-rc-movein { display: none; }
 .ac-rc-today {
   position: absolute;
   top: 4px; right: 4px;
