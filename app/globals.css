@@ -2316,6 +2316,122 @@ html.dark .ac-cal-dot-more { background: #1E293B; color: #94A3B8; }
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 html.dark .ac-cal-day-detail { background: #1E293B; }
+
+/* Month/Day mode segmented control — sits in the calendar header nav. */
+.ac-cal-mode {
+  display: inline-flex;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-right: var(--space-2);
+}
+.ac-cal-mode-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  min-height: 32px;
+}
+.ac-cal-mode-btn:hover {
+  color: var(--color-text);
+}
+.ac-cal-mode-btn.is-active {
+  background: var(--color-accent);
+  color: white;
+  font-weight: 600;
+}
+.ac-cal-mode-btn + .ac-cal-mode-btn {
+  border-left: 1px solid var(--color-border);
+}
+.ac-cal-mode-btn.is-active + .ac-cal-mode-btn,
+.ac-cal-mode-btn + .ac-cal-mode-btn.is-active {
+  border-left-color: var(--color-accent);
+}
+
+/* Day-focused mode body — large header + grouped task lists for the
+   chosen day. Replaces the month grid entirely when active so the
+   user gets a printer-friendly single-day plan. */
+.ac-cal-day-view {
+  background: var(--color-surface);
+  border-radius: 14px;
+  padding: var(--space-4);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.ac-cal-day-view-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4) 0;
+  padding: 0 0 var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.ac-cal-day-view-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ac-cal-day-view-stats {
+  display: inline-flex;
+  gap: var(--space-3);
+}
+.ac-cal-day-view-stat {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+  padding: 0.25rem 0.5rem;
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.ac-cal-day-view-stat-num {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.1;
+}
+.ac-cal-day-view-stat-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+.ac-cal-day-view-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.ac-cal-day-view-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ac-cal-day-view-group-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ac-cal-day-view-group.is-done-group .ac-cal-task,
+.ac-cal-day-view-group.is-cancelled-group .ac-cal-task {
+  opacity: 0.75;
+}
+
+@media print {
+  .ac-cal-day-view { box-shadow: none; }
+  .ac-cal-mode { display: none; }
+}
 .ac-cal-task-list {
   display: flex;
   flex-direction: column;
