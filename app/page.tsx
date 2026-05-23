@@ -26,6 +26,7 @@ import BottomNav, { type BottomNavView } from "@/components/BottomNav";
 import RoomModal from "@/components/RoomModal";
 import AddTaskModal from "@/components/AddTaskModal";
 import BulkAddModal from "@/components/BulkAddModal";
+import EditTaskModal from "@/components/EditTaskModal";
 import { buildNotifications } from "@/lib/notifications";
 import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
@@ -186,6 +187,10 @@ export default function Home() {
 
   // ---- Selected room ----
   const [selectedRoom, setSelectedRoom] = useState<RoomView | null>(null);
+  // Task being edited — shared modal mounted at the bottom of the
+  // tree so EngineerKanban / TaskDetailDrawer can trigger the same
+  // edit flow that TasksList already uses internally.
+  const [editingTask, setEditingTask] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [editStatus, setEditStatus] = useState("");
   const [editTenant, setEditTenant] = useState("");
@@ -999,6 +1004,7 @@ export default function Home() {
                   activeBuilding={activeBuilding}
                   rooms={rooms}
                   onChanged={refresh}
+                  onEditTask={(t) => setEditingTask(t)}
                 />
               </Suspense>
             </ErrorBoundary>
@@ -1186,6 +1192,15 @@ export default function Home() {
       })()}
 
       <KeyboardHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+
+      {/* Shared task-edit modal — triggered from EngineerKanban /
+          TaskDetailDrawer. TasksList still owns its own instance because
+          its edit state is local to the rows it renders. */}
+      <EditTaskModal
+        task={editingTask}
+        onClose={() => setEditingTask(null)}
+        onSaved={() => refresh()}
+      />
 
       {bulkMode && (
         <BulkActionBar
