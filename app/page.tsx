@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
+import { useAssetAlertCounts } from "@/lib/useAssetAlertCounts";
 import { usePersistedString } from "@/lib/usePersistedString";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
@@ -86,6 +87,10 @@ export default function Home() {
   const roles = effectiveRoles.length ? effectiveRoles : actualRoles;
   // primary role for components that still take a single Role (badge etc.)
   const role = roles[0];
+
+  // Asset alert counts — only fetch when user has engineer-side access.
+  // Skips parts+maintenance API calls for sales role entirely.
+  const assetAlerts = useAssetAlertCounts(canAccess(roles, "parts") || canAccess(roles, "maintenance"));
 
   // ---- Mode personality (PR-O) ----
   // Derive the mode config from effective roles. View-as swap → mode swap.
@@ -778,6 +783,7 @@ export default function Home() {
           activeView={activeView}
           onChangeView={setActiveView}
           counts={sidebarCounts}
+          assetAlerts={assetAlerts}
           onBackdropClick={() => setSidebarOpen(false)}
           roles={roles}
           groupOrder={modeConfig.sidebarGroupOrder}
