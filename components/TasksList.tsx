@@ -332,6 +332,12 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
               exportCsv(`${tag}_${today}.csv`, visible, columns);
             }}
           >⬇ CSV</button>
+          <button
+            type="button"
+            className="ac-btn ac-btn-ghost ac-btn-sm ac-no-print"
+            onClick={() => window.print()}
+            title="พิมพ์/บันทึก PDF"
+          >🖨 พิมพ์</button>
         </div>
       </header>
 

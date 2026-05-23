@@ -14,6 +14,7 @@ import { exportCsv } from "@/lib/csvExport";
 import AddPartModal from "./AddPartModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
+import ErrorBanner from "./ErrorBanner";
 
 /**
  * Parts / Inventory view — Task 37.
@@ -199,12 +200,7 @@ export default function PartsView() {
         </nav>
       </div>
 
-      {err && (
-        <div className="ac-banner ac-banner-warn" role="alert">
-          <strong>⚠ </strong>{err}{" "}
-          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setErr(null)}>ปิด</button>
-        </div>
-      )}
+      <ErrorBanner message={err} onRetry={() => load()} onDismiss={() => setErr(null)} />
 
       {loading && !rows ? (
         <LoadingState />

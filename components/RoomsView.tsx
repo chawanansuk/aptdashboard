@@ -159,6 +159,12 @@ export default function RoomsView({
           onClick={onToggleBulkMode}
           title="เลือกหลายห้องพร้อมกัน"
         >{bulkMode ? "✕ ออกจากเลือก" : "☑ เลือกหลาย"}</button>
+        <button
+          type="button"
+          className="ac-btn ac-btn-ghost ac-btn-sm ac-no-print"
+          onClick={() => window.print()}
+          title="พิมพ์/บันทึก PDF (ใช้ปุ่ม Ctrl+P หรือ Cmd+P ก็ได้)"
+        >🖨 พิมพ์</button>
       </section>
 
       <section className="ac-legend">

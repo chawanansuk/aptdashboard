@@ -10,6 +10,7 @@ import { exportCsv } from "@/lib/csvExport";
 import AddVehicleModal from "./AddVehicleModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
+import ErrorBanner from "./ErrorBanner";
 
 /**
  * Vehicles per room (v3.13.0).
@@ -163,12 +164,7 @@ export default function VehiclesView({ buildings, activeBuilding, rooms }: Props
         )}
       </div>
 
-      {err && (
-        <div className="ac-banner ac-banner-warn" role="alert">
-          <strong>⚠ </strong>{err}{" "}
-          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setErr(null)}>ปิด</button>
-        </div>
-      )}
+      <ErrorBanner message={err} onRetry={() => load()} onDismiss={() => setErr(null)} />
 
       {loading && !rows ? (
         <LoadingState />
