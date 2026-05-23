@@ -46,6 +46,20 @@ interface Props {
   /** Move-in workflow companions — surface when room status = pending. */
   onMoveinClean?: () => void;
   onMoveinSchedule?: () => void;
+  /**
+   * Prev/Next room navigation (#9). Optional — when omitted, the
+   * header arrows + position label are hidden. When supplied, the
+   * modal swaps to the previous / next room without closing,
+   * keeping the user in flow for batch inspections.
+   *
+   * The parent owns the room list ordering, so the modal stays
+   * agnostic to "what's next" — it just calls the handler.
+   */
+  onPrevRoom?: () => void;
+  onNextRoom?: () => void;
+  /** 1-based position used by the "ห้อง N / M" label. */
+  roomIndex?: number;
+  roomTotal?: number;
 }
 
 type TabKey = "info" | "equipment" | "vehicles";
@@ -118,6 +132,7 @@ export default function RoomModal({
   onChange, onClose, onSave, onAddTaskHere, defaultTab,
   onMoveoutInspect, onMoveoutClean,
   onMoveinClean, onMoveinSchedule,
+  onPrevRoom, onNextRoom, roomIndex, roomTotal,
 }: Props) {
   const { data: session } = useSession();
   // Edit/view-tenant gates use ACTUAL roles — view-as preview must
@@ -145,6 +160,60 @@ export default function RoomModal({
     setShowHistory(false);
   }, [room.building, room.room, defaultTab]);
 
+  // Unsaved-changes guard (#9). Snapshot the form values at the moment
+  // a new room becomes the modal's subject so we can detect drift.
+  // We compare against the snapshot, NOT the raw room props — the
+  // parent re-derives editStatus/etc from `room` via its own effect
+  // so the snapshot is the true "loaded-and-unchanged" state.
+  const initialRef = useRef<{ status: string; tenant: string; phone: string; contractEnd: string; price: string; note: string } | null>(null);
+  useEffect(() => {
+    initialRef.current = {
+      status: room.rawStatus || "",
+      tenant: room.tenant || "",
+      phone: room.phone || "",
+      contractEnd: room.contractEnd || "",
+      price: room.price || "",
+      note: "",
+    };
+  }, [room.building, room.room]);
+
+  const isDirty = (() => {
+    const i = initialRef.current;
+    if (!i) return false;
+    return (
+      status !== i.status ||
+      tenant !== i.tenant ||
+      phone !== i.phone ||
+      contractEnd !== i.contractEnd ||
+      price !== i.price ||
+      note !== i.note
+    );
+  })();
+
+  // Browser confirm before throwing away dirty edits. Centralised so
+  // every escape hatch (× / ESC / backdrop / prev / next) flows
+  // through the same prompt and the same message.
+  function confirmDiscardIfDirty(): boolean {
+    if (!isDirty) return true;
+    return window.confirm("มีการแก้ไขที่ยังไม่ได้บันทึก — ทิ้งการแก้ไขนี้?");
+  }
+
+  function attemptClose() {
+    if (saving) return;
+    if (!confirmDiscardIfDirty()) return;
+    onClose();
+  }
+  function attemptPrev() {
+    if (!onPrevRoom || saving) return;
+    if (!confirmDiscardIfDirty()) return;
+    onPrevRoom();
+  }
+  function attemptNext() {
+    if (!onNextRoom || saving) return;
+    if (!confirmDiscardIfDirty()) return;
+    onNextRoom();
+  }
+
   const errors = useMemo(
     () => validate({ price, phone, contractEnd }),
     [price, phone, contractEnd]
@@ -170,20 +239,31 @@ export default function RoomModal({
     onSave();
   }
 
-  // Keyboard: Cmd/Ctrl+Enter = save · Esc = close
+  // Keyboard: Cmd/Ctrl+Enter = save · Esc = close · ← / → = prev / next room
+  // The arrow handlers are skipped while the user is typing in an
+  // input/textarea/select so they don't hijack normal text caret motion.
   useEffect(() => {
+    function isTypingTarget(el: EventTarget | null): boolean {
+      if (!(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+    }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        if (!saving) onClose();
+        attemptClose();
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         if (canEdit && tab === "info") attemptSave();
+      } else if (e.key === "ArrowLeft" && !isTypingTarget(e.target)) {
+        if (onPrevRoom) { e.preventDefault(); attemptPrev(); }
+      } else if (e.key === "ArrowRight" && !isTypingTarget(e.target)) {
+        if (onNextRoom) { e.preventDefault(); attemptNext(); }
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saving, canEdit, tab, hasErrors, price, phone, contractEnd]);
+  }, [saving, canEdit, tab, hasErrors, price, phone, contractEnd, isDirty, onPrevRoom, onNextRoom]);
 
   /* ----- Derived header facts ----- */
   const daysLeft = daysUntilContract(contractEnd);
@@ -194,7 +274,7 @@ export default function RoomModal({
   );
 
   return (
-    <div className="ac-modal-backdrop" onClick={() => !saving && onClose()}>
+    <div className="ac-modal-backdrop" onClick={attemptClose}>
       <div
         ref={dialogRef}
         className="ac-modal ac-modal-form"
@@ -247,7 +327,37 @@ export default function RoomModal({
               )}
             </div>
           </div>
-          <button className="ac-modal-close" onClick={onClose} aria-label="ปิด">✕</button>
+          <div className="ac-room-modal-nav">
+            {(onPrevRoom || onNextRoom) && (
+              <>
+                <button
+                  type="button"
+                  className="ac-room-modal-nav-btn"
+                  onClick={attemptPrev}
+                  disabled={!onPrevRoom || saving}
+                  aria-label="ห้องก่อนหน้า"
+                  title="ห้องก่อนหน้า (←)"
+                >‹</button>
+                {typeof roomIndex === "number" && typeof roomTotal === "number" && roomTotal > 0 && (
+                  <span className="ac-room-modal-nav-pos" aria-label={`ห้องที่ ${roomIndex} จาก ${roomTotal}`}>
+                    {roomIndex} / {roomTotal}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="ac-room-modal-nav-btn"
+                  onClick={attemptNext}
+                  disabled={!onNextRoom || saving}
+                  aria-label="ห้องถัดไป"
+                  title="ห้องถัดไป (→)"
+                >›</button>
+              </>
+            )}
+            {isDirty && (
+              <span className="ac-room-modal-dirty" title="มีการแก้ไขที่ยังไม่ได้บันทึก">●</span>
+            )}
+            <button className="ac-modal-close" onClick={attemptClose} aria-label="ปิด">✕</button>
+          </div>
         </header>
 
         <nav className="ac-modal-tabs" role="tablist" aria-label="แท็บข้อมูลห้อง">
@@ -613,7 +723,7 @@ export default function RoomModal({
           >
             + เพิ่มงานที่ห้องนี้
           </button>
-          <button className="ac-btn ac-btn-ghost" onClick={onClose} disabled={saving}>
+          <button className="ac-btn ac-btn-ghost" onClick={attemptClose} disabled={saving}>
             ยกเลิก
           </button>
           {canEdit && tab === "info" && (

@@ -1241,6 +1241,66 @@ html.dark .ac-rc-more:hover { background: #0F172A; color: #F1F5F9; }
   background: var(--color-surface-3);
   color: var(--color-text);
 }
+
+/* RoomModal header nav (#9) — prev/next arrows + position counter +
+   close button sit in a single right-aligned cluster. */
+.ac-room-modal-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ac-room-modal-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 1.125rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+.ac-room-modal-nav-btn:hover:not(:disabled) {
+  background: var(--color-surface-2, var(--color-bg));
+  border-color: var(--color-accent);
+}
+.ac-room-modal-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ac-room-modal-nav-pos {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  padding: 0 6px;
+  min-width: 48px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ac-room-modal-dirty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: #F59E0B;
+  font-size: 1.25rem;
+  line-height: 1;
+  margin: 0 2px;
+  cursor: help;
+  animation: ac-dirty-pulse 2s ease-in-out infinite;
+}
+@keyframes ac-dirty-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-room-modal-dirty { animation: none; }
+}
 .ac-modal-row {
   display: flex; justify-content: space-between; align-items: center;
   font-size: var(--text-base); color: var(--color-text-muted);
