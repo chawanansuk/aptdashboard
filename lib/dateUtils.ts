@@ -63,6 +63,18 @@ export function parseSheetDate(s: string): Date | null {
   const t = String(s).trim();
   if (!t) return null;
 
+  // Build a Date but reject month-overflow rolls (e.g. Feb 30 → Mar 2)
+  // by checking the constructed Date's components round-trip to the
+  // requested y/m/d. JavaScript's Date constructor accepts overflow
+  // silently — only this round-trip catches it.
+  const build = (y: number, mo: number, d: number): Date | null => {
+    const date = new Date(y, mo - 1, d);
+    if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) {
+      return null;
+    }
+    return date;
+  };
+
   // ISO 8601 (year-first): yyyy-M-d  — what Apps Script emits for Date cells
   let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (m) {
@@ -71,7 +83,7 @@ export function parseSheetDate(s: string): Date | null {
     const d = parseInt(m[3], 10);
     if (mo < 1 || mo > 12) return null;
     if (d < 1 || d > 31) return null;
-    return new Date(y, mo - 1, d);
+    return build(y, mo, d);
   }
 
   // Day-first: d/M/yyyy or d-M-yyyy or d.M.yyyy (also 2-digit year)
@@ -83,7 +95,7 @@ export function parseSheetDate(s: string): Date | null {
     if (mo < 1 || mo > 12) return null;
     if (d < 1 || d > 31) return null;
     if (y < 100) y = 2000 + y;
-    return new Date(y, mo - 1, d);
+    return build(y, mo, d);
   }
 
   return null;

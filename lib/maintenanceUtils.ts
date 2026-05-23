@@ -11,10 +11,24 @@ interface Serviceable {
 
 function parseYmd(s: string): Date | null {
   if (!s) return null;
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return isNaN(d.getTime()) ? null : d;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  // Strict range check — JavaScript's Date constructor silently
+  // overflows ("2026-13-01" becomes 2027-01-01, "2026-02-30" becomes
+  // 2026-03-02). Without this guard, malformed maintenance dates
+  // silently passed through and produced wrong "days until service"
+  // calculations, hiding overdue equipment from the alert badges.
+  if (mo < 1 || mo > 12) return null;
+  if (d < 1 || d > 31) return null;
+  if (y < 1900 || y > 2200) return null;
+  const date = new Date(y, mo - 1, d);
+  // Final guard: catches Feb 30 / Apr 31 etc. that pass the range
+  // check but still overflow into the next month.
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
+  return date;
 }
 
 function toYmd(d: Date): string {
