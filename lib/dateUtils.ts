@@ -10,6 +10,23 @@ export function getBangkokNow(): Date {
 export function parseThaiDate(dateStr: string): Date | null {
   if (!dateStr || !dateStr.trim()) return null;
   const trimmed = dateStr.trim();
+  // ISO 8601 (yyyy-MM-dd) — what Apps Script emits when a sheet cell
+  // contains a Date object rather than a typed string. Treat the
+  // string as a Bangkok-local wall-clock date (no UTC shift) so that
+  // a row dated "2026-05-25" lands on 25/5 for a viewer in Asia/Bangkok
+  // — same semantics as the DMY branch below.
+  const iso = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) {
+    const y = parseInt(iso[1], 10);
+    const mo = parseInt(iso[2], 10);
+    const d = parseInt(iso[3], 10);
+    if (mo < 1 || mo > 12) return null;
+    if (d < 1 || d > 31) return null;
+    if (y < 1900 || y > 2200) return null;
+    const bangkokDateStr = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}T00:00:00`;
+    const date = fromZonedTime(new Date(bangkokDateStr), TZ);
+    return toZonedTime(date, TZ);
+  }
   // รองรับ DD/MM/YYYY และ D/M/YYYY
   const parts = trimmed.split("/");
   if (parts.length !== 3) return null;
