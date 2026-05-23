@@ -71,14 +71,22 @@ describe("filterTasksByLocation", () => {
 });
 
 describe("COMMON_AREA_TYPES", () => {
-  it("includes core facility types", () => {
+  it("includes core area entries", () => {
+    expect(COMMON_AREA_TYPES).toContain("ทางเดิน");
     expect(COMMON_AREA_TYPES).toContain("ลิฟต์");
-    expect(COMMON_AREA_TYPES).toContain("สระว่ายน้ำ");
     expect(COMMON_AREA_TYPES).toContain("ปั๊มน้ำ");
   });
-  it("includes site-wide areas not tracked as Facility", () => {
-    expect(COMMON_AREA_TYPES).toContain("ล็อบบี้");
-    expect(COMMON_AREA_TYPES).toContain("ที่จอดรถ");
+  it("includes issue-oriented types (post 2026-05 refresh)", () => {
+    expect(COMMON_AREA_TYPES).toContain("ไฟแสงสว่าง");
+    expect(COMMON_AREA_TYPES).toContain("น้ำรั่ว");
+    expect(COMMON_AREA_TYPES).toContain("น้ำท่วมขัง");
+    expect(COMMON_AREA_TYPES).toContain("ท่อตัน");
+    expect(COMMON_AREA_TYPES).toContain("ต้นไม้");
+    expect(COMMON_AREA_TYPES).toContain("หลังคา");
+  });
+  it("uses Thai-readable labels for network + camera", () => {
+    expect(COMMON_AREA_TYPES).toContain("อินเตอร์เน็ต");
+    expect(COMMON_AREA_TYPES).toContain("กล้องวงจรปิด");
   });
   it("ends with 'อื่นๆ' fallback", () => {
     expect(COMMON_AREA_TYPES[COMMON_AREA_TYPES.length - 1]).toBe("อื่นๆ");
