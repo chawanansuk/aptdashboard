@@ -13,6 +13,7 @@ import { Icon } from "@/lib/icons";
 import { exportCsv } from "@/lib/csvExport";
 import AddPartModal from "./AddPartModal";
 import RequisitionModal from "./RequisitionModal";
+import RequisitionHistoryModal from "./RequisitionHistoryModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
@@ -42,6 +43,7 @@ interface Props {
 
 export default function PartsView({ rooms = [] }: Props) {
   const [reqTarget, setReqTarget] = useState<Part | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<Part | null>(null);
   const { data: session } = useSession();
   const canWrite = canAddEngTask(session?.user?.roles);
 
@@ -340,11 +342,19 @@ export default function PartsView({ rooms = [] }: Props) {
                     </td>
                     {canWrite && (
                       <td>
-                        <button
-                          type="button"
-                          className="ac-btn ac-btn-ghost ac-btn-sm"
-                          onClick={() => setEditTarget(p)}
-                        >แก้ไข</button>
+                        <div className="ac-parts-row-actions">
+                          <button
+                            type="button"
+                            className="ac-btn ac-btn-ghost ac-btn-sm"
+                            onClick={() => setHistoryTarget(p)}
+                            title="ดูประวัติการเบิก"
+                          >ประวัติ</button>
+                          <button
+                            type="button"
+                            className="ac-btn ac-btn-ghost ac-btn-sm"
+                            onClick={() => setEditTarget(p)}
+                          >แก้ไข</button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -372,6 +382,11 @@ export default function PartsView({ rooms = [] }: Props) {
         rooms={rooms}
         onClose={() => setReqTarget(null)}
         onSaved={() => load()}
+      />
+      <RequisitionHistoryModal
+        open={!!historyTarget}
+        part={historyTarget}
+        onClose={() => setHistoryTarget(null)}
       />
     </section>
   );

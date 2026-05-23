@@ -53,7 +53,7 @@ export type Route =
   // sales-side rooms
   | "ready" | "pending" | "occupied" | "moveout" | "tenants" | "salespipeline"
   // engineer-side jobs + assets
-  | "qc" | "repair" | "inactive" | "maintenance" | "facilities" | "engineerkanban" | "parts"
+  | "qc" | "repair" | "inactive" | "maintenance" | "facilities" | "engineerkanban" | "parts" | "recurring"
   // shared operational
   | "vehicles"
   | "leads"
@@ -83,6 +83,7 @@ export const ROUTE_ALLOW: Record<Route, Role[]> = {
   facilities:  ["engineer", "management"],
   engineerkanban: ["engineer", "management"],
   parts:       ["engineer", "management"],
+  recurring:   ["engineer", "management"],
   // vehicles: shared operational info (not PII); all authenticated
   // users have visibility per the product decision.
   vehicles:    ["sales", "engineer", "management"],
