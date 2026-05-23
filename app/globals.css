@@ -557,16 +557,9 @@ html.dark .ac-theme-toggle:hover { background: #334155; }
   color: #991B1B;
 }
 
-.ac-last-updated {
-  font-size: 11px;
-  color: #9CA3AF;
-  margin-right: 4px;
-  white-space: nowrap;
-}
-
-@media (max-width: 768px) {
-  .ac-last-updated { display: none; }
-}
+/* .ac-last-updated removed (#1 partial) — the "อัปเดต hh:mm" text was
+   demoted to the refresh button's tooltip / aria-label since it ate
+   ~110px of header width for a line most users never read. */
 /* ApartCloud Design Brief - globals.css */
 
 * { box-sizing: border-box; }
@@ -626,13 +619,24 @@ body { padding-top: env(safe-area-inset-top); }
 .ac-nav-cell-actions { grid-area: actions; display: flex; align-items: center; gap: 8px; justify-self: end; }
 .ac-nav-cell-utils   { grid-area: utils;   display: flex; align-items: center; gap: 4px; justify-self: end; }
 
-/* Desktop: collapse into one row */
+/* Desktop: collapse into one row.
+   Height trimmed from 56→48 (#1 partial). The previous 56px was
+   inherited from the original two-row mobile design; on desktop the
+   nav only ever shows one row, so 48px gives content ~8px of vertical
+   real estate back without cramping the icon-button hit areas. */
 @media (min-width: 1024px) {
   .ac-nav {
     grid-template-areas: "brand tabs actions utils";
     grid-template-columns: auto minmax(0, 1fr) auto auto;
-    height: 56px;
-    padding: 0 24px;
+    height: 48px;
+    padding: 0 20px;
+  }
+  /* Scope: only icon buttons inside the header are shrunk — modals
+     and other pages keep the original 40×40 spec. */
+  .ac-nav .ac-icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
   }
 }
 
@@ -667,9 +671,9 @@ body { padding-top: env(safe-area-inset-top); }
 .ac-mode-badge {
   font-size: 10px;
   font-weight: 700;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 999px;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   border: 1px solid transparent;
   /* default: sales (green) — kept for safety when role is missing */
   background: #F0FDF4;
@@ -724,13 +728,14 @@ html.dark .ac-mode-badge.is-management {
 /* Legacy select kept hidden — pills are now used on all viewports. */
 .ac-tabs-select { display: none !important; }
 .ac-tab {
-  padding: 6px 14px;
+  padding: 5px 12px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   color: #6B7280;
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
   flex-shrink: 0;
+  line-height: 1.4;
 }
 .ac-tab:hover { background: #F3F4F6; color: #111827; transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease; }
 .ac-tab.is-active {
@@ -1490,15 +1495,26 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   color: #fff;
   border: 0;
   font-weight: var(--font-weight-semibold);
-  padding: var(--space-2) var(--space-3);
+  /* Tighter vertical padding (#1 partial) so the button sits cleanly
+     within the new 48px desktop header without forcing min-height
+     overflow. Horizontal padding kept generous for thumb-tap on tablet. */
+  padding: 6px var(--space-3);
   border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: var(--text-base);
+  font-size: 13px;
   display: inline-flex; align-items: center; gap: var(--space-1);
   box-shadow: var(--shadow-xs);
   transition: background var(--duration-fast) var(--ease-out),
               box-shadow var(--duration-fast) var(--ease-out),
               transform var(--duration-fast) var(--ease-out);
+}
+/* Tablet (≤1023): hide the "เพิ่มงาน" label so only the + icon
+   remains, freeing ~70px in the toolbar. Tooltip still carries the
+   addLabel so the affordance isn't lost. Mobile already hides the
+   whole button via ac-hide-mobile + the bottom-nav add tab. */
+@media (max-width: 1023px) {
+  .ac-add-btn .ac-add-btn-text { display: none; }
+  .ac-add-btn { padding: 6px 10px; }
 }
 .ac-add-btn:hover { background: #1D4ED8; box-shadow: var(--shadow-sm); }
 .ac-add-btn:active { transform: translateY(0.5px) scale(0.985); }
