@@ -6242,6 +6242,15 @@ html.dark .ac-skel-rc {
 .ac-kanban-mobile-tab.is-active {
   color: var(--color-text);
   font-weight: var(--font-weight-semibold);
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+/* Zero-count tab: dim so the eye flies to active + non-empty tabs.
+   Matches the KPI is-zero pattern for consistency. */
+.ac-kanban-mobile-tab.is-zero {
+  opacity: 0.55;
+}
+.ac-kanban-mobile-tab.is-zero.is-active {
+  opacity: 1; /* still highlight when user explicitly selects it */
 }
 .ac-kanban-mobile-tab-count {
   font-size: 11px;
@@ -6250,6 +6259,12 @@ html.dark .ac-skel-rc {
   background: color-mix(in srgb, var(--color-text) 8%, transparent);
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
+}
+.ac-kanban-mobile-tab-count.is-zero {
+  /* Empty pill: subtler so a "real" count (e.g. 7) reads as the
+     primary signal. */
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--color-text-muted) 40%, transparent);
 }
 
 @media (max-width: 767.98px) {
