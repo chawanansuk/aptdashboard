@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { Role } from "@/auth";
 import { canAccess, canPerform, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
@@ -27,6 +28,21 @@ interface Props {
   onNavigate: (view: BottomNavView) => void;
   /** Open the add-task modal. */
   onAddTask: () => void;
+  /** Count of "today" tasks (open + overdue). Surfaced as a red badge
+   *  on the วันนี้ tab so the user feels pressure without opening it. */
+  todayCount?: number;
+}
+
+/**
+ * Tiny haptic on tab tap — works on Android Chrome / Safari iOS 15+.
+ * Silently no-op when navigator.vibrate isn't available. 10ms is
+ * short enough to feel like a click "click", not a buzz.
+ */
+function hapticTap(): void {
+  if (typeof navigator === "undefined") return;
+  try {
+    navigator.vibrate?.(10);
+  } catch { /* ignore */ }
 }
 
 /**
@@ -75,8 +91,29 @@ function pickRoleTabs(roles: Role[] | undefined): Tab[] {
   return [{ key: "calendar", label: "ปฏิทิน", icon: "calendar" }];
 }
 
-export default function BottomNav({ activeView, roles, onNavigate, onAddTask }: Props) {
+export default function BottomNav({ activeView, roles, onNavigate, onAddTask, todayCount }: Props) {
   const canAdd = canPerform(roles, "task.add");
+
+  // Hide-on-scroll: track scroll direction; collapse the nav off-screen
+  // when the user scrolls down (reading content), restore when scrolling
+  // up. Avoids the bar covering content while still keeping it
+  // accessible. Threshold ignores tiny accidental scrolls.
+  const [hidden, setHidden] = useState(false);
+  const lastY = useRef(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    lastY.current = window.scrollY;
+    function onScroll() {
+      const y = window.scrollY;
+      const delta = y - lastY.current;
+      if (Math.abs(delta) < 8) return; // ignore jitter
+      if (y < 24) { setHidden(false); lastY.current = y; return; }
+      setHidden(delta > 0);
+      lastY.current = y;
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   const roleTabs = pickRoleTabs(roles)
     // Filter out any tab the user can't access (multi-role View-as edge)
     .filter((t) => t.key === "add" || canAccess(roles, t.key as Route));
@@ -97,19 +134,21 @@ export default function BottomNav({ activeView, roles, onNavigate, onAddTask }: 
 
   return (
     <nav
-      className="ac-bottom-nav"
+      className={`ac-bottom-nav ${hidden ? "is-hidden" : ""}`}
       role="navigation"
       aria-label="แถบนำทางด้านล่าง"
     >
       {tabs.map((tab) => {
         const isActive = activeView === tab.key;
         const isPrimary = tab.variant === "primary";
+        const showTodayBadge = tab.key === "today" && (todayCount ?? 0) > 0;
         return (
           <button
             key={tab.key}
             type="button"
             className={`ac-bottom-nav-tab ${isActive ? "is-active" : ""} ${isPrimary ? "is-primary" : ""}`}
             onClick={() => {
+              hapticTap();
               if (tab.key === "add") {
                 onAddTask();
               } else {
@@ -117,10 +156,19 @@ export default function BottomNav({ activeView, roles, onNavigate, onAddTask }: 
               }
             }}
             aria-current={isActive ? "page" : undefined}
-            aria-label={tab.label}
+            aria-label={
+              showTodayBadge
+                ? `${tab.label} (มี ${todayCount} งาน)`
+                : tab.label
+            }
           >
             <span className="ac-bottom-nav-icon">
               <Icon name={tab.icon} size={isPrimary ? 22 : 20} strokeWidth={isPrimary ? 2.25 : 1.75} />
+              {showTodayBadge && (
+                <span className="ac-bottom-nav-badge" aria-hidden>
+                  {todayCount! > 9 ? "9+" : todayCount}
+                </span>
+              )}
             </span>
             <span className="ac-bottom-nav-label">{tab.label}</span>
           </button>

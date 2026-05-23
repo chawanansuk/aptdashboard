@@ -3783,6 +3783,37 @@ html.dark .ac-maint-card:hover {
   border-top: 1px solid #E2E8F0;
   padding: 6px 6px max(6px, env(safe-area-inset-bottom));
   box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.06);
+  transform: translateY(0);
+  transition: transform 180ms ease;
+}
+/* Hide-on-scroll-down (BottomNav: scroll up restores) */
+.ac-bottom-nav.is-hidden {
+  transform: translateY(110%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-bottom-nav { transition: none; }
+}
+/* Today-count badge on the วันนี้ tab — small red pill on the icon */
+.ac-bottom-nav-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ac-bottom-nav-badge {
+  position: absolute;
+  top: -4px; right: -8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #DC2626;
+  color: white;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  line-height: 16px;
+  border-radius: 999px;
+  text-align: center;
+  pointer-events: none;
 }
 html.dark .ac-bottom-nav {
   background: #0F172A;

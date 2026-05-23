@@ -1069,6 +1069,7 @@ export default function Home() {
         roles={roles}
         onNavigate={(v: BottomNavView) => setActiveView(v)}
         onAddTask={() => setShowAddTask(true)}
+        todayCount={sidebarCounts.today}
       />
 
       <CommandPalette
