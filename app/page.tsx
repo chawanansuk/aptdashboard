@@ -594,6 +594,20 @@ export default function Home() {
     setShowAddTask(true);
   }
 
+  /** Lead → Task auto-fill — opens AddTaskModal with type=ย้ายเข้า and
+   *  copies the lead's contact info. User still picks the room (Lead
+   *  doesn't have a room assignment in current schema). */
+  function openMoveinFromLead(lead: { name: string; phone: string; interest: string }) {
+    setTType("ย้ายเข้า");
+    setTBuilding("");
+    setTRoom("");
+    setTCustomer(lead.name || "");
+    setTPhone(lead.phone || "");
+    setTNote(lead.interest ? `จาก Lead: ${lead.interest}` : "");
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+
   /** Quick "บันทึกนัดชม" — pre-fill AddTaskModal with type=ชมห้อง (sales FAB). */
   function openQuickAddLead() {
     setTType("ชมห้อง");
@@ -1035,7 +1049,7 @@ export default function Home() {
           {activeView === "leads" && (
             <ErrorBoundary level="route" label="Lead CRM">
               <Suspense fallback={<FacilitiesSkeleton />}>
-                <LeadsView />
+                <LeadsView onCreateMoveinTask={(l) => openMoveinFromLead(l)} />
               </Suspense>
             </ErrorBoundary>
           )}

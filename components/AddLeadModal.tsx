@@ -14,9 +14,13 @@ interface Props {
   initialStage?: LeadStage;
   onClose: () => void;
   onSaved?: () => void;
+  /** Optional: surface a "สร้างงานย้ายเข้า" button when stage is
+   *  "ทำสัญญา"/"ปิดดีล". Caller is expected to open AddTaskModal
+   *  pre-filled from this Lead's contact info. */
+  onCreateMoveinTask?: (lead: Lead) => void;
 }
 
-export default function AddLeadModal({ open, initial, initialStage, onClose, onSaved }: Props) {
+export default function AddLeadModal({ open, initial, initialStage, onClose, onSaved, onCreateMoveinTask }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(open, ref);
   const isEdit = !!initial;
@@ -174,6 +178,17 @@ export default function AddLeadModal({ open, initial, initialStage, onClose, onS
           {err && <div className="ac-form-error" role="alert">{err}</div>}
 
           <footer className="ac-modal-foot">
+            {/* Lead → Task shortcut — visible only on edit (existing Lead)
+                AND when stage advanced enough to warrant move-in scheduling. */}
+            {isEdit && onCreateMoveinTask && (stage === "ทำสัญญา" || stage === "ปิดดีล") && (
+              <button
+                type="button"
+                className="ac-btn ac-btn-secondary"
+                onClick={() => { onCreateMoveinTask(initial!); onClose(); }}
+                disabled={submitting}
+                title="สร้างงานย้ายเข้าจาก Lead นี้"
+              >📥 สร้างงานย้ายเข้า</button>
+            )}
             <button
               type="button"
               className="ac-btn ac-btn-ghost"
