@@ -472,8 +472,21 @@ export default function Home() {
     const c: Record<string, number> = { today: 0 };
     STATUS_KEYS.forEach((k) => (c[k] = 0));
     scope.forEach((r) => { c[r.status]++; if (r.today) c.today++; });
-    return { ...c, total: scope.length } as { total: number; today: number } & Partial<Record<RoomStatus, number>>;
-  }, [rooms, activeBuilding]);
+    // Overdue tasks count — sales/engineer/management all care about
+    // these. Filtered by activeBuilding for consistency.
+    const todayDate = new Date();
+    const todayMs = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()).getTime();
+    const tasksScope = activeBuilding === "ทั้งหมด"
+      ? tasks
+      : tasks.filter((t) => t.building === activeBuilding);
+    let overdue = 0;
+    for (const t of tasksScope) {
+      if (isDoneStatus(t.status) || isCancelledStatus(t.status)) continue;
+      const d = parseThaiDate(t.date);
+      if (d && d.getTime() < todayMs) overdue++;
+    }
+    return { ...c, total: scope.length, overdue } as { total: number; today: number; overdue: number } & Partial<Record<RoomStatus, number>>;
+  }, [rooms, activeBuilding, tasks]);
 
   // ---- Bulk helpers ----
   function toggleBulkRoom(building: string, room: string) {

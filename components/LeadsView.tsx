@@ -10,6 +10,7 @@ import { relativeTimeLabel } from "@/lib/relativeTime";
 import AddLeadModal from "./AddLeadModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
+import ErrorBanner from "./ErrorBanner";
 
 /**
  * Lead CRM view (Task 26) — Kanban-style pipeline with 6 stage columns.
@@ -204,12 +205,7 @@ export default function LeadsView({ onAddNew }: Props) {
         </nav>
       </div>
 
-      {err && (
-        <div className="ac-banner ac-banner-warn" role="alert">
-          <strong>⚠ </strong>{err}{" "}
-          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setErr(null)}>ปิด</button>
-        </div>
-      )}
+      <ErrorBanner message={err} onRetry={() => load()} onDismiss={() => setErr(null)} />
 
       {loading && !rows ? (
         <LoadingState />

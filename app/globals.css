@@ -7698,3 +7698,55 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
 }
 .ac-lead-card-del:hover { background: color-mix(in srgb, #EF4444 14%, transparent); }
 
+/* Sidebar secondary badge — used for "งานวันนี้" overdue indicator */
+.ac-badge-overdue {
+  background: color-mix(in srgb, #DC2626 18%, transparent) !important;
+  color: #DC2626 !important;
+  margin-left: 4px;
+}
+
+/* ErrorBanner with retry button — wrap text + buttons cleanly */
+.ac-banner-with-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ac-banner-with-actions .ac-banner-icon {
+  font-weight: var(--font-weight-bold);
+  flex-shrink: 0;
+}
+.ac-banner-with-actions .ac-banner-msg {
+  flex: 1;
+  min-width: 0;
+}
+.ac-banner-with-actions .ac-banner-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* ====================================================================
+ * Print mode — tables / room grid optimization
+ * ==================================================================== */
+@media print {
+  /* Hide global chrome on rooms / tasks views (already done elsewhere
+   * for tenants — extend coverage to other list pages) */
+  .ac-fb,
+  .ac-tasks-head-actions,
+  .ac-tasks-toggle,
+  .ac-tasks-type-chips,
+  .ac-bulk-bar,
+  .ac-task-bulk-check,
+  .ac-task-actions,
+  .ac-rc-more,
+  .ac-density-toggle { display: none !important; }
+
+  /* Room grid: prefer larger cards in print so numbers stay legible */
+  .ac-rg { gap: 4px !important; }
+  .ac-rg-compact .ac-rc { width: auto !important; height: auto !important; padding: 6px !important; }
+
+  /* Tasks list: hide row dot + status pills' decorative bits, keep text */
+  .ac-task-dot,
+  .ac-tasks-summary { display: none !important; }
+}

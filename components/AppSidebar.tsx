@@ -12,7 +12,7 @@ interface Props {
   isOpen: boolean;
   activeView: SidebarView;
   onChangeView: (v: SidebarView) => void;
-  counts: { total: number; today: number } & Partial<Record<RoomStatus, number>>;
+  counts: { total: number; today: number; overdue?: number } & Partial<Record<RoomStatus, number>>;
   onBackdropClick: () => void;
   /** ผู้ใช้ปัจจุบัน — ถ้า undefined (loading) ให้แสดง safe default: overview + today เท่านั้น */
   roles?: Role[];
@@ -39,6 +39,10 @@ interface NavItem {
   icon: SidebarIcon;
   badge?: number;
   badgeClass?: string;
+  /** Secondary badge — useful when an item has 2 distinct counts
+   *  (e.g. "งานวันนี้" wants both today-count + overdue-count). */
+  secondaryBadge?: number;
+  secondaryBadgeClass?: string;
 }
 
 interface NavGroup {
@@ -57,7 +61,7 @@ function buildGroups(
 
   const todayItems: NavItem[] = [
     { key: "overview", label: "ภาพรวม",    icon: icon("grid"),  badge: counts.total, badgeClass: "ac-badge-indigo" },
-    { key: "today",    label: "งานวันนี้", icon: icon("tasks"), badge: counts.today, badgeClass: "ac-badge-red" },
+    { key: "today",    label: "งานวันนี้", icon: icon("tasks"), badge: counts.today, badgeClass: "ac-badge-red", secondaryBadge: counts.overdue || 0, secondaryBadgeClass: "ac-badge-overdue" },
   ];
   if (has("salespipeline")) {
     todayItems.push({ key: "salespipeline", label: "ภาพรวมขาย", icon: icon("tenants") });
@@ -187,6 +191,12 @@ export default function AppSidebar({
                 <span className="ac-side-text">{item.label}</span>
                 {typeof item.badge === "number" && (
                   <span className={`ac-badge ${item.badgeClass || ""}`}>{item.badge}</span>
+                )}
+                {typeof item.secondaryBadge === "number" && item.secondaryBadge > 0 && (
+                  <span
+                    className={`ac-badge ${item.secondaryBadgeClass || ""}`}
+                    title={`เลยกำหนด ${item.secondaryBadge} งาน`}
+                  >⚠{item.secondaryBadge}</span>
                 )}
               </button>
               );
