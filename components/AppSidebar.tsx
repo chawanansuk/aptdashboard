@@ -99,7 +99,10 @@ function buildGroups(
 
   const groups: NavGroup[] = [todayGroup];
   if (statusItems.length) groups.push({ label: "สถานะห้อง", items: statusItems });
-  if (taskItems.length)   groups.push({ label: "งาน",       items: taskItems });
+  // "สถานะห้อง" (was "งาน") — items are room-status filters (รอตรวจ /
+  // รอเข้าซ่อม / ไม่ได้ใช้งาน), not task entries. Renaming reduces
+  // confusion against "งานวันนี้" (which IS task entries).
+  if (taskItems.length)   groups.push({ label: "สถานะห้อง",   items: taskItems });
   if (assetItems.length)  groups.push({ label: "ทรัพย์สิน",  items: assetItems });
   if (dataItems.length)   groups.push({ label: "ดูข้อมูล",   items: dataItems });
   return groups;
