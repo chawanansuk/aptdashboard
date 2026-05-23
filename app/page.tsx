@@ -1031,7 +1031,7 @@ export default function Home() {
           {activeView === "parts" && (
             <ErrorBoundary level="route" label="คลังอะไหล่">
               <Suspense fallback={<FacilitiesSkeleton />}>
-                <PartsView />
+                <PartsView rooms={rooms} />
               </Suspense>
             </ErrorBoundary>
           )}

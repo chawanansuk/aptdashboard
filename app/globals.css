@@ -7848,3 +7848,16 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   .ac-task-dot,
   .ac-tasks-summary { display: none !important; }
 }
+
+/* RequisitionModal — stock hint above the form fields */
+.ac-req-stock-hint {
+  padding: 8px 12px;
+  margin-bottom: var(--space-3);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.ac-req-stock-hint strong { color: var(--color-text); }
+

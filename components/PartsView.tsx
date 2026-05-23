@@ -12,9 +12,11 @@ import { canAddEngTask } from "@/lib/permissions";
 import { Icon } from "@/lib/icons";
 import { exportCsv } from "@/lib/csvExport";
 import AddPartModal from "./AddPartModal";
+import RequisitionModal from "./RequisitionModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
+import type { RoomView } from "@/types";
 
 /**
  * Parts / Inventory view — Task 37.
@@ -31,7 +33,15 @@ import ErrorBanner from "./ErrorBanner";
 
 type CategoryFilter = "all" | PartCategory;
 
-export default function PartsView() {
+interface Props {
+  /** Rooms data — drives the building dropdown in RequisitionModal.
+   *  Optional: PartsView still renders without it, modal just shows
+   *  a free-text building field instead. */
+  rooms?: RoomView[];
+}
+
+export default function PartsView({ rooms = [] }: Props) {
+  const [reqTarget, setReqTarget] = useState<Part | null>(null);
   const { data: session } = useSession();
   const canWrite = canAddEngTask(session?.user?.roles);
 
@@ -299,10 +309,12 @@ export default function PartsView() {
                                   : !canUse ? `มีในสต๊อกเพียง ${p.stock} ${p.unit}`
                                   : `ตัดสต๊อก ${n} ${p.unit}`
                               }
-                              onClick={async () => {
+                              onClick={() => {
+                                // Open requisition modal — captures who/where/why
+                                // for the deduction (replaces silent adjust call).
+                                // Modal pre-fills quantity from the inline input.
                                 if (!valid || !canUse) return;
-                                await adjust(p, -n);
-                                setVal("");
+                                setReqTarget(p);
                               }}
                             >ใช้</button>
                             <button
@@ -352,6 +364,13 @@ export default function PartsView() {
         open={!!editTarget}
         initial={editTarget}
         onClose={() => setEditTarget(null)}
+        onSaved={() => load()}
+      />
+      <RequisitionModal
+        open={!!reqTarget}
+        part={reqTarget}
+        rooms={rooms}
+        onClose={() => setReqTarget(null)}
         onSaved={() => load()}
       />
     </section>
