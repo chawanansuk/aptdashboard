@@ -275,21 +275,27 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
         role="tablist"
         aria-label="สลับคอลัมน์งาน"
       >
-        {COLUMNS.map((col) => (
-          <button
-            key={col.key}
-            type="button"
-            role="tab"
-            aria-selected={activeMobileCol === col.key}
-            className={`ac-kanban-mobile-tab ${activeMobileCol === col.key ? "is-active" : ""}`}
-            onClick={() => setActiveMobileCol(col.key)}
-            style={{ borderBottomColor: activeMobileCol === col.key ? col.accent : "transparent" }}
-          >
-            <span aria-hidden>{col.emoji}</span>
-            <span>{col.label}</span>
-            <span className="ac-kanban-mobile-tab-count">{buckets[col.key].length}</span>
-          </button>
-        ))}
+        {COLUMNS.map((col) => {
+          const count = buckets[col.key].length;
+          const isActive = activeMobileCol === col.key;
+          const isZero = count === 0;
+          return (
+            <button
+              key={col.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              className={`ac-kanban-mobile-tab ${isActive ? "is-active" : ""} ${isZero ? "is-zero" : ""}`}
+              onClick={() => setActiveMobileCol(col.key)}
+              style={{ borderBottomColor: isActive ? col.accent : "transparent" }}
+              title={isZero ? `${col.label} (ไม่มีงาน)` : `${col.label} ${count} งาน`}
+            >
+              <span aria-hidden>{col.emoji}</span>
+              <span>{col.label}</span>
+              <span className={`ac-kanban-mobile-tab-count ${isZero ? "is-zero" : ""}`}>{count}</span>
+            </button>
+          );
+        })}
       </nav>
 
       <div className="ac-kanban-board" data-active-col={activeMobileCol}>
