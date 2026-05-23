@@ -6774,6 +6774,62 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   gap: var(--space-2);
   justify-content: flex-end;
 }
+/* Quick-adjust row: gives engineers a way to deduct/add many at once
+   without spamming the +/- buttons. */
+.ac-parts-quick-adjust {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  justify-content: flex-end;
+}
+.ac-parts-quick-input {
+  width: 56px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: right;
+}
+.ac-parts-quick-input::-webkit-inner-spin-button,
+.ac-parts-quick-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.ac-parts-quick-btn {
+  appearance: none;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease;
+}
+.ac-parts-quick-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  border-color: var(--color-accent);
+}
+.ac-parts-quick-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ac-parts-quick-use {
+  color: #DC2626;
+  border-color: color-mix(in srgb, #DC2626 30%, var(--color-border));
+}
+.ac-parts-quick-use:hover:not(:disabled) {
+  background: color-mix(in srgb, #DC2626 12%, transparent);
+  border-color: #DC2626;
+}
+.ac-parts-quick-add {
+  color: #15803D;
+  border-color: color-mix(in srgb, #22C55E 30%, var(--color-border));
+}
+.ac-parts-quick-add:hover:not(:disabled) {
+  background: color-mix(in srgb, #22C55E 12%, transparent);
+  border-color: #22C55E;
+}
 .ac-parts-stock-btn {
   appearance: none;
   border: 1px solid var(--color-border);

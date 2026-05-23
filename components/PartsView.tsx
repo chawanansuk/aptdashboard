@@ -44,6 +44,9 @@ export default function PartsView() {
   const [editTarget, setEditTarget] = useState<Part | null>(null);
   /** Track per-row busy state so inline +/- buttons disable individually. */
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  /** Per-row quick-adjust input value (positive integer as string).
+   *  Empty / 0 / invalid → buttons disabled. */
+  const [adjustValues, setAdjustValues] = useState<Record<string, string>>({});
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -267,6 +270,55 @@ export default function PartsView() {
                           >+</button>
                         )}
                       </div>
+                      {canWrite && (() => {
+                        const raw = adjustValues[p.id] ?? "";
+                        const n = parseInt(raw, 10);
+                        const valid = Number.isFinite(n) && n > 0;
+                        const canUse = valid && n <= p.stock;
+                        const setVal = (v: string) =>
+                          setAdjustValues((s) => ({ ...s, [p.id]: v }));
+                        return (
+                          <div className="ac-parts-quick-adjust">
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min="1"
+                              placeholder="0"
+                              value={raw}
+                              onChange={(e) => setVal(e.target.value.replace(/[^\d]/g, ""))}
+                              disabled={busy}
+                              className="ac-parts-quick-input"
+                              aria-label={`จำนวนสำหรับ ${p.name}`}
+                            />
+                            <button
+                              type="button"
+                              className="ac-parts-quick-btn ac-parts-quick-use"
+                              disabled={busy || !canUse}
+                              title={
+                                !valid ? "กรอกจำนวน"
+                                  : !canUse ? `มีในสต๊อกเพียง ${p.stock} ${p.unit}`
+                                  : `ตัดสต๊อก ${n} ${p.unit}`
+                              }
+                              onClick={async () => {
+                                if (!valid || !canUse) return;
+                                await adjust(p, -n);
+                                setVal("");
+                              }}
+                            >ใช้</button>
+                            <button
+                              type="button"
+                              className="ac-parts-quick-btn ac-parts-quick-add"
+                              disabled={busy || !valid}
+                              title={valid ? `เติมสต๊อก ${n} ${p.unit}` : "กรอกจำนวน"}
+                              onClick={async () => {
+                                if (!valid) return;
+                                await adjust(p, +n);
+                                setVal("");
+                              }}
+                            >เติม</button>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="ac-parts-num">{p.threshold || "—"}</td>
                     <td>
