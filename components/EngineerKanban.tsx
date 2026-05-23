@@ -335,7 +335,11 @@ interface KpiCellProps {
 }
 
 function KpiCell({ label, value, accent, onClick, ariaLabel }: KpiCellProps) {
-  const className = `ac-kanban-kpi ac-kanban-kpi-${accent}${onClick ? " is-clickable" : ""}`;
+  // Dim KPI when value is 0 so the eye flies to the non-zero stat
+  // (typical engineer view: many "งานเปิดอยู่", "เลยกำหนด"/"เสร็จวันนี้"
+  // often 0 early in the day).
+  const isZero = value === 0;
+  const className = `ac-kanban-kpi ac-kanban-kpi-${accent}${onClick ? " is-clickable" : ""}${isZero ? " is-zero" : ""}`;
   if (onClick) {
     return (
       <button type="button" className={className} onClick={onClick} aria-label={ariaLabel}>
@@ -479,9 +483,20 @@ function KanbanCard({
           historically don't fill customer/phone; sales-side tasks
           live in a different view). */}
       <div className="ac-kanban-card-meta">
-        <span className="ac-kanban-card-reporter" title={task.creator || "ไม่ระบุผู้แจ้ง"}>
-          👤 {reporter}
-        </span>
+        {/* Hide empty reporter row — clean card when engineer task has no
+            creator (proxy: "—" from creatorLabel). Saves vertical space
+            and removes visual noise. */}
+        {reporter && reporter !== "—" && (
+          <span className="ac-kanban-card-reporter" title={task.creator || "ไม่ระบุผู้แจ้ง"}>
+            👤 {reporter}
+          </span>
+        )}
+        {/* Task date — small, muted; only when a date is actually set */}
+        {task.date && (
+          <span className="ac-kanban-card-date" title={`วันที่กำหนด ${task.date}`}>
+            📅 {task.date}
+          </span>
+        )}
       </div>
 
       <footer
@@ -500,7 +515,7 @@ function KanbanCard({
               className="ac-kanban-btn ac-kanban-btn-ghost"
               onClick={() => onMove(task, TASK_STATUS.CANCELLED)}
               title="ยกเลิกงานนี้"
-            >✗</button>
+            >✗ ยกเลิก</button>
           </>
         )}
         {column === "in_progress" && !busy && (
