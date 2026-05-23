@@ -4901,6 +4901,7 @@ button.ac-sales-kpi-card:focus-visible {
 .ac-sales-kpi-green::before  { background: #22C55E; }
 .ac-sales-kpi-sky::before    { background: #0EA5E9; }
 .ac-sales-kpi-orange::before { background: #F97316; }
+.ac-sales-kpi-purple::before { background: #A855F7; }
 .ac-sales-kpi-value {
   font-size: 28px;
   font-weight: var(--font-weight-bold);

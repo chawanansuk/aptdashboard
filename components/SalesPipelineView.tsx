@@ -205,8 +205,7 @@ export default function SalesPipelineView({
       for (const t of allTasks) {
         if (t.type !== "ย้ายออก") continue;
         const d = parseThaiDate(t.date);
-        if (!d) continue;
-        if (!latest || d.getTime() > latest.getTime()) latest = d;
+        if (!d) continue;        if (!latest || d.getTime() > latest.getTime()) latest = d;
       }
       out.push({ room: r, noticedDate: latest });
     }
@@ -216,6 +215,41 @@ export default function SalesPipelineView({
       const tb = b.noticedDate?.getTime() ?? -Infinity;
       return tb - ta;
     });
+  }, [scopedRooms]);
+
+  // Rooms waiting for a new tenant (status = pending → "รอสัญญา"/
+  // "รอย้ายเข้า"). Sales sees these as "ready to close" — usually
+  // a tenant already viewed + booked but contract isn't signed yet.
+  // Surface the most recent "ย้ายเข้า" or "ชมห้อง" task date as
+  // a "scheduled move-in" hint (when present).
+  const pendingMoveinRooms = useMemo(() => {
+    type Row = { room: RoomView; scheduledDate: Date | null };
+    const out: Row[] = [];
+    for (const r of scopedRooms) {
+      if (r.status !== "pending") continue;
+      const allTasks = [...(r.pastTasks || []), ...(r.upcomingTasks || []), ...(r.todayTasks || [])];
+      let scheduled: Date | null = null;
+      for (const t of allTasks) {
+        if (t.type !== "ย้ายเข้า" && t.type !== "ชมห้อง") continue;
+        const d = parseThaiDate(t.date);
+        if (!d) continue;
+        // Prefer the upcoming move-in date; fall back to latest known
+        if (t.type === "ย้ายเข้า") {
+          if (!scheduled || d.getTime() > scheduled.getTime()) scheduled = d;
+        } else if (!scheduled) {
+          scheduled = d;
+        }
+      }
+      out.push({ room: r, scheduledDate: scheduled });
+    }
+    // Sort: scheduled date asc (most imminent first), then by room
+    out.sort((a, b) => {
+      const ta = a.scheduledDate?.getTime() ?? Infinity;
+      const tb = b.scheduledDate?.getTime() ?? Infinity;
+      if (ta !== tb) return ta - tb;
+      return (a.room.building + a.room.room).localeCompare(b.room.building + b.room.room);
+    });
+    return out;
   }, [scopedRooms]);
 
   // KPI: count upcoming appointments in the next 7 days for the chip.
@@ -245,6 +279,13 @@ export default function SalesPipelineView({
           accent="sky"
           onClick={focusAppointments}
           ariaLabel={`นัดสัปดาห์นี้ ${appointmentsThisWeek} นัด — เลื่อนไปดูรายการ`}
+        />
+        <KpiCard
+          label="รอย้ายเข้า"
+          value={pendingMoveinRooms.length}
+          accent="purple"
+          onClick={onChangeView ? () => onChangeView("pending") : undefined}
+          ariaLabel={`รอย้ายเข้า ${pendingMoveinRooms.length} ห้อง — ไปยังหน้ารอสัญญา`}
         />
         <KpiCard
           label="รอย้ายออก"
@@ -357,7 +398,41 @@ export default function SalesPipelineView({
         )}
       </div>
 
-      {/* Section 3 — รอย้ายออก (re-sell pipeline) */}
+      {/* Section 3 — รอย้ายเข้า (pending contract / move-in scheduled) */}
+      <div className="ac-sales-section">
+        <div className="ac-sales-section-head">
+          <h3 className="ac-sales-section-title">🏷 รอย้ายเข้า</h3>
+          <span className="ac-sales-section-count">{pendingMoveinRooms.length} ห้อง</span>
+        </div>
+        {pendingMoveinRooms.length === 0 ? (
+          <div className="ac-sales-empty">ไม่มีห้องที่รอย้ายเข้า</div>
+        ) : (
+          <div className="ac-sales-list">
+            {pendingMoveinRooms.map(({ room, scheduledDate }) => (
+              <button
+                key={`${room.building}|${room.room}`}
+                className="ac-sales-row"
+                onClick={() => onSelectRoom(room)}
+              >
+                <span className="ac-sales-row-dot" style={{ background: STATUS_DOT.pending }} aria-hidden />
+                <span className="ac-sales-row-main">
+                  <span className="ac-sales-row-title">ห้อง {room.room}</span>
+                  <span className="ac-sales-row-sub">
+                    {room.building}
+                    {room.tenant ? ` · ${room.tenant}` : ""}
+                    {room.phone ? ` · ${room.phone}` : ""}
+                  </span>
+                </span>
+                <span className="ac-sales-row-meta">
+                  {scheduledDate ? `นัด ${formatDateShort(scheduledDate)}` : "—"}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Section 4 — รอย้ายออก (re-sell pipeline) */}
       <div className="ac-sales-section">
         <div className="ac-sales-section-head">
           <h3 className="ac-sales-section-title">🚪 รอย้ายออก</h3>
@@ -402,7 +477,7 @@ export default function SalesPipelineView({
 interface KpiCardProps {
   label: string;
   value: number;
-  accent: "green" | "sky" | "orange";
+  accent: "green" | "sky" | "orange" | "purple";
   onClick?: () => void;
   ariaLabel?: string;
 }

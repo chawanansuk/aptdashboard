@@ -24,21 +24,29 @@ import type { SheetRow } from "@/types";
 export const COMMON_AREA_PREFIX = "ส่วนกลาง:";
 
 /**
- * Catalog of facility types selectable from the AddTask form. Kept in
- * sync with the existing Facility entity types (lib/constants /
- * types/index.ts) plus a few site-wide areas (ล็อบบี้, ทางเดิน) that
- * aren't tracked as discrete Facilities but still get reported on.
+ * Catalog of common-area issue types selectable from AddTask form
+ * (Task 38 — common-area task target). Updated per real-world use:
+ * removed unused (สระว่ายน้ำ / เครื่องปั่นไฟ / ล็อบบี้ / ที่จอดรถ),
+ * added issue-oriented entries (ไฟแสงสว่าง, ต้นไม้, ท่อตัน, น้ำรั่ว,
+ * น้ำท่วมขัง, หลังคา) to match the kind of "ส่วนกลาง" repair tickets
+ * actually filed. "อินเตอร์เน็ต" / "กล้องวงจรปิด" use Thai-readable
+ * labels (was WiFi / CCTV).
+ *
+ * "อื่นๆ" stays last so users with a non-listed issue have an escape
+ * hatch — they should add detail in the task note field.
  */
 export const COMMON_AREA_TYPES: readonly string[] = [
-  "ลิฟต์",
-  "สระว่ายน้ำ",
-  "ปั๊มน้ำ",
-  "WiFi",
-  "CCTV",
-  "เครื่องปั่นไฟ",
-  "ล็อบบี้",
   "ทางเดิน",
-  "ที่จอดรถ",
+  "ลิฟต์",
+  "ไฟแสงสว่าง",
+  "ต้นไม้",
+  "ท่อตัน",
+  "น้ำรั่ว",
+  "น้ำท่วมขัง",
+  "ปั๊มน้ำ",
+  "หลังคา",
+  "อินเตอร์เน็ต",
+  "กล้องวงจรปิด",
   "อื่นๆ",
 ] as const;
 

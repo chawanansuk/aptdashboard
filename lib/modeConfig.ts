@@ -89,7 +89,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
       if (s.tasksToday > 0) parts.push(`งานวันนี้ ${s.tasksToday} รายการ`);
       return parts.length ? parts.join(" · ") : "ยังไม่มีงานเร่งด่วน";
     },
-    sidebarGroupOrder: ["วันนี้", "สถานะห้อง", "งาน", "ดูข้อมูล", "ทรัพย์สิน"],
+    sidebarGroupOrder: ["วันนี้", "สถานะห้อง", "ดูข้อมูล", "ทรัพย์สิน"],
   },
 
   engineer: {
@@ -114,7 +114,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
       }
       return parts.length ? parts.join(" · ") : "ระบบเรียบร้อย ไม่มีงานเร่งด่วน";
     },
-    sidebarGroupOrder: ["วันนี้", "ทรัพย์สิน", "งาน", "ดูข้อมูล", "สถานะห้อง"],
+    sidebarGroupOrder: ["วันนี้", "ทรัพย์สิน", "สถานะห้อง", "ดูข้อมูล"],
   },
 
   management: {
@@ -140,7 +140,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
       }
       return parts.join(" · ");
     },
-    sidebarGroupOrder: ["วันนี้", "ดูข้อมูล", "สถานะห้อง", "งาน", "ทรัพย์สิน"],
+    sidebarGroupOrder: ["วันนี้", "ดูข้อมูล", "สถานะห้อง", "ทรัพย์สิน"],
   },
 };
 
