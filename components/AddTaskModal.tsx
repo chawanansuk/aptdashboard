@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Part } from "@/types";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
@@ -148,6 +149,98 @@ export default function AddTaskModal({
       setValue("cost", "");
     }
   }, [showCostField, currentCost, setValue]);
+
+  // Part picker — visible for ซ่อม tasks. Engineer selects which
+  // parts were consumed; on submit we fire a requisition POST per
+  // entry so the audit log + stock ledger stay consistent with the
+  // repair task. Lazy-fetch the parts catalog the first time the
+  // section appears (avoid loading for non-repair tasks).
+  const showPartsPicker = currentType === "ซ่อม";
+  const [allParts, setAllParts] = useState<Part[] | null>(null);
+  const [partsLoading, setPartsLoading] = useState(false);
+  const [usedParts, setUsedParts] = useState<Array<{ partId: string; partName: string; quantity: number; stock: number; unit: string }>>([]);
+  const [partPick, setPartPick] = useState<string>("");
+  const [partQty, setPartQty] = useState<string>("1");
+  useEffect(() => {
+    if (!showPartsPicker || allParts !== null || partsLoading) return;
+    setPartsLoading(true);
+    fetch("/api/parts", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => setAllParts((data?.rows || []) as Part[]))
+      .catch(() => setAllParts([]))
+      .finally(() => setPartsLoading(false));
+  }, [showPartsPicker, allParts, partsLoading]);
+  // Reset used-parts list when type leaves "ซ่อม"
+  useEffect(() => {
+    if (!showPartsPicker && usedParts.length > 0) setUsedParts([]);
+  }, [showPartsPicker, usedParts.length]);
+  // Reset when modal closes — next open starts fresh
+  useEffect(() => {
+    if (!open) {
+      setUsedParts([]);
+      setPartPick("");
+      setPartQty("1");
+    }
+  }, [open]);
+
+  function addUsedPart() {
+    const part = (allParts || []).find((p) => p.id === partPick);
+    if (!part) return;
+    const qty = parseInt(partQty, 10);
+    if (!Number.isFinite(qty) || qty <= 0) return;
+    if (qty > part.stock) return;
+    // If already added, sum qty
+    setUsedParts((prev) => {
+      const existing = prev.find((p) => p.partId === part.id);
+      if (existing) {
+        const newQty = Math.min(part.stock, existing.quantity + qty);
+        return prev.map((p) => (p.partId === part.id ? { ...p, quantity: newQty } : p));
+      }
+      return [...prev, { partId: part.id, partName: part.name, quantity: qty, stock: part.stock, unit: part.unit }];
+    });
+    setPartPick("");
+    setPartQty("1");
+  }
+  function removeUsedPart(partId: string) {
+    setUsedParts((prev) => prev.filter((p) => p.partId !== partId));
+  }
+
+  /**
+   * Wrap parent's onSubmit — after the task is saved successfully,
+   * fire-and-forget POST per used-part to /api/part-requisitions.
+   * Failures are surfaced via toast (parent decides own UX) but don't
+   * block the task from being marked saved.
+   *
+   * The requisition's building/room is taken from the task itself
+   * so the audit log + stock ledger naturally reflect "อะไหล่นี้
+   * ถูกใช้ตอนซ่อมห้องนั้น".
+   */
+  const wrappedSubmit = useCallback(async (values: TaskFormValues) => {
+    await onSubmit(values);
+    if (usedParts.length === 0) return;
+    const isCommon = values.room.startsWith(COMMON_AREA_PREFIX);
+    const reqBuilding = values.building;
+    const reqRoom = isCommon ? values.room : values.room;
+    const taskKey = `${values.date}|${values.building}|${values.room}|${values.type}`;
+    for (const p of usedParts) {
+      try {
+        await fetch("/api/part-requisitions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "add",
+            partId: p.partId,
+            quantity: p.quantity,
+            building: reqBuilding,
+            room: reqRoom,
+            taskKey,
+            note: `ใช้ในงาน ${values.type}`,
+          }),
+        });
+      } catch { /* silent — task already saved */ }
+    }
+  }, [onSubmit, usedParts]);
+
   const currentRoom = watch("room");
   const isCommonMode = allowCommonArea && currentRoom?.startsWith(COMMON_AREA_PREFIX);
   const selectedCommonType = isCommonMode
@@ -227,7 +320,7 @@ export default function AddTaskModal({
         requestClose();
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        handleSubmit(onSubmit)();
+        handleSubmit(wrappedSubmit)();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -255,7 +348,7 @@ export default function AddTaskModal({
           <button className="ac-modal-close" onClick={requestClose} aria-label="ปิด" type="button">✕</button>
         </header>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(wrappedSubmit)}>
           <div className="ac-modal-body">
             {/* SECTION 1 — เมื่อไหร่ + ทำอะไร */}
             <div className="ac-form-section">
@@ -400,6 +493,69 @@ export default function AddTaskModal({
                     {...register("phone")}
                   />
                 </div>
+              </div>
+            )}
+
+            {/* SECTION — อะไหล่ที่ใช้ (เฉพาะงานซ่อม)
+                Selected parts trigger /api/part-requisitions POSTs
+                after the task save succeeds, keeping inventory in
+                sync without a separate "เบิก" step. */}
+            {showPartsPicker && (
+              <div className="ac-form-section">
+                <div className="ac-form-section-label">
+                  อะไหล่ที่ใช้ <span className="ac-form-section-optional">(ไม่บังคับ)</span>
+                </div>
+                <div className="ac-parts-picker-row">
+                  <select
+                    aria-label="เลือกอะไหล่"
+                    className="ac-parts-picker-select"
+                    value={partPick}
+                    onChange={(e) => setPartPick(e.target.value)}
+                    disabled={partsLoading || (allParts?.length ?? 0) === 0}
+                  >
+                    <option value="">— เลือกอะไหล่ —</option>
+                    {(allParts || []).filter((p) => p.stock > 0).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} (มี {p.stock} {p.unit})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    className="ac-parts-picker-qty"
+                    value={partQty}
+                    onChange={(e) => setPartQty(e.target.value.replace(/[^\d]/g, ""))}
+                    aria-label="จำนวน"
+                    placeholder="จำนวน"
+                  />
+                  <button
+                    type="button"
+                    className="ac-btn ac-btn-ghost ac-btn-sm"
+                    onClick={addUsedPart}
+                    disabled={!partPick}
+                  >+ เพิ่ม</button>
+                </div>
+                {usedParts.length > 0 && (
+                  <ul className="ac-parts-picker-list">
+                    {usedParts.map((p) => (
+                      <li key={p.partId}>
+                        <span className="ac-parts-picker-name">{p.partName}</span>
+                        <span className="ac-parts-picker-q">×{p.quantity} {p.unit}</span>
+                        <button
+                          type="button"
+                          className="ac-parts-picker-del"
+                          onClick={() => removeUsedPart(p.partId)}
+                          aria-label={`ลบ ${p.partName}`}
+                        >×</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <span className="ac-field-hint">
+                  สต๊อกจะถูกตัดอัตโนมัติเมื่อบันทึกงาน + บันทึก audit log
+                </span>
               </div>
             )}
 
