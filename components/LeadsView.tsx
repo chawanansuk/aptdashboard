@@ -25,6 +25,9 @@ interface Props {
   /** "+ เพิ่ม Lead" callback from header — when provided, opens with
    *  no initialStage (defaults to "ใหม่"). */
   onAddNew?: () => void;
+  /** When user clicks "📥 สร้างงานย้ายเข้า" inside the Lead edit modal,
+   *  pass the lead up so parent can open AddTaskModal pre-filled. */
+  onCreateMoveinTask?: (lead: Lead) => void;
 }
 
 const STAGE_TONE: Record<LeadStage, string> = {
@@ -36,7 +39,7 @@ const STAGE_TONE: Record<LeadStage, string> = {
   "ปิดเลิก":  "is-lost",
 };
 
-export default function LeadsView({ onAddNew }: Props) {
+export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
   void onAddNew;
   const { data: session } = useSession();
   const canWrite = canPerform(session?.user?.roles, "lead.edit");
@@ -304,6 +307,7 @@ export default function LeadsView({ onAddNew }: Props) {
         initial={editTarget}
         onClose={() => setEditTarget(null)}
         onSaved={() => load()}
+        onCreateMoveinTask={onCreateMoveinTask}
       />
     </section>
   );

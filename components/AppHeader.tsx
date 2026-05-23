@@ -295,6 +295,30 @@ export default function AppHeader({
                   </a>
                 )}
 
+                {/* Management-only — backup zip download. Best-effort:
+                    a "loading..." replacement text would need state, skip
+                    for now since 7 fetches are usually < 2s. */}
+                {isManagement(session?.user?.roles) && (
+                  <button
+                    type="button"
+                    className="ac-user-menu-item"
+                    onClick={async () => {
+                      closeMenu();
+                      try {
+                        toast.info("กำลังสร้าง backup…");
+                        const { downloadBackupZip } = await import("@/lib/backupZip");
+                        await downloadBackupZip();
+                        toast.success("ดาวน์โหลด backup สำเร็จ");
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Backup ล้มเหลว");
+                      }
+                    }}
+                  >
+                    <Icon name="summary" size={16} />
+                    <span>ดาวน์โหลด Backup</span>
+                  </button>
+                )}
+
                 <button
                   className="ac-user-signout"
                   onClick={() => {
