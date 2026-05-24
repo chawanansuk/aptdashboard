@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AuditEntry } from "@/types";
-import { relativeTimeLabel } from "@/lib/relativeTime";
+import { relativeTimeLabel, parseSheetTimestamp } from "@/lib/relativeTime";
 import ErrorBanner from "./ErrorBanner";
 import LoadingState from "./LoadingState";
 
@@ -31,6 +31,23 @@ const ACTION_LABEL: Record<string, string> = {
   run: "รันงานประจำ",
   updateEquipment: "อัปเดตอุปกรณ์",
 };
+
+/** Split a sheet timestamp into a stable {time, date} pair for the
+ *  two-line cell. Uses the robust parser so a Sheets-coerced Date
+ *  string ("Mon May 25 2026 …") still yields "10:30" + "25/05/2026"
+ *  instead of the old fragile string.split(" ") that produced "May". */
+function formatTimestampParts(raw: string): { time: string; date: string } {
+  const d = parseSheetTimestamp(raw);
+  if (!d) {
+    // Truly unparseable — show the raw string in the date slot so an
+    // investigator at least sees something, never a blank row.
+    return { time: "", date: raw || "—" };
+  }
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const date = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  return { time, date };
+}
 
 export default function AuditViewer() {
   const [rows, setRows] = useState<AuditEntry[] | null>(null);
@@ -130,11 +147,14 @@ export default function AuditViewer() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {filtered.map((r) => {
+                const ts = formatTimestampParts(r.timestamp);
+                const rel = relativeTimeLabel(r.timestamp);
+                return (
                 <tr key={r.id}>
                   <td title={r.timestamp}>
-                    <div className="ac-audit-time-main">{r.timestamp.split(" ")[1] || r.timestamp}</div>
-                    <div className="ac-audit-time-sub">{relativeTimeLabel(r.timestamp) || r.timestamp.split(" ")[0]}</div>
+                    <div className="ac-audit-time-main">{ts.time || ts.date}</div>
+                    <div className="ac-audit-time-sub">{rel || ts.date}</div>
                   </td>
                   <td className="ac-audit-user">{r.user.split("@")[0] || "—"}</td>
                   <td><span className="ac-audit-action">{ACTION_LABEL[r.action] || r.action}</span></td>
@@ -146,7 +166,8 @@ export default function AuditViewer() {
                   </td>
                   <td className="ac-audit-details">{r.details || "—"}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
