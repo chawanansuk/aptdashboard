@@ -21,6 +21,13 @@ interface Props {
   roles?: Role[];
   /** Preferred group order (by label). Groups not listed stay in original order at the end. */
   groupOrder?: string[];
+  /** Desktop rail mode (#4). When true the sidebar shrinks to icon-only
+   *  width (~64px) and group labels / item text collapse out. Has no
+   *  effect on mobile/tablet (≤1280) where the sidebar is an overlay. */
+  isCollapsed?: boolean;
+  /** Called when the user toggles collapse via the in-sidebar button.
+   *  Page-level state owner persists the value. Omit to hide the button. */
+  onToggleCollapse?: () => void;
 }
 
 /**
@@ -197,15 +204,35 @@ function prefetch(url: string) {
 
 export default function AppSidebar({
   isOpen, activeView, onChangeView, counts, onBackdropClick, roles, groupOrder, assetAlerts,
+  isCollapsed, onToggleCollapse,
 }: Props) {
   const groups = reorderGroups(buildGroups(counts, roles, assetAlerts), groupOrder);
+  // Mobile overlay forces full layout regardless of collapse — the rail
+  // would be useless when the panel is already a 220px overlay.
+  const railMode = !!isCollapsed && !isOpen;
 
   return (
     <>
-      <aside className={`ac-side ${isOpen ? "is-open" : ""}`}>
+      <aside
+        className={`ac-side ${isOpen ? "is-open" : ""} ${railMode ? "is-collapsed" : ""}`}
+        aria-label="เมนูข้าง"
+        data-collapsed={railMode ? "1" : "0"}
+      >
+        {onToggleCollapse && (
+          <button
+            type="button"
+            className="ac-side-collapse-btn"
+            onClick={onToggleCollapse}
+            aria-label={railMode ? "ขยายเมนู" : "ย่อเมนู"}
+            aria-pressed={railMode}
+            title={railMode ? "ขยายเมนู ([)" : "ย่อเมนู ([)"}
+          >
+            <span aria-hidden>{railMode ? "›" : "‹"}</span>
+          </button>
+        )}
         {groups.map((group) => (
           <div key={group.label} className="ac-side-group">
-            <div className="ac-side-label">{group.label}</div>
+            <div className="ac-side-label" aria-hidden={railMode}>{group.label}</div>
             {group.items.map((item) => {
               const prefetchUrls = prefetchUrlsFor(item.key);
               return (
@@ -215,6 +242,11 @@ export default function AppSidebar({
                 onClick={() => onChangeView(item.key)}
                 onMouseEnter={prefetchUrls ? () => prefetchUrls.forEach(prefetch) : undefined}
                 onFocus={prefetchUrls ? () => prefetchUrls.forEach(prefetch) : undefined}
+                // In rail mode the visible label collapses out, so the
+                // tooltip + aria-label become the only way to read the
+                // item — wire both unconditionally for safety.
+                title={item.label}
+                aria-label={item.label}
               >
                 <span className="ac-side-icon">
                   <ItemIcon icon={item.icon} />

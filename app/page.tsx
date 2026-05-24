@@ -81,6 +81,15 @@ export default function Home() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Desktop sidebar rail mode (#4). Persisted so power users who live
+  // in rail mode don't get expanded on every reload. "1" = collapsed.
+  const [sidebarCollapsedRaw, setSidebarCollapsedRaw] = usePersistedString(
+    "sidebarCollapsed",
+    "0",
+    (v) => v === "0" || v === "1",
+  );
+  const sidebarCollapsed = sidebarCollapsedRaw === "1";
+  const toggleSidebarCollapse = () => setSidebarCollapsedRaw(sidebarCollapsed ? "0" : "1");
 
   // ---- Role-based access (multi-role + view-as) ----
   useSession(); // initialize session so useEffectiveRoles can read it
@@ -352,11 +361,17 @@ export default function Home() {
       } else if (e.key.toLowerCase() === "r") {
         e.preventDefault();
         if (!isRefreshing) refresh();
+      } else if (e.key === "[") {
+        // Toggle sidebar rail mode on desktop. No-op visually on mobile
+        // (sidebar there is an overlay; the class is ignored).
+        e.preventDefault();
+        toggleSidebarCollapse();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedRoom, showAddTask, summaryOpen, sidebarOpen, showHelp, isRefreshing, refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoom, showAddTask, summaryOpen, sidebarOpen, showHelp, isRefreshing, refresh, sidebarCollapsed]);
 
   // ---- Derived data ----
   const buildings = useMemo(() => {
@@ -830,6 +845,8 @@ export default function Home() {
           onBackdropClick={() => setSidebarOpen(false)}
           roles={roles}
           groupOrder={modeConfig.sidebarGroupOrder}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={toggleSidebarCollapse}
         />
 
         <main className="ac-main" id="main-content" tabIndex={-1}>
