@@ -8382,6 +8382,55 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   white-space: pre-wrap;
 }
 
+/* ====================================================================
+ * A11y polish (#16) — global safety nets
+ *
+ * The app already has many focus-visible rules on key components.
+ * This block is a SAFETY NET: any interactive element that slipped
+ * through without an explicit focus style gets a visible ring.
+ * Specific rules above (e.g. .ac-btn:focus-visible) still win via
+ * CSS specificity.
+ * ==================================================================== */
+
+/* Fallback focus ring — only when keyboard-driven (focus-visible).
+   Skip mouse clicks so the page doesn't flash an outline on every
+   button press. */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="radio"]:focus-visible,
+[role="menuitem"]:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* High-contrast scroll affordance for keyboard users: when a custom
+   scrolling container has focus-visible, draw a thin inset ring so
+   they know what scope arrow keys are scrolling. */
+[tabindex="0"]:focus-visible,
+[tabindex="-1"]:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Animation safety — keep keyframe animations short or off when the
+   user prefers reduced motion. Specific media queries already cover
+   most components; this is a broader fallback. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* ====================================================================
  * Notification dropdown (#15)
