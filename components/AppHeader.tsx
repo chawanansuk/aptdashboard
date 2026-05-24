@@ -8,6 +8,8 @@ import { Icon } from "@/lib/icons";
 import { toast } from "@/lib/toast";
 import type { Role } from "@/auth";
 import { isManagement } from "@/lib/permissions";
+import NotificationDropdown from "./NotificationDropdown";
+import type { NotificationItem } from "@/lib/notifications";
 
 interface Props {
   buildings: string[]; // includes "ทั้งหมด" first
@@ -29,6 +31,11 @@ interface Props {
   addLabel?: string;
   /** Mode-specific label for the role/mode badge (e.g. "Sales Mode"). Falls back to MODE_LABEL map. */
   modeLabel?: string;
+  /** Notification dropdown content. Empty array = bell with no badge. */
+  notifications?: NotificationItem[];
+  /** Called when the user picks a notification row — typically the
+   *  parent flips activeView to the row's route. */
+  onNotificationNavigate?: (route: string) => void;
 }
 
 function initialsFromName(name?: string | null): string {
@@ -72,6 +79,7 @@ export default function AppHeader({
   isRefreshing, lastUpdated, isDark,
   onAddTask, onRefresh, onToggleTheme, onOpenSummary, onToggleSidebar, onOpenSearch, onOpenHelp,
   addLabel, modeLabel,
+  notifications, onNotificationNavigate,
 }: Props) {
   const { data: session } = useSession();
   const user = session?.user;
@@ -125,18 +133,21 @@ export default function AppHeader({
         ))}
       </nav>
 
-      {/* === Cell: Actions (refresh + lastUpdated + add button) === */}
+      {/* === Cell: Actions (refresh + add button) ===
+          The "อัปเดต hh:mm" stamp used to live here as a visible label
+          but it ate ~110px of the toolbar for a line most users never
+          read. It now lives as the refresh button's tooltip — same
+          information, zero pixels. */}
       <div className="ac-nav-cell ac-nav-cell-actions">
         <button
           className={`ac-icon-btn ac-hide-mobile ${isRefreshing ? "is-spinning" : ""}`}
-          aria-label="รีเฟรชข้อมูล"
+          aria-label={`รีเฟรชข้อมูล${lastUpdated ? ` · อัปเดตล่าสุด ${lastUpdated}` : ""}`}
           onClick={onRefresh}
           title={`รีเฟรชข้อมูล${lastUpdated ? ` · อัปเดตล่าสุด ${lastUpdated}` : ""}`}
           disabled={isRefreshing}
         >
           <Icon name="refresh" size={16} />
         </button>
-        <div className="ac-last-updated ac-hide-mobile">อัปเดต {lastUpdated || "-"}</div>
         <button
           className="ac-add-btn ac-hide-mobile"
           onClick={onAddTask}
@@ -147,7 +158,7 @@ export default function AppHeader({
         </button>
       </div>
 
-      {/* === Cell: Utils (search + theme + summary + avatar) === */}
+      {/* === Cell: Utils (search + bell + theme + summary + avatar) === */}
       <div className="ac-nav-cell ac-nav-cell-utils">
         {onOpenSearch && (
           <button
@@ -158,6 +169,12 @@ export default function AppHeader({
           >
             <Icon name="search" size={16} />
           </button>
+        )}
+        {notifications !== undefined && (
+          <NotificationDropdown
+            items={notifications}
+            onNavigate={onNotificationNavigate}
+          />
         )}
         <button
           className="ac-theme-toggle ac-hide-mobile"

@@ -79,8 +79,25 @@ describe("getMaintenanceStatus", () => {
     expect(getMaintenanceStatus({ intervalDays: 30, lastService: "2026-05-22", installDate: "" })).toBe("ok");
   });
 
-  it("'unknown' when no schedule info", () => {
+  it("'unknown' when no schedule info (no interval, no dates)", () => {
     expect(getMaintenanceStatus({ intervalDays: 0, lastService: "", installDate: "" })).toBe("unknown");
+  });
+
+  it("'needs-date' when interval set but no anchor date", () => {
+    // Data-entry gap: admin said "every 30 days" but gave no start
+    // point. Previously collapsed to "unknown" and hid the mistake.
+    expect(getMaintenanceStatus({ intervalDays: 30, lastService: "", installDate: "" })).toBe("needs-date");
+  });
+
+  it("'needs-date' when interval set but anchor dates are unparseable", () => {
+    expect(getMaintenanceStatus({ intervalDays: 30, lastService: "garbage", installDate: "" })).toBe("needs-date");
+  });
+
+  it("does NOT flag needs-date once an anchor date exists", () => {
+    // With a valid installDate the status resolves to a real schedule.
+    const s = getMaintenanceStatus({ intervalDays: 30, lastService: "", installDate: "2026-05-01" });
+    expect(s).not.toBe("needs-date");
+    expect(["ok", "due-soon", "overdue"]).toContain(s);
   });
 
   it("boundary: exactly 14 days = due-soon", () => {

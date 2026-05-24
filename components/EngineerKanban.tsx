@@ -431,6 +431,12 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
           // updated board state; the next click can re-open with fresh data.
           setDrawerTask(null);
         }}
+        onEdit={onEditTask && ((t) => {
+          // Hand off to the shared edit modal mounted at page root.
+          // Close the drawer first so the modal isn't hidden behind it.
+          setDrawerTask(null);
+          onEditTask(t);
+        })}
       />
     </section>
   );
