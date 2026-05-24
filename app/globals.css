@@ -2509,6 +2509,12 @@ html.dark .ac-cal-day-detail { background: #1E293B; }
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
 }
+/* Zero-value chip (e.g. "ยกเลิก" 0) — present for completeness but
+   visually recessed so it doesn't compete with real counts. */
+.ac-cal-day-view-stat.is-muted {
+  background: transparent;
+  opacity: 0.5;
+}
 .ac-cal-day-view-stat-num {
   font-size: 1.25rem;
   font-weight: 700;

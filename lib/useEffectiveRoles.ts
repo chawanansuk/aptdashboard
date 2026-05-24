@@ -59,6 +59,26 @@ export function useEffectiveRoles(): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actualRoles.join("|")]);
 
+  // Multi-tab sync — when another tab changes the view-as role, the
+  // browser fires a `storage` event here. Mirror it into local state so
+  // both tabs show the same mode without a reload. (The setter below
+  // writes localStorage in THIS tab; `storage` only fires in OTHER tabs,
+  // so there's no echo loop.)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    function onStorage(e: StorageEvent) {
+      if (e.key !== STORAGE_KEY) return;
+      if (e.newValue === null) {
+        setViewAsState(ALL); // removed elsewhere → back to "all"
+      } else if (isValidView(e.newValue, actualRoles)) {
+        setViewAsState(e.newValue);
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actualRoles.join("|")]);
+
   const setViewAs = useCallback((v: ViewAsValue) => {
     setViewAsState(v);
     if (typeof window === "undefined") return;
