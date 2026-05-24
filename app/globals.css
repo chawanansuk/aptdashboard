@@ -557,16 +557,9 @@ html.dark .ac-theme-toggle:hover { background: #334155; }
   color: #991B1B;
 }
 
-.ac-last-updated {
-  font-size: 11px;
-  color: #9CA3AF;
-  margin-right: 4px;
-  white-space: nowrap;
-}
-
-@media (max-width: 768px) {
-  .ac-last-updated { display: none; }
-}
+/* .ac-last-updated removed (#1 partial) — the "อัปเดต hh:mm" text was
+   demoted to the refresh button's tooltip / aria-label since it ate
+   ~110px of header width for a line most users never read. */
 /* ApartCloud Design Brief - globals.css */
 
 * { box-sizing: border-box; }
@@ -626,13 +619,24 @@ body { padding-top: env(safe-area-inset-top); }
 .ac-nav-cell-actions { grid-area: actions; display: flex; align-items: center; gap: 8px; justify-self: end; }
 .ac-nav-cell-utils   { grid-area: utils;   display: flex; align-items: center; gap: 4px; justify-self: end; }
 
-/* Desktop: collapse into one row */
+/* Desktop: collapse into one row.
+   Height trimmed from 56→48 (#1 partial). The previous 56px was
+   inherited from the original two-row mobile design; on desktop the
+   nav only ever shows one row, so 48px gives content ~8px of vertical
+   real estate back without cramping the icon-button hit areas. */
 @media (min-width: 1024px) {
   .ac-nav {
     grid-template-areas: "brand tabs actions utils";
     grid-template-columns: auto minmax(0, 1fr) auto auto;
-    height: 56px;
-    padding: 0 24px;
+    height: 48px;
+    padding: 0 20px;
+  }
+  /* Scope: only icon buttons inside the header are shrunk — modals
+     and other pages keep the original 40×40 spec. */
+  .ac-nav .ac-icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
   }
 }
 
@@ -667,9 +671,9 @@ body { padding-top: env(safe-area-inset-top); }
 .ac-mode-badge {
   font-size: 10px;
   font-weight: 700;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 999px;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   border: 1px solid transparent;
   /* default: sales (green) — kept for safety when role is missing */
   background: #F0FDF4;
@@ -724,13 +728,14 @@ html.dark .ac-mode-badge.is-management {
 /* Legacy select kept hidden — pills are now used on all viewports. */
 .ac-tabs-select { display: none !important; }
 .ac-tab {
-  padding: 6px 14px;
+  padding: 5px 12px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   color: #6B7280;
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
   flex-shrink: 0;
+  line-height: 1.4;
 }
 .ac-tab:hover { background: #F3F4F6; color: #111827; transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease; }
 .ac-tab.is-active {
@@ -1241,6 +1246,66 @@ html.dark .ac-rc-more:hover { background: #0F172A; color: #F1F5F9; }
   background: var(--color-surface-3);
   color: var(--color-text);
 }
+
+/* RoomModal header nav (#9) — prev/next arrows + position counter +
+   close button sit in a single right-aligned cluster. */
+.ac-room-modal-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ac-room-modal-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 1.125rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+.ac-room-modal-nav-btn:hover:not(:disabled) {
+  background: var(--color-surface-2, var(--color-bg));
+  border-color: var(--color-accent);
+}
+.ac-room-modal-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ac-room-modal-nav-pos {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  padding: 0 6px;
+  min-width: 48px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ac-room-modal-dirty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: #F59E0B;
+  font-size: 1.25rem;
+  line-height: 1;
+  margin: 0 2px;
+  cursor: help;
+  animation: ac-dirty-pulse 2s ease-in-out infinite;
+}
+@keyframes ac-dirty-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-room-modal-dirty { animation: none; }
+}
 .ac-modal-row {
   display: flex; justify-content: space-between; align-items: center;
   font-size: var(--text-base); color: var(--color-text-muted);
@@ -1430,15 +1495,26 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   color: #fff;
   border: 0;
   font-weight: var(--font-weight-semibold);
-  padding: var(--space-2) var(--space-3);
+  /* Tighter vertical padding (#1 partial) so the button sits cleanly
+     within the new 48px desktop header without forcing min-height
+     overflow. Horizontal padding kept generous for thumb-tap on tablet. */
+  padding: 6px var(--space-3);
   border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: var(--text-base);
+  font-size: 13px;
   display: inline-flex; align-items: center; gap: var(--space-1);
   box-shadow: var(--shadow-xs);
   transition: background var(--duration-fast) var(--ease-out),
               box-shadow var(--duration-fast) var(--ease-out),
               transform var(--duration-fast) var(--ease-out);
+}
+/* Tablet (≤1023): hide the "เพิ่มงาน" label so only the + icon
+   remains, freeing ~70px in the toolbar. Tooltip still carries the
+   addLabel so the affordance isn't lost. Mobile already hides the
+   whole button via ac-hide-mobile + the bottom-nav add tab. */
+@media (max-width: 1023px) {
+  .ac-add-btn .ac-add-btn-text { display: none; }
+  .ac-add-btn { padding: 6px 10px; }
 }
 .ac-add-btn:hover { background: #1D4ED8; box-shadow: var(--shadow-sm); }
 .ac-add-btn:active { transform: translateY(0.5px) scale(0.985); }
@@ -2316,6 +2392,122 @@ html.dark .ac-cal-dot-more { background: #1E293B; color: #94A3B8; }
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 html.dark .ac-cal-day-detail { background: #1E293B; }
+
+/* Month/Day mode segmented control — sits in the calendar header nav. */
+.ac-cal-mode {
+  display: inline-flex;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-right: var(--space-2);
+}
+.ac-cal-mode-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  min-height: 32px;
+}
+.ac-cal-mode-btn:hover {
+  color: var(--color-text);
+}
+.ac-cal-mode-btn.is-active {
+  background: var(--color-accent);
+  color: white;
+  font-weight: 600;
+}
+.ac-cal-mode-btn + .ac-cal-mode-btn {
+  border-left: 1px solid var(--color-border);
+}
+.ac-cal-mode-btn.is-active + .ac-cal-mode-btn,
+.ac-cal-mode-btn + .ac-cal-mode-btn.is-active {
+  border-left-color: var(--color-accent);
+}
+
+/* Day-focused mode body — large header + grouped task lists for the
+   chosen day. Replaces the month grid entirely when active so the
+   user gets a printer-friendly single-day plan. */
+.ac-cal-day-view {
+  background: var(--color-surface);
+  border-radius: 14px;
+  padding: var(--space-4);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.ac-cal-day-view-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4) 0;
+  padding: 0 0 var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.ac-cal-day-view-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ac-cal-day-view-stats {
+  display: inline-flex;
+  gap: var(--space-3);
+}
+.ac-cal-day-view-stat {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+  padding: 0.25rem 0.5rem;
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.ac-cal-day-view-stat-num {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.1;
+}
+.ac-cal-day-view-stat-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+.ac-cal-day-view-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.ac-cal-day-view-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ac-cal-day-view-group-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ac-cal-day-view-group.is-done-group .ac-cal-task,
+.ac-cal-day-view-group.is-cancelled-group .ac-cal-task {
+  opacity: 0.75;
+}
+
+@media print {
+  .ac-cal-day-view { box-shadow: none; }
+  .ac-cal-mode { display: none; }
+}
 .ac-cal-task-list {
   display: flex;
   flex-direction: column;
@@ -8237,5 +8429,190 @@ textarea:focus-visible,
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ====================================================================
+ * Notification dropdown (#15)
+ *
+ * Bell icon in the header opens a small panel with the few "things
+ * to look at today" rows. Anchored to the bell via absolute
+ * positioning; the wrapper is position:relative so the panel snaps
+ * to the trigger regardless of where the header reflows.
+ * ==================================================================== */
+
+.ac-notif {
+  position: relative;
+}
+
+.ac-notif-trigger {
+  position: relative;
+}
+.ac-notif-trigger.has-items { color: var(--color-text); }
+
+.ac-notif-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #EF4444;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+.ac-notif-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 320px;
+  max-width: 380px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  z-index: 60;
+  overflow: hidden;
+}
+
+.ac-notif-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface));
+}
+.ac-notif-panel-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: var(--color-text);
+}
+.ac-notif-panel-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.ac-notif-empty {
+  padding: 24px 16px;
+  text-align: center;
+}
+.ac-notif-empty-glyph {
+  font-size: 1.5rem;
+  color: #22C55E;
+  margin-bottom: 4px;
+}
+.ac-notif-empty-text {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.ac-notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.ac-notif-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: transparent;
+  border: 0;
+  border-left: 3px solid transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  color: var(--color-text);
+}
+.ac-notif-row:disabled { cursor: default; }
+.ac-notif-row.is-clickable:hover {
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+}
+.ac-notif-row--critical { border-left-color: #EF4444; }
+.ac-notif-row--warning  { border-left-color: #F59E0B; }
+.ac-notif-row--info     { border-left-color: #3B82F6; }
+
+.ac-notif-row-glyph {
+  font-size: 1.125rem;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ac-notif-row-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ac-notif-row-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.25;
+}
+.ac-notif-row-detail {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ac-notif-row-count {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-text);
+  background: var(--color-bg);
+  padding: 2px 10px;
+  border-radius: 999px;
+  min-width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ac-notif-row--critical .ac-notif-row-count {
+  background: rgba(239, 68, 68, 0.12);
+  color: #B91C1C;
+}
+.ac-notif-row--warning .ac-notif-row-count {
+  background: rgba(245, 158, 11, 0.12);
+  color: #B45309;
+}
+
+html.dark .ac-notif-row-count {
+  color: #F1F5F9;
+}
+html.dark .ac-notif-row--critical .ac-notif-row-count {
+  color: #FCA5A5;
+}
+html.dark .ac-notif-row--warning .ac-notif-row-count {
+  color: #FCD34D;
+}
+
+@media (max-width: 640px) {
+  .ac-notif-panel {
+    position: fixed;
+    top: auto;
+    right: 8px;
+    left: 8px;
+    min-width: 0;
+    max-width: none;
   }
 }

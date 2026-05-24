@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.17.0 — Dashboard หอพัก
+ * Code.gs v3.19.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -284,6 +284,21 @@ function norm(v) {
 function fmtDate_(v) {
   if (v instanceof Date) {
     return Utilities.formatDate(v, Session.getScriptTimeZone() || 'Asia/Bangkok', 'yyyy-MM-dd');
+  }
+  return norm(v);
+}
+
+/**
+ * Like fmtDate_ but keeps the time component — for timestamp columns
+ * (audit_log, createdAt). When Google Sheets coerces a "yyyy-MM-dd
+ * HH:mm:ss" text cell into a real Date, norm() would stringify it as
+ * "Mon May 25 2026 10:30:45 GMT+0700 (...)" which the client can't
+ * split reliably. Formatting Date cells back to the canonical string
+ * keeps the API contract stable regardless of cell type.
+ */
+function fmtDateTime_(v) {
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone() || 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
   }
   return norm(v);
 }
@@ -589,17 +604,46 @@ function updateRoomStatus_(b) {
   if (idxBld < 0 || idxRoom < 0 || idxStatus < 0) throw new Error('headers missing on ห้อง');
   for (let i = 1; i < data.length; i++) {
     if (norm(data[i][idxBld]) === norm(b.building) && norm(data[i][idxRoom]) === norm(b.room)) {
+      // Snapshot every field we might write so we can diff after the
+      // write and produce a single human-readable audit entry. v3.17
+      // only audited status changes; v3.18 covers tenant/phone/contract
+      // too so management's audit page reflects what actually changed.
       const oldStatus = norm(data[i][idxStatus]);
+      const oldTenant = idxTenant >= 0 ? norm(data[i][idxTenant]) : '';
+      const oldPhone  = idxPhone  >= 0 ? norm(data[i][idxPhone])  : '';
+      const oldCntr   = idxCntr   >= 0 ? norm(data[i][idxCntr])   : '';
+
       if (b.status      !== undefined) sh.getRange(i+1, idxStatus+1).setValue(b.status);
       if (b.tenant      !== undefined && idxTenant >= 0) sh.getRange(i+1, idxTenant+1).setValue(b.tenant);
       if (b.phone       !== undefined && idxPhone  >= 0) sh.getRange(i+1, idxPhone+1).setValue(b.phone);
       if (b.contractEnd !== undefined && idxCntr   >= 0) sh.getRange(i+1, idxCntr+1).setValue(b.contractEnd);
       clearRoomsCache_();
-      // Audit log — only when status actually changed (skip pure
-      // tenant/phone edits to avoid noise)
+
+      // Field-level diff for the audit log. Empty diffs (caller sent a
+      // value identical to what was there) collapse to nothing, so a
+      // no-op save doesn't pollute the log.
+      const diffs = [];
       if (b.status !== undefined && norm(b.status) !== oldStatus) {
-        logAudit_('updateRoomStatus', 'room', b.building + '|' + b.room,
-          oldStatus + ' → ' + norm(b.status), b.creator);
+        diffs.push('สถานะ: ' + (oldStatus || '∅') + ' → ' + norm(b.status));
+      }
+      if (b.tenant !== undefined && norm(b.tenant) !== oldTenant) {
+        diffs.push('ผู้เช่า: ' + (oldTenant || '∅') + ' → ' + (norm(b.tenant) || '∅'));
+      }
+      if (b.phone !== undefined && norm(b.phone) !== oldPhone) {
+        diffs.push('เบอร์: ' + (oldPhone || '∅') + ' → ' + (norm(b.phone) || '∅'));
+      }
+      if (b.contractEnd !== undefined && norm(b.contractEnd) !== oldCntr) {
+        diffs.push('สัญญา: ' + (oldCntr || '∅') + ' → ' + (norm(b.contractEnd) || '∅'));
+      }
+      if (diffs.length > 0) {
+        // Choose the action label by what dominated the edit so the
+        // audit-viewer's filter chips still group nicely:
+        //   - status changed → updateRoomStatus
+        //   - else any data field changed → updateRoomData
+        const action = (b.status !== undefined && norm(b.status) !== oldStatus)
+          ? 'updateRoomStatus'
+          : 'updateRoomData';
+        logAudit_(action, 'room', b.building + '|' + b.room, diffs.join(', '), b.creator);
       }
       return { updated: true, row: i+1 };
     }
@@ -1649,7 +1693,9 @@ function getAllAudit_(b) {
     if (!norm(r[0])) continue;
     rows.push({
       id: norm(r[0]),
-      timestamp: norm(r[1]),
+      // fmtDateTime_ guards against Sheets coercing the timestamp text
+      // into a Date cell (which norm would stringify unparseably).
+      timestamp: fmtDateTime_(r[1]),
       user: norm(r[2]),
       action: norm(r[3]),
       entity: norm(r[4]),

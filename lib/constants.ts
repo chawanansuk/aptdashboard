@@ -114,17 +114,19 @@ export const INTERVAL_OPTIONS: { value: number; label: string }[] = [
 ];
 
 export const MAINTENANCE_STATUS_COLOR: Record<string, string> = {
-  ok:        TOKEN.ok,
-  "due-soon": TOKEN.warn,
-  overdue:   TOKEN.danger,
-  unknown:   TOKEN.neutral,
+  ok:          TOKEN.ok,
+  "due-soon":  TOKEN.warn,
+  overdue:     TOKEN.danger,
+  "needs-date": TOKEN.info,
+  unknown:     TOKEN.neutral,
 };
 
 export const MAINTENANCE_STATUS_LABEL: Record<string, string> = {
-  ok:         "ตามรอบ",
-  "due-soon": "ใกล้ครบรอบ",
-  overdue:    "เลยกำหนด",
-  unknown:    "ไม่กำหนดรอบ",
+  ok:          "ตามรอบ",
+  "due-soon":  "ใกล้ครบรอบ",
+  overdue:     "เลยกำหนด",
+  "needs-date": "รอระบุวันที่",
+  unknown:     "ไม่กำหนดรอบ",
 };
 
 // ===== Facility (v3.8.0) =====

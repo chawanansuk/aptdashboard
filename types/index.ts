@@ -105,7 +105,7 @@ export interface RoomEquipment {
 }
 
 // ===== Maintenance schedule (v3.7.0) =====
-export type MaintenanceStatus = "ok" | "due-soon" | "overdue" | "unknown";
+export type MaintenanceStatus = "ok" | "due-soon" | "overdue" | "needs-date" | "unknown";
 
 // ===== Facility (v3.8.0) — building-level สาธารณูปโภค =====
 export type FacilityType =
