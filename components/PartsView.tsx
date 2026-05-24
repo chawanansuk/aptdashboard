@@ -88,6 +88,9 @@ export default function PartsView({ rooms = [] }: Props) {
     // round-trip. Re-load on success/failure to settle on the
     // server-authoritative value.
     if (p.stock + delta < 0) return;
+    // Clear any stale error from a prior failed adjust — otherwise a
+    // successful retry still shows the old error banner until refresh.
+    setErr(null);
     setBusyIds((s) => new Set(s).add(p.id));
     setRows((prev) =>
       (prev || []).map((r) => (r.id === p.id ? { ...r, stock: r.stock + delta } : r)),

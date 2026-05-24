@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.18.0 — Dashboard หอพัก
+ * Code.gs v3.20.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
@@ -580,28 +580,41 @@ function updateRoomStatus_(b) {
   if (!sh) throw new Error('sheet "ห้อง" not found');
   const data = sh.getDataRange().getValues();
   const headers = data[0].map(norm);
+  // Price column has several historical header aliases — match the same
+  // set getRooms_ reads from so a write lands in the column the UI shows.
+  const findIdx = function (aliases) {
+    for (let a = 0; a < aliases.length; a++) {
+      const idx = headers.indexOf(aliases[a]);
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
   const idxBld    = headers.indexOf('ตึก');
   const idxRoom   = headers.indexOf('ห้อง');
   const idxStatus = headers.indexOf('สถานะ');
   const idxTenant = headers.indexOf('ผู้เช่า');
   const idxPhone  = headers.indexOf('เบอร์');
   const idxCntr   = headers.indexOf('สัญญา');
+  const idxPrice  = findIdx(['ค่าเช่า', 'ราคา/เดือน', 'ราคา', 'ค่าเช่ารายเดือน']);
   if (idxBld < 0 || idxRoom < 0 || idxStatus < 0) throw new Error('headers missing on ห้อง');
   for (let i = 1; i < data.length; i++) {
     if (norm(data[i][idxBld]) === norm(b.building) && norm(data[i][idxRoom]) === norm(b.room)) {
       // Snapshot every field we might write so we can diff after the
       // write and produce a single human-readable audit entry. v3.17
-      // only audited status changes; v3.18 covers tenant/phone/contract
-      // too so management's audit page reflects what actually changed.
+      // only audited status changes; v3.18 covers tenant/phone/contract;
+      // v3.20 adds price — which the UI sent all along but the backend
+      // silently dropped (room price edits reverted on refresh).
       const oldStatus = norm(data[i][idxStatus]);
       const oldTenant = idxTenant >= 0 ? norm(data[i][idxTenant]) : '';
       const oldPhone  = idxPhone  >= 0 ? norm(data[i][idxPhone])  : '';
       const oldCntr   = idxCntr   >= 0 ? norm(data[i][idxCntr])   : '';
+      const oldPrice  = idxPrice  >= 0 ? norm(data[i][idxPrice])  : '';
 
       if (b.status      !== undefined) sh.getRange(i+1, idxStatus+1).setValue(b.status);
       if (b.tenant      !== undefined && idxTenant >= 0) sh.getRange(i+1, idxTenant+1).setValue(b.tenant);
       if (b.phone       !== undefined && idxPhone  >= 0) sh.getRange(i+1, idxPhone+1).setValue(b.phone);
       if (b.contractEnd !== undefined && idxCntr   >= 0) sh.getRange(i+1, idxCntr+1).setValue(b.contractEnd);
+      if (b.price       !== undefined && idxPrice  >= 0) sh.getRange(i+1, idxPrice+1).setValue(b.price);
       clearRoomsCache_();
 
       // Field-level diff for the audit log. Empty diffs (caller sent a
@@ -619,6 +632,9 @@ function updateRoomStatus_(b) {
       }
       if (b.contractEnd !== undefined && norm(b.contractEnd) !== oldCntr) {
         diffs.push('สัญญา: ' + (oldCntr || '∅') + ' → ' + (norm(b.contractEnd) || '∅'));
+      }
+      if (b.price !== undefined && idxPrice >= 0 && norm(b.price) !== oldPrice) {
+        diffs.push('ค่าเช่า: ' + (oldPrice || '∅') + ' → ' + (norm(b.price) || '∅'));
       }
       if (diffs.length > 0) {
         // Choose the action label by what dominated the edit so the
