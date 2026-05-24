@@ -803,6 +803,44 @@ html.dark .ac-mode-badge.is-management {
   gap: 16px;
   flex-shrink: 0;
   overflow-y: auto;
+  /* #4 — animate width changes when collapsing/expanding. Honoured
+     only on desktop because below 1280px the sidebar is a fixed
+     overlay (transition: transform) and width animation would clash. */
+  transition: width 200ms ease;
+}
+
+/* Sidebar collapse toggle button (#4) — small chevron in the top-right
+   of the rail. Anchored absolute so the existing flex layout doesn't
+   need to shift. Hidden in the mobile overlay state since collapsing
+   a 220px overlay to 64px serves no purpose. */
+.ac-side-collapse-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.ac-side-collapse-btn:hover {
+  background: var(--color-surface-2, #F3F4F6);
+  color: var(--color-text);
+  border-color: var(--color-accent);
+}
+/* Make room at the top of the sidebar for the collapse button so it
+   doesn't overlap the first nav-group label. */
+@media (min-width: 1281px) {
+  .ac-side { position: relative; padding-top: 36px; }
+  .ac-side-collapse-btn { display: inline-flex; }
 }
 .ac-side-group { display: flex; flex-direction: column; gap: 2px; }
 .ac-side-label {
@@ -8582,6 +8620,55 @@ textarea:focus-visible,
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ====================================================================
+ * Sidebar rail mode (#4 collapsible) — desktop only.
+ *
+ * When .ac-side has .is-collapsed AND we're on a desktop viewport
+ * (the in-flow sidebar, not the overlay), shrink to a 64px icon-only
+ * rail. Item text and group labels collapse out via display:none so
+ * accessibility-tree consumers still get the names from aria-label
+ * on each button.
+ * ==================================================================== */
+@media (min-width: 1281px) {
+  .ac-side.is-collapsed {
+    width: 64px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .ac-side.is-collapsed .ac-side-label {
+    display: none;
+  }
+  .ac-side.is-collapsed .ac-side-text {
+    display: none;
+  }
+  .ac-side.is-collapsed .ac-side-item {
+    /* Center the icon when the label is gone — without this the icon
+       sits flush-left and the rail looks unbalanced. */
+    justify-content: center;
+    padding: 8px 6px;
+    gap: 0;
+  }
+  .ac-side.is-collapsed .ac-side-item .ac-badge {
+    /* Badges shrink to a small floating dot anchored to the icon's
+       top-right so the count stays visible without needing the label. */
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    min-width: 16px;
+    padding: 0 4px;
+    font-size: 9px;
+    line-height: 14px;
+  }
+  .ac-side.is-collapsed .ac-side-item {
+    position: relative;
+  }
+  /* Active indicator becomes a left bar so the rail still reads at
+     a glance without relying on the colour-shifted text. */
+  .ac-side.is-collapsed .ac-side-item.is-active {
+    box-shadow: inset 3px 0 0 var(--color-accent);
   }
 }
 

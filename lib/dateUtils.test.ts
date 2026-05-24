@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseThaiDate } from "./dateUtils";
+import { parseThaiDate, parseSheetDate } from "./dateUtils";
 
 describe("parseThaiDate", () => {
   it("parses DD/MM/YYYY", () => {
@@ -55,5 +55,37 @@ describe("parseThaiDate", () => {
     expect(parseThaiDate("   ")).toBeNull();
     expect(parseThaiDate("not a date")).toBeNull();
     expect(parseThaiDate("2026/05/25")).toBeNull();
+  });
+});
+
+describe("parseSheetDate (strict day-in-month)", () => {
+  it("parses both ISO and DMY", () => {
+    expect(parseSheetDate("2026-05-25")?.getDate()).toBe(25);
+    expect(parseSheetDate("25/05/2026")?.getDate()).toBe(25);
+    expect(parseSheetDate("25-05-2026")?.getDate()).toBe(25);
+    expect(parseSheetDate("25.05.2026")?.getDate()).toBe(25);
+  });
+
+  it("rejects out-of-range month/day in either format", () => {
+    expect(parseSheetDate("2026-13-01")).toBeNull();
+    expect(parseSheetDate("2026-05-32")).toBeNull();
+    expect(parseSheetDate("32/05/2026")).toBeNull();
+    expect(parseSheetDate("01/13/2026")).toBeNull();
+  });
+
+  it("rejects impossible day-in-month (Feb 30, Apr 31)", () => {
+    // The previous version let JavaScript's Date constructor silently
+    // roll these into the next month — Feb 30 became Mar 2.
+    expect(parseSheetDate("2026-02-30")).toBeNull();
+    expect(parseSheetDate("2026-04-31")).toBeNull();
+    expect(parseSheetDate("30/02/2026")).toBeNull();
+  });
+
+  it("accepts leap-year Feb 29", () => {
+    expect(parseSheetDate("2028-02-29")?.getDate()).toBe(29);
+  });
+
+  it("rejects non-leap-year Feb 29", () => {
+    expect(parseSheetDate("2026-02-29")).toBeNull();
   });
 });

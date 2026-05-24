@@ -41,6 +41,7 @@ const GROUPS: Array<{ title: string; items: Shortcut[] }> = [
       { keys: ["N"], label: "เปิดฟอร์มเพิ่มงาน" },
       { keys: ["R"], label: "รีเฟรชข้อมูล" },
       { keys: ["?"], label: "เปิดหน้าช่วยเหลือนี้" },
+      { keys: ["["], label: "ย่อ / ขยายเมนูข้าง", hint: "Desktop เท่านั้น" },
     ],
   },
   {
