@@ -288,6 +288,21 @@ function fmtDate_(v) {
   return norm(v);
 }
 
+/**
+ * Like fmtDate_ but keeps the time component — for timestamp columns
+ * (audit_log, createdAt). When Google Sheets coerces a "yyyy-MM-dd
+ * HH:mm:ss" text cell into a real Date, norm() would stringify it as
+ * "Mon May 25 2026 10:30:45 GMT+0700 (...)" which the client can't
+ * split reliably. Formatting Date cells back to the canonical string
+ * keeps the API contract stable regardless of cell type.
+ */
+function fmtDateTime_(v) {
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone() || 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
+  }
+  return norm(v);
+}
+
 function jsonOut_(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
@@ -1694,7 +1709,9 @@ function getAllAudit_(b) {
     if (!norm(r[0])) continue;
     rows.push({
       id: norm(r[0]),
-      timestamp: norm(r[1]),
+      // fmtDateTime_ guards against Sheets coercing the timestamp text
+      // into a Date cell (which norm would stringify unparseably).
+      timestamp: fmtDateTime_(r[1]),
       user: norm(r[2]),
       action: norm(r[3]),
       entity: norm(r[4]),

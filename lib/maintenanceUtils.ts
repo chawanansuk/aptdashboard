@@ -55,6 +55,14 @@ export function daysUntilService(eq: Serviceable): number | null {
 }
 
 export function getMaintenanceStatus(eq: Serviceable): MaintenanceStatus {
+  const interval = Number(eq.intervalDays || 0);
+  const hasAnchor = !!(parseYmd(eq.lastService) || parseYmd(eq.installDate));
+  // Distinguish two cases that previously both collapsed to "unknown":
+  //   - interval set but no anchor date → "needs-date" (data-entry gap:
+  //     admin said "service every N days" but gave no starting point,
+  //     so the due date is uncomputable and the row needs attention)
+  //   - no interval at all → "unknown" (legitimately no schedule)
+  if (interval > 0 && !hasAnchor) return "needs-date";
   const days = daysUntilService(eq);
   if (days === null) return "unknown";
   if (days < 0) return "overdue";
