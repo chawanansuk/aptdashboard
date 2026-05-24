@@ -12,3 +12,10 @@
 # typescript
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Playwright e2e
+/test-results/
+/playwright-report/
+/e2e/.auth/
+/blob-report/
+/playwright/.cache/
