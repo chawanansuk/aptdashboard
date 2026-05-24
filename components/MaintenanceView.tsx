@@ -25,13 +25,17 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "overdue", label: "เลยกำหนด" },
   { key: "due-soon", label: "ใกล้ครบรอบ" },
   { key: "ok", label: "ตามรอบ" },
+  { key: "needs-date", label: "รอระบุวันที่" },
 ];
 
 const STATUS_ORDER: Record<MaintenanceStatus, number> = {
   overdue: 0,
   "due-soon": 1,
-  ok: 2,
-  unknown: 3,
+  // needs-date sits above "ok" — it's actionable (admin must fill a
+  // date) so it shouldn't hide below the healthy rows.
+  "needs-date": 2,
+  ok: 3,
+  unknown: 4,
 };
 
 export default function MaintenanceView({ activeBuilding, onScheduleService }: Props) {
@@ -91,17 +95,18 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
   /** Top-of-page summary counts — respect activeBuilding but ignore filters
    *  (so user always sees the bigger picture even after filtering). */
   const counts = useMemo(() => {
-    if (!rows) return { overdue: 0, dueSoon: 0, ok: 0, unknown: 0 };
-    let overdue = 0, dueSoon = 0, ok = 0, unknown = 0;
+    if (!rows) return { overdue: 0, dueSoon: 0, ok: 0, needsDate: 0, unknown: 0 };
+    let overdue = 0, dueSoon = 0, ok = 0, needsDate = 0, unknown = 0;
     for (const eq of rows) {
       if (activeBuilding !== "ทั้งหมด" && eq.building !== activeBuilding) continue;
       const m = getMaintenanceStatus(eq);
       if (m === "overdue") overdue++;
       else if (m === "due-soon") dueSoon++;
       else if (m === "ok") ok++;
+      else if (m === "needs-date") needsDate++;
       else unknown++;
     }
-    return { overdue, dueSoon, ok, unknown };
+    return { overdue, dueSoon, ok, needsDate, unknown };
   }, [rows, activeBuilding]);
 
   /** Week preview — items due in next 7 days or already overdue.
@@ -195,6 +200,12 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
           <div className="ac-maint-stat-num" style={{ color: MAINTENANCE_STATUS_COLOR.ok }}>{counts.ok}</div>
           <div className="ac-maint-stat-label">ตามรอบ</div>
         </div>
+        {counts.needsDate > 0 && (
+          <div className="ac-maint-stat" style={{ borderColor: MAINTENANCE_STATUS_COLOR["needs-date"] }}>
+            <div className="ac-maint-stat-num" style={{ color: MAINTENANCE_STATUS_COLOR["needs-date"] }}>{counts.needsDate}</div>
+            <div className="ac-maint-stat-label">รอระบุวันที่</div>
+          </div>
+        )}
         <div className="ac-maint-stat" style={{ borderColor: MAINTENANCE_STATUS_COLOR.unknown }}>
           <div className="ac-maint-stat-num" style={{ color: MAINTENANCE_STATUS_COLOR.unknown }}>{counts.unknown}</div>
           <div className="ac-maint-stat-label">ไม่กำหนดรอบ</div>
@@ -401,7 +412,16 @@ function MaintCard({
           >{eq.status}</span>
         </div>
         <div className="ac-maint-card-meta">
-          {next ? <>บำรุงครั้งต่อไป {formatDateLabel(next)}</> : <>ยังไม่กำหนดรอบบำรุง</>}
+          {next ? (
+            <>บำรุงครั้งต่อไป {formatDateLabel(next)}</>
+          ) : m === "needs-date" ? (
+            // Schedule defined (intervalDays > 0) but no anchor date —
+            // tell the admin exactly what to fill in rather than the
+            // ambiguous "no schedule" message.
+            <>ตั้งรอบ {eq.intervalDays} วันแล้ว · ต้องระบุวันติดตั้ง/ซ่อมล่าสุด</>
+          ) : (
+            <>ยังไม่กำหนดรอบบำรุง</>
+          )}
           {eq.lastService && <> · ซ่อมล่าสุด {formatDateLabel(eq.lastService)}</>}
         </div>
       </div>
