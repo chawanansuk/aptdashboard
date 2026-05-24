@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { relativeTimeLabel } from "./relativeTime";
+import { relativeTimeLabel, parseSheetTimestamp } from "./relativeTime";
 
 // Anchor "now" so tests are deterministic
 const NOW = new Date("2026-05-22T10:00:00");
@@ -51,5 +51,59 @@ describe("relativeTimeLabel", () => {
   it("future timestamp (clock skew) → treats as 'just now'", () => {
     const future = new Date(NOW.getTime() + 5 * 60_000).toISOString().slice(0, 16).replace("T", " ");
     expect(relativeTimeLabel(future, NOW)).toBe("เพิ่งสร้าง");
+  });
+
+  it("handles canonical 'yyyy-MM-dd HH:mm:ss' with seconds", () => {
+    expect(relativeTimeLabel("2026-05-22 09:55:30", NOW)).toBe("5 นาทีที่แล้ว");
+  });
+});
+
+describe("parseSheetTimestamp", () => {
+  it("parses canonical 'yyyy-MM-dd HH:mm:ss'", () => {
+    const d = parseSheetTimestamp("2026-05-25 10:30:45");
+    expect(d).not.toBeNull();
+    expect(d!.getFullYear()).toBe(2026);
+    expect(d!.getMonth()).toBe(4);
+    expect(d!.getDate()).toBe(25);
+    expect(d!.getHours()).toBe(10);
+    expect(d!.getMinutes()).toBe(30);
+  });
+
+  it("parses without seconds", () => {
+    const d = parseSheetTimestamp("2026-05-25 10:30");
+    expect(d!.getHours()).toBe(10);
+    expect(d!.getMinutes()).toBe(30);
+  });
+
+  it("parses ISO with T separator", () => {
+    const d = parseSheetTimestamp("2026-05-25T10:30:45");
+    expect(d!.getDate()).toBe(25);
+    expect(d!.getHours()).toBe(10);
+  });
+
+  it("parses date-only as midnight", () => {
+    const d = parseSheetTimestamp("2026-05-25");
+    expect(d!.getDate()).toBe(25);
+    expect(d!.getHours()).toBe(0);
+  });
+
+  it("recovers a Sheets-coerced JS Date string", () => {
+    // The bug: Google Sheets turns the timestamp text into a real Date,
+    // read back as this format — used to render blank.
+    const d = parseSheetTimestamp("Mon May 25 2026 10:30:45 GMT+0700 (Indochina Time)");
+    expect(d).not.toBeNull();
+    expect(d!.getFullYear()).toBe(2026);
+  });
+
+  it("rejects out-of-range components", () => {
+    expect(parseSheetTimestamp("2026-13-01 10:00:00")).toBeNull();
+    expect(parseSheetTimestamp("2026-02-30 10:00:00")).toBeNull();
+    expect(parseSheetTimestamp("2026-05-25 25:00:00")).toBeNull();
+  });
+
+  it("returns null for empty / garbage", () => {
+    expect(parseSheetTimestamp("")).toBeNull();
+    expect(parseSheetTimestamp(undefined)).toBeNull();
+    expect(parseSheetTimestamp("总之不是日期")).toBeNull();
   });
 });

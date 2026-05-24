@@ -36,6 +36,9 @@ interface Props {
   onClose: () => void;
   /** Status change — same shape as Kanban inline actions. */
   onMove: (t: SheetRow, newStatus: string) => void | Promise<void>;
+  /** Open the shared edit modal for this task. When omitted, the
+   *  "แก้ไข" button is hidden (e.g. a read-only consumer). */
+  onEdit?: (t: SheetRow) => void;
   busy?: boolean;
 }
 
@@ -54,7 +57,7 @@ function statusLabel(status: string): { label: string; tone: "ok" | "warn" | "in
   return { label: t || "รอเริ่ม", tone: "muted" };
 }
 
-export default function TaskDetailDrawer({ task, onClose, onMove, busy }: Props) {
+export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, busy }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const open = !!task;
   useFocusTrap(open, ref);
@@ -233,9 +236,18 @@ export default function TaskDetailDrawer({ task, onClose, onMove, busy }: Props)
           )}
         </div>
 
-        {(canStart || canDone || canBlock || canCancel) && (
+        {(canStart || canDone || canBlock || canCancel || onEdit) && (
           <footer className="ac-task-drawer-foot">
             {busy && <span className="ac-btn-spinner" aria-label="กำลังบันทึก" />}
+            {onEdit && (
+              <button
+                type="button"
+                className="ac-btn ac-btn-ghost"
+                onClick={() => onEdit(task)}
+                disabled={busy}
+                title="แก้ไขรายละเอียดงาน"
+              >✎ แก้ไข</button>
+            )}
             {canStart && (
               <button
                 type="button"

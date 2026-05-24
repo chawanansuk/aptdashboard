@@ -2,8 +2,12 @@
 
 import { useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
-import { isClosedStatus } from "@/lib/constants";
+import { isClosedStatus, isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
+
+type ViewMode = "month" | "day";
+const VIEW_MODES: ViewMode[] = ["month", "day"];
 
 interface Props {
   tasks: SheetRow[];
@@ -55,6 +59,23 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+
+  // Calendar view mode — persisted so a user who lives in day view doesn't
+  // get bounced back to month on every refresh. Falls back to "month" for
+  // any stored value we don't recognise (defensive against schema drift).
+  const [viewModeRaw, setViewModeRaw] = usePersistedString(
+    "calendarViewMode",
+    "month",
+    (v) => (VIEW_MODES as string[]).includes(v),
+  );
+  const viewMode = viewModeRaw as ViewMode;
+
+  // Day-view focus date — independent from the month cursor so switching
+  // modes keeps the user where they were. Defaults to today on first use.
+  const [dayFocus, setDayFocus] = useState<Date>(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  });
 
   const today = useMemo(() => {
     const n = new Date();
@@ -133,24 +154,128 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
     const n = new Date();
     setCursor(new Date(n.getFullYear(), n.getMonth(), 1));
     setSelectedDay(new Date(n.getFullYear(), n.getMonth(), n.getDate()));
+    setDayFocus(new Date(n.getFullYear(), n.getMonth(), n.getDate()));
   }
+
+  // Day-view navigation — shifts focus +/- 1 day and keeps month cursor
+  // synced so flipping back to month view lands on the right month.
+  function shiftDay(deltaDays: number) {
+    const next = new Date(dayFocus.getFullYear(), dayFocus.getMonth(), dayFocus.getDate() + deltaDays);
+    setDayFocus(next);
+    setCursor(new Date(next.getFullYear(), next.getMonth(), 1));
+    setSelectedDay(next);
+  }
+
+  // Tasks for the day-view focus, grouped by status category for quick
+  // scanning ("open work" vs "already done"). Ordered by type so the same
+  // colour cluster reads together.
+  const dayTasks = useMemo(() => {
+    return (tasksByDay.get(dmyKey(dayFocus)) || []).slice().sort((a, b) => {
+      const ia = TYPE_ORDER.indexOf(a.type);
+      const ib = TYPE_ORDER.indexOf(b.type);
+      const ra = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+      const rb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+      if (ra !== rb) return ra - rb;
+      return (a.building + a.room).localeCompare(b.building + b.room);
+    });
+  }, [tasksByDay, dayFocus]);
+
+  const dayGroups = useMemo(() => {
+    const open: SheetRow[] = [];
+    const done: SheetRow[] = [];
+    const cancelled: SheetRow[] = [];
+    for (const t of dayTasks) {
+      if (isDoneStatus(t.status)) done.push(t);
+      else if (isCancelledStatus(t.status)) cancelled.push(t);
+      else open.push(t);
+    }
+    return { open, done, cancelled };
+  }, [dayTasks]);
 
   const selectedTasks = selectedDay ? (tasksByDay.get(dmyKey(selectedDay)) || []) : [];
   const weekTotal = week.reduce((acc, d) => acc + d.tasks.length, 0);
+
+  /** dd/MM/yyyy → "วันจันทร์ที่ 13 พฤษภาคม 2026" (Thai long form). */
+  function dayHeadLabel(d: Date): string {
+    const fullDayNames = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+    return `วัน${fullDayNames[d.getDay()]}ที่ ${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  function renderTaskCard(t: SheetRow, idx: number) {
+    const room = roomMap.get(`${t.building}|${t.room}`);
+    const clickable = !!(room && onSelectRoom);
+    return (
+      <div
+        key={`${dmyKey(dayFocus)}|${idx}|${t.building}|${t.room}|${t.type}`}
+        className={`ac-cal-task ${clickable ? "is-clickable" : ""}`}
+        onClick={() => clickable && onSelectRoom!(room!)}
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? 0 : undefined}
+      >
+        <span className="ac-cal-task-dot" style={{ background: TYPE_COLOR[t.type] || "#64748B" }} />
+        <div className="ac-cal-task-main">
+          <div className="ac-cal-task-line1">
+            <strong>{t.type}</strong> · {t.building} {t.room}
+            {clickable && <span className="ac-cal-task-arrow"> ›</span>}
+          </div>
+          {(t.customer || t.note || t.phone) && (
+            <div className="ac-cal-task-line2">
+              {t.customer && <span>{t.customer}</span>}
+              {t.phone && <span> · {t.phone}</span>}
+              {t.note && <span className="ac-task-note"> · {t.note}</span>}
+            </div>
+          )}
+        </div>
+        <span className={`ac-task-status ${isDoneStatus(t.status) ? "is-done" : isCancelledStatus(t.status) ? "is-cancelled" : ""}`}>
+          {t.status || "ว่าง"}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="ac-calendar">
       <header className="ac-page-head ac-cal-head">
         <h2 className="ac-page-title">ปฏิทินงาน {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
         <div className="ac-cal-nav ac-no-print">
-          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goPrev} aria-label="เดือนก่อน">‹</button>
-          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goToday}>วันนี้</button>
-          <span className="ac-cal-month">{MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}</span>
-          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goNext} aria-label="เดือนถัดไป">›</button>
+          {/* View-mode toggle — segmented control between month grid and
+              focused day view. Persists via usePersistedString. */}
+          <div className="ac-cal-mode" role="radiogroup" aria-label="โหมดมุมมอง">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={viewMode === "month"}
+              className={`ac-cal-mode-btn ${viewMode === "month" ? "is-active" : ""}`}
+              onClick={() => setViewModeRaw("month")}
+            >เดือน</button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={viewMode === "day"}
+              className={`ac-cal-mode-btn ${viewMode === "day" ? "is-active" : ""}`}
+              onClick={() => setViewModeRaw("day")}
+            >วัน</button>
+          </div>
+          {viewMode === "month" ? (
+            <>
+              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goPrev} aria-label="เดือนก่อน">‹</button>
+              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goToday}>วันนี้</button>
+              <span className="ac-cal-month">{MONTH_NAMES[cursor.getMonth()]} {cursor.getFullYear()}</span>
+              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goNext} aria-label="เดือนถัดไป">›</button>
+            </>
+          ) : (
+            <>
+              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => shiftDay(-1)} aria-label="วันก่อน">‹</button>
+              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={goToday}>วันนี้</button>
+              <span className="ac-cal-month">{dayLabelShort(dayFocus)}</span>
+              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => shiftDay(1)} aria-label="วันถัดไป">›</button>
+            </>
+          )}
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨</button>
         </div>
       </header>
 
+      {viewMode === "month" && (<>
       {/* 7-day preview strip — instant context for "what's coming up this week" */}
       <section className="ac-cal-week ac-no-print" aria-label="งาน 7 วันถัดไป">
         <div className="ac-cal-week-head">
@@ -311,6 +436,70 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
                 </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+      )}
+      </>)}
+
+      {viewMode === "day" && (
+        <section className="ac-cal-day-view" aria-label="มุมมองรายวัน">
+          <header className="ac-cal-day-view-head">
+            <h3 className="ac-cal-day-view-title">
+              {dayHeadLabel(dayFocus)}
+              {isSameDay(dayFocus, today) && <span className="ac-cal-today-pill">วันนี้</span>}
+            </h3>
+            <div className="ac-cal-day-view-stats">
+              <span className="ac-cal-day-view-stat" title="งานที่ยังไม่ปิด">
+                <span className="ac-cal-day-view-stat-num">{dayGroups.open.length}</span>
+                <span className="ac-cal-day-view-stat-label">ค้างอยู่</span>
+              </span>
+              <span className="ac-cal-day-view-stat" title="งานที่เสร็จแล้ว">
+                <span className="ac-cal-day-view-stat-num">{dayGroups.done.length}</span>
+                <span className="ac-cal-day-view-stat-label">เสร็จ</span>
+              </span>
+              {dayGroups.cancelled.length > 0 && (
+                <span className="ac-cal-day-view-stat" title="งานที่ยกเลิก">
+                  <span className="ac-cal-day-view-stat-num">{dayGroups.cancelled.length}</span>
+                  <span className="ac-cal-day-view-stat-label">ยกเลิก</span>
+                </span>
+              )}
+            </div>
+          </header>
+
+          {dayTasks.length === 0 ? (
+            <EmptyState
+              icon="calendar"
+              compact
+              title="ไม่มีงานในวันนี้"
+              description="เลื่อนไปวันถัดไปด้วยปุ่ม › หรือกด 'เดือน' เพื่อดูภาพรวม"
+            />
+          ) : (
+            <div className="ac-cal-day-view-body">
+              {dayGroups.open.length > 0 && (
+                <div className="ac-cal-day-view-group">
+                  <h4 className="ac-cal-day-view-group-title">ค้างอยู่ ({dayGroups.open.length})</h4>
+                  <div className="ac-cal-task-list">
+                    {dayGroups.open.map((t, i) => renderTaskCard(t, i))}
+                  </div>
+                </div>
+              )}
+              {dayGroups.done.length > 0 && (
+                <div className="ac-cal-day-view-group is-done-group">
+                  <h4 className="ac-cal-day-view-group-title">เสร็จแล้ว ({dayGroups.done.length})</h4>
+                  <div className="ac-cal-task-list">
+                    {dayGroups.done.map((t, i) => renderTaskCard(t, 1000 + i))}
+                  </div>
+                </div>
+              )}
+              {dayGroups.cancelled.length > 0 && (
+                <div className="ac-cal-day-view-group is-cancelled-group">
+                  <h4 className="ac-cal-day-view-group-title">ยกเลิก ({dayGroups.cancelled.length})</h4>
+                  <div className="ac-cal-task-list">
+                    {dayGroups.cancelled.map((t, i) => renderTaskCard(t, 2000 + i))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </section>

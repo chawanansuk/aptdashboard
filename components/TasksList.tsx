@@ -14,24 +14,7 @@ import { TASK_TYPES } from "@/lib/taskSchema";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
-
-// dd/MM/yyyy <-> yyyy-MM-dd conversion for <input type="date">
-function dmyToIso(s: string): string {
-  if (!s) return "";
-  const m = s.trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
-  if (!m) return "";
-  const d = m[1].padStart(2, "0");
-  const mo = m[2].padStart(2, "0");
-  let y = m[3];
-  if (y.length === 2) y = (parseInt(y, 10) >= 50 ? "19" : "20") + y;
-  return `${y}-${mo}-${d}`;
-}
-function isoToDmy(s: string): string {
-  if (!s) return "";
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return s;
-  return `${m[3]}/${m[2]}/${m[1]}`;
-}
+import EditTaskModal from "./EditTaskModal";
 
 interface Props {
   tasks: SheetRow[];
@@ -57,14 +40,6 @@ function isCancelled(status: string): boolean {
   return s === "ยกเลิก" || s === "cancelled";
 }
 
-type EditState = {
-  match: { date: string; building: string; room: string; type: string };
-  date: string;
-  customer: string;
-  phone: string;
-  note: string;
-};
-
 export default function TasksList({ tasks, title, emptyText, onChanged }: Props) {
   const { data: session } = useSession();
   const canDelete = canDeleteTask(session?.user?.roles);
@@ -76,7 +51,10 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
 
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [edit, setEdit] = useState<EditState | null>(null);
+  // Edit modal is now the shared EditTaskModal — we just need to remember
+  // which task row was picked. Old EditState shape is gone with the
+  // inline modal.
+  const [editTask, setEditTask] = useState<SheetRow | null>(null);
   const [confirmDel, setConfirmDel] = useState<SheetRow | null>(null);
   const [saving, setSaving] = useState(false);
   // Persist hideDone + typeFilter across reloads — user-specific
@@ -211,35 +189,8 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
   }
 
   function openEdit(t: SheetRow) {
-    setEdit({
-      match: { date: t.date, building: t.building, room: t.room, type: t.type },
-      date: t.date,
-      customer: t.customer || "",
-      phone: t.phone || "",
-      note: t.note || "",
-    });
+    setEditTask(t);
     setErr(null);
-  }
-
-  async function saveEdit() {
-    if (!edit) return;
-    setSaving(true); setErr(null);
-    try {
-      await postUpdate({
-        action: "updateTask",
-        match: edit.match,
-        set: {
-          date: edit.date,
-          customer: edit.customer,
-          phone: edit.phone,
-          note: edit.note,
-        },
-      });
-      setEdit(null);
-      onChanged?.();
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Network error");
-    } finally { setSaving(false); }
   }
 
   async function doDelete() {
@@ -388,50 +339,11 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
         />
       ))}
 
-      {edit && (
-        <div className="ac-modal-backdrop" onClick={() => !saving && setEdit(null)}>
-          <div className="ac-modal" onClick={(e) => e.stopPropagation()}>
-            <header className="ac-modal-head">
-              <div className="ac-modal-title">แก้ไขงาน</div>
-              <div className="ac-modal-sub">{edit.match.building}-{edit.match.room} · {edit.match.type}</div>
-              <button className="ac-modal-close" onClick={() => !saving && setEdit(null)}>×</button>
-            </header>
-            <div className="ac-modal-body">
-              <div className="ac-field">
-                <label>วันที่</label>
-                <input
-                  type="date"
-                  value={dmyToIso(edit.date)}
-                  onChange={(e) => setEdit({ ...edit, date: isoToDmy(e.target.value) })}
-                />
-                <span style={{ fontSize: 11, color: "#9CA3AF" }}>{edit.date || "—"}</span>
-              </div>
-              <div className="ac-field">
-                <label>ลูกค้า</label>
-                <input type="text" value={edit.customer}
-                  onChange={(e) => setEdit({ ...edit, customer: e.target.value })} />
-              </div>
-              <div className="ac-field">
-                <label>เบอร์</label>
-                <input type="tel" value={edit.phone}
-                  onChange={(e) => setEdit({ ...edit, phone: e.target.value })} />
-              </div>
-              <div className="ac-field">
-                <label>หมายเหตุ (ใส่เวลานัดที่นี่ได้ เช่น "นัด 10 โมง")</label>
-                <textarea rows={3} value={edit.note}
-                  onChange={(e) => setEdit({ ...edit, note: e.target.value })} />
-              </div>
-              {err && <div className="ac-banner ac-banner-warn">{err}</div>}
-            </div>
-            <footer className="ac-modal-foot">
-              <button className="ac-btn ac-btn-ghost" disabled={saving} onClick={() => setEdit(null)}>ยกเลิก</button>
-              <button className="ac-btn ac-btn-primary" disabled={saving} onClick={saveEdit}>
-                {saving ? "กำลังบันทึก..." : "บันทึก"}
-              </button>
-            </footer>
-          </div>
-        </div>
-      )}
+      <EditTaskModal
+        task={editTask}
+        onClose={() => setEditTask(null)}
+        onSaved={() => onChanged?.()}
+      />
 
       {confirmDel && (
         <div className="ac-modal-backdrop" onClick={() => !saving && setConfirmDel(null)}>
@@ -627,8 +539,6 @@ function TaskCard({
               {busy ? "..." : "ปิดงาน"}
             </button>
             <button className="ac-btn ac-btn-ghost ac-btn-sm" disabled={busy}
-              onClick={() => onPickEdit(t)} title="แก้ไขงาน">แก้ไข</button>
-            <button className="ac-btn ac-btn-ghost ac-btn-sm" disabled={busy}
               onClick={() => onPickStatus(t, "ยกเลิก")} title="ยกเลิกงานนี้">ยกเลิก</button>
           </>
         )}
@@ -636,6 +546,10 @@ function TaskCard({
           <button className="ac-btn ac-btn-ghost ac-btn-sm" disabled={busy}
             onClick={() => onPickStatus(t, TASK_STATUS.PENDING)} title="ดึงกลับเป็นยังไม่เสร็จ">คืน</button>
         )}
+        {/* Edit button is always available — fixing typos on a closed
+            job is a legitimate need. Backend still gates by task.edit. */}
+        <button className="ac-btn ac-btn-ghost ac-btn-sm" disabled={busy}
+          onClick={() => onPickEdit(t)} title="แก้ไขงาน">แก้ไข</button>
         {canDelete && (
           <button className="ac-btn ac-btn-danger ac-btn-sm" disabled={busy}
             onClick={() => onPickDelete(t)} title="ลบงานนี้ถาวร">ลบ</button>
