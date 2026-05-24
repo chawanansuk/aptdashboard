@@ -5,6 +5,7 @@ import type { RecurringTemplate } from "@/types";
 import { TASK_TYPES } from "@/lib/taskSchema";
 import { Icon } from "@/lib/icons";
 import { toast } from "@/lib/toast";
+import { parseSheetDate } from "@/lib/dateUtils";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
@@ -145,11 +146,15 @@ export default function RecurringView({ buildings }: Props) {
     }
   }
 
-  // Days-until-next: helps the engineer see what's coming
+  // Days-until-next: helps the engineer see what's coming. Uses the
+  // strict shared parser because the previous `new Date(s.replace("-",
+  // "/"))` trick was locale-dependent (some browsers parsed
+  // "2026/05/25" as DD/MM/YYYY, others as MM/DD/YYYY) and would
+  // silently fall back to NaN on malformed dates.
   function daysUntil(nextStr: string): number | null {
     if (!nextStr) return null;
-    const next = new Date(nextStr.replace(/-/g, "/"));
-    if (isNaN(next.getTime())) return null;
+    const next = parseSheetDate(nextStr);
+    if (!next) return null;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return Math.round((next.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));

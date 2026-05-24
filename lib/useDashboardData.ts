@@ -6,15 +6,23 @@ import { loadCache, saveCache } from "@/lib/cacheData";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { subscribeBus } from "@/lib/realtimeBus";
 import { normalizeRoomStatus, isKnownRoomStatus } from "@/lib/roomStatus";
+import { parseSheetDate } from "@/lib/dateUtils";
 
+/**
+ * Parse a task-row date for bucketing into today/upcoming/past.
+ *
+ * Previously this had its own loose parser that split on `/`, `-`, or
+ * `.` and trusted the result — which silently misparsed ISO dates
+ * (Apps Script emits "2026-05-25" for Date cells: split → ["2026",
+ * "05", "25"] → d=2026, m=5, yy=2025 → new Date(2025, 4, 2026) =
+ * far-future date → task lands in the wrong bucket).
+ *
+ * Delegates to parseSheetDate which strictly validates both DMY and
+ * ISO. Kept as a local thin wrapper so the existing call sites and
+ * the function name (parseDateDMY) still make sense locally.
+ */
 function parseDateDMY(s: string): Date | null {
-  if (!s) return null;
-  const parts = s.split(/[\/\-.]/);
-  if (parts.length !== 3) return null;
-  const [d, m, y] = parts.map((p) => parseInt(p, 10));
-  if (!d || !m || !y) return null;
-  const yy = y < 100 ? 2000 + y : y;
-  return new Date(yy, m - 1, d);
+  return parseSheetDate(s);
 }
 
 function startOfDay(d: Date): Date {

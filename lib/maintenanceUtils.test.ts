@@ -44,6 +44,21 @@ describe("computeNextService", () => {
     const r = computeNextService({ intervalDays: 30, lastService: "2025-12-20", installDate: "" });
     expect(r).toBe("2026-01-19");
   });
+
+  // Strict range validation — previous version let JS Date silently
+  // overflow these inputs (e.g. month=13 → Jan of next year), which
+  // hid corrupted data from the overdue badges.
+  it("rejects out-of-range month (e.g. 2026-13-01)", () => {
+    expect(computeNextService({ intervalDays: 30, lastService: "2026-13-01", installDate: "" })).toBeNull();
+  });
+
+  it("rejects out-of-range day (e.g. 2026-05-32)", () => {
+    expect(computeNextService({ intervalDays: 30, lastService: "2026-05-32", installDate: "" })).toBeNull();
+  });
+
+  it("rejects impossible day-in-month (e.g. 2026-02-30)", () => {
+    expect(computeNextService({ intervalDays: 30, lastService: "2026-02-30", installDate: "" })).toBeNull();
+  });
 });
 
 describe("daysUntilService", () => {
