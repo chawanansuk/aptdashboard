@@ -11,17 +11,17 @@ test.describe("calendar day-view arrow keys", () => {
   test.use({ storageState: storageStatePath("management") });
 
   test.beforeEach(async ({ page }) => {
-    // Seed the persisted active view so we land on the calendar without
-    // hunting for the sidebar item (which varies by mode/layout).
-    await page.addInitScript(() => {
-      window.localStorage.setItem("aptdash:activeView", "calendar");
-    });
     await mockDashboard(page, { rooms: [], tasks: [] });
   });
 
   test("ArrowRight / ArrowLeft step the day in day mode", async ({ page }) => {
     await page.goto("/");
     await expect(page).not.toHaveURL(/\/login/);
+
+    // Navigate to the calendar via the sidebar. (Seeding
+    // localStorage.activeView doesn't work — the mode-landing effect in
+    // page.tsx overrides it to the role's default view on mount.)
+    await page.getByRole("button", { name: "ปฏิทิน" }).click();
 
     // Switch to day mode.
     await page.getByRole("radio", { name: "วัน" }).click();
