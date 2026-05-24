@@ -4155,6 +4155,159 @@ html.dark .ac-bottom-nav-tab.is-primary:hover { background: #2563EB; }
   margin: 0 0 var(--space-3) 0;
 }
 
+/* Move-out queue panel — surfaces rooms with status="แจ้งย้ายออก" on
+   the engineer board. Visual style: tinted alert card so it stands out
+   above the kanban columns, but not so loud it dominates. */
+.ac-kanban-moveout {
+  margin: 0 0 var(--space-4) 0;
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-danger) 25%, var(--color-border));
+  border-radius: var(--radius-md);
+}
+.ac-kanban-moveout-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-2);
+  align-items: baseline;
+  margin: 0 0 var(--space-2) 0;
+}
+.ac-kanban-moveout-icon {
+  grid-row: span 2;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.ac-kanban-moveout-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.ac-kanban-moveout-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0 0.4rem;
+  height: 1.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--color-danger);
+  color: white;
+  border-radius: 999px;
+}
+.ac-kanban-moveout-sub {
+  margin: 0;
+  grid-column: 2;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+.ac-kanban-moveout-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.ac-kanban-moveout-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.ac-kanban-moveout-room {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+.ac-kanban-moveout-room:hover:not(:disabled) {
+  color: var(--color-accent);
+}
+.ac-kanban-moveout-room:disabled {
+  cursor: default;
+}
+.ac-kanban-moveout-room-building {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+.ac-kanban-moveout-room-num {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.ac-kanban-moveout-prep {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.ac-kanban-moveout-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.ac-kanban-moveout-chip:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+.ac-kanban-moveout-chip:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+.ac-kanban-moveout-chip-state {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+.ac-kanban-moveout-chip.is-state-missing {
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--color-border));
+}
+.ac-kanban-moveout-chip.is-state-missing .ac-kanban-moveout-chip-state {
+  color: var(--color-danger);
+}
+.ac-kanban-moveout-chip.is-state-in_progress {
+  background: color-mix(in srgb, #0D9488 10%, var(--color-surface));
+  border-color: color-mix(in srgb, #0D9488 35%, var(--color-border));
+}
+.ac-kanban-moveout-chip.is-state-blocked {
+  background: color-mix(in srgb, #F97316 10%, var(--color-surface));
+  border-color: color-mix(in srgb, #F97316 35%, var(--color-border));
+}
+.ac-kanban-moveout-chip.is-state-done {
+  background: color-mix(in srgb, #22C55E 10%, var(--color-surface));
+  border-color: color-mix(in srgb, #22C55E 35%, var(--color-border));
+}
+.ac-kanban-moveout-chip.is-state-done .ac-kanban-moveout-chip-state {
+  color: #16A34A;
+}
+
+@media (max-width: 480px) {
+  .ac-kanban-moveout-row {
+    grid-template-columns: 1fr;
+  }
+  .ac-kanban-moveout-prep {
+    justify-content: flex-start;
+  }
+}
+
 /* Form toggle — segmented control for binary location choice
    (ห้องเช่า / ส่วนกลาง — Task 38). */
 .ac-form-toggle {

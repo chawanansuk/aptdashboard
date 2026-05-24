@@ -18,6 +18,7 @@ import {
 } from "@/lib/taskLocation";
 import TaskDetailDrawer from "./TaskDetailDrawer";
 import { taskKey } from "@/lib/taskKey";
+import { MOVEOUT_PREP_KINDS, findOpenPrepTask } from "@/lib/moveoutTasks";
 
 interface Props {
   tasks: SheetRow[];
@@ -27,6 +28,10 @@ interface Props {
   onChanged?: () => void;
   /** Called when a card click should open the legacy task editor (optional). */
   onEditTask?: (t: SheetRow) => void;
+  /** Opens the room editor when a moveout-panel row is clicked. */
+  onSelectRoom?: (r: RoomView) => void;
+  /** Trigger ad-hoc add-task for a specific room (used by moveout panel). */
+  onAddTaskForRoom?: (building: string, room: string) => void;
 }
 
 /**
@@ -109,7 +114,7 @@ export function ageLabel(taskDate: string, now: Date = new Date()): string {
   return `เลย ${Math.abs(diff)} วัน`;
 }
 
-export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged, onEditTask }: Props) {
+export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged, onEditTask, onSelectRoom, onAddTaskForRoom }: Props) {
   const { data: session } = useSession();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -141,6 +146,25 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
   }, [tasks, activeBuilding, locFilter]);
 
   const buckets = useMemo(() => groupTasksForKanban(filtered, todayStr), [filtered, todayStr]);
+
+  // Move-out room queue (bridge from sales mode). Surfaces rooms with
+  // status="moveout" plus their two prep tasks (ตรวจห้อง / ทำสะอาด) so
+  // the engineer can see what's coming and act on it — even though
+  // type="อื่นๆ" tasks are filtered out of the regular kanban columns.
+  const moveoutQueue = useMemo(() => {
+    if (!rooms || rooms.length === 0) return [];
+    return rooms
+      .filter((r) => r.status === "moveout")
+      .filter((r) => activeBuilding === "ทั้งหมด" || r.building === activeBuilding)
+      .map((r) => ({
+        room: r,
+        prep: MOVEOUT_PREP_KINDS.map((kind) => ({
+          kind,
+          task: findOpenPrepTask(tasks, r.building, r.room, kind.type),
+        })),
+      }))
+      .sort((a, b) => (a.room.building + a.room.room).localeCompare(b.room.building + b.room.room));
+  }, [rooms, tasks, activeBuilding]);
 
   async function moveTo(t: SheetRow, newStatus: string) {
     const k = taskKey(t);
@@ -266,6 +290,86 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
           </button>
         ))}
       </nav>
+
+      {/* Move-out queue (sales→engineer bridge). Visible when at least
+          one room in scope is flagged "แจ้งย้ายออก". Each row shows the
+          status of its prep tasks (ตรวจห้อง / ทำสะอาด) so the engineer
+          knows at a glance whether anything needs to be created. Click
+          the room name to open RoomModal, or a "+ สร้าง" chip to file a
+          missing prep task directly. */}
+      {moveoutQueue.length > 0 && (
+        <section
+          className="ac-kanban-moveout"
+          aria-label={`ห้องแจ้งย้ายออก ${moveoutQueue.length} ห้อง`}
+        >
+          <header className="ac-kanban-moveout-head">
+            <span className="ac-kanban-moveout-icon" aria-hidden>🚪</span>
+            <h3 className="ac-kanban-moveout-title">
+              ห้องแจ้งย้ายออก
+              <span className="ac-kanban-moveout-count">{moveoutQueue.length}</span>
+            </h3>
+            <p className="ac-kanban-moveout-sub">
+              เตรียมตรวจห้อง + ทำสะอาด ก่อนปล่อยห้องใหม่
+            </p>
+          </header>
+          <ul className="ac-kanban-moveout-list" role="list">
+            {moveoutQueue.map(({ room, prep }) => (
+              <li key={`${room.building}|${room.room}`} className="ac-kanban-moveout-row">
+                <button
+                  type="button"
+                  className="ac-kanban-moveout-room"
+                  onClick={() => onSelectRoom?.(room)}
+                  disabled={!onSelectRoom}
+                  title={onSelectRoom ? "เปิดข้อมูลห้อง" : undefined}
+                >
+                  <span className="ac-kanban-moveout-room-building">{room.building}</span>
+                  <span className="ac-kanban-moveout-room-num">{room.room}</span>
+                </button>
+                <div className="ac-kanban-moveout-prep">
+                  {prep.map(({ kind, task }) => {
+                    if (task) {
+                      const cat = categorizeStatus(task.status);
+                      const stateLabel =
+                        cat === "done"        ? "เสร็จ"
+                        : cat === "in_progress" ? "กำลังทำ"
+                        : cat === "blocked"     ? "ติดขัด"
+                        : "รอเริ่ม";
+                      return (
+                        <button
+                          key={kind.kind}
+                          type="button"
+                          className={`ac-kanban-moveout-chip is-state-${cat}`}
+                          onClick={() => onEditTask?.(task)}
+                          disabled={!onEditTask}
+                          title={`${kind.label}: ${stateLabel} (${task.date})`}
+                        >
+                          <span aria-hidden>{kind.icon}</span>
+                          <span>{kind.label}</span>
+                          <span className="ac-kanban-moveout-chip-state">{stateLabel}</span>
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        key={kind.kind}
+                        type="button"
+                        className="ac-kanban-moveout-chip is-state-missing"
+                        onClick={() => onAddTaskForRoom?.(room.building, room.room)}
+                        disabled={!onAddTaskForRoom}
+                        title={`สร้างงาน ${kind.label}`}
+                      >
+                        <span aria-hidden>{kind.icon}</span>
+                        <span>{kind.label}</span>
+                        <span className="ac-kanban-moveout-chip-state">+ สร้าง</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Mobile-only tab nav — at <md (768px) the board hides other columns
           and only shows the one matching activeMobileCol. Desktop ≥md shows
