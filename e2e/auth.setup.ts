@@ -1,6 +1,6 @@
 import { test as setup, expect } from "@playwright/test";
 import fs from "node:fs";
-import path from "node:path";
+import { AUTH_DIR, E2E_ROLES, storageStatePath } from "./paths";
 
 /**
  * Authenticates each test role through the e2e-only credentials
@@ -10,19 +10,7 @@ import path from "node:path";
  * by the callback lands in the saved storageState.
  */
 
-const AUTH_DIR = path.join(__dirname, ".auth");
-
-const ROLES = [
-  { key: "management", email: "e2e-mgmt@test.local" },
-  { key: "sales", email: "e2e-sales@test.local" },
-  { key: "engineer", email: "e2e-eng@test.local" },
-] as const;
-
-export function storageStatePath(role: string): string {
-  return path.join(AUTH_DIR, `${role}.json`);
-}
-
-for (const { key, email } of ROLES) {
+for (const { key, email } of E2E_ROLES) {
   setup(`authenticate as ${key}`, async ({ page }) => {
     fs.mkdirSync(AUTH_DIR, { recursive: true });
 

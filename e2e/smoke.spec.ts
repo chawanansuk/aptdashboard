@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { storageStatePath } from "./auth.setup";
+import { storageStatePath } from "./paths";
 
 /**
  * Phase 1 smoke test — proves the e2e harness gets PAST the Google-OAuth
