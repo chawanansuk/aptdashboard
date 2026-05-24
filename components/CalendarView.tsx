@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
 import { isClosedStatus, isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { usePersistedString } from "@/lib/usePersistedString";
@@ -165,6 +165,29 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
     setCursor(new Date(next.getFullYear(), next.getMonth(), 1));
     setSelectedDay(next);
   }
+
+  // Keyboard ← / → step the day in day-view mode. Skipped while the user
+  // is typing in a field (so arrow keys still move the text caret) and
+  // when a modifier is held (don't fight browser/OS shortcuts). Month
+  // mode ignores arrows — its prev/next are month-sized and less obvious
+  // to drive blind, so we keep those button-only.
+  useEffect(() => {
+    if (viewMode !== "day") return;
+    function isTypingTarget(el: EventTarget | null): boolean {
+      if (!(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isTypingTarget(e.target)) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); shiftDay(-1); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); shiftDay(1); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, dayFocus]);
 
   // Tasks for the day-view focus, grouped by status category for quick
   // scanning ("open work" vs "already done"). Ordered by type so the same
@@ -458,12 +481,16 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
                 <span className="ac-cal-day-view-stat-num">{dayGroups.done.length}</span>
                 <span className="ac-cal-day-view-stat-label">เสร็จ</span>
               </span>
-              {dayGroups.cancelled.length > 0 && (
-                <span className="ac-cal-day-view-stat" title="งานที่ยกเลิก">
-                  <span className="ac-cal-day-view-stat-num">{dayGroups.cancelled.length}</span>
-                  <span className="ac-cal-day-view-stat-label">ยกเลิก</span>
-                </span>
-              )}
+              {/* Always render the 3rd chip — a zero "ยกเลิก" count is
+                  information too (the day has no cancellations). Muted
+                  styling keeps a 0 from competing with real numbers. */}
+              <span
+                className={`ac-cal-day-view-stat ${dayGroups.cancelled.length === 0 ? "is-muted" : ""}`}
+                title="งานที่ยกเลิก"
+              >
+                <span className="ac-cal-day-view-stat-num">{dayGroups.cancelled.length}</span>
+                <span className="ac-cal-day-view-stat-label">ยกเลิก</span>
+              </span>
             </div>
           </header>
 
