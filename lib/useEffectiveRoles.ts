@@ -18,6 +18,12 @@ import type { Role } from "@/auth";
  */
 
 const STORAGE_KEY = "aptdash:viewAsRole";
+// Same-tab broadcast channel. `storage` events only fire in OTHER tabs,
+// so without this every useEffectiveRoles() instance in the SAME tab
+// (AppHeader, page.tsx, …) keeps its own viewAs state and a switch made
+// in one component never reaches the others until a reload. The setter
+// dispatches this event; every instance listens and mirrors it.
+const SYNC_EVENT = "aptdash:viewas-change";
 const ALL = "all" as const;
 type ViewAsValue = Role | typeof ALL;
 
@@ -59,6 +65,22 @@ export function useEffectiveRoles(): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actualRoles.join("|")]);
 
+  // Same-tab sync: when ANY instance calls setViewAs, every other
+  // instance (header badge, page.tsx mode config, sidebar) updates live
+  // — no reload. Without this, view-as only re-rendered the component
+  // that called the setter (the bug e2e caught).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    function onSync(e: Event) {
+      const v = (e as CustomEvent<string>).detail;
+      if (v === ALL) setViewAsState(ALL);
+      else if (isValidView(v, actualRoles)) setViewAsState(v as ViewAsValue);
+    }
+    window.addEventListener(SYNC_EVENT, onSync as EventListener);
+    return () => window.removeEventListener(SYNC_EVENT, onSync as EventListener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actualRoles.join("|")]);
+
   // Multi-tab sync — when another tab changes the view-as role, the
   // browser fires a `storage` event here. Mirror it into local state so
   // both tabs show the same mode without a reload. (The setter below
@@ -91,6 +113,9 @@ export function useEffectiveRoles(): {
     } catch {
       // ignore
     }
+    // Broadcast to every other useEffectiveRoles instance in THIS tab
+    // (header badge, page mode config, sidebar) so they update live.
+    window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: v }));
   }, []);
 
   // Memoize so the array reference is stable when neither actualRoles nor
