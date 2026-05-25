@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
-import { canEditTenant, canViewTenant, canViewFinancials } from "@/lib/permissions";
+import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { sumCompletedCosts, formatBaht as formatTaskBaht } from "@/lib/taskCost";
@@ -142,6 +142,11 @@ export default function RoomModal({
   // not grant write capability. Cost display uses EFFECTIVE roles so
   // management can preview the engineer experience (no ฿ leakage).
   const canEdit = canEditTenant(session?.user?.roles);
+  // Booking is a sales activity — gate the "ยืนยันการจอง" button by
+  // sales-task permission (sales + management), NOT canEdit (which is
+  // management-only room-field editing). The backend allows sales to do
+  // the booking room write via room.editStatus.
+  const canBook = canAddSalesTask(session?.user?.roles);
   const canSeeTenant = canViewTenant(session?.user?.roles);
   const { actualRoles, effectiveRoles } = useEffectiveRoles();
   const effRoles = effectiveRoles.length ? effectiveRoles : actualRoles;
@@ -396,7 +401,7 @@ export default function RoomModal({
               {/* Booking — a vacant (ว่าง) room that's about to be
                   reserved. One tap opens the confirmation flow that
                   generates the LINE message + creates the ย้ายเข้า nat. */}
-              {room.status === "ready" && canEdit && onConfirmBooking && (
+              {room.status === "ready" && canBook && onConfirmBooking && (
                 <div className="ac-moveout-workflow ac-moveout-workflow--in" role="region" aria-label="จองห้อง">
                   <header className="ac-moveout-head">
                     <span className="ac-moveout-icon" aria-hidden>📋</span>
@@ -417,7 +422,7 @@ export default function RoomModal({
                   new tenant. Mirrors the move-OUT banner below for
                   symmetry; covers: schedule pre-arrival cleaning,
                   log the move-in event with customer details. */}
-              {room.status === "pending" && canEdit && (
+              {room.status === "pending" && canBook && (
                 <div
                   className="ac-moveout-workflow ac-moveout-workflow--in"
                   role="region"
