@@ -879,6 +879,14 @@ export default function Home() {
         notifications={notifications}
         onNotificationNavigate={(route) => {
           if ((VALID_VIEWS as string[]).includes(route)) {
+            // Notification counts are property-wide, but the today/
+            // moveout/status views are scoped by activeBuilding +
+            // activeFilter. Clear both so the items the badge counted
+            // are actually visible after navigating (otherwise a user
+            // filtered to one building taps the alert and lands on an
+            // empty page — the "ไม่มาแสดง" report).
+            setActiveBuilding("ทั้งหมด");
+            setActiveFilter("all");
             setActiveView(route as ActiveView);
           }
         }}
