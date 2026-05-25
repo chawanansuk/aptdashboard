@@ -18,6 +18,7 @@ function mkRoom(partial: Partial<RoomView>): RoomView {
     phone: "",
     contractEnd: "",
     today: false,
+    needsCleaning: false,
     todayTasks: [],
     upcomingTasks: [],
     pastTasks: [],
