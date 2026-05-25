@@ -45,7 +45,7 @@ function latestTaskFor(r: RoomView): { task: SheetRow; section: "วันนี
 function buildRoomTooltip(r: RoomView): string {
   const lines: string[] = [
     `ห้อง ${r.room} · ${r.building}${r.floor ? ` · ชั้น ${r.floor}` : ""}`,
-    `สถานะ: ${STATUS_LABEL[r.status]}`,
+    `สถานะ: ${STATUS_LABEL[r.status]}${r.needsCleaning ? " · 🧹 ต้องทำสะอาด" : ""}`,
   ];
   const latest = latestTaskFor(r);
   if (latest) {
@@ -217,6 +217,13 @@ export default function RoomsView({
                     data-tooltip={buildRoomTooltip(r)}
                   >
                     {r.today && <span className="ac-rc-today" />}
+                    {r.needsCleaning && (
+                      <span
+                        className="ac-rc-clean"
+                        title="ต้องทำสะอาดก่อนลูกค้าเข้า"
+                        aria-label="ต้องทำสะอาด"
+                      >🧹</span>
+                    )}
                     {(() => {
                       if (!canSeeTenant || r.status !== "occupied" || !r.contractEnd) return null;
                       const d = parseThaiDate(r.contractEnd);

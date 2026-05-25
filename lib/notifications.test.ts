@@ -39,6 +39,7 @@ function room(over: Partial<RoomView> = {}): RoomView {
     phone: "0812345678",
     contractEnd: "",
     today: false,
+    needsCleaning: false,
     todayTasks: [],
     upcomingTasks: [],
     pastTasks: [],

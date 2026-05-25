@@ -1127,6 +1127,17 @@ html.dark .ac-mode-badge.is-management {
 .ac-rc-contract.is-expired { background: color-mix(in srgb, #EF4444 42%, transparent); }
 /* Hide in compact density to save space */
 .ac-rg-compact .ac-rc-contract { display: none; }
+/* "ต้องทำสะอาด" secondary flag — bottom-left of card. Shown when a room
+   needs a turnover clean but its headline status isn't qc (e.g. a booked
+   "รอสัญญา" room that still must be cleaned before move-in). */
+.ac-rc-clean {
+  position: absolute;
+  bottom: 2px; left: 3px;
+  font-size: 10px;
+  line-height: 1;
+  pointer-events: none;
+}
+.ac-rg-compact .ac-rc-clean { bottom: 1px; left: 1px; font-size: 8px; }
 /* Phone call link in RoomModal label */
 .ac-room-phone-call {
   margin-left: var(--space-2);

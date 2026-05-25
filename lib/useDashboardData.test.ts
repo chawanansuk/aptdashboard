@@ -53,6 +53,44 @@ describe("mergeRoomsAndTasks — today bucket", () => {
   });
 });
 
+describe("mergeRoomsAndTasks — needsCleaning flag (#6)", () => {
+  const future = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  };
+
+  it("booked (ว่าง + ย้ายเข้า) room that also needs cleaning → pending + needsCleaning", () => {
+    const f = future();
+    const [view] = mergeRoomsAndTasks(
+      [room({ status: "ว่าง" })],
+      [task({ type: "ย้ายเข้า", date: f }), task({ type: "ทำสะอาด", date: f })],
+    );
+    expect(view.status).toBe("pending"); // headline stays booked (no double-book)
+    expect(view.needsCleaning).toBe(true); // but the clean is flagged
+  });
+
+  it("does NOT flag when the headline is already qc (ว่าง + ทำสะอาด only)", () => {
+    const f = future();
+    const [view] = mergeRoomsAndTasks([room({ status: "ว่าง" })], [task({ type: "ทำสะอาด", date: f })]);
+    expect(view.status).toBe("qc");
+    expect(view.needsCleaning).toBe(false); // redundant — headline shows it
+  });
+
+  it("flags a sheet-pending (รอสัญญา) room with an outstanding clean", () => {
+    const f = future();
+    const [view] = mergeRoomsAndTasks([room({ status: "รอสัญญา" })], [task({ type: "ทำสะอาด", date: f })]);
+    expect(view.status).toBe("pending");
+    expect(view.needsCleaning).toBe(true);
+  });
+
+  it("no clean task → needsCleaning false", () => {
+    const f = future();
+    const [view] = mergeRoomsAndTasks([room({ status: "ว่าง" })], [task({ type: "ย้ายเข้า", date: f })]);
+    expect(view.needsCleaning).toBe(false);
+  });
+});
+
 describe("applyOptimisticRoomPatches", () => {
   const TTL = 5 * 60_000;
   const patches = (entries: [string, OptimisticRoomPatch][]) =>

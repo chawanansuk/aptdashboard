@@ -68,6 +68,12 @@ export interface RoomView {
   phone: string;
   contractEnd: string;
   today: boolean;       // มีงานรอทำวันนี้
+  /**
+   * มีงาน "ทำสะอาด" ค้างอยู่ แต่ headline status ไม่ใช่ qc — ใช้โชว์ตัวบ่งชี้รอง
+   * 🧹 บนการ์ด เช่นห้องที่ "รอสัญญา" (จองแล้ว) แต่ยังต้องทำสะอาดก่อนลูกค้าเข้า
+   * จะได้ไม่ลืม (headline ยังเป็นรอสัญญาเพื่อกันจองซ้ำ).
+   */
+  needsCleaning: boolean;
   todayTasks: SheetRow[];
   upcomingTasks: SheetRow[];
   pastTasks: SheetRow[];

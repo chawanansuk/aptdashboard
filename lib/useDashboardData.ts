@@ -153,6 +153,13 @@ export function mergeRoomsAndTasks(
     else if (status === "ready" && hasView) status = "pending";
     else if (status === "ready" && hasCleanPending) status = "qc";
 
+    // Secondary "ต้องทำสะอาด" flag: a pending cleaning that the headline
+    // doesn't already show as qc — e.g. a booked room (รอสัญญา) that still
+    // needs a turnover clean before the tenant moves in. Headline stays
+    // pending (so sales don't re-book it), but the card flags 🧹 so the
+    // clean isn't forgotten. Redundant when the headline is already qc.
+    const needsCleaning = hasCleanPending && status !== "qc";
+
     return {
       building: r.building,
       room: r.room,
@@ -164,6 +171,7 @@ export function mergeRoomsAndTasks(
       phone: r.phone,
       contractEnd: r.contractEnd,
       today: todayTasks.length > 0,
+      needsCleaning,
       todayTasks,
       upcomingTasks,
       pastTasks,
