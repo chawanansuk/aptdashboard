@@ -156,7 +156,10 @@ export const ACTION_ALLOW: Record<Action, Role[]> = {
   "task.delete":    ["management"],
   // tenants / room status — management-only (privacy: tenant identity
   // is PII and never visible to sales/engineer/etc., not just unwritable)
-  "room.editStatus": ["management"],
+  // Sales can set a room's booking status (tenant/phone/price → รอสัญญา)
+  // via the booking-confirmation flow. tenant.edit (free-form room field
+  // editing) + tenant.view (reading existing PII) stay management-only.
+  "room.editStatus": ["sales", "management"],
   "tenant.view":     ["management"],
   "tenant.edit":     ["management"],
   // engineer-side assets
