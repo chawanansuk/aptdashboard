@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { canViewTenant } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // ไม่ cache
@@ -8,6 +9,11 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
+  // Returns raw task rows incl. customer name + phone (PII), unstripped.
+  // Gate on tenant.view so non-management can't pull the customer list.
+  if (!canViewTenant(session.user.roles)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const url = process.env.SHEET_WRITE_URL;
   if (!url) {
@@ -27,7 +33,7 @@ export async function GET() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || "backend error");
-    return NextResponse.json({ rows: json.result.rows });
+    return NextResponse.json({ rows: json.result?.rows ?? [] });
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";
     return NextResponse.json(
