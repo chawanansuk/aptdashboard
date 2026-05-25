@@ -12,6 +12,7 @@ export const E2E_ROLES = [
   { key: "management", email: "e2e-mgmt@test.local" },
   { key: "sales", email: "e2e-sales@test.local" },
   { key: "engineer", email: "e2e-eng@test.local" },
+  { key: "multi", email: "e2e-multi@test.local" },
 ] as const;
 
 export function storageStatePath(role: string): string {

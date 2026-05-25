@@ -38,7 +38,10 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 2 : undefined,
-  reporter: process.env.CI ? [["html"], ["github"]] : "list",
+  // "list" on CI too so the captured stdout has human-readable per-test
+  // pass/fail lines (the workflow tees this into a PR comment on failure
+  // — the only failure channel readable from the agent's MCP tools).
+  reporter: process.env.CI ? [["list"], ["html"], ["github"]] : "list",
   timeout: 30_000,
   expect: { timeout: 5_000 },
 
