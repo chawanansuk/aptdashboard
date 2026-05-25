@@ -23,7 +23,7 @@
  * meaningful here without a creation timestamp column.
  */
 
-import { parseThaiDate } from "@/lib/dateUtils";
+import { parseThaiDate, getBangkokNow } from "@/lib/dateUtils";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 
 export type SlaState = "future" | "ok" | "warn" | "overdue" | "idle";
@@ -82,7 +82,7 @@ export function computeSla(
     return { state: "idle", daysSinceDate: 0, daysOverSla: 0, slaDays };
   }
 
-  const now = opts.now ?? new Date();
+  const now = opts.now ?? getBangkokNow();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const taskDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const daysSinceDate = Math.floor((today.getTime() - taskDay.getTime()) / (1000 * 60 * 60 * 24));

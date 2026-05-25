@@ -2,7 +2,14 @@ import Papa from "papaparse";
 import { SheetRow, RoomRow } from "@/types";
 
 // ===== TASKS sheet (ชีต "งาน") =====
-const TASK_HEADER_MAP: Record<string, keyof SheetRow> = {
+// Keys of SheetRow whose value is a string (excludes the numeric `cost`),
+// so the header map can only target string fields — the parse loop assigns
+// trimmed strings into them.
+type StringSheetKey = {
+  [K in keyof SheetRow]-?: SheetRow[K] extends string | undefined ? K : never;
+}[keyof SheetRow];
+
+const TASK_HEADER_MAP: Record<string, StringSheetKey> = {
   วันที่: "date",
   ประเภท: "type",
   ตึก: "building",
