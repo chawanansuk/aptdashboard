@@ -33,6 +33,54 @@ function buildingRoomKey(b: string, r: string): string {
   return `${(b || "").trim()}|${(r || "").trim()}`;
 }
 
+/**
+ * Safety ceiling for how long an unconfirmed optimistic room patch is
+ * re-applied over server data. The server reflects writes within the CSV
+ * publish window (~5 min); this TTL just prevents a patch sticking forever
+ * if the server never confirms it (e.g. the write silently failed).
+ */
+export const OPTIMISTIC_MAX_TTL_MS = 5 * 60_000;
+
+export interface OptimisticRoomPatch {
+  patch: Partial<RoomRow>;
+  at: number;
+}
+
+/**
+ * Re-apply still-pending optimistic room patches on top of freshly fetched
+ * server rows. `/api/dashboard/rooms` serves from the Google CSV publish,
+ * which lags a write by minutes — so without this a refresh()/poll right
+ * after a write would clobber the user's change with pre-write data.
+ *
+ * A patch is dropped (mutating `patches`) once the server row already
+ * reflects every patched field (write landed) or once it's older than
+ * `ttlMs`. Returns `rooms` unchanged when there's nothing pending.
+ */
+export function applyOptimisticRoomPatches(
+  rooms: RoomRow[],
+  patches: Map<string, OptimisticRoomPatch>,
+  now: number,
+  ttlMs: number,
+): RoomRow[] {
+  if (patches.size === 0) return rooms;
+  for (const [k, v] of patches) {
+    if (now - v.at > ttlMs) patches.delete(k);
+  }
+  if (patches.size === 0) return rooms;
+  return rooms.map((row) => {
+    const entry = patches.get(buildingRoomKey(row.building, row.room));
+    if (!entry) return row;
+    const confirmed = Object.entries(entry.patch).every(
+      ([f, val]) => (row as unknown as Record<string, unknown>)[f] === val,
+    );
+    if (confirmed) {
+      patches.delete(buildingRoomKey(row.building, row.room));
+      return row;
+    }
+    return { ...row, ...entry.patch };
+  });
+}
+
 export function mergeRoomsAndTasks(
   rooms: RoomRow[],
   tasks: SheetRow[]
@@ -206,6 +254,10 @@ export function useDashboardData(): DashboardState {
   // Timestamp of most recent optimistic write — background poll skips for
   // 30s after to avoid CSV-publish-lag race overwriting the user's change
   const lastOptimisticAtRef = useRef<number>(0);
+  // Pending optimistic room patches keyed by building|room. Re-applied on
+  // every server fetch (refresh/poll) until the server row confirms them or
+  // the TTL expires, so a write isn't reverted by the lagging CSV.
+  const pendingRoomPatchesRef = useRef<Map<string, OptimisticRoomPatch>>(new Map());
 
   // Hydrate from cache synchronously on mount → instant first render with stale data
   useEffect(() => {
@@ -279,17 +331,23 @@ export function useDashboardData(): DashboardState {
         const arr: RoomRow[] = Array.isArray((j as { rooms?: unknown }).rooms)
           ? (j as { rooms: RoomRow[] }).rooms
           : [];
-        latestRooms = arr;
+        // Re-apply any still-unconfirmed optimistic writes — the CSV behind
+        // this endpoint lags a write by minutes, so a refresh() fired right
+        // after a write would otherwise revert the user's change.
+        const next = applyOptimisticRoomPatches(
+          arr, pendingRoomPatchesRef.current, Date.now(), OPTIMISTIC_MAX_TTL_MS,
+        );
+        latestRooms = next;
         // Always write the new array — including empty `[]` — so that when
         // the last room in a building is deleted/moved the UI reflects it
         // instead of showing stale data forever.
-        setRooms(arr);
+        setRooms(next);
         roomsDone = true;
         // Progressive: as soon as rooms land, drop the initial spinner.
         // We still gate on `arr.length` here because an empty initial
         // response shouldn't hide the skeleton (UI looks broken otherwise);
         // the real "we have data" signal is a non-zero response.
-        if (arr.length) setIsInitial(false);
+        if (next.length) setIsInitial(false);
       });
       const tasksPromise = loadSlice("/api/dashboard/tasks", (j) => {
         const arr: SheetRow[] = Array.isArray((j as { tasks?: unknown }).tasks)
@@ -376,10 +434,19 @@ export function useDashboardData(): DashboardState {
     (building: string, room: string, patch: Partial<RoomRow>) => {
       const b = (building || "").trim();
       const r = (room || "").trim();
+      const now = Date.now();
       // Stamp so the background poller skips for 30s (gives the canonical
       // CSV time to publish the same write — otherwise it'd overwrite the
       // optimistic value with stale data)
-      lastOptimisticAtRef.current = Date.now();
+      lastOptimisticAtRef.current = now;
+      // Record the patch so it also survives an explicit refresh() (which
+      // re-fetches the still-stale CSV) until the server row confirms it.
+      const key = buildingRoomKey(b, r);
+      const existing = pendingRoomPatchesRef.current.get(key);
+      pendingRoomPatchesRef.current.set(key, {
+        patch: { ...(existing?.patch ?? {}), ...patch },
+        at: now,
+      });
       setRooms((prev) =>
         prev.map((row) =>
           (row.building || "").trim() === b && (row.room || "").trim() === r
