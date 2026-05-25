@@ -12,18 +12,23 @@ import { toCsv, type CsvColumn } from "./csvExport";
 interface BackupEntity<T> {
   /** Filename inside the zip (no extension). */
   name: string;
-  /** API endpoint to fetch — must return `{ rows: T[] }`. */
+  /** API endpoint to fetch. */
   url: string;
+  /**
+   * Key the endpoint nests its array under. Most return `{ rows: [...] }`;
+   * /api/sheet/rooms returns `{ rooms: [...] }`. Defaults to "rows".
+   */
+  responseKey?: string;
   /** Column spec for CSV rows. */
   columns: CsvColumn<T>[];
 }
 
-async function fetchRows<T>(url: string): Promise<T[]> {
+async function fetchRows<T>(url: string, key = "rows"): Promise<T[]> {
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return [];
     const data = await res.json();
-    return (data?.rows || []) as T[];
+    return ((data?.[key] as T[] | undefined) || []) as T[];
   } catch {
     return [];
   }
@@ -76,6 +81,7 @@ export async function buildBackupZip(): Promise<Blob> {
     {
       name: "rooms",
       url: "/api/sheet/rooms",
+      responseKey: "rooms", // this endpoint returns { rooms: [...] }, not { rows }
       columns: ([
         { header: "ตึก", value: (r) => r.building },
         { header: "ห้อง", value: (r) => r.room },
@@ -89,7 +95,7 @@ export async function buildBackupZip(): Promise<Blob> {
     },
     {
       name: "tasks",
-      url: "/api/sheet/tasks",
+      url: "/api/sheet", // getTasks → { rows: SheetRow[] }; /api/sheet/tasks doesn't exist
       columns: ([
         { header: "วันที่", value: (t) => t.date },
         { header: "ประเภท", value: (t) => t.type },
@@ -200,7 +206,7 @@ export async function buildBackupZip(): Promise<Blob> {
   // Fetch all in parallel; failures → empty CSV (with header only)
   const results = await Promise.all(
     entities.map(async (e) => {
-      const rows = await fetchRows<unknown>(e.url);
+      const rows = await fetchRows<unknown>(e.url, e.responseKey);
       return { name: e.name, csv: toCsv(rows, e.columns) };
     }),
   );
