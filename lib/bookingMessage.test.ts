@@ -27,6 +27,7 @@ describe("formatBookingMessage", () => {
     moveInDate: new Date(2026, 4, 30),
     deposit: 10000,
     bookingPaid: 5500,
+    chargeNextMonth: true,
   });
   const msg = formatBookingMessage({
     apartmentName: "มีทอง เรสซิเด้นท์",

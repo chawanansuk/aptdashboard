@@ -2,22 +2,52 @@ import { describe, it, expect } from "vitest";
 import { computeBooking, daysInMonth } from "./bookingMath";
 
 describe("computeBooking", () => {
-  it("matches the real confirmation (30 May, rent 5500, deposit 10000, paid 5500)", () => {
-    // The screenshot booking: move-in Sat 30 May 2026.
+  it("late move-in WITH chargeNextMonth (30 May, rent 5500, deposit 10000, paid 5500)", () => {
+    // The screenshot booking: move-in Sat 30 May 2026, staff opted to
+    // collect June up front (late-month move-in).
     const c = computeBooking({
       monthlyRent: 5500,
       moveInDate: new Date(2026, 4, 30), // May = index 4
       deposit: 10000,
       bookingPaid: 5500,
+      chargeNextMonth: true,
     });
     expect(c.proratedDays).toBe(2); // 30, 31 May
     expect(c.proratedAmount).toBe(367); // 5500/30*2 = 366.67 → 367
-    expect(c.nextMonthRent).toBe(5500); // full June
+    expect(c.nextMonthRent).toBe(5500); // full June, opted in
     expect(c.total).toBe(15867); // 5500 + 367 + 10000
     expect(c.remaining).toBe(10367); // 15867 - 5500
   });
 
-  it("handles a 1st-of-month move-in as a full month, no next-month charge", () => {
+  it("early move-in does NOT charge next month by default (3 June)", () => {
+    // The reported bug: 3 June was billing July too. Default (no
+    // chargeNextMonth) must only prorate June + deposit.
+    const c = computeBooking({
+      monthlyRent: 5500,
+      moveInDate: new Date(2026, 5, 3), // 3 June
+      deposit: 10000,
+      bookingPaid: 5500,
+    });
+    expect(c.proratedDays).toBe(28); // 3..30 June
+    expect(c.proratedAmount).toBe(5133); // 5500/30*28 = 5133.3 → 5133
+    expect(c.nextMonthRent).toBe(0); // NOT charged
+    expect(c.total).toBe(15133); // 5133 + 0 + 10000
+    expect(c.remaining).toBe(9633);
+  });
+
+  it("same early move-in CAN charge next month when staff opts in", () => {
+    const c = computeBooking({
+      monthlyRent: 5500,
+      moveInDate: new Date(2026, 5, 3),
+      deposit: 10000,
+      bookingPaid: 5500,
+      chargeNextMonth: true,
+    });
+    expect(c.nextMonthRent).toBe(5500);
+    expect(c.total).toBe(20633); // 5133 + 5500 + 10000
+  });
+
+  it("handles a 1st-of-month move-in as a full month", () => {
     const c = computeBooking({
       monthlyRent: 6000,
       moveInDate: new Date(2026, 5, 1), // 1 June
@@ -31,12 +61,13 @@ describe("computeBooking", () => {
     expect(c.remaining).toBe(12000);
   });
 
-  it("prorates a single last day", () => {
+  it("prorates a single last day (with next month opted in)", () => {
     const c = computeBooking({
       monthlyRent: 9000,
       moveInDate: new Date(2026, 0, 31), // 31 Jan
       deposit: 0,
       bookingPaid: 0,
+      chargeNextMonth: true,
     });
     expect(c.proratedDays).toBe(1);
     expect(c.proratedAmount).toBe(300); // 9000/30*1

@@ -67,6 +67,9 @@ export default function BookingConfirmModal({
   const [rent, setRent] = useState(String(parseMoney(defaultRent || "")) || "");
   const [deposit, setDeposit] = useState("");
   const [bookingPaid, setBookingPaid] = useState("");
+  // Collect the next full month up front (late-month move-ins). Default
+  // off — an early move-in shouldn't be billed ~2 months at once.
+  const [chargeNextMonth, setChargeNextMonth] = useState(false);
   const [pet, setPet] = useState("");
   const [contractTerms, setContractTerms] = useState("ขั้นต่ำ 6 เดือนขึ้นไป");
 
@@ -87,8 +90,9 @@ export default function BookingConfirmModal({
       moveInDate,
       deposit: parseMoney(deposit),
       bookingPaid: parseMoney(bookingPaid),
+      chargeNextMonth,
     });
-  }, [rent, moveInDate, deposit, bookingPaid]);
+  }, [rent, moveInDate, deposit, bookingPaid, chargeNextMonth]);
 
   const message = useMemo(() => {
     if (!moveInDate || !calc) return "";
@@ -206,6 +210,14 @@ export default function BookingConfirmModal({
                     onChange={(e) => setBookingPaid(e.target.value)} placeholder="5500" />
                 </div>
               </div>
+              <label className="ac-booking-checkbox">
+                <input
+                  type="checkbox"
+                  checked={chargeNextMonth}
+                  onChange={(e) => setChargeNextMonth(e.target.checked)}
+                />
+                <span>เก็บค่าเช่าเดือนถัดไปล่วงหน้า <span className="ac-booking-checkbox-hint">(ติ๊กเมื่อเข้าปลายเดือน)</span></span>
+              </label>
             </div>
 
             <div className="ac-form-section">
