@@ -2,10 +2,17 @@
  * Strategy:
  *  - POST / non-GET: pass-through, never cache (writes go directly to Apps Script)
  *  - /api/sheet*  GET : network-first, fallback to cache (offline read)
- *  - Same-origin GET HTML/CSS/JS/images : stale-while-revalidate
+ *  - HTML page navigations : network-first, fallback to cache. Keeps the
+ *    app from lagging a deploy behind — fresh HTML references the latest
+ *    hashed JS chunks, so a code fix shows up on the next open, not the one
+ *    after. (stale-while-revalidate here meant users were always 1 version
+ *    behind.)
+ *  - Other same-origin GET (hashed /_next/static, css, images) :
+ *    stale-while-revalidate — these are content-hashed/immutable so a stale
+ *    hit is always correct.
  *  - Other origins: pass-through
  */
-const CACHE_VERSION = "ac-v4";
+const CACHE_VERSION = "ac-v5";
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 const API_CACHE = `api-${CACHE_VERSION}`;
 
@@ -47,17 +54,24 @@ self.addEventListener("fetch", (event) => {
 
   // API: network-first, fallback to cache
   if (url.pathname.startsWith("/api/")) {
-    event.respondWith(networkFirst(req));
+    event.respondWith(networkFirst(req, API_CACHE));
     return;
   }
 
-  // App shell / static: stale-while-revalidate (skip Next.js build manifest hot paths)
+  // HTML page navigations: network-first so a new deploy applies on the next
+  // open (no version lag), falling back to cache when offline.
+  if (req.mode === "navigate") {
+    event.respondWith(networkFirst(req, RUNTIME_CACHE));
+    return;
+  }
+
+  // Static assets (hashed /_next/static, css, images): stale-while-revalidate
   if (url.pathname.startsWith("/_next/data/")) return; // pass-through
   event.respondWith(staleWhileRevalidate(req));
 });
 
-async function networkFirst(req) {
-  const cache = await caches.open(API_CACHE);
+async function networkFirst(req, cacheName) {
+  const cache = await caches.open(cacheName);
   try {
     const fresh = await fetch(req);
     if (fresh && fresh.ok) cache.put(req, fresh.clone());
@@ -71,6 +85,12 @@ async function networkFirst(req) {
         status: cached.status,
         statusText: cached.statusText,
         headers,
+      });
+    }
+    if (req.mode === "navigate") {
+      return new Response("offline", {
+        status: 503,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
     return new Response(
