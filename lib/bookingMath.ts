@@ -22,6 +22,13 @@ export interface BookingInput {
   deposit: number;
   /** Booking deposit already paid (มัดจำ) in baht. */
   bookingPaid: number;
+  /**
+   * Collect the full UPCOMING month up front, on top of the prorated
+   * move-in month. Staff decide per booking — typically only for
+   * late-month move-ins (few days left), NOT early-month ones (where
+   * charging the next month means ~2 months up front). Defaults false.
+   */
+  chargeNextMonth?: boolean;
 }
 
 export interface BookingCalc {
@@ -29,8 +36,7 @@ export interface BookingCalc {
   proratedDays: number;
   /** Prorated rent for the move-in month. */
   proratedAmount: number;
-  /** Full upcoming month rent collected up front (0 for a 1st-of-month
-   *  move-in, where the prorate already IS a full month). */
+  /** Full upcoming month rent collected up front (0 unless chargeNextMonth). */
   nextMonthRent: number;
   deposit: number;
   bookingPaid: number;
@@ -59,19 +65,20 @@ export function computeBooking(input: BookingInput): BookingCalc {
 
   let proratedDays: number;
   let proratedAmount: number;
-  let nextMonthRent: number;
 
   if (day <= 1) {
-    // Move-in on the 1st: the "prorate" is the whole month, no separate
-    // next-month charge.
+    // Move-in on the 1st: the "prorate" is the whole month (no /30 drift).
     proratedDays = dim;
     proratedAmount = rent;
-    nextMonthRent = 0;
   } else {
     proratedDays = dim - day + 1;
     proratedAmount = Math.round((rent / DAILY_DIVISOR) * proratedDays);
-    nextMonthRent = rent;
   }
+
+  // The upcoming full month is collected ONLY when staff opt in
+  // (chargeNextMonth) — typically late-month move-ins. Default off so an
+  // early move-in (e.g. 3rd) doesn't get billed ~2 months up front.
+  const nextMonthRent = input.chargeNextMonth ? rent : 0;
 
   const total = proratedAmount + nextMonthRent + deposit;
   const remaining = total - bookingPaid;

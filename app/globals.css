@@ -8934,3 +8934,16 @@ html.dark .ac-notif-row--warning .ac-notif-row-count {
   .ac-booking-body { grid-template-columns: 1fr; }
   .ac-booking-preview { position: static; }
 }
+
+/* Booking modal — "charge next month" toggle */
+.ac-booking-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--space-2);
+  font-size: 0.875rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.ac-booking-checkbox input { width: 16px; height: 16px; cursor: pointer; }
+.ac-booking-checkbox-hint { color: var(--color-text-muted); font-size: 0.75rem; }
