@@ -36,8 +36,12 @@ test.describe("room modal counter is filter-scoped", () => {
     await expect(pos).toBeVisible();
     await expect(pos).toContainText("/ 3");
 
-    // Close, switch to ทั้งหมด (5 rooms), reopen → denominator now 5.
-    await page.locator(".ac-modal-close").click();
+    // Close via Escape (not a click on .ac-modal-close — a page-level
+    // health banner can overlay the modal header and intercept the
+    // click, and the booking workflow box reflows the modal). Then
+    // switch to ทั้งหมด (5 rooms), reopen → denominator now 5.
+    await page.keyboard.press("Escape");
+    await expect(pos).toBeHidden();
     await page.getByRole("button", { name: "ทั้งหมด", exact: true }).click();
     await page.locator(".ac-rc").filter({ hasText: "301" }).first().click();
     await expect(page.locator(".ac-room-modal-nav-pos")).toContainText("/ 5");
