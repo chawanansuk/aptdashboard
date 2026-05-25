@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseRoomsCSV } from "@/lib/parseSheet";
 import { auth } from "@/auth";
+import { canViewTenant } from "@/lib/permissions";
 import type { RoomRow } from "@/types";
 
 export const dynamic = "force-dynamic"; // CSV cache อยู่ที่ Google ฝั่ง publish; เราไม่ cache ซ้ำ
@@ -45,6 +46,13 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  }
+  // This endpoint returns RAW rooms incl. tenant name + phone (PII). Unlike
+  // /api/dashboard/rooms it does not strip — its only caller is the
+  // management backup — so gate it on tenant.view. Non-management get 403
+  // (backupZip treats that as an empty CSV).
+  if (!canViewTenant(session.user.roles)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   try {
