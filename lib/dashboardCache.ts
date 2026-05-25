@@ -57,8 +57,11 @@ class SwrSlot<T> {
     const ageMs = now - this.savedAt;
     if (ageMs <= FRESH_TTL_MS) return { state: "fresh", data: this.value, ageMs };
     if (ageMs <= STALE_TTL_MS) return { state: "stale", data: this.value, ageMs };
-    // Beyond stale TTL — expire so it can be GC'd.
-    this.value = null;
+    // Beyond stale TTL: report a miss so the caller fetches fresh, but do NOT
+    // discard the value — peekEmergency() still needs it to serve old-but-real
+    // data (up to EMERGENCY_STALE_TTL_MS) when the upstream fetch fails.
+    // (Nulling it here previously made the 1-hour emergency fallback dead for
+    // anything older than STALE_TTL — i.e. exactly when it was needed.)
     return { state: "missing", data: null, ageMs };
   }
 

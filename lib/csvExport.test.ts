@@ -38,6 +38,26 @@ describe("toCsv", () => {
     expect(csv).toContain('"a\nb"');
   });
 
+  it("neutralizes spreadsheet formula-injection cells", () => {
+    const csv = toCsv<Row>(
+      [
+        { name: "=1+1", n: 1, note: "@SUM(A1)" },
+        { name: "+49", n: 2, note: "-5" },
+      ],
+      cols,
+    );
+    const lines = csv.split("\n");
+    // Leading = + - @ get a ' prefix so they aren't executed as formulas.
+    expect(lines[1]).toBe("'=1+1,1,'@SUM(A1)");
+    expect(lines[2]).toBe("'+49,2,'-5");
+  });
+
+  it("does not prefix safe values (digits, Thai, words)", () => {
+    const csv = toCsv<Row>([{ name: "081-234", n: 100, note: "ok" }], cols);
+    // "081-234" starts with a digit, not a formula char → untouched.
+    expect(csv).toBe("ชื่อ,จำนวน,หมายเหตุ\n081-234,100,ok");
+  });
+
   it("preserves Thai characters as-is", () => {
     const csv = toCsv<Row>([{ name: "ห้อง 101", n: 5, note: "ทดสอบ" }], cols);
     expect(csv).toBe("ชื่อ,จำนวน,หมายเหตุ\nห้อง 101,5,ทดสอบ");
