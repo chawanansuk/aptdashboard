@@ -56,14 +56,16 @@ describe("getDashboardCacheState — SWR semantics", () => {
     expect(out.ageMs).toBeGreaterThan(FRESH_TTL_MS);
   });
 
-  it("returns missing (and expires the entry) once past STALE_TTL", () => {
+  it("returns missing past STALE_TTL but RETAINS the value for emergency fallback", () => {
     setDashboardCache([], []);
     const now = Date.now() + STALE_TTL_MS + 1_000;
     const out = getDashboardCacheState(now);
     expect(out.state).toBe("missing");
     expect(out.data).toBeNull();
-    // Subsequent calls still see missing (entry was GC'd)
-    expect(getDashboardCacheState().state).toBe("missing");
+    // The value is NOT discarded — get() is a pure read now. A real-now read
+    // still sees the (genuinely fresh) entry, and crucially the emergency
+    // path can still serve it after a failed upstream fetch.
+    expect(getDashboardCacheState().state).toBe("fresh");
   });
 
   it("invalidateDashboardCache forces a missing state", () => {
@@ -165,6 +167,17 @@ describe("emergency-stale peek (perf/tasks-stale-on-error)", () => {
     // Past emergency cutoff returns null
     const pastEmergency = Date.now() + EMERGENCY_STALE_TTL_MS + 1_000;
     expect(peekEmergencyTasksCache(pastEmergency)).toBeNull();
+  });
+
+  it("still serves emergency value after get() saw it as stale-expired (regression)", async () => {
+    const { getTasksCacheState, peekEmergencyTasksCache } = await import("./dashboardCache");
+    setTasksCache([]);
+    const pastStale = Date.now() + STALE_TTL_MS + 60_000;
+    // The route calls get() first (which returns missing past STALE_TTL); it
+    // must NOT discard the value, so the emergency fallback can still serve it
+    // when the upstream fetch then fails.
+    expect(getTasksCacheState(pastStale).state).toBe("missing");
+    expect(peekEmergencyTasksCache(pastStale)).not.toBeNull();
   });
 
   it("returns null when slot has never been set", async () => {

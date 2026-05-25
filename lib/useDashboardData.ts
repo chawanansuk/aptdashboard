@@ -29,13 +29,6 @@ function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function todayKey(): string {
-  const d = new Date();
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}/${d.getFullYear()}`;
-}
-
 function buildingRoomKey(b: string, r: string): string {
   return `${(b || "").trim()}|${(r || "").trim()}`;
 }
@@ -45,7 +38,6 @@ export function mergeRoomsAndTasks(
   tasks: SheetRow[]
 ): RoomView[] {
   const today = startOfDay(new Date());
-  const tKey = todayKey();
 
   // index tasks by building+room
   const tasksByRoom = new Map<string, SheetRow[]>();
@@ -60,12 +52,15 @@ export function mergeRoomsAndTasks(
     const all = tasksByRoom.get(k) || [];
 
     // r.today flag: task dated today AND not closed (done OR cancelled).
-    // Fix: use central helpers — was missing "done"/"ปิดแล้ว"/"ยกเลิก"
-    // aliases, causing rooms with only cancelled tasks today to show the
-    // red "งานวันนี้" badge.
-    const todayTasks = all.filter(
-      (t) => t.date === tKey && !isDoneStatus(t.status) && !isCancelledStatus(t.status)
-    );
+    // Parse the date (parseDateDMY handles both dd/MM/yyyy and the ISO
+    // yyyy-MM-dd that Apps Script emits for Date cells) rather than a raw
+    // string match — a literal `t.date === todayKey` missed ISO-dated tasks,
+    // so their red "งานวันนี้" badge never showed.
+    const todayTasks = all.filter((t) => {
+      if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
+      const d = parseDateDMY(t.date);
+      return d ? startOfDay(d).getTime() === today.getTime() : false;
+    });
     const upcomingTasks = all.filter((t) => {
       if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
       const d = parseDateDMY(t.date);

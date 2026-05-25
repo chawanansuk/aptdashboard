@@ -15,7 +15,14 @@
 /** Quote a value per RFC 4180: wrap in "..." if it contains , " or newline. */
 function csvCell(value: unknown): string {
   if (value == null) return "";
-  const s = String(value);
+  let s = String(value);
+  // Formula-injection guard: Excel/Sheets execute a cell that begins with
+  // = + - @ (or a leading control char) as a formula. Since cell content can
+  // come from user-entered fields (tenant name, note, lead name), prefix a
+  // single quote so the value is always treated as literal text.
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
   if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
     return `"${s.replace(/"/g, '""')}"`;
   }
