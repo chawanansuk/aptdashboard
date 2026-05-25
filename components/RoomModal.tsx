@@ -46,6 +46,9 @@ interface Props {
   /** Move-in workflow companions — surface when room status = pending. */
   onMoveinClean?: () => void;
   onMoveinSchedule?: () => void;
+  /** Open the booking-confirmation flow (generate LINE message + create
+   *  the ย้ายเข้า appointment). Surfaced for ready/pending rooms. */
+  onConfirmBooking?: () => void;
   /**
    * Prev/Next room navigation (#9). Optional — when omitted, the
    * header arrows + position label are hidden. When supplied, the
@@ -131,7 +134,7 @@ export default function RoomModal({
   room, saving, status, tenant, phone, contractEnd, note, price,
   onChange, onClose, onSave, onAddTaskHere, defaultTab,
   onMoveoutInspect, onMoveoutClean,
-  onMoveinClean, onMoveinSchedule,
+  onMoveinClean, onMoveinSchedule, onConfirmBooking,
   onPrevRoom, onNextRoom, roomIndex, roomTotal,
 }: Props) {
   const { data: session } = useSession();
@@ -390,6 +393,26 @@ export default function RoomModal({
                 </div>
               )}
 
+              {/* Booking — a vacant (ว่าง) room that's about to be
+                  reserved. One tap opens the confirmation flow that
+                  generates the LINE message + creates the ย้ายเข้า nat. */}
+              {room.status === "ready" && canEdit && onConfirmBooking && (
+                <div className="ac-moveout-workflow ac-moveout-workflow--in" role="region" aria-label="จองห้อง">
+                  <header className="ac-moveout-head">
+                    <span className="ac-moveout-icon" aria-hidden>📋</span>
+                    <div>
+                      <h3 className="ac-moveout-title">จองห้องนี้</h3>
+                      <p className="ac-moveout-sub">สร้างข้อความยืนยัน + นัดย้ายเข้าอัตโนมัติ</p>
+                    </div>
+                  </header>
+                  <div className="ac-moveout-actions">
+                    <button type="button" className="ac-btn ac-btn-primary" onClick={onConfirmBooking}>
+                      📋 ยืนยันการจอง
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Move-IN workflow — surface when room is waiting for a
                   new tenant. Mirrors the move-OUT banner below for
                   symmetry; covers: schedule pre-arrival cleaning,
@@ -410,6 +433,13 @@ export default function RoomModal({
                     </div>
                   </header>
                   <div className="ac-moveout-actions">
+                    {onConfirmBooking && (
+                      <button
+                        type="button"
+                        className="ac-btn ac-btn-primary"
+                        onClick={onConfirmBooking}
+                      >📋 ยืนยันการจอง</button>
+                    )}
                     {onMoveinClean && (
                       <button
                         type="button"

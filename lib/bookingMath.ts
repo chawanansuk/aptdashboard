@@ -1,0 +1,79 @@
+/**
+ * Booking move-in math (Thai apartment convention).
+ *
+ * Mirrors the manual calculation staff put in their LINE confirmation:
+ * a late-month move-in pays the prorated remainder of the move-in month
+ * + one full upcoming month + the security deposit, minus whatever
+ * booking deposit was already transferred.
+ *
+ * Daily rate uses the /30 convention (not the actual month length) —
+ * that's what the existing confirmations use: 5,500 / 30 × 2 = 367.
+ * All amounts are rounded to whole baht.
+ */
+
+export const DAILY_DIVISOR = 30;
+
+export interface BookingInput {
+  /** Monthly rent in baht. */
+  monthlyRent: number;
+  /** Move-in date (CE / Gregorian). */
+  moveInDate: Date;
+  /** Security deposit / ค่าประกัน in baht. */
+  deposit: number;
+  /** Booking deposit already paid (มัดจำ) in baht. */
+  bookingPaid: number;
+}
+
+export interface BookingCalc {
+  /** Days charged in the move-in month (inclusive of the move-in day). */
+  proratedDays: number;
+  /** Prorated rent for the move-in month. */
+  proratedAmount: number;
+  /** Full upcoming month rent collected up front (0 for a 1st-of-month
+   *  move-in, where the prorate already IS a full month). */
+  nextMonthRent: number;
+  deposit: number;
+  bookingPaid: number;
+  /** proratedAmount + nextMonthRent + deposit. */
+  total: number;
+  /** total − bookingPaid (can be negative if overpaid). */
+  remaining: number;
+}
+
+function toMoney(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.round(n));
+}
+
+export function daysInMonth(year: number, monthIndex0: number): number {
+  return new Date(year, monthIndex0 + 1, 0).getDate();
+}
+
+export function computeBooking(input: BookingInput): BookingCalc {
+  const rent = toMoney(input.monthlyRent);
+  const deposit = toMoney(input.deposit);
+  const bookingPaid = toMoney(input.bookingPaid);
+  const d = input.moveInDate;
+  const dim = daysInMonth(d.getFullYear(), d.getMonth());
+  const day = d.getDate();
+
+  let proratedDays: number;
+  let proratedAmount: number;
+  let nextMonthRent: number;
+
+  if (day <= 1) {
+    // Move-in on the 1st: the "prorate" is the whole month, no separate
+    // next-month charge.
+    proratedDays = dim;
+    proratedAmount = rent;
+    nextMonthRent = 0;
+  } else {
+    proratedDays = dim - day + 1;
+    proratedAmount = Math.round((rent / DAILY_DIVISOR) * proratedDays);
+    nextMonthRent = rent;
+  }
+
+  const total = proratedAmount + nextMonthRent + deposit;
+  const remaining = total - bookingPaid;
+  return { proratedDays, proratedAmount, nextMonthRent, deposit, bookingPaid, total, remaining };
+}

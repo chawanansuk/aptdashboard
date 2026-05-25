@@ -24,6 +24,7 @@ import { useCommandPalette } from "@/lib/useCommandPalette";
 import type { CommandDef } from "@/lib/commandPaletteSearch";
 import BottomNav, { type BottomNavView } from "@/components/BottomNav";
 import RoomModal from "@/components/RoomModal";
+import BookingConfirmModal, { type BookingSaveData } from "@/components/BookingConfirmModal";
 import AddTaskModal from "@/components/AddTaskModal";
 import BulkAddModal from "@/components/BulkAddModal";
 import EditTaskModal from "@/components/EditTaskModal";
@@ -201,6 +202,9 @@ export default function Home() {
 
   // ---- Selected room ----
   const [selectedRoom, setSelectedRoom] = useState<RoomView | null>(null);
+  // Booking-confirmation flow target (null = closed).
+  const [bookingRoom, setBookingRoom] = useState<RoomView | null>(null);
+  const [bookingSaving, setBookingSaving] = useState(false);
   // Task being edited — shared modal mounted at the bottom of the
   // tree so EngineerKanban / TaskDetailDrawer can trigger the same
   // edit flow that TasksList already uses internally.
@@ -708,6 +712,65 @@ export default function Home() {
    * Schema ใน lib/taskSchema.ts ตรวจ structure + room-exists ก่อน;
    * ที่นี่เหลือแค่ parse cost → number แล้วยิงไป API
    */
+  /**
+   * Booking confirmation save: write the tenant onto the room (status →
+   * รอสัญญา so it shows in "รอย้ายเข้า") and create the ย้ายเข้า
+   * appointment on the move-in date. The two writes are sequential —
+   * the room update is the important one; if the task add fails the
+   * user still has the room booked + the copied LINE message.
+   */
+  async function handleBookingConfirm(data: BookingSaveData) {
+    setBookingSaving(true);
+    try {
+      const roomRes = await fetch("/api/sheet/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updateRoomStatus",
+          building: data.building,
+          room: data.room,
+          status: "รอสัญญา",
+          tenant: data.tenant,
+          phone: data.phone,
+          price: String(data.monthlyRent),
+        }),
+      });
+      const roomData = await roomRes.json().catch(() => ({ ok: false }));
+      if (!roomData.ok) throw new Error(roomData.error || `HTTP ${roomRes.status}`);
+
+      // Create the move-in appointment (best-effort; don't fail the
+      // whole flow if this errors — the room is already booked).
+      try {
+        await fetch("/api/sheet/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "addTask",
+            date: data.moveInDateIso,
+            type: "ย้ายเข้า",
+            building: data.building,
+            room: data.room,
+            customer: data.tenant,
+            phone: data.phone,
+            note: `ยืนยันการจอง — เข้าพัก ${data.moveInTime || ""}`.trim(),
+          }),
+        });
+      } catch { /* surfaced via refresh; room booking already saved */ }
+
+      toast.success("บันทึกการจอง + สร้างนัดย้ายเข้าแล้ว");
+      publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
+      optimisticUpdateRoom(data.building, data.room, {
+        status: "รอสัญญา", tenant: data.tenant, phone: data.phone, price: String(data.monthlyRent),
+      });
+      setBookingRoom(null);
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? `บันทึกไม่สำเร็จ: ${e.message}` : "Network error");
+    } finally {
+      setBookingSaving(false);
+    }
+  }
+
   async function handleAddTask(values: import("@/lib/taskSchema").TaskFormValues) {
     setSavingTask(true);
     try {
@@ -1259,6 +1322,7 @@ export default function Home() {
             onMoveoutClean={() => openMoveoutCleaning(selectedRoom.building, selectedRoom.room)}
             onMoveinClean={() => openMoveinCleaning(selectedRoom.building, selectedRoom.room)}
             onMoveinSchedule={() => openMoveinSchedule(selectedRoom.building, selectedRoom.room)}
+            onConfirmBooking={() => { setBookingRoom(selectedRoom); setSelectedRoom(null); }}
             onPrevRoom={prev ? () => setSelectedRoom(prev) : undefined}
             onNextRoom={next ? () => setSelectedRoom(next) : undefined}
             roomIndex={idx >= 0 ? idx + 1 : undefined}
@@ -1266,6 +1330,19 @@ export default function Home() {
           />
         );
       })()}
+
+      {bookingRoom && (
+        <BookingConfirmModal
+          building={bookingRoom.building}
+          room={bookingRoom.room}
+          defaultTenant={bookingRoom.tenant}
+          defaultPhone={bookingRoom.phone}
+          defaultRent={bookingRoom.price}
+          saving={bookingSaving}
+          onClose={() => setBookingRoom(null)}
+          onConfirm={handleBookingConfirm}
+        />
+      )}
 
       <KeyboardHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
 
