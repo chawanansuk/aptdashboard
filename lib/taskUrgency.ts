@@ -1,5 +1,5 @@
 import type { SheetRow } from "@/types";
-import { parseThaiDate } from "@/lib/dateUtils";
+import { parseThaiDate, getBangkokNow } from "@/lib/dateUtils";
 
 /**
  * Task urgency classification — pure functions, no React.
@@ -47,7 +47,7 @@ function daysBetween(a: Date, b: Date): number {
  * Tasks use dd/MM/yyyy date format (parseThaiDate handles it).
  * `now` is injectable for testability.
  */
-export function getTaskUrgency(task: SheetRow, now: Date = new Date()): Urgency {
+export function getTaskUrgency(task: SheetRow, now: Date = getBangkokNow()): Urgency {
   if (!task.date) return "noDate";
   const taskDate = parseThaiDate(task.date);
   if (!taskDate) return "noDate";
@@ -64,7 +64,7 @@ export function getTaskUrgency(task: SheetRow, now: Date = new Date()): Urgency 
  * How many days overdue (always positive) — for the "เลย N วัน" badge.
  * Returns 0 for non-overdue tasks.
  */
-export function daysOverdue(task: SheetRow, now: Date = new Date()): number {
+export function daysOverdue(task: SheetRow, now: Date = getBangkokNow()): number {
   if (!task.date) return 0;
   const taskDate = parseThaiDate(task.date);
   if (!taskDate) return 0;
@@ -77,10 +77,15 @@ export function daysOverdue(task: SheetRow, now: Date = new Date()): number {
  * (most-overdue surfaces top); future buckets sort by building+room
  * for stable visual grouping.
  */
-export function compareTasksInBucket(a: SheetRow, b: SheetRow, bucket: Urgency): number {
+export function compareTasksInBucket(
+  a: SheetRow,
+  b: SheetRow,
+  bucket: Urgency,
+  now: Date = getBangkokNow(),
+): number {
   if (bucket === "overdue") {
-    const da = daysOverdue(b);
-    const db = daysOverdue(a);
+    const da = daysOverdue(b, now);
+    const db = daysOverdue(a, now);
     if (da !== db) return da - db; // higher overdue first
   }
   // Stable: building, then numeric-aware room
@@ -91,7 +96,7 @@ export function compareTasksInBucket(a: SheetRow, b: SheetRow, bucket: Urgency):
 /** Group tasks by urgency, dropping empty buckets and sorting internally. */
 export function bucketTasks(
   tasks: SheetRow[],
-  now: Date = new Date()
+  now: Date = getBangkokNow()
 ): Array<{ urgency: Urgency; tasks: SheetRow[] }> {
   const groups = new Map<Urgency, SheetRow[]>();
   for (const t of tasks) {
@@ -105,7 +110,7 @@ export function bucketTasks(
     if (!list || list.length === 0) continue;
     out.push({
       urgency: u,
-      tasks: list.sort((x, y) => compareTasksInBucket(x, y, u)),
+      tasks: list.sort((x, y) => compareTasksInBucket(x, y, u, now)),
     });
   }
   return out;
