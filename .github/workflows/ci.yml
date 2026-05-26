@@ -1,0 +1,30 @@
+name: ci
+
+# Type-check + unit tests on every PR and push to main. Complements the
+# existing e2e (Playwright) and Vercel build checks — vitest wasn't run
+# anywhere in CI before, so a logic regression with a red unit test could
+# still merge. This job is the cheap, fast safety net.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm test
