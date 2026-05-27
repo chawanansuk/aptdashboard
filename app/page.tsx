@@ -74,7 +74,7 @@ const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 const ReportsView     = lazy(() => import("@/components/ReportsView"));
 
 export default function Home() {
-  const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing, optimisticUpdateRoom, optimisticAddTask } =
+  const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing, optimisticUpdateRoom, optimisticAddTask, optimisticUpdateTask } =
     useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
 
   // Vehicle counts per room — used to render 🏍 N badge on RoomCard.
@@ -466,7 +466,11 @@ export default function Home() {
     }).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
 
-  const showTasksView = activeView === "today" || activeView === "moveout" || activeView === "qc" || activeView === "repair";
+  // moveout/qc/repair are room-status views — their sidebar badge counts
+  // ROOMS in that status, so they render the room grid (filtered to that
+  // status via visibleRooms) instead of a task list keyed on a task TYPE
+  // that often doesn't exist (badge showed N but the task list was empty).
+  const showTasksView = activeView === "today";
   const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "recurring" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
@@ -1135,6 +1139,7 @@ export default function Home() {
                 title={VIEW_LABEL[activeView as string] || "งาน"}
                 emptyText="ไม่มีงานในรายการนี้"
                 onChanged={refresh}
+                onOptimisticStatus={(t, s) => optimisticUpdateTask(t, s)}
               />
             </>
           )}

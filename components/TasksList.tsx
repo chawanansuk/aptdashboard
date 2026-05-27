@@ -21,6 +21,9 @@ interface Props {
   title: string;
   emptyText?: string;
   onChanged?: () => void;
+  /** Optimistically reflect a status change locally so a closed task
+   *  doesn't pop back open while the dashboard cache catches up. */
+  onOptimisticStatus?: (t: SheetRow, status: string) => void;
 }
 
 const TYPE_COLOR: Record<string, string> = {
@@ -40,7 +43,7 @@ function isCancelled(status: string): boolean {
   return s === "ยกเลิก" || s === "cancelled";
 }
 
-export default function TasksList({ tasks, title, emptyText, onChanged }: Props) {
+export default function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: Props) {
   const { data: session } = useSession();
   const canDelete = canDeleteTask(session?.user?.roles);
   // Cost column in CSV exposed only to roles that can view financials
@@ -108,6 +111,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
           date: t.date, building: t.building, room: t.room, type: t.type,
           status: newStatus,
         });
+        onOptimisticStatus?.(t, newStatus);
       }
       clearBulk();
       onChanged?.();
@@ -182,6 +186,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged }: Props)
         date: t.date, building: t.building, room: t.room, type: t.type,
         status: newStatus,
       });
+      onOptimisticStatus?.(t, newStatus);
       onChanged?.();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Network error");
