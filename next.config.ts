@@ -36,6 +36,15 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Bake the deploy's commit SHA into the client bundle so a long-open
+  // session can detect when a newer version has shipped (see PWAClient +
+  // /api/version). Falls back to "dev" locally so it never false-prompts.
+  env: {
+    NEXT_PUBLIC_BUILD_ID:
+      process.env.VERCEL_GIT_COMMIT_SHA ||
+      process.env.NEXT_PUBLIC_BUILD_ID ||
+      "dev",
+  },
   images: {
     remotePatterns: [
       // Google profile photos (used by next-auth Google provider)
