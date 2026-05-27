@@ -9,6 +9,7 @@ import {
   tryBeginTasksRevalidation,
 } from "@/lib/dashboardCache";
 import type { SheetRow } from "@/types";
+import { canViewTaskCustomer } from "@/lib/permissions";
 import { createHash } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -112,6 +113,15 @@ export async function GET(req: Request) {
   }
   const authMs = Date.now() - handlerStart;
 
+  // Per-role PII projection. The cache stores FULL rows (shared); each
+  // response strips the task customer name + phone for users who can't
+  // view it (engineer-only). The ETag is computed over the PROJECTED rows
+  // so an engineer's 304 can't be satisfied by a sales user's cached body
+  // (Cache-Control is already `private`, never CDN).
+  const canSeeCustomer = canViewTaskCustomer(session.user.roles);
+  const project = (rows: SheetRow[]): SheetRow[] =>
+    canSeeCustomer ? rows : rows.map((t) => ({ ...t, customer: "", phone: "" }));
+
   // -------- Cache lookup --------
   const cacheStart = Date.now();
   const c = getTasksCacheState();
@@ -119,11 +129,12 @@ export async function GET(req: Request) {
 
   // ---- Fresh hit ----
   if (c.state === "fresh" && c.data) {
-    const etag = makeEtag(c.data);
+    const out = project(c.data);
+    const etag = makeEtag(out);
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/tasks] fresh", { ageMs: c.ageMs, totalMs, cacheMs });
     return buildResponse({
-      body: { tasks: c.data, cached: true, cacheState: "fresh", ageMs: c.ageMs },
+      body: { tasks: out, cached: true, cacheState: "fresh", ageMs: c.ageMs },
       etag,
       ifNoneMatch,
       timings: [
@@ -137,11 +148,12 @@ export async function GET(req: Request) {
   // ---- Stale hit (background revalidate) ----
   if (c.state === "stale" && c.data) {
     scheduleRevalidate();
-    const etag = makeEtag(c.data);
+    const out = project(c.data);
+    const etag = makeEtag(out);
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/tasks] stale + bg revalidate", { ageMs: c.ageMs, totalMs, cacheMs });
     return buildResponse({
-      body: { tasks: c.data, cached: true, cacheState: "stale", ageMs: c.ageMs },
+      body: { tasks: out, cached: true, cacheState: "stale", ageMs: c.ageMs },
       etag,
       ifNoneMatch,
       timings: [
@@ -159,17 +171,18 @@ export async function GET(req: Request) {
     const fetchMs = Date.now() - fetchStart;
 
     const parseStart = Date.now();
-    setTasksCache(tasks);
+    setTasksCache(tasks); // cache the FULL rows; project only the response
+    const out = project(tasks);
     const parseMs = Date.now() - parseStart;
 
     const etagStart = Date.now();
-    const etag = makeEtag(tasks);
+    const etag = makeEtag(out);
     const etagMs = Date.now() - etagStart;
 
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/tasks] miss → fetched", { fetchMs, parseMs, etagMs, totalMs });
     return buildResponse({
-      body: { tasks, cached: false, cacheState: "missing" },
+      body: { tasks: out, cached: false, cacheState: "missing" },
       etag,
       ifNoneMatch,
       timings: [
@@ -189,11 +202,12 @@ export async function GET(req: Request) {
     // serve it rather than failing the whole dashboard.
     const emergency = peekEmergencyTasksCache();
     if (emergency) {
-      const etag = makeEtag(emergency);
+      const out = project(emergency);
+      const etag = makeEtag(out);
       const totalMs = Date.now() - handlerStart;
       console.warn("[dashboard/tasks] miss-fail → emergency stale served", { error, fetchMs, totalMs });
       return buildResponse({
-        body: { tasks: emergency, cached: true, cacheState: "emergency-stale", error },
+        body: { tasks: out, cached: true, cacheState: "emergency-stale", error },
         etag,
         ifNoneMatch,
         timings: [
