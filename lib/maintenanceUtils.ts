@@ -84,6 +84,22 @@ export function getMaintenanceStatus(eq: Serviceable): MaintenanceStatus {
   return "ok";
 }
 
+/**
+ * Technician-facing grouping. The 5 raw MaintenanceStatus values overwhelm
+ * the บำรุงรักษา page, so the UI collapses them into 3 buckets that map to
+ * "do I act?":
+ *   - action  → ต้องบำรุง (overdue + due-soon)
+ *   - ok      → ตามรอบ (healthy)
+ *   - pending → รอข้อมูล (needs-date + unknown — admin data gap, not a job)
+ */
+export type MaintenanceGroup = "action" | "ok" | "pending";
+
+export function maintenanceGroup(s: MaintenanceStatus): MaintenanceGroup {
+  if (s === "overdue" || s === "due-soon") return "action";
+  if (s === "ok") return "ok";
+  return "pending"; // needs-date, unknown
+}
+
 export function formatDateLabel(s: string): string {
   if (!s) return "—";
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);

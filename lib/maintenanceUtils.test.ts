@@ -4,6 +4,7 @@ import {
   daysUntilService,
   getMaintenanceStatus,
   formatDateLabel,
+  maintenanceGroup,
 } from "./maintenanceUtils";
 
 // Anchor "today" so daysUntilService tests are deterministic
@@ -122,6 +123,20 @@ describe("getMaintenanceStatus", () => {
 
   it("boundary: 0 days (due today) = due-soon", () => {
     expect(getMaintenanceStatus({ intervalDays: 30, lastService: "2026-04-22", installDate: "" })).toBe("due-soon");
+  });
+});
+
+describe("maintenanceGroup", () => {
+  it("collapses overdue + due-soon into 'action'", () => {
+    expect(maintenanceGroup("overdue")).toBe("action");
+    expect(maintenanceGroup("due-soon")).toBe("action");
+  });
+  it("maps ok → 'ok'", () => {
+    expect(maintenanceGroup("ok")).toBe("ok");
+  });
+  it("folds needs-date + unknown into 'pending' (admin data gap)", () => {
+    expect(maintenanceGroup("needs-date")).toBe("pending");
+    expect(maintenanceGroup("unknown")).toBe("pending");
   });
 });
 
