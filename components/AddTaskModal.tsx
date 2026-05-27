@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
 import type { Role } from "@/auth";
-import { canAddSalesTask, canAddEngTask } from "@/lib/permissions";
+import { canAddSalesTask, canAddEngTask, canAddCleanTask } from "@/lib/permissions";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import {
   BUILDINGS,
@@ -27,12 +27,15 @@ import {
 
 /**
  * Task types ที่แต่ละ role เพิ่มได้:
- *   sales:      ย้ายเข้า / ย้ายออก / ชมห้อง / อื่นๆ
+ *   sales:      ย้ายเข้า / ย้ายออก / ชมห้อง / ทำสะอาด / อื่นๆ
  *   engineer:   ทำสะอาด / ซ่อม / อื่นๆ
  *   management: ทุกอย่าง
+ * "ทำสะอาด" is split out from the engineer-only bucket so sales can
+ * schedule the turnover clean after a move-out (ซ่อม stays engineer-only).
  */
 const SALES_TASK_TYPES = ["ย้ายเข้า", "ย้ายออก", "ชมห้อง"] as const;
-const ENG_TASK_TYPES   = ["ทำสะอาด", "ซ่อม"] as const;
+const CLEAN_TASK_TYPES = ["ทำสะอาด"] as const;
+const ENG_TASK_TYPES   = ["ซ่อม"] as const;
 const COMMON_TASK_TYPES = ["อื่นๆ"] as const;
 
 /** Types where customer/phone are meaningful — clean = no customer. */
@@ -47,14 +50,17 @@ function defaultTypeFor(
   const list = roles || [];
   const canSales = list.includes("sales") || list.includes("management");
   const canEng   = list.includes("engineer") || list.includes("management");
-  if (canSales && SALES_TASK_TYPES.includes(current as never)) return current as TaskFormValues["type"];
-  if (canEng && ENG_TASK_TYPES.includes(current as never)) return current as TaskFormValues["type"];
-  if (preferred) {
-    if (canSales && SALES_TASK_TYPES.includes(preferred as never)) return preferred as TaskFormValues["type"];
-    if (canEng   && ENG_TASK_TYPES.includes(preferred as never))   return preferred as TaskFormValues["type"];
-  }
+  // "ทำสะอาด" is allowed for every staff role (sales + engineer + mgmt).
+  const canClean = canSales || canEng;
+  const isAllowed = (t: string) =>
+    (canSales && SALES_TASK_TYPES.includes(t as never)) ||
+    (canClean && CLEAN_TASK_TYPES.includes(t as never)) ||
+    (canEng   && ENG_TASK_TYPES.includes(t as never));
+  if (isAllowed(current)) return current as TaskFormValues["type"];
+  if (preferred && isAllowed(preferred)) return preferred as TaskFormValues["type"];
   if (canSales) return "ชมห้อง";
   if (canEng)   return "ซ่อม";
+  if (canClean) return "ทำสะอาด";
   return "ย้ายเข้า";
 }
 
@@ -133,6 +139,7 @@ export default function AddTaskModal({
   const allowedTypes = useMemo(() => {
     const list: string[] = [];
     if (canAddSalesTask(roles)) list.push(...SALES_TASK_TYPES);
+    if (canAddCleanTask(roles)) list.push(...CLEAN_TASK_TYPES);
     if (canAddEngTask(roles))   list.push(...ENG_TASK_TYPES);
     list.push(...COMMON_TASK_TYPES);
     return list;

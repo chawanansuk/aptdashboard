@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
-import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask } from "@/lib/permissions";
+import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask, canAddCleanTask } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { sumCompletedCosts, formatBaht as formatTaskBaht } from "@/lib/taskCost";
@@ -147,6 +147,11 @@ export default function RoomModal({
   // management-only room-field editing). The backend allows sales to do
   // the booking room write via room.editStatus.
   const canBook = canAddSalesTask(session?.user?.roles);
+  // Scheduling the post-moveout clean is a sales activity too — gate the
+  // moveout cleaning button by clean-task permission (sales + eng + mgmt),
+  // not canEdit (management-only). Without this, sales who own the moveout
+  // couldn't book the turnover clean at all.
+  const canAddClean = canAddCleanTask(session?.user?.roles);
   const canSeeTenant = canViewTenant(session?.user?.roles);
   const { actualRoles, effectiveRoles } = useEffectiveRoles();
   const effRoles = effectiveRoles.length ? effectiveRoles : actualRoles;
@@ -468,7 +473,7 @@ export default function RoomModal({
                   digging through tabs. Each button opens AddTaskModal
                   pre-filled. "เคลียร์ข้อมูลผู้เช่า" stages a local
                   field clear; user still presses Save to commit. */}
-              {room.status === "moveout" && canEdit && (
+              {room.status === "moveout" && (canEdit || canAddClean) && (
                 <div className="ac-moveout-workflow" role="region" aria-label="ขั้นตอนย้ายออก">
                   <header className="ac-moveout-head">
                     <span className="ac-moveout-icon" aria-hidden>📤</span>
@@ -494,15 +499,17 @@ export default function RoomModal({
                         onClick={onMoveoutClean}
                       >🧹 จองทำสะอาด</button>
                     )}
-                    <button
-                      type="button"
-                      className="ac-btn ac-btn-ghost"
-                      onClick={() => {
-                        // Stage tenant info clear — user still presses Save
-                        onChange({ tenant: "", phone: "", contractEnd: "" });
-                      }}
-                      title="ล้างชื่อ/เบอร์/วันสัญญา — กด 'บันทึก' เพื่อยืนยัน"
-                    >👤 ล้างข้อมูลผู้เช่า</button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        className="ac-btn ac-btn-ghost"
+                        onClick={() => {
+                          // Stage tenant info clear — user still presses Save
+                          onChange({ tenant: "", phone: "", contractEnd: "" });
+                        }}
+                        title="ล้างชื่อ/เบอร์/วันสัญญา — กด 'บันทึก' เพื่อยืนยัน"
+                      >👤 ล้างข้อมูลผู้เช่า</button>
+                    )}
                   </div>
                 </div>
               )}

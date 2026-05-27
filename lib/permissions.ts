@@ -127,7 +127,8 @@ export type Action =
   // tasks
   | "task.add"
   | "task.add.sales"   // ย้ายเข้า/ออก/ชมห้อง
-  | "task.add.eng"     // ทำสะอาด/ซ่อม
+  | "task.add.clean"   // ทำสะอาด (turnover — sales also schedule after moveout)
+  | "task.add.eng"     // ซ่อม
   | "task.edit"
   | "task.delete"
   // rooms / tenants
@@ -151,6 +152,7 @@ export const ACTION_ALLOW: Record<Action, Role[]> = {
   // tasks — all authenticated users can create/edit generic; deletion is mgmt-only
   "task.add":       ["sales", "engineer", "management"],
   "task.add.sales": ["sales", "management"],
+  "task.add.clean": ["sales", "engineer", "management"],
   "task.add.eng":   ["engineer", "management"],
   "task.edit":      ["sales", "engineer", "management"],
   "task.delete":    ["management"],
@@ -238,4 +240,10 @@ export function canAddSalesTask(input: RoleInput): boolean {
 
 export function canAddEngTask(input: RoleInput): boolean {
   return canPerform(input, "task.add.eng");
+}
+
+/** Cleaning ("ทำสะอาด") — a turnover task. Allowed for sales too, since
+ *  sales handle move-outs and schedule the post-moveout clean. */
+export function canAddCleanTask(input: RoleInput): boolean {
+  return canPerform(input, "task.add.clean");
 }

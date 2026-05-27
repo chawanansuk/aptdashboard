@@ -3,7 +3,7 @@ import {
   canAccess, canPerform, getDefaultRoute,
   isSales, isEngineer, isManagement,
   canAddTask, canDeleteTask, canEditTenant, canViewFinancials,
-  canAddSalesTask, canAddEngTask, canViewTaskCustomer,
+  canAddSalesTask, canAddEngTask, canAddCleanTask, canViewTaskCustomer,
 } from "./permissions";
 
 describe("permissions: canViewTaskCustomer", () => {
@@ -102,6 +102,12 @@ describe("permissions: canPerform", () => {
     expect(canPerform(["engineer"], "task.add.sales")).toBe(false);
   });
 
+  it("all staff roles can add cleaning tasks (sales schedule the post-moveout clean)", () => {
+    expect(canPerform(["sales"], "task.add.clean")).toBe(true);
+    expect(canPerform(["engineer"], "task.add.clean")).toBe(true);
+    expect(canPerform(["management"], "task.add.clean")).toBe(true);
+  });
+
   it("only management can view financials or read/edit tenants", () => {
     expect(canPerform(["management"], "finance.view")).toBe(true);
     expect(canPerform(["management"], "tenant.view")).toBe(true);
@@ -160,6 +166,13 @@ describe("permissions: legacy helpers delegate to canPerform", () => {
     expect(canAddEngTask(["engineer"])).toBe(true);
     expect(canAddEngTask(["sales"])).toBe(false);
     expect(canAddEngTask(["sales", "engineer"])).toBe(true);
+  });
+
+  it("canAddCleanTask allows sales (turnover clean after moveout)", () => {
+    expect(canAddCleanTask(["sales"])).toBe(true);
+    expect(canAddCleanTask(["engineer"])).toBe(true);
+    expect(canAddCleanTask(["management"])).toBe(true);
+    expect(canAddCleanTask(null)).toBe(false);
   });
 });
 
