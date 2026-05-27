@@ -56,7 +56,7 @@ export default function AddFacilityModal({
   const isEdit = !!initial;
   const [building, setBuilding] = useState(initial?.building || buildings[0] || "");
   const [type, setType] = useState<FacilityType>(
-    (initial?.type as FacilityType) || "ลิฟต์"
+    (initial?.type as FacilityType) || "รอบล้างแอร์"
   );
   const [name, setName] = useState(initial?.name || "");
   const [installDate, setInstallDate] = useState(initial?.installDate || "");
@@ -68,7 +68,7 @@ export default function AddFacilityModal({
   const [intervalDays, setIntervalDays] = useState<number>(
     typeof initial?.intervalDays === "number"
       ? initial.intervalDays
-      : (FACILITY_DEFAULT_INTERVAL_DAYS[(initial?.type as string) || "ลิฟต์"] ?? 0)
+      : (FACILITY_DEFAULT_INTERVAL_DAYS[(initial?.type as string) || "รอบล้างแอร์"] ?? 0)
   );
 
   // Validation state
@@ -224,7 +224,7 @@ export default function AddFacilityModal({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="เช่น ลิฟต์ Mitsubishi #1"
+                placeholder="เช่น แอร์ล็อบบี้ #1"
               />
             </div>
           </div>
