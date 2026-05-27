@@ -540,6 +540,16 @@ html.dark .ac-theme-toggle:hover { background: #334155; }
   border: 1px solid #FDE68A;
   color: #92400E;
 }
+.ac-banner-ok {
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  color: #166534;
+}
+html.dark .ac-banner-ok {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86EFAC;
+}
 .ac-banner a { color: #4F46E5; text-decoration: underline; }
 
 .ac-empty {

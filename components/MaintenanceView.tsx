@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RoomEquipment, MaintenanceStatus } from "@/types";
 import {
   EQUIPMENT_TYPES, EQUIPMENT_TYPE_ICON, EQUIPMENT_STATUS_COLOR,
-  MAINTENANCE_STATUS_COLOR, MAINTENANCE_STATUS_LABEL,
+  MAINTENANCE_STATUS_COLOR,
 } from "@/lib/constants";
 import {
   computeNextService, getMaintenanceStatus, daysUntilService, formatDateLabel,
+  maintenanceGroup, type MaintenanceGroup,
 } from "@/lib/maintenanceUtils";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -18,15 +19,23 @@ interface Props {
   onScheduleService: (building: string, room: string, note: string) => void;
 }
 
-type StatusFilter = "all" | MaintenanceStatus;
+type GroupFilter = "all" | MaintenanceGroup;
 
-const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+// 3 technician-facing buckets instead of the 5 raw statuses — "do I act?"
+const GROUP_FILTERS: { key: GroupFilter; label: string }[] = [
   { key: "all", label: "ทั้งหมด" },
-  { key: "overdue", label: "เลยกำหนด" },
-  { key: "due-soon", label: "ใกล้ครบรอบ" },
+  { key: "action", label: "ต้องบำรุง" },
   { key: "ok", label: "ตามรอบ" },
-  { key: "needs-date", label: "รอระบุวันที่" },
+  { key: "pending", label: "รอข้อมูล" },
 ];
+
+// Color per group — action borrows the urgency palette (danger when any
+// row is overdue, amber otherwise); pending is muted (admin data gap).
+const GROUP_COLOR: Record<MaintenanceGroup, string> = {
+  action: MAINTENANCE_STATUS_COLOR["due-soon"],
+  ok: MAINTENANCE_STATUS_COLOR.ok,
+  pending: MAINTENANCE_STATUS_COLOR.unknown,
+};
 
 const STATUS_ORDER: Record<MaintenanceStatus, number> = {
   overdue: 0,
@@ -42,7 +51,7 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
   const [rows, setRows] = useState<RoomEquipment[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<GroupFilter>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
   const load = useCallback(async (opts?: { signal?: AbortSignal }) => {
@@ -75,8 +84,8 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
     const list = rows.filter((eq) => {
       if (activeBuilding !== "ทั้งหมด" && eq.building !== activeBuilding) return false;
       if (typeFilter !== "all" && eq.type !== typeFilter) return false;
-      const m = getMaintenanceStatus(eq);
-      if (statusFilter !== "all" && m !== statusFilter) return false;
+      const g = maintenanceGroup(getMaintenanceStatus(eq));
+      if (statusFilter !== "all" && g !== statusFilter) return false;
       return true;
     });
     return list.sort((a, b) => {
@@ -93,38 +102,48 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
   }, [rows, activeBuilding, statusFilter, typeFilter]);
 
   /** Top-of-page summary counts — respect activeBuilding but ignore filters
-   *  (so user always sees the bigger picture even after filtering). */
+   *  (so user always sees the bigger picture even after filtering).
+   *  3 buckets; `overdue` tracked only to color the "ต้องบำรุง" card red. */
   const counts = useMemo(() => {
-    if (!rows) return { overdue: 0, dueSoon: 0, ok: 0, needsDate: 0, unknown: 0 };
-    let overdue = 0, dueSoon = 0, ok = 0, needsDate = 0, unknown = 0;
+    if (!rows) return { action: 0, ok: 0, pending: 0, overdue: 0, total: 0 };
+    let action = 0, ok = 0, pending = 0, overdue = 0, total = 0;
     for (const eq of rows) {
       if (activeBuilding !== "ทั้งหมด" && eq.building !== activeBuilding) continue;
+      total++;
       const m = getMaintenanceStatus(eq);
+      const g = maintenanceGroup(m);
+      if (g === "action") action++;
+      else if (g === "ok") ok++;
+      else pending++;
       if (m === "overdue") overdue++;
-      else if (m === "due-soon") dueSoon++;
-      else if (m === "ok") ok++;
-      else if (m === "needs-date") needsDate++;
-      else unknown++;
     }
-    return { overdue, dueSoon, ok, needsDate, unknown };
+    return { action, ok, pending, overdue, total };
   }, [rows, activeBuilding]);
 
-  /** Week preview — items due in next 7 days or already overdue.
-   *  Uses the FILTERED set so user can scope the week by status/type
-   *  if they've narrowed the view. */
-  const weekItems = useMemo(() => {
-    const list: Array<{ eq: RoomEquipment; days: number | null; status: MaintenanceStatus }> = [];
-    for (const eq of filtered) {
-      const days = daysUntilService(eq);
-      const status = getMaintenanceStatus(eq);
-      // overdue (days < 0) OR due in ≤ 7 days
-      if (days !== null && days <= 7) {
-        list.push({ eq, days, status });
-      }
+  /** The "ต้องบำรุง" lead list — every actionable item (overdue + due-soon),
+   *  most-overdue first. Answers the technician's "what do I service?" up
+   *  front. Respects type filter but always shows the action bucket. */
+  const actionItems = useMemo(() => {
+    const list: Array<{ eq: RoomEquipment; days: number | null }> = [];
+    for (const eq of rows ?? []) {
+      if (activeBuilding !== "ทั้งหมด" && eq.building !== activeBuilding) continue;
+      if (typeFilter !== "all" && eq.type !== typeFilter) continue;
+      if (maintenanceGroup(getMaintenanceStatus(eq)) !== "action") continue;
+      list.push({ eq, days: daysUntilService(eq) });
     }
-    // Most-overdue first, then nearest future
     return list.sort((a, b) => (a.days ?? 0) - (b.days ?? 0)).slice(0, 8);
-  }, [filtered]);
+  }, [rows, activeBuilding, typeFilter]);
+
+  /** Type chips, scoped to activeBuilding, hiding types with no equipment
+   *  (keeps the row short when a building has few item kinds). */
+  const typeCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const eq of rows ?? []) {
+      if (activeBuilding !== "ทั้งหมด" && eq.building !== activeBuilding) continue;
+      map.set(eq.type, (map.get(eq.type) ?? 0) + 1);
+    }
+    return map;
+  }, [rows, activeBuilding]);
 
   /** Group filtered items by building when user has "all buildings" set.
    *  When user has a specific building selected, we render flat — the
@@ -188,41 +207,42 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
         >⬇ CSV</button>
       </div>
       <div className="ac-maintenance-summary">
-        <div className="ac-maint-stat" style={{ borderColor: MAINTENANCE_STATUS_COLOR.overdue }}>
-          <div className="ac-maint-stat-num" style={{ color: MAINTENANCE_STATUS_COLOR.overdue }}>{counts.overdue}</div>
-          <div className="ac-maint-stat-label">เลยกำหนด</div>
+        <div className="ac-maint-stat" style={{ borderColor: counts.overdue > 0 ? MAINTENANCE_STATUS_COLOR.overdue : GROUP_COLOR.action }}>
+          <div className="ac-maint-stat-num" style={{ color: counts.overdue > 0 ? MAINTENANCE_STATUS_COLOR.overdue : GROUP_COLOR.action }}>{counts.action}</div>
+          <div className="ac-maint-stat-label">ต้องบำรุง</div>
         </div>
-        <div className="ac-maint-stat" style={{ borderColor: MAINTENANCE_STATUS_COLOR["due-soon"] }}>
-          <div className="ac-maint-stat-num" style={{ color: MAINTENANCE_STATUS_COLOR["due-soon"] }}>{counts.dueSoon}</div>
-          <div className="ac-maint-stat-label">ใกล้ครบรอบ (≤14 วัน)</div>
-        </div>
-        <div className="ac-maint-stat" style={{ borderColor: MAINTENANCE_STATUS_COLOR.ok }}>
-          <div className="ac-maint-stat-num" style={{ color: MAINTENANCE_STATUS_COLOR.ok }}>{counts.ok}</div>
+        <div className="ac-maint-stat" style={{ borderColor: GROUP_COLOR.ok }}>
+          <div className="ac-maint-stat-num" style={{ color: GROUP_COLOR.ok }}>{counts.ok}</div>
           <div className="ac-maint-stat-label">ตามรอบ</div>
         </div>
-        {counts.needsDate > 0 && (
-          <div className="ac-maint-stat" style={{ borderColor: MAINTENANCE_STATUS_COLOR["needs-date"] }}>
-            <div className="ac-maint-stat-num" style={{ color: MAINTENANCE_STATUS_COLOR["needs-date"] }}>{counts.needsDate}</div>
-            <div className="ac-maint-stat-label">รอระบุวันที่</div>
+        {counts.pending > 0 && (
+          <div className="ac-maint-stat" style={{ borderColor: GROUP_COLOR.pending }}>
+            <div className="ac-maint-stat-num" style={{ color: GROUP_COLOR.pending }}>{counts.pending}</div>
+            <div className="ac-maint-stat-label">รอข้อมูล</div>
           </div>
         )}
-        <div className="ac-maint-stat" style={{ borderColor: MAINTENANCE_STATUS_COLOR.unknown }}>
-          <div className="ac-maint-stat-num" style={{ color: MAINTENANCE_STATUS_COLOR.unknown }}>{counts.unknown}</div>
-          <div className="ac-maint-stat-label">ไม่กำหนดรอบ</div>
-        </div>
       </div>
 
-      {/* Week preview — top of page; "what's pressing this week" */}
-      {weekItems.length > 0 && (
-        <section className="ac-maint-week" aria-label="บำรุงรักษา 7 วันถัดไป">
+      {/* All-clear: nothing needs servicing right now — tell the technician
+          plainly so an empty action list doesn't read as "something's wrong". */}
+      {rows && counts.total > 0 && counts.action === 0 && (
+        <div className="ac-banner ac-banner-ok" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span aria-hidden>✓</span>
+          <span>ไม่มีอุปกรณ์ที่ต้องบำรุงตอนนี้ — ทุกชิ้นยังอยู่ในรอบ</span>
+        </div>
+      )}
+
+      {/* Lead list — "what do I service?" surfaced first */}
+      {actionItems.length > 0 && (
+        <section className="ac-maint-week" aria-label="อุปกรณ์ที่ต้องบำรุง">
           <div className="ac-maint-week-head">
-            <span className="ac-maint-week-title">บำรุงรักษา 7 วันถัดไป</span>
-            <span className="ac-maint-week-sub">{weekItems.length} รายการ (รวมที่เลยกำหนด)</span>
+            <span className="ac-maint-week-title">🔧 ต้องบำรุงก่อน</span>
+            <span className="ac-maint-week-sub">{actionItems.length} รายการ (เรียงด่วนสุดก่อน)</span>
           </div>
           <ul className="ac-maint-week-list">
-            {weekItems.map(({ eq, days, status }) => {
+            {actionItems.map(({ eq, days }) => {
               const dueClass =
-                status === "overdue" ? "is-overdue" :
+                days !== null && days < 0 ? "is-overdue" :
                 days === 0 ? "is-today" : "is-soon";
               const dueLabel =
                 days === null ? "—" :
@@ -251,7 +271,7 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
       )}
 
       <div className="ac-chips">
-        {STATUS_FILTERS.map((f) => (
+        {GROUP_FILTERS.map((f) => (
           <button
             key={f.key}
             className={`ac-chip ${statusFilter === f.key ? "is-active" : ""}`}
@@ -265,13 +285,17 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
           className={`ac-chip ${typeFilter === "all" ? "is-active" : ""}`}
           onClick={() => setTypeFilter("all")}
         >ทุกประเภท</button>
-        {EQUIPMENT_TYPES.map((t) => (
-          <button
-            key={t}
-            className={`ac-chip ${typeFilter === t ? "is-active" : ""}`}
-            onClick={() => setTypeFilter(t)}
-          >{EQUIPMENT_TYPE_ICON[t] || ""} {t}</button>
-        ))}
+        {EQUIPMENT_TYPES.map((t) => {
+          const count = typeCounts.get(t) ?? 0;
+          if (count === 0 && typeFilter !== t) return null;
+          return (
+            <button
+              key={t}
+              className={`ac-chip ${typeFilter === t ? "is-active" : ""}`}
+              onClick={() => setTypeFilter(t)}
+            >{EQUIPMENT_TYPE_ICON[t] || ""} {t} ({count})</button>
+          );
+        })}
       </div>
 
       {err && <div className="ac-banner ac-banner-warn">{err}</div>}
@@ -373,10 +397,15 @@ function MaintCard({
   onScheduleService: (building: string, room: string, note: string) => void;
 }) {
   const m = getMaintenanceStatus(eq);
+  const g = maintenanceGroup(m);
+  const groupLabel = g === "action" ? "ต้องบำรุง" : g === "ok" ? "ตามรอบ" : "รอข้อมูล";
   const next = computeNextService(eq);
   const days = daysUntilService(eq);
   const mColor = MAINTENANCE_STATUS_COLOR[m] || "#94A3B8";
   const eqColor = EQUIPMENT_STATUS_COLOR[eq.status] || "#94A3B8";
+  // The condition badge only earns space when something's actually wrong —
+  // "ปกติ" is the default and just adds noise next to the cycle status.
+  const showCondition = !!eq.status && eq.status !== "ปกติ";
   const tail =
     days === null ? "" :
     days < 0 ? ` (เลย ${Math.abs(days)} วัน)` :
@@ -405,11 +434,13 @@ function MaintCard({
           <span
             className="ac-equipment-card-status"
             style={{ background: mColor + "22", color: mColor }}
-          >{MAINTENANCE_STATUS_LABEL[m]}{tail}</span>
-          <span
-            className="ac-equipment-card-status"
-            style={{ background: eqColor + "22", color: eqColor }}
-          >{eq.status}</span>
+          >{groupLabel}{tail}</span>
+          {showCondition && (
+            <span
+              className="ac-equipment-card-status"
+              style={{ background: eqColor + "22", color: eqColor }}
+            >{eq.status}</span>
+          )}
         </div>
         <div className="ac-maint-card-meta">
           {next ? (
