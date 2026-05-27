@@ -279,6 +279,31 @@ export default function RoomsView({
                         >{icon} {dd}/{mm}</span>
                       );
                     })()}
+                    {/* "ต้องซ่อมอะไร" hint for repair rooms — a room flagged
+                        รอเข้าซ่อม is meaningless to the technician without the
+                        actual problem. Pull it from the room's ซ่อม task; if
+                        none exists, say so plainly (flagged but no job yet). */}
+                    {r.status === "repair" && (() => {
+                      const all = [...(r.todayTasks || []), ...(r.upcomingTasks || []), ...(r.pastTasks || [])];
+                      const repair = all.find((t) => t.type === "ซ่อม");
+                      if (repair) {
+                        const detail = (repair.note || "").trim() || "งานซ่อม";
+                        return (
+                          <span
+                            className="ac-rc-repair-hint"
+                            title={`ต้องซ่อม: ${detail}`}
+                            aria-label={`ต้องซ่อม: ${detail}`}
+                          >🔧 {detail}</span>
+                        );
+                      }
+                      return (
+                        <span
+                          className="ac-rc-repair-hint is-empty"
+                          title="ห้องนี้ถูกตั้งเป็น 'รอเข้าซ่อม' แต่ยังไม่มีใบงานซ่อม — สร้างงานซ่อมเพื่อบอกช่างว่าต้องซ่อมอะไร"
+                          aria-label="ยังไม่มีใบงานซ่อม"
+                        >🔧 ยังไม่มีใบงาน</span>
+                      );
+                    })()}
                     {(() => {
                       const veh = vehicleCountByRoom?.(r.building, r.room) ?? 0;
                       const eq  = equipmentCountByRoom?.(r.building, r.room) ?? 0;

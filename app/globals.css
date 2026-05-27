@@ -1111,6 +1111,32 @@ html.dark .ac-mode-badge.is-management {
   white-space: nowrap;
 }
 .ac-rg-compact .ac-rc-movein { display: none; }
+/* "ต้องซ่อมอะไร" hint for รอเข้าซ่อม rooms — amber pill under the status
+   showing the repair note. `.is-empty` (grey) flags a room marked for
+   repair that has no ซ่อม job yet. Truncates so long notes don't break
+   the card grid. */
+.ac-rc-repair-hint {
+  display: block;
+  margin-top: 2px;
+  max-width: 100%;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #92400E;
+  background: color-mix(in srgb, #F59E0B 26%, transparent);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ac-rc-repair-hint.is-empty {
+  color: #64748B;
+  background: color-mix(in srgb, #94A3B8 22%, transparent);
+}
+html.dark .ac-rc-repair-hint { color: #FDE68A; background: color-mix(in srgb, #F59E0B 22%, transparent); }
+html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in srgb, #64748B 26%, transparent); }
+.ac-rg-compact .ac-rc-repair-hint { display: none; }
 .ac-rc-today {
   position: absolute;
   top: 4px; right: 4px;
