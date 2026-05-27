@@ -137,8 +137,8 @@ export const MAINTENANCE_STATUS_LABEL: Record<string, string> = {
 
 // ===== Facility (v3.8.0) =====
 export const FACILITY_TYPES: FacilityType[] = [
-  "ลิฟต์", "สระว่ายน้ำ", "เครื่องปั่นไฟ", "ปั๊มน้ำ",
-  "WiFi", "CCTV", "อื่นๆ",
+  "รอบล้างแอร์", "รอบล้างเครื่องซักผ้า", "ปั๊มน้ำ", "ไฟส่วนกลาง",
+  "ต้นไม้", "ทางเดินส่วนกลาง", "อื่นๆ",
 ];
 
 export const FACILITY_STATUS_LIST: FacilityStatus[] = [
@@ -146,12 +146,12 @@ export const FACILITY_STATUS_LIST: FacilityStatus[] = [
 ];
 
 export const FACILITY_TYPE_ICON: Record<string, string> = {
-  ลิฟต์: "🛗",
-  สระว่ายน้ำ: "🏊",
-  เครื่องปั่นไฟ: "⚡",
+  รอบล้างแอร์: "❄️",
+  รอบล้างเครื่องซักผ้า: "🧺",
   ปั๊มน้ำ: "💧",
-  WiFi: "📶",
-  CCTV: "📹",
+  ไฟส่วนกลาง: "💡",
+  ต้นไม้: "🌳",
+  ทางเดินส่วนกลาง: "🚶",
   อื่นๆ: "🏢",
 };
 
@@ -163,11 +163,11 @@ export const FACILITY_STATUS_COLOR: Record<string, string> = {
 };
 
 export const FACILITY_DEFAULT_INTERVAL_DAYS: Record<string, number> = {
-  ลิฟต์: 90,
-  สระว่ายน้ำ: 30,
-  เครื่องปั่นไฟ: 180,
+  รอบล้างแอร์: 90,
+  รอบล้างเครื่องซักผ้า: 90,
   ปั๊มน้ำ: 180,
-  WiFi: 0,
-  CCTV: 365,
+  ไฟส่วนกลาง: 0,
+  ต้นไม้: 30,
+  ทางเดินส่วนกลาง: 0,
   อื่นๆ: 0,
 };

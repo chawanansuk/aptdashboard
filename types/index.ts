@@ -115,12 +115,12 @@ export type MaintenanceStatus = "ok" | "due-soon" | "overdue" | "needs-date" | "
 
 // ===== Facility (v3.8.0) — building-level สาธารณูปโภค =====
 export type FacilityType =
-  | "ลิฟต์"
-  | "สระว่ายน้ำ"
-  | "เครื่องปั่นไฟ"
+  | "รอบล้างแอร์"
+  | "รอบล้างเครื่องซักผ้า"
   | "ปั๊มน้ำ"
-  | "WiFi"
-  | "CCTV"
+  | "ไฟส่วนกลาง"
+  | "ต้นไม้"
+  | "ทางเดินส่วนกลาง"
   | "อื่นๆ";
 
 export type FacilityStatus =
@@ -133,7 +133,7 @@ export interface Facility {
   id: string;
   building: string;
   type: FacilityType | string;
-  name: string;           // ชื่อ/รุ่น เช่น "ลิฟต์ Mitsubishi #1"
+  name: string;           // ชื่อ/รุ่น เช่น "แอร์ล็อบบี้ #1"
   installDate: string;    // yyyy-MM-dd
   lastService: string;    // yyyy-MM-dd
   status: FacilityStatus | string;

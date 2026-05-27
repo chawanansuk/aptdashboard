@@ -173,7 +173,7 @@ const VIEW_CATALOG: ViewDef[] = [
   { route: "inactive",    label: "ห้องไม่ใช้งาน",   hint: STATUS_LABEL.inactive },
   { route: "tenants",     label: "ผู้เช่า",         hint: "รายการผู้เช่า + สัญญาหมด" },
   { route: "maintenance", label: "บำรุงรักษา",     hint: "อุปกรณ์ในห้อง + รอบบำรุง" },
-  { route: "facilities",  label: "สาธารณูปโภค",   hint: "ลิฟต์ / สระ / ปั๊ม / WiFi" },
+  { route: "facilities",  label: "สาธารณูปโภค",   hint: "ล้างแอร์ / ล้างเครื่องซักผ้า / ปั๊มน้ำ / ส่วนกลาง" },
   { route: "income",      label: "รายได้",         hint: "สรุปรายได้รายเดือน" },
 ];
 
