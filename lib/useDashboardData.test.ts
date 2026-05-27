@@ -226,6 +226,30 @@ describe("applyOptimisticTaskStatus", () => {
     expect(out.find((t) => t.room === "101")!.status).toBe("ยกเลิก");
     expect(out.find((t) => t.room === "202")!.status).toBe("");
   });
+
+  it("keeps suppressing duplicate rows until EVERY row with the key flips", () => {
+    // Two server rows share a key (stray duplicate). The backend closed one
+    // but the twin still reads open — without holding the pending entry the
+    // open twin would pop the task back open ("เด้งกลับ").
+    const now = Date.now();
+    const closed = mk({ status: "เสร็จ" });
+    const openTwin = mk({ status: "" });
+    const key = taskKey(closed); // identical key
+    const map = pend([[key, { status: "เสร็จ", at: now }]]);
+    const out = applyOptimisticTaskStatus([closed, openTwin], map, now, TTL);
+    expect(out.every((t) => t.status === "เสร็จ")).toBe(true); // both suppressed
+    expect(map.has(key)).toBe(true); // NOT dropped — a twin is still open
+  });
+
+  it("drops the pending entry only once all duplicate rows have flipped", () => {
+    const now = Date.now();
+    const a = mk({ status: "เสร็จ" });
+    const b = mk({ status: "เสร็จ" });
+    const key = taskKey(a);
+    const map = pend([[key, { status: "เสร็จ", at: now }]]);
+    applyOptimisticTaskStatus([a, b], map, now, TTL);
+    expect(map.has(key)).toBe(false); // fully reconciled
+  });
 });
 
 describe("describeFetchError", () => {

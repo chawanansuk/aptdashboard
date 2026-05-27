@@ -494,15 +494,29 @@ function getRooms_() {
 
 /* ========== TASK FIND (composite key) ========== */
 function findTaskRow_(q) {
+  const rows = findAllTaskRows_(q);
+  return rows.length ? rows[0] : -1;
+}
+
+/**
+ * All 1-based rows matching the composite key (date|type|building|room).
+ * The whole system treats this key as a task's identity (find/update/
+ * delete), so when stray duplicate rows share it they're the "same" task.
+ * Returned so a status close can flip every duplicate at once — otherwise
+ * closing the first match leaves an open twin that pops the task back open
+ * after the client's optimistic window lapses ("เด้งกลับ").
+ */
+function findAllTaskRows_(q) {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   if (!sh) throw new Error('sheet "งาน" not found');
   const lastRow = sh.getLastRow();
-  if (lastRow < 2) return -1;
+  if (lastRow < 2) return [];
   const data = sh.getRange(2, 1, lastRow - 1, 8).getValues();
   const qDate = norm(q.date);
   const qType = norm(q.type);
   const qBld  = norm(q.building);
   const qRoom = norm(q.room);
+  const out = [];
   for (let i = 0; i < data.length; i++) {
     const r = data[i];
     if (
@@ -511,10 +525,10 @@ function findTaskRow_(q) {
       norm(r[2]) === qBld &&
       norm(r[3]) === qRoom
     ) {
-      return i + 2; // 1-based row
+      out.push(i + 2); // 1-based row
     }
   }
-  return -1;
+  return out;
 }
 
 /* ========== TASK MUTATE ========== */
@@ -568,12 +582,17 @@ function updateTask_(b) {
 }
 
 function updateTaskStatus_(b) {
-  const row = findTaskRow_(b);
-  if (row < 0) throw new Error('task not found');
+  const rows = findAllTaskRows_(b);
+  if (rows.length === 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
-  sh.getRange(row, TASK_COL.STATUS).setValue(b.status || 'เสร็จ');
+  const status = b.status || 'เสร็จ';
+  // Flip every duplicate sharing this key, not just the first — see
+  // findAllTaskRows_. Prevents the "close → pops back open" bounce.
+  for (let i = 0; i < rows.length; i++) {
+    sh.getRange(rows[i], TASK_COL.STATUS).setValue(status);
+  }
   clearTasksCache_();
-  return { updated: true, row: row };
+  return { updated: true, rows: rows, count: rows.length };
 }
 
 function deleteTask_(b) {

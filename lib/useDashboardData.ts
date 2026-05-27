@@ -161,15 +161,22 @@ export function applyOptimisticTaskStatus(
     if (now - v.at > ttlMs) pending.delete(k);
   }
   if (pending.size === 0) return serverTasks;
-  return serverTasks.map((t) => {
+  // A close is "reconciled" only once NO server row for that key still
+  // shows the old status. With duplicate rows sharing a key, dropping on
+  // the first reconciled row would unmask an open twin and pop the task
+  // back open — so keep suppressing until every matching row has flipped.
+  const stillOpen = new Set<string>();
+  for (const t of serverTasks) {
     const k = taskKey(t);
     const entry = pending.get(k);
-    if (!entry) return t;
-    if ((t.status || "") === entry.status) {
-      pending.delete(k);
-      return t;
-    }
-    return { ...t, status: entry.status };
+    if (entry && (t.status || "") !== entry.status) stillOpen.add(k);
+  }
+  for (const k of Array.from(pending.keys())) {
+    if (!stillOpen.has(k)) pending.delete(k);
+  }
+  return serverTasks.map((t) => {
+    const entry = pending.get(taskKey(t));
+    return entry ? { ...t, status: entry.status } : t;
   });
 }
 
