@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
-import { isClosedStatus, isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { isClosedStatus, isDoneStatus, isCancelledStatus, isNotInterestedStatus } from "@/lib/constants";
 import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
 
@@ -209,7 +209,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
     const cancelled: SheetRow[] = [];
     for (const t of dayTasks) {
       if (isDoneStatus(t.status)) done.push(t);
-      else if (isCancelledStatus(t.status)) cancelled.push(t);
+      else if (isCancelledStatus(t.status) || isNotInterestedStatus(t.status)) cancelled.push(t);
       else open.push(t);
     }
     return { open, done, cancelled };
@@ -249,7 +249,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
             </div>
           )}
         </div>
-        <span className={`ac-task-status ${isDoneStatus(t.status) ? "is-done" : isCancelledStatus(t.status) ? "is-cancelled" : ""}`}>
+        <span className={`ac-task-status ${isDoneStatus(t.status) ? "is-done" : (isCancelledStatus(t.status) || isNotInterestedStatus(t.status)) ? "is-cancelled" : ""}`}>
           {t.status || "ว่าง"}
         </span>
       </div>

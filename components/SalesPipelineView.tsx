@@ -5,7 +5,7 @@ import type { RoomView, SheetRow, RoomStatus } from "@/types";
 import { STATUS_DOT } from "@/lib/constants";
 import { Icon } from "@/lib/icons";
 import { parseThaiDate } from "@/lib/dateUtils";
-import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { isClosedStatus } from "@/lib/constants";
 
 interface Props {
   rooms: RoomView[];
@@ -181,7 +181,7 @@ export default function SalesPipelineView({
       .filter((t) => {
         if (activeBuilding !== "ทั้งหมด" && t.building !== activeBuilding) return false;
         if (!SALES_TASK_TYPES.has(t.type)) return false;
-        if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
+        if (isClosedStatus(t.status)) return false;
         const d = parseThaiDate(t.date);
         if (!d) return false;
         if (d.getTime() < startOfToday.getTime()) return false;

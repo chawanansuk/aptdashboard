@@ -24,7 +24,7 @@
  */
 
 import { parseThaiDate, getBangkokNow } from "@/lib/dateUtils";
-import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { isClosedStatus } from "@/lib/constants";
 
 export type SlaState = "future" | "ok" | "warn" | "overdue" | "idle";
 
@@ -70,7 +70,7 @@ export function computeSla(
 ): SlaResult {
   const slaDays = getSlaDays(task.type);
 
-  if (isDoneStatus(task.status) || isCancelledStatus(task.status)) {
+  if (isClosedStatus(task.status)) {
     return { state: "idle", daysSinceDate: 0, daysOverSla: 0, slaDays };
   }
   if (slaDays <= 0) {

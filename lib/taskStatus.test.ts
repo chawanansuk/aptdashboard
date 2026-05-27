@@ -25,6 +25,11 @@ describe("categorizeStatus", () => {
     expect(categorizeStatus("cancelled")).toBe("cancelled");
   });
 
+  it("maps the not-interested viewing outcome as a (lost) cancelled", () => {
+    expect(categorizeStatus(TASK_STATUS.NOT_INTERESTED)).toBe("cancelled");
+    expect(categorizeStatus("ไม่สนใจ")).toBe("cancelled");
+  });
+
   it("falls back to pending for unknown values (defensive)", () => {
     expect(categorizeStatus("ว่าง")).toBe("pending");
     expect(categorizeStatus("งานใหม่")).toBe("pending");
@@ -41,5 +46,8 @@ describe("isOpenStatus", () => {
   it("done and cancelled are NOT open", () => {
     expect(isOpenStatus("เสร็จ")).toBe(false);
     expect(isOpenStatus("ยกเลิก")).toBe(false);
+  });
+  it("not-interested is NOT open", () => {
+    expect(isOpenStatus("ไม่สนใจ")).toBe(false);
   });
 });
