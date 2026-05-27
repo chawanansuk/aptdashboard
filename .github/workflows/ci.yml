@@ -15,8 +15,19 @@ permissions:
 
 jobs:
   test:
+    # Run the suite under two timezones: UTC (Vercel servers) and
+    # Asia/Bangkok (real users). Date logic that mixes zoned and raw
+    # dates can pass under one TZ and break under the other; the matrix
+    # catches that class of bug. `TZ` must be set before the Node process
+    # starts, so it's a job-level env (a matrix leg per zone).
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tz: [UTC, Asia/Bangkok]
+    env:
+      TZ: ${{ matrix.tz }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,5 +37,5 @@ jobs:
       - run: npm ci
       - name: Type check
         run: npx tsc --noEmit
-      - name: Unit tests
+      - name: Unit tests (TZ=${{ matrix.tz }})
         run: npm test

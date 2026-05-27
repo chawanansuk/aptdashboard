@@ -3,9 +3,16 @@ import { relativeTimeLabel, parseSheetTimestamp } from "./relativeTime";
 
 // Anchor "now" so tests are deterministic
 const NOW = new Date("2026-05-22T10:00:00");
+// Format as LOCAL wall-clock "yyyy-MM-dd HH:mm" — matching how
+// parseSheetTimestamp interprets the string. (Using toISOString() here
+// would emit UTC and make the round-trip off by the runtime's offset,
+// so the test passed only under TZ=UTC.)
+function fmtLocal(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function ago(min: number): string {
-  const d = new Date(NOW.getTime() - min * 60_000);
-  return d.toISOString().slice(0, 16).replace("T", " ");
+  return fmtLocal(new Date(NOW.getTime() - min * 60_000));
 }
 
 describe("relativeTimeLabel", () => {
@@ -49,7 +56,7 @@ describe("relativeTimeLabel", () => {
   });
 
   it("future timestamp (clock skew) → treats as 'just now'", () => {
-    const future = new Date(NOW.getTime() + 5 * 60_000).toISOString().slice(0, 16).replace("T", " ");
+    const future = fmtLocal(new Date(NOW.getTime() + 5 * 60_000));
     expect(relativeTimeLabel(future, NOW)).toBe("เพิ่งสร้าง");
   });
 
