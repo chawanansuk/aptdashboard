@@ -41,6 +41,27 @@ function buildingRoomKey(b: string, r: string): string {
  */
 export const OPTIMISTIC_MAX_TTL_MS = 5 * 60_000;
 
+/**
+ * Map a raw fetch/load error (network message, HTTP status, Apps Script
+ * payload) to a short Thai sentence the user can act on. Raw text stays in
+ * the console for support; the banner shows this. Unknown errors fall
+ * through unchanged so we never hide a message we didn't anticipate.
+ */
+export function describeFetchError(raw: string): string {
+  const s = (raw || "").toLowerCase();
+  if (/failed to fetch|networkerror|err_internet|err_network|load failed|ecnnrefused|econnrefused/.test(s))
+    return "เชื่อมต่อเครือข่ายไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง";
+  if (/\b(502|503|504)\b|timeout|timed out|gateway|unavailable/.test(s))
+    return "เซิร์ฟเวอร์ไม่ตอบชั่วคราว — ลองอีกครั้งในสักครู่";
+  if (/quota|rate.?limit|too many|exceeded/.test(s))
+    return "ใช้งานระบบ Google เกินโควต้าชั่วคราว — รอสักครู่แล้วลองใหม่";
+  if (/invalid json|unexpected token|json/.test(s))
+    return "ข้อมูลจากเซิร์ฟเวอร์ผิดรูปแบบ — ลองรีเฟรชอีกครั้ง";
+  if (/\b(401|403)\b|unauthor|forbidden|permission/.test(s))
+    return "ไม่มีสิทธิ์เข้าถึงข้อมูล — ตรวจการตั้งค่าการเชื่อมต่อ";
+  return raw;
+}
+
 export interface OptimisticRoomPatch {
   patch: Partial<RoomRow>;
   at: number;
@@ -350,7 +371,10 @@ export function useDashboardData(): DashboardState {
       // logged but invisible to the user (loadSlice swallows them into the
       // local array; only the outer try/catch hits setErrors, and that
       // path almost never fires because loadSlice doesn't throw).
-      setErrors(errs);
+      // Keep raw text in the console (support diagnoses bug reports from it);
+      // show de-duplicated, user-actionable Thai in the banner.
+      if (errs.length) console.error("[dashboard] load errors:", errs);
+      setErrors(Array.from(new Set(errs.map(describeFetchError))));
       setLastUpdated(new Date().toLocaleTimeString("th-TH") + (anyCached ? " (server cache)" : ""));
       setStatus(errs.length && !hasAnyData ? "error" : "ok");
       setIsInitial(false);
@@ -364,13 +388,19 @@ export function useDashboardData(): DashboardState {
         const res = await fetchWithRetry(url, ctrl.signal);
         const j = await res.json().catch(() => ({ error: "invalid JSON" }));
         if (!alive || ctrl.signal.aborted) return;
-        if (j.error) errs.push(String(j.error));
+        if (j.error) {
+          console.error(`[dashboard] slice ${url} returned error:`, j.error);
+          errs.push(String(j.error));
+        }
         if (j.cached) anyCached = true;
         onData(j);
       } catch (e) {
         if (!alive) return;
         const msg = e instanceof Error ? e.message : "unknown";
-        if (msg !== "aborted") errs.push(msg);
+        if (msg !== "aborted") {
+          console.error(`[dashboard] slice ${url} failed:`, e);
+          errs.push(msg);
+        }
       }
     }
 
@@ -425,7 +455,8 @@ export function useDashboardData(): DashboardState {
       if (!alive) return;
       const msg = e instanceof Error ? e.message : "unknown";
       if (msg !== "aborted") {
-        setErrors([msg]);
+        console.error("[dashboard] refresh failed:", e);
+        setErrors([describeFetchError(msg)]);
         const hasCache = !!loadCache();
         setStatus(hasCache ? "ok" : "error");
         setIsInitial(false);

@@ -993,6 +993,7 @@ export default function Home() {
             <div className="ac-banner ac-banner-warn">
               <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
               {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}
+              {rooms.length > 0 && <span> — กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ ({lastUpdated})</span>}
               <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={refresh} disabled={isRefreshing} style={{ marginLeft: 8 }}>
                 {isRefreshing ? "กำลังลอง..." : "ลองอีกครั้ง"}
               </button>{" "}
