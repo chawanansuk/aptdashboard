@@ -33,7 +33,7 @@ import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
-import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isClosedStatus } from "@/lib/constants";
 import {
   MOVEOUT_PREP_KINDS,
   hasOpenPrepTask,
@@ -438,7 +438,7 @@ export default function Home() {
       if (activeBuilding !== "ทั้งหมด" && t.building !== activeBuilding) return false;
       if (types && !types.includes(t.type)) return false;
       if (activeView === "today") {
-        if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
+        if (isClosedStatus(t.status)) return false;
         // "วันนี้" shows today's work AND anything still overdue (date on or
         // before today) — a daily view that hid overdue made the
         // "งานเลยกำหนด" notification land on an empty page. parseThaiDate
@@ -492,8 +492,7 @@ export default function Home() {
     const todayStr = `${dd}/${mm}/${d.getFullYear()}`;
     const tasksToday = (tasks || []).filter((t) =>
       t.date === todayStr
-      && !isDoneStatus(t.status)
-      && !isCancelledStatus(t.status)
+      && !isClosedStatus(t.status)
       && (activeBuilding === "ทั้งหมด" || t.building === activeBuilding)
     ).length;
     // Contracts expiring this calendar month — used by management greeting only;
@@ -543,7 +542,7 @@ export default function Home() {
       : tasks.filter((t) => t.building === activeBuilding);
     let overdue = 0;
     for (const t of tasksScope) {
-      if (isDoneStatus(t.status) || isCancelledStatus(t.status)) continue;
+      if (isClosedStatus(t.status)) continue;
       const d = parseThaiDate(t.date);
       if (d && d.getTime() < todayMs) overdue++;
     }

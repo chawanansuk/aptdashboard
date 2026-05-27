@@ -96,6 +96,38 @@ describe("mergeRoomsAndTasks — needsCleaning flag (#6)", () => {
   });
 });
 
+describe("mergeRoomsAndTasks — ชมห้อง viewing → room status", () => {
+  const future = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  };
+
+  it("an OPEN ชมห้อง pushes a ว่าง room to pending (no double-book)", () => {
+    const [view] = mergeRoomsAndTasks(
+      [room({ status: "ว่าง" })],
+      [task({ type: "ชมห้อง", date: future(), status: "" })],
+    );
+    expect(view.status).toBe("pending");
+  });
+
+  it("a ไม่สนใจ (not-interested) ชมห้อง frees the room back to ready", () => {
+    const [view] = mergeRoomsAndTasks(
+      [room({ status: "ว่าง" })],
+      [task({ type: "ชมห้อง", date: future(), status: "ไม่สนใจ" })],
+    );
+    expect(view.status).toBe("ready"); // closed viewing no longer holds the room
+  });
+
+  it("a cancelled ชมห้อง also frees the room", () => {
+    const [view] = mergeRoomsAndTasks(
+      [room({ status: "ว่าง" })],
+      [task({ type: "ชมห้อง", date: future(), status: "ยกเลิก" })],
+    );
+    expect(view.status).toBe("ready");
+  });
+});
+
 describe("applyOptimisticTasks", () => {
   const TTL = 5 * 60_000;
   const mk = (over: Partial<SheetRow> = {}): SheetRow => ({

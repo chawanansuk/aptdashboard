@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
 import { loadCache, saveCache } from "@/lib/cacheData";
-import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { isClosedStatus } from "@/lib/constants";
 import { subscribeBus } from "@/lib/realtimeBus";
 import { normalizeRoomStatus, isKnownRoomStatus } from "@/lib/roomStatus";
 import { parseSheetDate } from "@/lib/dateUtils";
@@ -197,17 +197,17 @@ export function mergeRoomsAndTasks(
     // string match — a literal `t.date === todayKey` missed ISO-dated tasks,
     // so their red "งานวันนี้" badge never showed.
     const todayTasks = all.filter((t) => {
-      if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
+      if (isClosedStatus(t.status)) return false;
       const d = parseDateDMY(t.date);
       return d ? startOfDay(d).getTime() === today.getTime() : false;
     });
     const upcomingTasks = all.filter((t) => {
-      if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
+      if (isClosedStatus(t.status)) return false;
       const d = parseDateDMY(t.date);
       return d && startOfDay(d).getTime() >= today.getTime();
     });
     const pastTasks = all.filter((t) => {
-      if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return true;
+      if (isClosedStatus(t.status)) return true;
       const d = parseDateDMY(t.date);
       return d ? startOfDay(d).getTime() < today.getTime() : false;
     }).sort((a, b) => {

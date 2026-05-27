@@ -20,6 +20,10 @@ export const TASK_STATUS = {
   DONE: "เสร็จ",
   /** Task cancelled without doing the work. */
   CANCELLED: "ยกเลิก",
+  /** Viewing outcome: customer saw the room but isn't interested. A
+   *  closed/lost outcome (treated like cancelled), but kept as its own
+   *  string so the reason the room freed up is auditable. */
+  NOT_INTERESTED: "ไม่สนใจ",
 } as const;
 
 export type TaskStatusValue = typeof TASK_STATUS[keyof typeof TASK_STATUS];
@@ -39,7 +43,7 @@ export type StatusCategory =
 export function categorizeStatus(s: string | null | undefined): StatusCategory {
   const t = (s || "").trim();
   if (t === TASK_STATUS.DONE || t === "done" || t === "ปิดแล้ว") return "done";
-  if (t === TASK_STATUS.CANCELLED || t === "cancelled") return "cancelled";
+  if (t === TASK_STATUS.CANCELLED || t === "cancelled" || t === TASK_STATUS.NOT_INTERESTED) return "cancelled";
   if (t === TASK_STATUS.IN_PROGRESS) return "in_progress";
   if (t === TASK_STATUS.BLOCKED) return "blocked";
   return "pending";

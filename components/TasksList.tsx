@@ -42,6 +42,12 @@ function isCancelled(status: string): boolean {
   const s = (status || "").trim();
   return s === "ยกเลิก" || s === "cancelled";
 }
+function isNotInterested(status: string): boolean {
+  return (status || "").trim() === TASK_STATUS.NOT_INTERESTED;
+}
+function isClosed(status: string): boolean {
+  return isDone(status) || isCancelled(status) || isNotInterested(status);
+}
 
 export default function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: Props) {
   const { data: session } = useSession();
@@ -148,7 +154,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged, onOptimi
   const visible = useMemo(() => {
     let out = tasks;
     if (hideDone) {
-      out = out.filter((t) => !isDone(t.status) && !isCancelled(t.status));
+      out = out.filter((t) => !isClosed(t.status));
     }
     if (typeFilter !== "all") {
       out = out.filter((t) => t.type === typeFilter);
@@ -494,13 +500,15 @@ function TaskCard({
   const k = `${t.date}|${t.building}|${t.room}|${t.type}`;
   const done = isDone(t.status);
   const cancelled = isCancelled(t.status);
+  const notInterested = isNotInterested(t.status);
+  const closed = done || cancelled || notInterested;
   const dot = TYPE_COLOR[t.type] || "#64748B";
   const overdueDays = urgency === "overdue" ? daysOverdue(t) : 0;
   const busy = busyKey === k;
 
   return (
     <div
-      className={`ac-task ac-task-urgency-${urgency} ${done ? "is-done" : ""} ${cancelled ? "is-cancelled" : ""} ${selected ? "is-bulk-selected" : ""}`}
+      className={`ac-task ac-task-urgency-${urgency} ${done ? "is-done" : ""} ${cancelled || notInterested ? "is-cancelled" : ""} ${selected ? "is-bulk-selected" : ""}`}
     >
       <input
         type="checkbox"
@@ -522,7 +530,7 @@ function TaskCard({
               เลย {overdueDays} วัน
             </span>
           )}
-          {urgency === "today" && !done && !cancelled && (
+          {urgency === "today" && !closed && (
             <span className="ac-task-urgency-badge is-today">วันนี้</span>
           )}
           {urgency === "tomorrow" && (
@@ -537,7 +545,7 @@ function TaskCard({
         </div>
       </div>
       <div className="ac-task-actions">
-        {!done && !cancelled && (
+        {!closed && (
           <>
             <button className="ac-btn ac-btn-primary ac-btn-sm" disabled={busy}
               onClick={() => onPickStatus(t, "เสร็จ")}>
@@ -545,9 +553,14 @@ function TaskCard({
             </button>
             <button className="ac-btn ac-btn-ghost ac-btn-sm" disabled={busy}
               onClick={() => onPickStatus(t, "ยกเลิก")} title="ยกเลิกงานนี้">ยกเลิก</button>
+            {t.type === "ชมห้อง" && (
+              <button className="ac-btn ac-btn-ghost ac-btn-sm" disabled={busy}
+                onClick={() => onPickStatus(t, TASK_STATUS.NOT_INTERESTED)}
+                title="ลูกค้าชมแล้วไม่สนใจ — ปิดงานและคืนห้องเป็นว่าง">ไม่สนใจ</button>
+            )}
           </>
         )}
-        {(done || cancelled) && (
+        {closed && (
           <button className="ac-btn ac-btn-ghost ac-btn-sm" disabled={busy}
             onClick={() => onPickStatus(t, TASK_STATUS.PENDING)} title="ดึงกลับเป็นยังไม่เสร็จ">คืน</button>
         )}
@@ -559,8 +572,8 @@ function TaskCard({
           <button className="ac-btn ac-btn-danger ac-btn-sm" disabled={busy}
             onClick={() => onPickDelete(t)} title="ลบงานนี้ถาวร">ลบ</button>
         )}
-        <span className={`ac-task-status ${done ? "is-done" : ""} ${cancelled ? "is-cancelled" : ""}`}>
-          {done ? "เสร็จแล้ว" : cancelled ? "ยกเลิก" : (t.status || "ว่าง")}
+        <span className={`ac-task-status ${done ? "is-done" : ""} ${cancelled || notInterested ? "is-cancelled" : ""}`}>
+          {done ? "เสร็จแล้ว" : notInterested ? "ไม่สนใจ" : cancelled ? "ยกเลิก" : (t.status || "ว่าง")}
         </span>
       </div>
     </div>

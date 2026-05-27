@@ -59,10 +59,16 @@ export function isCancelledStatus(s: string): boolean {
   return t === "ยกเลิก" || t === "cancelled";
 }
 
-/** Closed = done OR cancelled. Convenience helper to avoid duplicated
- *  `isDone || isCancelled` checks scattered through views. */
+/** Viewing outcome "ไม่สนใจ" — a closed/lost result that frees the room
+ *  again. Kept distinct from a plain cancellation for audit/reporting. */
+export function isNotInterestedStatus(s: string): boolean {
+  return (s || "").trim() === "ไม่สนใจ";
+}
+
+/** Closed = done OR cancelled OR not-interested. Convenience helper to
+ *  avoid duplicated checks scattered through views. */
 export function isClosedStatus(s: string): boolean {
-  return isDoneStatus(s) || isCancelledStatus(s);
+  return isDoneStatus(s) || isCancelledStatus(s) || isNotInterestedStatus(s);
 }
 
 // ===== Equipment (v3.6.0) =====

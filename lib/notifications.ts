@@ -1,7 +1,7 @@
 import type { Role } from "@/auth";
 import type { SheetRow, RoomView } from "@/types";
 import { parseThaiDate, getBangkokNow } from "@/lib/dateUtils";
-import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { isClosedStatus } from "@/lib/constants";
 import { canAccess, type Route } from "@/lib/permissions";
 
 /**
@@ -54,7 +54,7 @@ function daysUntil(target: Date, from: Date): number {
 }
 
 function isOpenTask(t: SheetRow): boolean {
-  return !isDoneStatus(t.status) && !isCancelledStatus(t.status);
+  return !isClosedStatus(t.status);
 }
 
 interface BuildInput {
