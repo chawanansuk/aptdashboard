@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { canAddSalesTask, canAddEngTask } from "@/lib/permissions";
+import { canAddSalesTask, canAddEngTask, canAddCleanTask } from "@/lib/permissions";
 
 interface Props {
   open: boolean;
@@ -19,7 +19,8 @@ interface Props {
 }
 
 const SALES_TASK_TYPES = ["ย้ายเข้า", "ย้ายออก", "ชมห้อง"] as const;
-const ENG_TASK_TYPES   = ["ทำสะอาด", "ซ่อม"] as const;
+const CLEAN_TASK_TYPES = ["ทำสะอาด"] as const;
+const ENG_TASK_TYPES   = ["ซ่อม"] as const;
 const COMMON_TASK_TYPES = ["อื่นๆ"] as const;
 
 export default function BulkAddModal({
@@ -32,6 +33,7 @@ export default function BulkAddModal({
   const allowedTypes = useMemo(() => {
     const list: string[] = [];
     if (canAddSalesTask(roles)) list.push(...SALES_TASK_TYPES);
+    if (canAddCleanTask(roles)) list.push(...CLEAN_TASK_TYPES);
     if (canAddEngTask(roles))   list.push(...ENG_TASK_TYPES);
     list.push(...COMMON_TASK_TYPES);
     return list;

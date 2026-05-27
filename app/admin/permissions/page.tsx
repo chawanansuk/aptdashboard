@@ -66,7 +66,8 @@ const ROUTE_DESC: Record<Route, string> = {
 const ACTION_DESC: Record<Action, string> = {
   "task.add": "เพิ่มงาน (ทั่วไป)",
   "task.add.sales": "เพิ่มงานฝ่ายขาย (ย้ายเข้า/ออก/ชมห้อง)",
-  "task.add.eng": "เพิ่มงานฝ่ายช่าง (ซ่อม/ทำสะอาด)",
+  "task.add.clean": "เพิ่มงานทำสะอาด (turnover — ฝ่ายขายนัดได้)",
+  "task.add.eng": "เพิ่มงานฝ่ายช่าง (ซ่อม)",
   "task.edit": "แก้ไขงาน",
   "task.delete": "ลบงาน",
   "room.editStatus": "แก้สถานะห้อง",

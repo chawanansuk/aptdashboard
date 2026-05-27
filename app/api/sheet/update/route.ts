@@ -14,7 +14,8 @@ type Body = {
 };
 
 const SALES_TYPES = new Set(["ย้ายเข้า", "ย้ายออก", "ชมห้อง"]);
-const ENG_TYPES   = new Set(["ทำสะอาด", "ซ่อม"]);
+const CLEAN_TYPES = new Set(["ทำสะอาด"]);
+const ENG_TYPES   = new Set(["ซ่อม"]);
 
 /** Map Apps Script action → permission Action. Null = not authorized. */
 function actionToPermission(action: string): Action | null {
@@ -40,6 +41,9 @@ function checkTaskTypePermission(action: string, type: string | undefined, roles
   const label = (roles || []).join("+") || "none";
   if (SALES_TYPES.has(type) && !canPerform(roles, "task.add.sales")) {
     return `role "${label}" ไม่มีสิทธิ์เพิ่มงานประเภท "${type}" (งานฝ่ายเซลส์)`;
+  }
+  if (CLEAN_TYPES.has(type) && !canPerform(roles, "task.add.clean")) {
+    return `role "${label}" ไม่มีสิทธิ์เพิ่มงานประเภท "${type}" (งานทำสะอาด)`;
   }
   if (ENG_TYPES.has(type) && !canPerform(roles, "task.add.eng")) {
     return `role "${label}" ไม่มีสิทธิ์เพิ่มงานประเภท "${type}" (งานฝ่ายช่าง)`;
