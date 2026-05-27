@@ -93,7 +93,7 @@ export default function AddLeadModal({ open, initial, initialStage, onClose, onS
         onClick={(e) => e.stopPropagation()}
       >
         <header className="ac-modal-head">
-          <h2 id="ac-lead-modal-title">{isEdit ? "แก้ไข Lead" : "เพิ่ม Lead"}</h2>
+          <h2 id="ac-lead-modal-title">{isEdit ? "แก้ไขผู้สนใจ" : "เพิ่มผู้สนใจ"}</h2>
           <button
             type="button"
             className="ac-modal-close"
@@ -186,7 +186,7 @@ export default function AddLeadModal({ open, initial, initialStage, onClose, onS
                 className="ac-btn ac-btn-secondary"
                 onClick={() => { onCreateMoveinTask(initial!); onClose(); }}
                 disabled={submitting}
-                title="สร้างงานย้ายเข้าจาก Lead นี้"
+                title="สร้างงานย้ายเข้าจากผู้สนใจรายนี้"
               >📥 สร้างงานย้ายเข้า</button>
             )}
             <button

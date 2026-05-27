@@ -153,12 +153,12 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
   }
 
   return (
-    <section className="ac-leads" aria-label="Lead CRM">
+    <section className="ac-leads" aria-label="ผู้สนใจเช่า">
       <header className="ac-leads-head">
         <div>
           <h1 className="ac-leads-title">
             <Icon name="tenants" size={22} />
-            <span>Lead CRM</span>
+            <span>ผู้สนใจเช่า</span>
             {rows && <span className="ac-leads-count">({rows.length})</span>}
           </h1>
         </div>
@@ -174,7 +174,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
               type="button"
               className="ac-btn ac-btn-primary"
               onClick={() => { setAddStage(undefined); setAddOpen(true); }}
-            >+ เพิ่ม Lead</button>
+            >+ เพิ่มผู้สนใจ</button>
           )}
         </div>
       </header>
@@ -215,10 +215,10 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon="tenants"
-          title={rows && rows.length === 0 ? "ยังไม่มี Lead ในระบบ" : "ไม่พบ Lead ตามที่ค้นหา"}
-          description={rows && rows.length === 0 ? "เพิ่ม Lead แรกเพื่อเริ่ม track pipeline" : "ลองเปลี่ยนคำค้นหรือ stage"}
+          title={rows && rows.length === 0 ? "ยังไม่มีผู้สนใจในระบบ" : "ไม่พบผู้สนใจตามที่ค้นหา"}
+          description={rows && rows.length === 0 ? "เพิ่มผู้สนใจรายแรกเพื่อเริ่มติดตาม" : "ลองเปลี่ยนคำค้นหรือ stage"}
           action={canWrite && rows && rows.length === 0
-            ? { label: "+ เพิ่ม Lead แรก", onClick: () => { setAddStage(undefined); setAddOpen(true); } }
+            ? { label: "+ เพิ่มผู้สนใจรายแรก", onClick: () => { setAddStage(undefined); setAddOpen(true); } }
             : undefined
           }
         />
@@ -236,8 +236,8 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
                       type="button"
                       className="ac-lead-col-add"
                       onClick={() => { setAddStage(stage); setAddOpen(true); }}
-                      title={`เพิ่ม Lead ใหม่ใน "${stage}"`}
-                      aria-label={`เพิ่ม Lead ใน ${stage}`}
+                      title={`เพิ่มผู้สนใจใหม่ใน "${stage}"`}
+                      aria-label={`เพิ่มผู้สนใจใน ${stage}`}
                     >+</button>
                   )}
                 </header>
@@ -282,7 +282,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
                               onClick={() => remove(lead)}
                               disabled={busy}
                               title="ลบ"
-                              aria-label="ลบ Lead"
+                              aria-label="ลบผู้สนใจ"
                             >🗑</button>
                           </div>
                         )}
