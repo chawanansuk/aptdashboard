@@ -3,6 +3,7 @@ import {
   mergeRoomsAndTasks,
   applyOptimisticRoomPatches,
   applyOptimisticTasks,
+  describeFetchError,
   taskKey,
   type OptimisticRoomPatch,
   type OptimisticTask,
@@ -138,6 +139,41 @@ describe("applyOptimisticTasks", () => {
 
   it("taskKey matches the AddTaskModal identity (date|building|room|type)", () => {
     expect(taskKey(mk())).toBe("27/05/2026|A|101|ชมห้อง");
+  });
+});
+
+describe("describeFetchError", () => {
+  it("maps network failures to a connectivity message", () => {
+    for (const raw of ["Failed to fetch", "NetworkError when attempting", "Load failed"]) {
+      expect(describeFetchError(raw)).toContain("เชื่อมต่อเครือข่ายไม่ได้");
+    }
+  });
+
+  it("maps 5xx / timeout to a server-unavailable message", () => {
+    expect(describeFetchError("HTTP 502 Bad Gateway")).toContain("เซิร์ฟเวอร์ไม่ตอบ");
+    expect(describeFetchError("request timed out")).toContain("เซิร์ฟเวอร์ไม่ตอบ");
+  });
+
+  it("maps quota/rate-limit errors", () => {
+    expect(describeFetchError("Service quota exceeded")).toContain("โควต้า");
+    expect(describeFetchError("rate limit hit")).toContain("โควต้า");
+  });
+
+  it("maps malformed-payload errors", () => {
+    expect(describeFetchError("invalid JSON")).toContain("ผิดรูปแบบ");
+  });
+
+  it("maps auth errors", () => {
+    expect(describeFetchError("HTTP 403 Forbidden")).toContain("ไม่มีสิทธิ์");
+  });
+
+  it("passes unknown errors through unchanged", () => {
+    expect(describeFetchError("something weird #42")).toBe("something weird #42");
+  });
+
+  it("is case-insensitive and tolerates empty input", () => {
+    expect(describeFetchError("FAILED TO FETCH")).toContain("เชื่อมต่อเครือข่ายไม่ได้");
+    expect(describeFetchError("")).toBe("");
   });
 });
 
