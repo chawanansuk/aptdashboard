@@ -153,12 +153,12 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
   }
 
   return (
-    <section className="ac-leads" aria-label="Lead CRM">
+    <section className="ac-leads" aria-label="ผู้สนใจเช่า">
       <header className="ac-leads-head">
         <div>
           <h1 className="ac-leads-title">
             <Icon name="tenants" size={22} />
-            <span>Lead CRM</span>
+            <span>ผู้สนใจเช่า</span>
             {rows && <span className="ac-leads-count">({rows.length})</span>}
           </h1>
         </div>

@@ -78,7 +78,7 @@ function buildGroups(
     todayItems.push({ key: "salespipeline", label: "ภาพรวมขาย", icon: icon("tenants") });
   }
   if (has("leads")) {
-    todayItems.push({ key: "leads", label: "Lead CRM", icon: icon("tenants") });
+    todayItems.push({ key: "leads", label: "ผู้สนใจเช่า", icon: icon("tenants") });
   }
   if (has("engineerkanban")) {
     todayItems.push({ key: "engineerkanban", label: "กระดานงานช่าง", icon: icon("maintenance") });

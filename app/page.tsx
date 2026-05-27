@@ -1316,7 +1316,7 @@ export default function Home() {
             </ErrorBoundary>
           )}
           {activeView === "leads" && (
-            <ErrorBoundary level="route" label="Lead CRM">
+            <ErrorBoundary level="route" label="ผู้สนใจเช่า">
               <Suspense fallback={<FacilitiesSkeleton />}>
                 <LeadsView onCreateMoveinTask={(l) => openMoveinFromLead(l)} />
               </Suspense>
