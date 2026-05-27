@@ -9,7 +9,8 @@ import { usePersistedString } from "@/lib/usePersistedString";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
-import type { RoomStatus, RoomView, SheetRow } from "@/types";
+import type { RoomStatus, RoomView, SheetRow, Lead } from "@/types";
+import { findLeadByPhone, nextStageOnViewingClosed, STAGE_ON_VIEWING_SCHEDULED } from "@/lib/leadLink";
 import TasksList from "@/components/TasksList";
 import AppHeader from "@/components/AppHeader";
 import AppSidebar from "@/components/AppSidebar";
@@ -821,6 +822,8 @@ export default function Home() {
         // Clear quick-add pre-fills so the next open opens fresh
         setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");
         refresh();
+        // Auto-track the prospect in the Lead CRM (no extra sales work).
+        void linkLeadOnViewingScheduled(values);
       } else {
         const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
         toast.error(`เพิ่มงานไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}`);
@@ -829,6 +832,79 @@ export default function Home() {
       console.error("[write] addTask failed", e);
       toast.error(e instanceof Error ? e.message : "Network error");
     } finally { setSavingTask(false); }
+  }
+
+  /**
+   * Auto-link a "ชมห้อง" (viewing) task to the Lead CRM (ผู้สนใจเช่า):
+   * ensure a lead exists for the prospect's phone so conversion can be
+   * tracked without sales doing extra data entry. Correlated by phone; an
+   * existing lead is left untouched (never regress its stage). Fire-and-
+   * forget — the task is already saved, so failures here never block it.
+   * Requires lead.edit (sales/management) — engineers get 403 → no-op.
+   */
+  async function linkLeadOnViewingScheduled(
+    values: import("@/lib/taskSchema").TaskFormValues,
+  ) {
+    if (values.type !== "ชมห้อง") return;
+    const phone = (values.phone || "").trim();
+    if (!phone) return; // can't track or dedup without a phone
+    try {
+      const res = await fetch("/api/leads", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const leads: Lead[] = data.rows || [];
+      if (findLeadByPhone(leads, phone)) return; // already tracked — keep stage
+      const roomLabel = [values.building, values.room].filter(Boolean).join("-");
+      const addRes = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add",
+          name: values.customer || "",
+          phone,
+          source: "อื่นๆ",
+          interest: roomLabel ? `นัดชมห้อง ${roomLabel}` : "",
+          stage: STAGE_ON_VIEWING_SCHEDULED,
+          note: "สร้างอัตโนมัติจากการนัดชมห้อง",
+        }),
+      });
+      const addData = await addRes.json().catch(() => ({ ok: false }));
+      if (addData.ok) toast.success("เพิ่มผู้สนใจเช่าอัตโนมัติแล้ว");
+    } catch (e) {
+      console.warn("[lead-link] scheduled failed (non-blocking)", e);
+    }
+  }
+
+  /**
+   * When a "ชมห้อง" task is closed, advance the linked lead's pipeline
+   * stage: "เสร็จ" (viewed) → กำลังคุย, "ไม่สนใจ" → ปิดเลิก. No-ops on
+   * other statuses, when no phone, or when no matching lead exists.
+   * Fire-and-forget — the close itself already succeeded.
+   */
+  async function bumpLeadOnViewingClosed(t: SheetRow, status: string) {
+    if (t.type !== "ชมห้อง") return;
+    const phone = (t.phone || "").trim();
+    if (!phone) return;
+    if (status !== "เสร็จ" && status !== "ไม่สนใจ") return;
+    try {
+      const res = await fetch("/api/leads", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const leads: Lead[] = data.rows || [];
+      const lead = findLeadByPhone(leads, phone);
+      if (!lead) return;
+      const next = nextStageOnViewingClosed(lead.stage, status);
+      if (!next || next === lead.stage) return;
+      const upRes = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", id: lead.id, stage: next }),
+      });
+      const upData = await upRes.json().catch(() => ({ ok: false }));
+      if (upData.ok) toast.success(`อัปเดตผู้สนใจเช่า → ${next}`);
+    } catch (e) {
+      console.warn("[lead-link] close failed (non-blocking)", e);
+    }
   }
 
   /**
@@ -1138,7 +1214,7 @@ export default function Home() {
                 title={VIEW_LABEL[activeView as string] || "งาน"}
                 emptyText="ไม่มีงานในรายการนี้"
                 onChanged={refresh}
-                onOptimisticStatus={(t, s) => optimisticUpdateTask(t, s)}
+                onOptimisticStatus={(t, s) => { optimisticUpdateTask(t, s); void bumpLeadOnViewingClosed(t, s); }}
               />
             </>
           )}
