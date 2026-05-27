@@ -218,6 +218,16 @@ export function canViewTenant(input: RoleInput): boolean {
   return canPerform(input, "tenant.view");
 }
 
+/**
+ * Read access to a TASK's customer name + phone. Sales need it to call
+ * leads for viewings/move-ins and management oversee; engineers don't
+ * contact customers, so an engineer-only user gets it stripped. (A user
+ * who is engineer AND sales still sees it — sales wins.)
+ */
+export function canViewTaskCustomer(input: RoleInput): boolean {
+  return has(input, "sales", "management");
+}
+
 export function canViewFinancials(input: RoleInput): boolean {
   return canPerform(input, "finance.view");
 }

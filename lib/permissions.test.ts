@@ -3,8 +3,25 @@ import {
   canAccess, canPerform, getDefaultRoute,
   isSales, isEngineer, isManagement,
   canAddTask, canDeleteTask, canEditTenant, canViewFinancials,
-  canAddSalesTask, canAddEngTask,
+  canAddSalesTask, canAddEngTask, canViewTaskCustomer,
 } from "./permissions";
+
+describe("permissions: canViewTaskCustomer", () => {
+  it("sales and management can see task customer contact", () => {
+    expect(canViewTaskCustomer("sales")).toBe(true);
+    expect(canViewTaskCustomer("management")).toBe(true);
+    expect(canViewTaskCustomer(["sales", "engineer"])).toBe(true); // sales wins
+  });
+  it("engineer-only cannot", () => {
+    expect(canViewTaskCustomer("engineer")).toBe(false);
+    expect(canViewTaskCustomer(["engineer"])).toBe(false);
+  });
+  it("empty / nullish roles cannot", () => {
+    expect(canViewTaskCustomer([])).toBe(false);
+    expect(canViewTaskCustomer(null)).toBe(false);
+    expect(canViewTaskCustomer(undefined)).toBe(false);
+  });
+});
 
 describe("permissions: canAccess", () => {
   it("management can access every route", () => {
