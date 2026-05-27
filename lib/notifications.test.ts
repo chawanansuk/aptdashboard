@@ -77,6 +77,16 @@ describe("buildNotifications", () => {
     expect(o!.level).toBe("critical");
   });
 
+  it("does not count a task dated today as overdue (TZ boundary)", () => {
+    // 06:00 on 27 May — at this moment UTC is still 26 May (23:00). A task
+    // dated TODAY must never be flagged overdue, on a UTC server or a
+    // Bangkok client. (Pre-fix this failed under TZ=UTC.)
+    const now = new Date(2026, 4, 27, 6, 0);
+    const todayTask = task({ date: "27/05/2026", status: "" });
+    const items = buildNotifications({ tasks: [todayTask], rooms: [], roles: ["engineer"], now });
+    expect(items.find((i) => i.kind === "overdueTasks")).toBeUndefined();
+  });
+
   it("flags contracts expiring within 30 days but skips long-tail contracts", () => {
     const expiringSoon = room({ contractEnd: dmy(new Date(2026, 4, 30)) }); // 7 days
     const expiringEdge = room({ contractEnd: dmy(new Date(2026, 5, 22)) }); // 30 days

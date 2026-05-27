@@ -1,6 +1,6 @@
 import type { Role } from "@/auth";
 import type { SheetRow, RoomView } from "@/types";
-import { parseThaiDate } from "@/lib/dateUtils";
+import { parseThaiDate, getBangkokNow } from "@/lib/dateUtils";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { canAccess, type Route } from "@/lib/permissions";
 
@@ -42,7 +42,10 @@ export interface NotificationItem {
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const CONTRACT_WARN_DAYS = 30;
 
-function startOfToday(now: Date = new Date()): Date {
+// Default the "today" anchor to Bangkok's calendar day (not the runtime's)
+// so a server-side caller can't shift the boundary. On the Bangkok client
+// this equals new Date(); see #157 for the same rule in taskUrgency/sla.
+function startOfToday(now: Date = getBangkokNow()): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 

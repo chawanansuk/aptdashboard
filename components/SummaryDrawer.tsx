@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { RoomRow, SheetRow } from "@/types";
-import { parseSheetDate } from "@/lib/dateUtils";
+import { parseSheetDate, getBangkokNow } from "@/lib/dateUtils";
 import EmptyState from "./EmptyState";
 
 type Props = {
@@ -64,7 +64,7 @@ export default function SummaryDrawer({ open, onClose, rooms, tasks, onAddTask, 
 
   // Pre-compute counts for every range tab so badges can show numbers
   const rangeCounts = useMemo(() => {
-    const today = startOfDay(new Date());
+    const today = startOfDay(getBangkokNow()); // Bangkok calendar day (see #157)
     const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
     const day7 = new Date(today); day7.setDate(today.getDate() + 7);
     const day30 = new Date(today); day30.setDate(today.getDate() + 30);
@@ -85,7 +85,7 @@ export default function SummaryDrawer({ open, onClose, rooms, tasks, onAddTask, 
   }, [tasks]);
 
   const visibleTasks = useMemo(() => {
-    const today = startOfDay(new Date());
+    const today = startOfDay(getBangkokNow()); // Bangkok calendar day (see #157)
     const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
     const day7 = new Date(today); day7.setDate(today.getDate() + 7);
     const day30 = new Date(today); day30.setDate(today.getDate() + 30);
