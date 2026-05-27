@@ -27,7 +27,7 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
   if (!canPerform(session.user.roles, "lead.edit")) {
-    return bad("ไม่มีสิทธิ์เข้าถึง Lead CRM", 403);
+    return bad("ไม่มีสิทธิ์เข้าถึงผู้สนใจเช่า", 403);
   }
   try {
     const json = await appsScriptCall<{ rows?: Lead[] }>(
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
   if (!canPerform(session.user.roles, "lead.edit")) {
-    return bad("ไม่มีสิทธิ์แก้ Lead CRM", 403);
+    return bad("ไม่มีสิทธิ์แก้ผู้สนใจเช่า", 403);
   }
 
   let body: Record<string, unknown>;
