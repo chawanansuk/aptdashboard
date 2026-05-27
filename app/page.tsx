@@ -438,12 +438,18 @@ export default function Home() {
       if (activeBuilding !== "ทั้งหมด" && t.building !== activeBuilding) return false;
       if (types && !types.includes(t.type)) return false;
       if (activeView === "today") {
-        const d = new Date();
-        const dd = String(d.getDate()).padStart(2, "0");
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const today = `${dd}/${mm}/${d.getFullYear()}`;
-        if (t.date !== today) return false;
         if (isDoneStatus(t.status) || isCancelledStatus(t.status)) return false;
+        // "วันนี้" shows today's work AND anything still overdue (date on or
+        // before today) — a daily view that hid overdue made the
+        // "งานเลยกำหนด" notification land on an empty page. parseThaiDate
+        // handles both dd/MM/yyyy and the ISO yyyy-MM-dd that Apps Script
+        // emits, so ISO-dated tasks aren't silently dropped either.
+        const td = parseThaiDate(t.date);
+        if (!td) return false;
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const tdStart = new Date(td.getFullYear(), td.getMonth(), td.getDate()).getTime();
+        if (tdStart > todayStart) return false; // exclude future-dated tasks
       }
       if (activeView !== "today" && (dateBounds.start || dateBounds.end)) {
         const td = parseThaiDate(t.date);
