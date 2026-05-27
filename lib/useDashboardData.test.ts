@@ -3,6 +3,7 @@ import {
   mergeRoomsAndTasks,
   applyOptimisticRoomPatches,
   applyOptimisticTasks,
+  applyOptimisticTaskStatus,
   describeFetchError,
   taskKey,
   type OptimisticRoomPatch,
@@ -139,6 +140,59 @@ describe("applyOptimisticTasks", () => {
 
   it("taskKey matches the AddTaskModal identity (date|building|room|type)", () => {
     expect(taskKey(mk())).toBe("27/05/2026|A|101|ชมห้อง");
+  });
+});
+
+describe("applyOptimisticTaskStatus", () => {
+  const TTL = 5 * 60_000;
+  const mk = (over: Partial<SheetRow> = {}): SheetRow => ({
+    date: "20/05/2026", type: "ซ่อม", building: "A", room: "101",
+    customer: "", phone: "", note: "", status: "", ...over,
+  });
+  const pend = (entries: [string, { status: string; at: number }][]) =>
+    new Map<string, { status: string; at: number }>(entries);
+
+  it("returns server tasks unchanged when nothing pending", () => {
+    const server = [mk()];
+    expect(applyOptimisticTaskStatus(server, new Map(), Date.now(), TTL)).toBe(server);
+  });
+
+  it("overrides an open task's status with the pending one (closed task stays closed)", () => {
+    const now = Date.now();
+    const t = mk({ status: "" }); // server still shows it open (cache lag)
+    const map = pend([[taskKey(t), { status: "เสร็จ", at: now }]]);
+    const out = applyOptimisticTaskStatus([t], map, now, TTL);
+    expect(out[0].status).toBe("เสร็จ");
+    expect(map.size).toBe(1); // not yet confirmed by server
+  });
+
+  it("drops the pending entry once the server row already shows the new status", () => {
+    const now = Date.now();
+    const t = mk({ status: "เสร็จ" }); // server caught up
+    const key = taskKey(t);
+    const map = pend([[key, { status: "เสร็จ", at: now }]]);
+    const out = applyOptimisticTaskStatus([t], map, now, TTL);
+    expect(out[0].status).toBe("เสร็จ");
+    expect(map.has(key)).toBe(false); // reconciled away
+  });
+
+  it("drops a pending entry past the TTL even if unconfirmed", () => {
+    const now = Date.now();
+    const t = mk({ status: "" });
+    const map = pend([[taskKey(t), { status: "เสร็จ", at: now - TTL - 1 }]]);
+    const out = applyOptimisticTaskStatus([t], map, now, TTL);
+    expect(out[0].status).toBe(""); // expired → no override
+    expect(map.size).toBe(0);
+  });
+
+  it("leaves unrelated tasks untouched", () => {
+    const now = Date.now();
+    const closing = mk({ room: "101" });
+    const other = mk({ room: "202", status: "" });
+    const map = pend([[taskKey(closing), { status: "ยกเลิก", at: now }]]);
+    const out = applyOptimisticTaskStatus([closing, other], map, now, TTL);
+    expect(out.find((t) => t.room === "101")!.status).toBe("ยกเลิก");
+    expect(out.find((t) => t.room === "202")!.status).toBe("");
   });
 });
 

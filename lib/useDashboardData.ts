@@ -136,6 +136,43 @@ export function applyOptimisticTasks(
   return [...Array.from(pending.values(), (v) => v.task), ...serverTasks];
 }
 
+export interface OptimisticTaskStatus {
+  status: string;
+  at: number;
+}
+
+/**
+ * Re-apply still-pending optimistic task-status changes (e.g. closing a
+ * task as "เสร็จ" / "ยกเลิก") on top of freshly fetched server tasks. The
+ * write lands at Apps Script immediately, but the dashboard cache that
+ * feeds the list lags — so a refresh right after closing a task refetched
+ * the still-open row and the task "เด้งกลับ" (popped back open). Keyed by
+ * taskKey; dropped once the server row already shows the new status
+ * (write landed) or after a safety TTL.
+ */
+export function applyOptimisticTaskStatus(
+  serverTasks: SheetRow[],
+  pending: Map<string, OptimisticTaskStatus>,
+  now: number,
+  ttlMs: number,
+): SheetRow[] {
+  if (pending.size === 0) return serverTasks;
+  for (const [k, v] of pending) {
+    if (now - v.at > ttlMs) pending.delete(k);
+  }
+  if (pending.size === 0) return serverTasks;
+  return serverTasks.map((t) => {
+    const k = taskKey(t);
+    const entry = pending.get(k);
+    if (!entry) return t;
+    if ((t.status || "") === entry.status) {
+      pending.delete(k);
+      return t;
+    }
+    return { ...t, status: entry.status };
+  });
+}
+
 export function mergeRoomsAndTasks(
   rooms: RoomRow[],
   tasks: SheetRow[]
@@ -256,6 +293,15 @@ export interface DashboardState {
    * it (or a TTL). Mirrors optimisticUpdateRoom for the add-task flow.
    */
   optimisticAddTask: (task: SheetRow) => void;
+  /**
+   * Optimistically set a task's status locally (e.g. closing as "เสร็จ")
+   * so it leaves the open list immediately and doesn't pop back open when
+   * the lagging cache refetches. Reconciles once the server agrees.
+   */
+  optimisticUpdateTask: (
+    task: Pick<SheetRow, "date" | "building" | "room" | "type">,
+    status: string,
+  ) => void;
 }
 
 const RETRY_DELAYS_MS = [500, 1500, 3000];
@@ -331,6 +377,10 @@ export function useDashboardData(): DashboardState {
   // every server fetch until the server list includes them (or TTL), so a
   // just-added task shows immediately even while the write cache lags.
   const pendingTasksRef = useRef<Map<string, OptimisticTask>>(new Map());
+  // Pending optimistic task-status changes keyed by taskKey. Re-applied on
+  // every server fetch until the server row shows the new status (or TTL),
+  // so a closed task doesn't "เด้งกลับ" when the lagging cache refetches.
+  const pendingTaskStatusRef = useRef<Map<string, OptimisticTaskStatus>>(new Map());
 
   // Hydrate from cache synchronously on mount → instant first render with stale data
   useEffect(() => {
@@ -435,10 +485,15 @@ export function useDashboardData(): DashboardState {
         const arr: SheetRow[] = Array.isArray((j as { tasks?: unknown }).tasks)
           ? (j as { tasks: SheetRow[] }).tasks
           : [];
-        // Keep a just-added task visible until the server list includes it
-        // (the write cache can lag), then it reconciles away automatically.
-        const next = applyOptimisticTasks(
-          arr, pendingTasksRef.current, Date.now(), OPTIMISTIC_MAX_TTL_MS,
+        // Keep a just-added task visible, and a just-closed task closed,
+        // until the server list reflects each (the write cache can lag);
+        // both reconcile away automatically once the server agrees.
+        const now = Date.now();
+        const withAdds = applyOptimisticTasks(
+          arr, pendingTasksRef.current, now, OPTIMISTIC_MAX_TTL_MS,
+        );
+        const next = applyOptimisticTaskStatus(
+          withAdds, pendingTaskStatusRef.current, now, OPTIMISTIC_MAX_TTL_MS,
         );
         latestTasks = next;
         // Same fix as rooms — write empty arrays so deletions show up
@@ -553,6 +608,17 @@ export function useDashboardData(): DashboardState {
     setTasks((prev) => [task, ...prev]);
   }, []);
 
+  const optimisticUpdateTask = useCallback(
+    (task: Pick<SheetRow, "date" | "building" | "room" | "type">, status: string) => {
+      const now = Date.now();
+      lastOptimisticAtRef.current = now;
+      const key = taskKey(task);
+      pendingTaskStatusRef.current.set(key, { status, at: now });
+      setTasks((prev) => prev.map((t) => (taskKey(t) === key ? { ...t, status } : t)));
+    },
+    [],
+  );
+
   return {
     status,
     rooms: merged,
@@ -564,5 +630,6 @@ export function useDashboardData(): DashboardState {
     refresh,
     optimisticUpdateRoom,
     optimisticAddTask,
+    optimisticUpdateTask,
   };
 }
