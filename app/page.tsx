@@ -74,7 +74,7 @@ const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 const ReportsView     = lazy(() => import("@/components/ReportsView"));
 
 export default function Home() {
-  const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing, optimisticUpdateRoom } =
+  const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing, optimisticUpdateRoom, optimisticAddTask } =
     useDashboardData() as ReturnType<typeof useDashboardData> & { tasks: SheetRow[] };
 
   // Vehicle counts per room — used to render 🏍 N badge on RoomCard.
@@ -801,6 +801,19 @@ export default function Home() {
       if (data.ok) {
         toast.success("เพิ่มงานแล้ว — รีเฟรชข้อมูล");
         publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+        // Show the new task immediately — the dashboard cache can lag the
+        // write, so without this the list "doesn't update" until it expires.
+        optimisticAddTask({
+          date: values.date,
+          type: values.type,
+          building: values.building,
+          room: values.room,
+          customer: values.customer || "",
+          phone: values.phone || "",
+          note: values.note || "",
+          status: "",
+          ...(costNum > 0 ? { cost: costNum } : {}),
+        });
         setShowAddTask(false);
         // Clear quick-add pre-fills so the next open opens fresh
         setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");

@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   mergeRoomsAndTasks,
   applyOptimisticRoomPatches,
+  applyOptimisticTasks,
+  taskKey,
   type OptimisticRoomPatch,
+  type OptimisticTask,
 } from "./useDashboardData";
 import type { RoomRow, SheetRow } from "@/types";
 
@@ -88,6 +91,53 @@ describe("mergeRoomsAndTasks — needsCleaning flag (#6)", () => {
     const f = future();
     const [view] = mergeRoomsAndTasks([room({ status: "ว่าง" })], [task({ type: "ย้ายเข้า", date: f })]);
     expect(view.needsCleaning).toBe(false);
+  });
+});
+
+describe("applyOptimisticTasks", () => {
+  const TTL = 5 * 60_000;
+  const mk = (over: Partial<SheetRow> = {}): SheetRow => ({
+    date: "27/05/2026", type: "ชมห้อง", building: "A", room: "101",
+    customer: "", phone: "", note: "", status: "", ...over,
+  });
+  const pend = (entries: [string, OptimisticTask][]) => new Map<string, OptimisticTask>(entries);
+
+  it("returns server tasks unchanged when nothing pending", () => {
+    const server = [mk()];
+    expect(applyOptimisticTasks(server, new Map(), Date.now(), TTL)).toBe(server);
+  });
+
+  it("prepends a pending task the server hasn't returned yet", () => {
+    const now = Date.now();
+    const added = mk({ room: "205" });
+    const map = pend([[taskKey(added), { task: added, at: now }]]);
+    const out = applyOptimisticTasks([mk({ room: "101" })], map, now, TTL);
+    expect(out).toHaveLength(2);
+    expect(out[0].room).toBe("205"); // prepended
+    expect(map.size).toBe(1); // still pending — server hasn't confirmed
+  });
+
+  it("drops a pending task once the server list contains its key (confirmed)", () => {
+    const now = Date.now();
+    const added = mk({ room: "205" });
+    const map = pend([[taskKey(added), { task: added, at: now }]]);
+    // Server now returns the same task → reconcile away.
+    const out = applyOptimisticTasks([mk({ room: "205" })], map, now, TTL);
+    expect(out).toHaveLength(1);
+    expect(map.has(taskKey(added))).toBe(false);
+  });
+
+  it("drops a pending task past the TTL even if unconfirmed", () => {
+    const now = Date.now();
+    const added = mk({ room: "205" });
+    const map = pend([[taskKey(added), { task: added, at: now - TTL - 1 }]]);
+    const out = applyOptimisticTasks([], map, now, TTL);
+    expect(out).toHaveLength(0);
+    expect(map.size).toBe(0);
+  });
+
+  it("taskKey matches the AddTaskModal identity (date|building|room|type)", () => {
+    expect(taskKey(mk())).toBe("27/05/2026|A|101|ชมห้อง");
   });
 });
 
