@@ -74,10 +74,19 @@ interface Props {
   onSubmit: (values: TaskFormValues) => Promise<void> | void;
 }
 
+/** Local "today" as yyyy-MM-dd. NOT toISOString() — that's UTC, so a
+ *  late-evening add in Asia/Bangkok would default to tomorrow (or an
+ *  early-morning one to yesterday). */
+function localToday(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** Sensible defaults so RHF defaultValues satisfies the schema shape. */
 function buildDefaults(partial: Partial<TaskFormValues> | undefined): TaskFormValues {
   return {
-    date: partial?.date || new Date().toISOString().slice(0, 10),
+    date: partial?.date || localToday(),
     type: (partial?.type as TaskFormValues["type"]) || "ย้ายเข้า",
     building: (partial?.building as TaskFormValues["building"]) || ("" as TaskFormValues["building"]),
     room: partial?.room || "",

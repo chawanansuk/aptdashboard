@@ -81,6 +81,40 @@ export function applyOptimisticRoomPatches(
   });
 }
 
+export interface OptimisticTask {
+  task: SheetRow;
+  at: number;
+}
+
+/** A task's identity for optimistic reconciliation — matches the key the
+ *  AddTaskModal uses (date|building|room|type). */
+export function taskKey(t: Pick<SheetRow, "date" | "building" | "room" | "type">): string {
+  return `${t.date}|${(t.building || "").trim()}|${(t.room || "").trim()}|${t.type}`;
+}
+
+/**
+ * Prepend still-pending optimistically-added tasks onto the freshly
+ * fetched server list. A just-added task won't appear until the dashboard
+ * cache reflects the write (which can lag — Apps Script + a shared/
+ * cross-instance cache), so without this a "เพิ่มงาน" looks like it did
+ * nothing. Each pending task is dropped once the server list already
+ * contains its key (write landed) or after a safety TTL.
+ */
+export function applyOptimisticTasks(
+  serverTasks: SheetRow[],
+  pending: Map<string, OptimisticTask>,
+  now: number,
+  ttlMs: number,
+): SheetRow[] {
+  if (pending.size === 0) return serverTasks;
+  const serverKeys = new Set(serverTasks.map(taskKey));
+  for (const [k, v] of pending) {
+    if (now - v.at > ttlMs || serverKeys.has(k)) pending.delete(k);
+  }
+  if (pending.size === 0) return serverTasks;
+  return [...Array.from(pending.values(), (v) => v.task), ...serverTasks];
+}
+
 export function mergeRoomsAndTasks(
   rooms: RoomRow[],
   tasks: SheetRow[]
@@ -195,6 +229,12 @@ export interface DashboardState {
    * Background refresh (next refresh()) overwrites with server truth.
    */
   optimisticUpdateRoom: (building: string, room: string, patch: Partial<RoomRow>) => void;
+  /**
+   * Optimistically prepend a just-added task to local state so it shows
+   * immediately, surviving refresh()/poll until the server list includes
+   * it (or a TTL). Mirrors optimisticUpdateRoom for the add-task flow.
+   */
+  optimisticAddTask: (task: SheetRow) => void;
 }
 
 const RETRY_DELAYS_MS = [500, 1500, 3000];
@@ -266,6 +306,10 @@ export function useDashboardData(): DashboardState {
   // every server fetch (refresh/poll) until the server row confirms them or
   // the TTL expires, so a write isn't reverted by the lagging CSV.
   const pendingRoomPatchesRef = useRef<Map<string, OptimisticRoomPatch>>(new Map());
+  // Pending optimistically-added tasks keyed by taskKey. Prepended onto
+  // every server fetch until the server list includes them (or TTL), so a
+  // just-added task shows immediately even while the write cache lags.
+  const pendingTasksRef = useRef<Map<string, OptimisticTask>>(new Map());
 
   // Hydrate from cache synchronously on mount → instant first render with stale data
   useEffect(() => {
@@ -361,9 +405,14 @@ export function useDashboardData(): DashboardState {
         const arr: SheetRow[] = Array.isArray((j as { tasks?: unknown }).tasks)
           ? (j as { tasks: SheetRow[] }).tasks
           : [];
-        latestTasks = arr;
+        // Keep a just-added task visible until the server list includes it
+        // (the write cache can lag), then it reconciles away automatically.
+        const next = applyOptimisticTasks(
+          arr, pendingTasksRef.current, Date.now(), OPTIMISTIC_MAX_TTL_MS,
+        );
+        latestTasks = next;
         // Same fix as rooms — write empty arrays so deletions show up
-        setTasks(arr);
+        setTasks(next);
         tasksDone = true;
       });
       await Promise.all([roomsPromise, tasksPromise]);
@@ -466,6 +515,13 @@ export function useDashboardData(): DashboardState {
     []
   );
 
+  const optimisticAddTask = useCallback((task: SheetRow) => {
+    const now = Date.now();
+    lastOptimisticAtRef.current = now;
+    pendingTasksRef.current.set(taskKey(task), { task, at: now });
+    setTasks((prev) => [task, ...prev]);
+  }, []);
+
   return {
     status,
     rooms: merged,
@@ -476,5 +532,6 @@ export function useDashboardData(): DashboardState {
     isRefreshing: status === "loading" && !isInitial,
     refresh,
     optimisticUpdateRoom,
+    optimisticAddTask,
   };
 }
