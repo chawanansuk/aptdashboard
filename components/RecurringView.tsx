@@ -5,7 +5,7 @@ import type { RecurringTemplate } from "@/types";
 import { TASK_TYPES } from "@/lib/taskSchema";
 import { Icon } from "@/lib/icons";
 import { toast } from "@/lib/toast";
-import { parseSheetDate } from "@/lib/dateUtils";
+import { parseSheetDate, getBangkokNow } from "@/lib/dateUtils";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
@@ -155,7 +155,7 @@ export default function RecurringView({ buildings }: Props) {
     if (!nextStr) return null;
     const next = parseSheetDate(nextStr);
     if (!next) return null;
-    const today = new Date();
+    const today = getBangkokNow(); // Bangkok calendar day (see #157)
     today.setHours(0, 0, 0, 0);
     return Math.round((next.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
   }
