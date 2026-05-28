@@ -564,12 +564,19 @@ export default function Home() {
   async function submitBulkAdd() {
     if (bulkSelected.size === 0) return;
     setBulkSubmitting(true);
-    let okCount = 0, failCount = 0;
+    let okCount = 0, failCount = 0, skipCount = 0;
     const items = Array.from(bulkSelected).map((k) => {
       const [building, room] = k.split("|");
       return { building, room };
     });
     for (const item of items) {
+      // Skip rooms that already have an open task of this type — bulk add
+      // is a quick way to pile dozens of dupes (resubmit, racing two
+      // operators). Mirrors autoCreateMoveoutPrep / booking-confirm guards.
+      if (hasOpenPrepTask(tasks, item.building, item.room, bulkAddType)) {
+        skipCount++;
+        continue;
+      }
       try {
         const res = await fetch("/api/sheet/update", {
           method: "POST",
@@ -587,12 +594,13 @@ export default function Home() {
     }
     setBulkSubmitting(false);
     setBulkAddOpen(false);
+    const skipSuffix = skipCount > 0 ? ` · ข้าม ${skipCount} (มีงานอยู่แล้ว)` : "";
     if (failCount === 0) {
-      toast.success(`เพิ่ม ${okCount} งานสำเร็จ`);
+      toast.success(`เพิ่ม ${okCount} งานสำเร็จ${skipSuffix}`);
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
       exitBulk();
     } else {
-      toast.error(`สำเร็จ ${okCount}, ล้มเหลว ${failCount}`);
+      toast.error(`สำเร็จ ${okCount}, ล้มเหลว ${failCount}${skipSuffix}`);
     }
     refresh();
   }
