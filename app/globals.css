@@ -5237,6 +5237,22 @@ html.dark .ac-maint-card.is-overdue {
  * ==================================================================== */
 
 /* Fact chips strip under the modal title */
+/* RoomModal breadcrumb — building › floor (Problem #6). Small + faint
+   so it doesn't compete with the room number; sits above the title and
+   gives SR users the wider context before they land on the room. */
+.ac-room-modal-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #94A3B8;
+  margin-bottom: 4px;
+  line-height: 1;
+}
+.ac-room-modal-crumb { font-weight: 500; }
+.ac-room-modal-crumb-sep { font-size: 13px; opacity: 0.55; }
+html.dark .ac-room-modal-crumbs { color: #64748B; }
+
 .ac-room-modal-chips {
   display: flex;
   gap: 6px;

@@ -267,9 +267,10 @@ export default function RoomModal({
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         if (canEdit && tab === "info") attemptSave();
-      } else if (e.key === "ArrowLeft" && !isTypingTarget(e.target)) {
+      } else if ((e.key === "ArrowLeft" || e.key === "k" || e.key === "K") && !isTypingTarget(e.target)) {
+        // K mirrors the vim navigation muscle memory ("k = up = previous").
         if (onPrevRoom) { e.preventDefault(); attemptPrev(); }
-      } else if (e.key === "ArrowRight" && !isTypingTarget(e.target)) {
+      } else if ((e.key === "ArrowRight" || e.key === "j" || e.key === "J") && !isTypingTarget(e.target)) {
         if (onNextRoom) { e.preventDefault(); attemptNext(); }
       }
     }
@@ -298,12 +299,20 @@ export default function RoomModal({
       >
         <header className="ac-modal-head">
           <div>
+            {/* Breadcrumb (Problem #6) — explicit hierarchy: building › floor.
+                Sits above the big room number so SR users land on the wider
+                context first. */}
+            <nav className="ac-room-modal-crumbs" aria-label="ตำแหน่งห้อง">
+              <span className="ac-room-modal-crumb">อาคาร {room.building}</span>
+              <span className="ac-room-modal-crumb-sep" aria-hidden>›</span>
+              <span className="ac-room-modal-crumb">ชั้น {room.floor || "-"}</span>
+            </nav>
             <div className="ac-modal-title" id="ac-roommodal-title">
               {room.building} {room.room}
             </div>
             <div className="ac-modal-sub">
               <span className="ac-legend-dot" style={{ background: STATUS_DOT[room.status] }} />
-              {STATUS_LABEL[room.status]} · ชั้น {room.floor || "-"}
+              {STATUS_LABEL[room.status]}
             </div>
             {/* At-a-glance fact chips */}
             <div className="ac-room-modal-chips">
@@ -349,7 +358,7 @@ export default function RoomModal({
                   onClick={attemptPrev}
                   disabled={!onPrevRoom || saving}
                   aria-label="ห้องก่อนหน้า"
-                  title="ห้องก่อนหน้า (←)"
+                  title="ห้องก่อนหน้า (← หรือ K)"
                 >‹</button>
                 {typeof roomIndex === "number" && typeof roomTotal === "number" && roomTotal > 0 && (
                   <span className="ac-room-modal-nav-pos" aria-label={`ห้องที่ ${roomIndex} จาก ${roomTotal}`}>
@@ -362,7 +371,7 @@ export default function RoomModal({
                   onClick={attemptNext}
                   disabled={!onNextRoom || saving}
                   aria-label="ห้องถัดไป"
-                  title="ห้องถัดไป (→)"
+                  title="ห้องถัดไป (→ หรือ J)"
                 >›</button>
               </>
             )}

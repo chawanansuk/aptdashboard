@@ -51,6 +51,14 @@ const GROUPS: Array<{ title: string; items: Shortcut[] }> = [
       { keys: ["Space"], label: "เปิด drawer (เหมือน Enter)" },
     ],
   },
+  {
+    title: "Room Modal",
+    items: [
+      { keys: ["←"], label: "ห้องก่อนหน้า", hint: "หรือ K (vim style)" },
+      { keys: ["→"], label: "ห้องถัดไป", hint: "หรือ J (vim style)" },
+      { keys: ["⌘", "Enter"], label: "บันทึก (ระหว่างแก้ไข)" },
+    ],
+  },
 ];
 
 export default function KeyboardHelpModal({ open, onClose }: Props) {
