@@ -69,9 +69,21 @@ export default function EditTaskModal({ task, onClose, onSaved }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // Apps Script updateTask_ expects flat fields, not nested
+          // match/set: it reads b.matchDate/matchType/matchBuilding/
+          // matchRoom for the row lookup and b.date/customer/phone/note
+          // for the new values. A previous nested-payload version
+          // silently failed every edit with "task not found" because
+          // b.matchDate was undefined.
           action: "updateTask",
-          match: { date: task.date, building: task.building, room: task.room, type: task.type },
-          set: { date, customer, phone, note },
+          matchDate: task.date,
+          matchType: task.type,
+          matchBuilding: task.building,
+          matchRoom: task.room,
+          date,
+          customer,
+          phone,
+          note,
         }),
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
