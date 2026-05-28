@@ -767,6 +767,53 @@ html.dark .ac-mode-badge.is-management {
   color: #6B7280;
 }
 .ac-icon-btn:hover { background: #F3F4F6; }
+
+/* Prominent "ค้นหา ⌘K" button in the top nav — Problem #8 made ⌘K the
+   single source of truth for search (the in-page room search was
+   redundant) so the trigger needs to be discoverable, not just an icon
+   buried in the utility cluster. */
+.ac-cmdk-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  background: #F9FAFB;
+  color: #6B7280;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms) ease, border-color var(--transition-fast, 150ms) ease;
+}
+.ac-cmdk-btn:hover { background: #F3F4F6; border-color: #D1D5DB; color: #374151; }
+.ac-cmdk-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus, 0 0 0 3px rgba(59, 130, 246, 0.45)); }
+.ac-cmdk-btn-text { display: inline-block; }
+.ac-cmdk-btn-kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; height: 20px; padding: 0 6px;
+  font: 600 11px/1 ui-monospace, "JetBrains Mono", monospace;
+  color: #6B7280;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 5px;
+}
+html.dark .ac-cmdk-btn {
+  background: rgba(148, 163, 184, 0.08);
+  border-color: #334155;
+  color: #94A3B8;
+}
+html.dark .ac-cmdk-btn:hover { background: #1E293B; border-color: #475569; color: #CBD5E1; }
+html.dark .ac-cmdk-btn-kbd {
+  background: #0F172A;
+  border-color: #334155;
+  color: #CBD5E1;
+}
+@media (max-width: 760px) {
+  /* On narrow nav, hide the kbd hint but keep the labeled pill — text
+     alone is still clearer than the bare icon. */
+  .ac-cmdk-btn-kbd { display: none; }
+}
 .ac-icon-dot {
   position: absolute; top: 8px; right: 8px;
   width: 8px; height: 8px;

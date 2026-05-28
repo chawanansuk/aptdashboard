@@ -63,8 +63,10 @@ interface Props {
   visibleRooms: RoomView[];
   activeFilter: "all" | RoomStatus;
   onChangeFilter: (f: "all" | RoomStatus) => void;
-  search: string;
-  onChangeSearch: (s: string) => void;
+  // Note: the in-page search used to live here too but duplicated ⌘K's
+  // room search (both matched room/building/tenant/phone) — staff had
+  // two ways to do the same thing. Removed in Problem #8; use the top
+  // nav ⌘K button or the global shortcut to find a room.
   bulkMode: boolean;
   bulkSelected: Set<string>;
   onToggleBulkMode: () => void;
@@ -96,7 +98,7 @@ const DENSITY_TITLE: Record<RoomDensity, string> = {
 
 export default function RoomsView({
   visibleRooms, activeFilter, onChangeFilter,
-  search, onChangeSearch, bulkMode, bulkSelected, onToggleBulkMode, onToggleBulkRoom, onSelectRoom,
+  bulkMode, bulkSelected, onToggleBulkMode, onToggleBulkRoom, onSelectRoom,
   roles, onRepairRoom, vehicleCountByRoom, equipmentCountByRoom,
 }: Props) {
   const { density, setDensity } = useRoomDensity();
@@ -138,10 +140,9 @@ export default function RoomsView({
             <button key={c.key} className={`ac-chip ${activeFilter === c.key ? "is-active" : ""}`} onClick={() => onChangeFilter(c.key)}>{c.label}</button>
           ))}
         </div>
-        <div className="ac-search">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" placeholder="ค้นหา ห้อง / ตึก / ผู้เช่า / เบอร์..." value={search} onChange={(e) => onChangeSearch(e.target.value)} />
-        </div>
+        {/* Search moved to the top-nav ⌘K button — same scope (room/
+            building/tenant/phone) with rank-based ordering and digit-
+            only phone matching. See lib/commandPaletteSearch.ts. */}
         <div className="ac-density-toggle" role="group" aria-label="ขนาดห้อง">
           {ROOM_DENSITY_VALUES.map((d) => (
             <button
