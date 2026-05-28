@@ -9,6 +9,7 @@ import { toast } from "@/lib/toast";
 import type { Role } from "@/auth";
 import { isManagement } from "@/lib/permissions";
 import NotificationDropdown from "./NotificationDropdown";
+import QuickActionMenu, { type QuickAction } from "./QuickActionMenu";
 import type { NotificationItem } from "@/lib/notifications";
 
 interface Props {
@@ -18,6 +19,8 @@ interface Props {
   isRefreshing: boolean;
   lastUpdated: string;
   isDark: boolean;
+  /** Legacy single-action handler. Used as fallback when quickActions
+   *  isn't supplied (e.g. routes that don't wire up the new menu yet). */
   onAddTask: () => void;
   onRefresh: () => void;
   onToggleTheme: () => void;
@@ -36,6 +39,14 @@ interface Props {
   /** Called when the user picks a notification row — typically the
    *  parent flips activeView to the row's route. */
   onNotificationNavigate?: (route: string) => void;
+  /** Quick action menu items — when provided, the "+ เพิ่ม" button opens
+   *  a dropdown of these instead of firing onAddTask directly (Problem #16). */
+  quickActions?: QuickAction[];
+  /** Lift menu open state so the page-level keyboard handler can bail
+   *  out of letter shortcuts (e.g. `R`/`n`) that would otherwise fire
+   *  alongside the menu's per-item shortcuts. */
+  quickMenuOpen?: boolean;
+  onSetQuickMenuOpen?: (open: boolean) => void;
 }
 
 function initialsFromName(name?: string | null): string {
@@ -80,7 +91,17 @@ export default function AppHeader({
   onAddTask, onRefresh, onToggleTheme, onOpenSummary, onToggleSidebar, onOpenSearch, onOpenHelp,
   addLabel, modeLabel,
   notifications, onNotificationNavigate,
+  quickActions, quickMenuOpen, onSetQuickMenuOpen,
 }: Props) {
+  // When the parent supplies a quickActions list AND a state controller,
+  // the "+ เพิ่ม" button toggles a menu instead of firing the legacy
+  // single onAddTask. Both code paths coexist so partial adoption is OK.
+  const hasQuickMenu = !!(quickActions && quickActions.length > 0 && onSetQuickMenuOpen);
+  const addTriggerRef = useRef<HTMLButtonElement>(null);
+  function handleAddClick() {
+    if (hasQuickMenu) onSetQuickMenuOpen!(!quickMenuOpen);
+    else onAddTask();
+  }
   const { data: session } = useSession();
   const user = session?.user;
   const roles = user?.roles;
@@ -148,14 +169,28 @@ export default function AppHeader({
         >
           <Icon name="refresh" size={16} />
         </button>
-        <button
-          className="ac-add-btn ac-hide-mobile"
-          onClick={onAddTask}
-          title={addLabel || "เพิ่มงานใหม่"}
-        >
-          <Icon name="add" size={16} strokeWidth={2.25} />
-          <span className="ac-add-btn-text">{addLabel ? addLabel.replace(/^\+\s*/, "") : "เพิ่มงาน"}</span>
-        </button>
+        <div className="ac-add-btn-wrap">
+          <button
+            ref={addTriggerRef}
+            className="ac-add-btn ac-hide-mobile"
+            onClick={handleAddClick}
+            title={hasQuickMenu ? "เพิ่มรายการใหม่ (Q)" : (addLabel || "เพิ่มงานใหม่")}
+            aria-haspopup={hasQuickMenu ? "menu" : undefined}
+            aria-expanded={hasQuickMenu ? (quickMenuOpen || false) : undefined}
+          >
+            <Icon name="add" size={16} strokeWidth={2.25} />
+            <span className="ac-add-btn-text">
+              {hasQuickMenu ? "เพิ่ม" : (addLabel ? addLabel.replace(/^\+\s*/, "") : "เพิ่มงาน")}
+            </span>
+          </button>
+          {hasQuickMenu && (
+            <QuickActionMenu
+              open={!!quickMenuOpen}
+              onClose={() => onSetQuickMenuOpen!(false)}
+              actions={quickActions!}
+            />
+          )}
+        </div>
       </div>
 
       {/* === Cell: Utils (search + bell + theme + summary + avatar) === */}
@@ -250,10 +285,14 @@ export default function AppHeader({
                 <div className="ac-user-menu-section ac-show-mobile-only">
                   <button
                     className="ac-user-menu-item"
-                    onClick={() => { closeMenu(); onAddTask(); }}
+                    onClick={() => {
+                      closeMenu();
+                      if (hasQuickMenu) onSetQuickMenuOpen!(true);
+                      else onAddTask();
+                    }}
                   >
                     <Icon name="add" size={16} strokeWidth={2.25} />
-                    <span>{addLabel ? addLabel.replace(/^\+\s*/, "") : "เพิ่มงาน"}</span>
+                    <span>{hasQuickMenu ? "เพิ่ม..." : (addLabel ? addLabel.replace(/^\+\s*/, "") : "เพิ่มงาน")}</span>
                   </button>
                   <button
                     className="ac-user-menu-item"

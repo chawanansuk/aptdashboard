@@ -38,7 +38,7 @@ const GROUPS: Array<{ title: string; items: Shortcut[] }> = [
   {
     title: "Action ทั่วไป",
     items: [
-      { keys: ["N"], label: "เปิดฟอร์มเพิ่มงาน" },
+      { keys: ["Q"], label: "เปิดเมนูเพิ่ม (Quick Action)", hint: "N ก็ใช้ได้ · ในเมนูกด L/V/I/O/C/R" },
       { keys: ["R"], label: "รีเฟรชข้อมูล" },
       { keys: ["?"], label: "เปิดหน้าช่วยเหลือนี้" },
       { keys: ["["], label: "ย่อ / ขยายเมนูข้าง", hint: "Desktop เท่านั้น" },
