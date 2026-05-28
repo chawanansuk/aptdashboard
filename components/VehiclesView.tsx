@@ -27,6 +27,71 @@ interface Props {
   rooms: RoomChoice[];
 }
 
+type SortKey = "location" | "plate" | "model" | "color" | "updated";
+
+/** Numeric-aware compare so "ห้อง 2" sorts before "ห้อง 10". */
+function naturalCompare(a: string, b: string): number {
+  return (a || "").localeCompare(b || "", undefined, { numeric: true, sensitivity: "base" });
+}
+
+/**
+ * Sortable column header — click cycles asc → desc → off. Visual cue
+ * (▲/▼/▾) shows the current direction so users don't have to remember
+ * what they clicked last. aria-sort makes the same info available to
+ * screen readers.
+ */
+function SortableTh({
+  label, sortKey, sort, onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: "asc" | "desc" } | null;
+  onSort: (key: SortKey) => void;
+}) {
+  const isActive = sort?.key === sortKey;
+  const arrow = !isActive ? "▾" : sort.dir === "asc" ? "▲" : "▼";
+  const ariaSort = !isActive ? "none" : sort.dir === "asc" ? "ascending" : "descending";
+  return (
+    <th
+      scope="col"
+      aria-sort={ariaSort}
+      className={`ac-vehicles-th-sortable ${isActive ? "is-active" : ""}`}
+    >
+      <button
+        type="button"
+        className="ac-vehicles-th-sort-btn"
+        onClick={() => onSort(sortKey)}
+        title={`เรียงตาม${label}`}
+      >
+        <span>{label}</span>
+        <span className="ac-vehicles-th-sort-arrow" aria-hidden>{arrow}</span>
+      </button>
+    </th>
+  );
+}
+
+function compareVehicles(a: Vehicle, b: Vehicle, key: SortKey): number {
+  switch (key) {
+    case "location":
+      // Building first, then numeric room.
+      return naturalCompare(a.building, b.building) || naturalCompare(a.room, b.room);
+    case "plate": return naturalCompare(a.plate, b.plate);
+    case "model": return naturalCompare(a.model, b.model);
+    case "color": return naturalCompare(a.color, b.color);
+    case "updated": {
+      // Empty/unknown timestamps sort last in asc, first in desc — handled
+      // by the caller's reverse(). The strings are "yyyy-MM-dd HH:mm" so
+      // lexical compare is chronological.
+      const av = a.updatedAt || a.createdAt || "";
+      const bv = b.updatedAt || b.createdAt || "";
+      if (!av && !bv) return 0;
+      if (!av) return 1;
+      if (!bv) return -1;
+      return av.localeCompare(bv);
+    }
+  }
+}
+
 export default function VehiclesView({ buildings, activeBuilding, rooms }: Props) {
   const { data: session } = useSession();
   const canWrite = canPerform(session?.user?.roles, "vehicle.edit");
@@ -38,6 +103,9 @@ export default function VehiclesView({ buildings, activeBuilding, rooms }: Props
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Vehicle | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  // Sortable columns (Problem #11). null = original API order; we keep
+  // a tri-state per column-click cycle: asc → desc → off.
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -87,7 +155,7 @@ export default function VehiclesView({ buildings, activeBuilding, rooms }: Props
   const filtered = useMemo(() => {
     const list = rows || [];
     const q = search.trim().toLowerCase();
-    return list.filter((v) => {
+    const out = list.filter((v) => {
       if (activeBuilding !== "ทั้งหมด" && v.building !== activeBuilding) return false;
       if (q) {
         const hay = `${v.plate} ${v.model} ${v.color} ${v.room} ${v.note}`.toLowerCase();
@@ -95,7 +163,18 @@ export default function VehiclesView({ buildings, activeBuilding, rooms }: Props
       }
       return true;
     });
-  }, [rows, search, activeBuilding]);
+    if (!sort) return out;
+    const sorted = [...out].sort((a, b) => compareVehicles(a, b, sort.key));
+    return sort.dir === "desc" ? sorted.reverse() : sorted;
+  }, [rows, search, activeBuilding, sort]);
+
+  function onClickSort(key: SortKey) {
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null; // third click cycles back to default order
+    });
+  }
 
   function handleExport() {
     if (filtered.length === 0) return;
@@ -188,13 +267,13 @@ export default function VehiclesView({ buildings, activeBuilding, rooms }: Props
           <table className="ac-vehicles-table">
             <thead>
               <tr>
-                <th scope="col">ตึก/ห้อง</th>
-                <th scope="col">ทะเบียน</th>
-                <th scope="col">ยี่ห้อ/รุ่น</th>
-                <th scope="col">สี</th>
+                <SortableTh label="ตึก/ห้อง" sortKey="location" sort={sort} onSort={onClickSort} />
+                <SortableTh label="ทะเบียน" sortKey="plate" sort={sort} onSort={onClickSort} />
+                <SortableTh label="ยี่ห้อ/รุ่น" sortKey="model" sort={sort} onSort={onClickSort} />
+                <SortableTh label="สี" sortKey="color" sort={sort} onSort={onClickSort} />
                 <th scope="col">หมายเหตุ</th>
-                <th scope="col">อัปเดต</th>
-                {canWrite && <th scope="col">จัดการ</th>}
+                <SortableTh label="อัปเดต" sortKey="updated" sort={sort} onSort={onClickSort} />
+                {canWrite && <th scope="col" className="ac-vehicles-th-actions">จัดการ</th>}
               </tr>
             </thead>
             <tbody>
@@ -228,10 +307,12 @@ export default function VehiclesView({ buildings, activeBuilding, rooms }: Props
                           >แก้ไข</button>
                           <button
                             type="button"
-                            className="ac-btn ac-btn-danger ac-btn-sm"
+                            className="ac-btn ac-btn-ghost ac-btn-sm ac-vehicles-row-delete"
                             onClick={() => remove(v)}
                             disabled={busy}
-                          >ลบ</button>
+                            aria-label={`ลบยานพาหนะ ${v.plate}`}
+                            title={`ลบยานพาหนะ ${v.plate}`}
+                          >🗑</button>
                         </div>
                       </td>
                     )}

@@ -7853,9 +7853,53 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
 .ac-vehicles-table thead th {
   background: color-mix(in srgb, var(--color-accent) 5%, transparent);
   font-weight: var(--font-weight-semibold);
+  /* Sticky thead (Problem #11) — stays visible while scrolling long
+     vehicle lists. Wrap is the scroll container, so top:0 pins to it. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 .ac-vehicles-table tbody tr:last-child td { border-bottom: 0; }
 .ac-vehicles-table tbody tr:hover { background: color-mix(in srgb, var(--color-accent) 3%, transparent); }
+
+/* Sortable column headers (Problem #11) — invisible button that fills
+   the th so the whole cell is clickable. Arrow shows current direction. */
+.ac-vehicles-th-sortable { padding: 0; }
+.ac-vehicles-th-sort-btn {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ac-vehicles-th-sort-btn:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.ac-vehicles-th-sort-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-accent) inset; }
+.ac-vehicles-th-sort-arrow {
+  font-size: 10px;
+  color: var(--color-text-faint, #94A3B8);
+  flex-shrink: 0;
+}
+.ac-vehicles-th-sortable.is-active .ac-vehicles-th-sort-arrow {
+  color: var(--color-accent);
+}
+.ac-vehicles-th-actions { width: 64px; }
+/* Delete is now a single icon-only ghost so the row doesn't lead with
+   a giant red destructive button. Native confirm() still gates the
+   actual delete. */
+.ac-vehicles-row-delete {
+  width: 28px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  color: var(--color-text-faint, #94A3B8);
+}
+.ac-vehicles-row-delete:hover {
+  color: #DC2626;
+  background: rgba(220, 38, 38, 0.08);
+}
 .ac-vehicles-room {
   display: flex;
   flex-direction: column;
