@@ -58,24 +58,50 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
       }
     }
     setLoading(true);
-    try {
-      const url = `/api/room-equipment?building=${encodeURIComponent(building)}&room=${encodeURIComponent(room)}`;
-      const res = await fetch(url, { cache: "no-store", signal: opts?.signal });
-      const j = await res.json().catch(() => ({ error: "invalid JSON" }));
-      if (!res.ok) {
-        throw new Error(j.error || `HTTP ${res.status}`);
+    const url = `/api/room-equipment?building=${encodeURIComponent(building)}&room=${encodeURIComponent(room)}`;
+    // Problem #5 — the skeleton used to spin forever when the API hung.
+    // Cap each attempt at 8s via an AbortController timer, and try up to
+    // RETRIES additional times with exponential backoff for transient
+    // network/5xx blips before surfacing the error UI.
+    const FETCH_TIMEOUT_MS = 8000;
+    const RETRIES = 2;
+    for (let attempt = 0; attempt <= RETRIES; attempt++) {
+      const timeoutCtrl = new AbortController();
+      const timer = setTimeout(() => timeoutCtrl.abort(), FETCH_TIMEOUT_MS);
+      const forwardAbort = () => timeoutCtrl.abort();
+      opts?.signal?.addEventListener("abort", forwardAbort);
+      try {
+        const res = await fetch(url, { cache: "no-store", signal: timeoutCtrl.signal });
+        const j = await res.json().catch(() => ({ error: "invalid JSON" }));
+        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        const list: RoomEquipment[] = Array.isArray(j.rows) ? j.rows : [];
+        // Guard against late completion overwriting newer data after the
+        // user switched to a different room.
+        if (opts?.signal?.aborted) return;
+        setRows(list);
+        saveEquipmentCache(building, room, list);
+        setLoading(false);
+        return;
+      } catch (e) {
+        if (opts?.signal?.aborted) return;
+        const isLastAttempt = attempt === RETRIES;
+        if (isLastAttempt) {
+          // Translate the AbortError we triggered via our timer into a
+          // friendlier message — the raw "AbortError" string isn't useful.
+          const msg =
+            e instanceof Error
+              ? (timeoutCtrl.signal.aborted ? "หมดเวลา — เครือข่ายช้าหรือไม่ตอบ" : e.message)
+              : "Network error";
+          setErr(msg);
+          setLoading(false);
+          return;
+        }
+        // Exponential backoff: 1s, 2s before next attempt.
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+      } finally {
+        clearTimeout(timer);
+        opts?.signal?.removeEventListener("abort", forwardAbort);
       }
-      const list: RoomEquipment[] = Array.isArray(j.rows) ? j.rows : [];
-      // Guard against late completion overwriting newer data after the
-      // user switched to a different room.
-      if (opts?.signal?.aborted) return;
-      setRows(list);
-      saveEquipmentCache(building, room, list);
-    } catch (e) {
-      if (opts?.signal?.aborted) return;
-      setErr(e instanceof Error ? e.message : "Network error");
-    } finally {
-      if (!opts?.signal?.aborted) setLoading(false);
     }
   }, [building, room]);
 
@@ -217,10 +243,25 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
         )}
       </div>
 
-      {err && <div className="ac-banner ac-banner-warn">{err}</div>}
+      {/* Soft banner — heads-up when a refresh failed but we still have
+          cached rows to show. The blocking error UI below covers the
+          first-load-failed case. */}
+      {err && rows && <div className="ac-banner ac-banner-warn">{err}</div>}
 
       {loading && !rows && (
         <LoadingState label="กำลังโหลดอุปกรณ์..." size="compact" />
+      )}
+
+      {/* First-load failure (no rows yet) — replace the dead skeleton
+          with an actionable error state + retry. Problem #5. */}
+      {!loading && err && !rows && (
+        <EmptyState
+          icon="equipment"
+          tone="warning"
+          title="โหลดข้อมูลอุปกรณ์ไม่สำเร็จ"
+          description={err}
+          action={{ label: "ลองใหม่", onClick: () => void load({ force: true }) }}
+        />
       )}
 
       {!loading && rows && filtered.length === 0 && (
