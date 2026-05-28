@@ -774,6 +774,19 @@ html.dark .ac-mode-badge.is-management {
   color: #6B7280;
 }
 .ac-icon-btn:hover { background: #F3F4F6; }
+/* a11y (Problem #15) — icon-only buttons (refresh/theme/search/bell etc.)
+   used to lack a visible focus indicator entirely, so keyboard users
+   tabbing through the top nav had no idea where they were. Match the
+   ring used elsewhere (.ac-btn, .ac-rc) for consistency. */
+.ac-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus, 0 0 0 3px rgba(37, 99, 235, 0.45));
+  background: #F3F4F6;
+}
+html.dark .ac-icon-btn:focus-visible {
+  background: #1F2937;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.55);
+}
 
 /* Prominent "ค้นหา ⌘K" button in the top nav — Problem #8 made ⌘K the
    single source of truth for search (the in-page room search was
