@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Role } from "@/auth";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
+import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { useRoomDensity, ROOM_DENSITY_VALUES, type RoomDensity } from "@/lib/useRoomDensity";
 import { canViewTenant } from "@/lib/permissions";
@@ -216,6 +217,14 @@ export default function RoomsView({
                     // we don't need a custom popover for the basic info.
                     title={buildRoomTooltip(r)}
                     data-tooltip={buildRoomTooltip(r)}
+                    // Accessible name — Problem #3: room numbers repeat
+                    // across buildings so the SR / voice-control hint
+                    // has to spell out the building too.
+                    aria-label={
+                      `ห้อง ${r.room} อาคาร ${r.building}` +
+                      (r.floor ? ` ชั้น ${r.floor}` : "") +
+                      ` สถานะ ${STATUS_LABEL[r.status]}`
+                    }
                   >
                     {r.today && <span className="ac-rc-today" />}
                     {r.needsCleaning && (
@@ -248,6 +257,7 @@ export default function RoomsView({
                     })()}
                     {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
                     <span className="ac-rc-num">{r.room}</span>
+                    <span className="ac-rc-bldg" aria-hidden>{abbreviateBuilding(r.building)}</span>
                     <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
                     {/* "วันเข้า" hint for pending rooms — sales/management need
                         to plan ahead (PR per user request 2026-05-23). Picks
