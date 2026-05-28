@@ -83,6 +83,27 @@ describe("computeOccupancy", () => {
     expect(o.occupied).toBe(1);
     expect(o.vacant).toBe(0);
   });
+
+  it("returns a 5-segment breakdown that sums to total", () => {
+    // Powers the OverviewCards stacked bar. qc/repair/inactive all fold
+    // into 'maintenance' — the room isn't rentable, doesn't matter why.
+    const rooms = [
+      mkRoom({ status: "occupied" }),
+      mkRoom({ status: "occupied" }),
+      mkRoom({ status: "ready" }),
+      mkRoom({ status: "pending" }),
+      mkRoom({ status: "moveout" }),
+      mkRoom({ status: "qc" }),
+      mkRoom({ status: "repair" }),
+      mkRoom({ status: "inactive" }),
+    ];
+    const { breakdown, total } = computeOccupancy(rooms);
+    expect(breakdown).toEqual({
+      occupied: 2, available: 1, pending: 1, moveout: 1, maintenance: 3,
+    });
+    const sum = Object.values(breakdown).reduce((a, b) => a + b, 0);
+    expect(sum).toBe(total);
+  });
 });
 
 describe("computeTodayTaskCount", () => {

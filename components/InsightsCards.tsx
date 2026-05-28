@@ -106,11 +106,6 @@ export default function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
     };
   }, [rooms, tasks, activeBuilding]);
 
-  // Tone for occupancy: low → red, medium → orange, high → green
-  const occToneClass =
-    insights.occupancyPct >= 85 ? "is-good" :
-    insights.occupancyPct >= 60 ? "is-mid"  :
-    "is-low";
   const doneToneClass =
     insights.doneRate >= 80 ? "is-good" :
     insights.doneRate >= 50 ? "is-mid"  :
@@ -118,22 +113,12 @@ export default function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
 
   return (
     <section className="ac-insights" aria-label="Insights">
+      {/* The Occupancy card lived here too and used a different formula
+          (strict status==="occupied") than OverviewCards' "อัตราเช่า",
+          producing two competing percentages on the same page. Removed —
+          OverviewCards is now the single source of truth and shows the
+          full 5-status breakdown in its stacked bar. */}
       <div className="ac-insights-grid">
-        <article className={`ac-insights-card ${occToneClass}`}>
-          <div className="ac-insights-label">Occupancy</div>
-          <div className="ac-insights-value">{insights.occupancyPct}%</div>
-          <div className="ac-insights-sub">
-            {insights.occupiedCount}/{insights.totalRooms} ห้อง
-          </div>
-          <div className="ac-insights-bar">
-            <div
-              className="ac-insights-bar-fill"
-              style={{ width: `${insights.occupancyPct}%` }}
-              aria-hidden
-            />
-          </div>
-        </article>
-
         {canSeeIncome && (
           <article className="ac-insights-card">
             <div className="ac-insights-label">รายได้คงค้าง/เดือน</div>

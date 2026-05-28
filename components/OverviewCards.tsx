@@ -35,6 +35,77 @@ interface CardProps {
   loading?: boolean;
 }
 
+/**
+ * Occupancy card — replaces the previous "อัตราเช่า" StatCard plus the
+ * duplicate "Occupancy" card on InsightsCards (which counted strictly
+ * status="occupied" and showed e.g. 78% next to this card's 81% on the
+ * same page — staff reported it as confusing). Single source of truth:
+ * the headline rate keeps its existing semantic ((occupied+moveout)/total)
+ * and the stacked bar visually explains where the other rooms went.
+ */
+interface OccupancyCardProps {
+  rate: number;
+  total: number;
+  vacant: number;
+  breakdown: {
+    occupied: number; available: number; pending: number;
+    moveout: number;  maintenance: number;
+  };
+  onClick?: () => void;
+}
+
+const OCC_SEG_ORDER = ["occupied", "available", "pending", "moveout", "maintenance"] as const;
+const OCC_SEG_LABEL: Record<typeof OCC_SEG_ORDER[number], string> = {
+  occupied: "มีผู้เช่า",
+  available: "พร้อมขาย",
+  pending: "รอสัญญา",
+  moveout: "แจ้งย้ายออก",
+  maintenance: "ไม่พร้อม",
+};
+
+function OccupancyCard({ rate, total, vacant, breakdown, onClick }: OccupancyCardProps) {
+  const tone: CardProps["tone"] = rate >= 0.85 ? "good" : rate >= 0.7 ? "info" : "warn";
+  const pct = Math.round(rate * 100);
+  return (
+    <button
+      type="button"
+      className={`ac-overview-card ac-overview-card-${tone} ac-occ-card ${onClick ? "is-clickable" : ""}`}
+      onClick={onClick}
+      disabled={!onClick}
+      aria-label={`อัตราเช่า ${pct}% · ${vacant} ห้องว่าง จาก ${total} ห้อง`}
+    >
+      <div className="ac-overview-card-label">อัตราเช่า</div>
+      <div className="ac-overview-card-value">{pct}%</div>
+      <div className="ac-overview-card-sub">{vacant} ห้องว่าง · {total} ห้องทั้งหมด</div>
+      <div className="ac-occ-bar" role="img" aria-label="สัดส่วนสถานะห้อง">
+        {OCC_SEG_ORDER.map((k) => {
+          const n = breakdown[k];
+          if (n === 0 || total === 0) return null;
+          const width = (n / total) * 100;
+          return (
+            <span
+              key={k}
+              className={`ac-occ-bar-seg ac-occ-bar-${k}`}
+              style={{ width: `${width}%` }}
+              title={`${OCC_SEG_LABEL[k]}: ${n} ห้อง (${Math.round(width)}%)`}
+              aria-label={`${OCC_SEG_LABEL[k]} ${n} ห้อง`}
+            />
+          );
+        })}
+      </div>
+      <ul className="ac-occ-legend">
+        {OCC_SEG_ORDER.map((k) => (
+          <li key={k} className="ac-occ-legend-item">
+            <span className={`ac-occ-legend-dot ac-occ-bar-${k}`} aria-hidden />
+            <span className="ac-occ-legend-label">{OCC_SEG_LABEL[k]}</span>
+            <span className="ac-occ-legend-num">{breakdown[k]}</span>
+          </li>
+        ))}
+      </ul>
+    </button>
+  );
+}
+
 function StatCard({ label, value, sub, tone = "neutral", onClick, loading }: CardProps) {
   const clickable = !!onClick;
   return (
@@ -79,11 +150,11 @@ export default function OverviewCards({
 
   return (
     <section className="ac-overview-cards" aria-label="สรุปภาพรวม">
-      <StatCard
-        label="อัตราเช่า"
-        value={fmtPct(occupancy.rate)}
-        sub={`${occupancy.vacant} ห้องว่าง · ${occupancy.total} ห้องทั้งหมด`}
-        tone={occupancy.rate >= 0.85 ? "good" : occupancy.rate >= 0.7 ? "info" : "warn"}
+      <OccupancyCard
+        rate={occupancy.rate}
+        total={occupancy.total}
+        vacant={occupancy.vacant}
+        breakdown={occupancy.breakdown}
         onClick={() => onNavigate("ready")}
       />
       <StatCard
