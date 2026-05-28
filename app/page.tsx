@@ -405,19 +405,18 @@ export default function Home() {
 
   const visibleRooms = useMemo(() => {
     if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "recurring" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
+    // Note: room search was previously layered in here using the `search`
+    // state — duplicated ⌘K's room/tenant/phone search. Removed in
+    // Problem #8; users find rooms via the top-nav ⌘K. The `search`
+    // state still drives the tasks-list filter below.
     return rooms.filter((r) => {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
       if (activeView !== "overview" && activeView !== "today" && r.status !== activeView) return false;
       if (activeFilter !== "all" && r.status !== activeFilter) return false;
-      const q = search.trim().toLowerCase();
-      if (q) {
-        const hay = `${r.room} ${r.building} ${r.tenant || ""} ${r.phone || ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
       return true;
     });
-  }, [rooms, activeBuilding, activeView, activeFilter, search]);
+  }, [rooms, activeBuilding, activeView, activeFilter]);
 
   const dateBounds = useMemo<{ start: Date | null; end: Date | null }>(() => {
     if (activeView === "today" || dateRange === "all") return { start: null, end: null };
@@ -1228,8 +1227,6 @@ export default function Home() {
               visibleRooms={visibleRooms}
               activeFilter={activeFilter}
               onChangeFilter={setActiveFilter}
-              search={search}
-              onChangeSearch={setSearch}
               bulkMode={bulkMode}
               bulkSelected={bulkSelected}
               onToggleBulkMode={() => bulkMode ? exitBulk() : setBulkMode(true)}

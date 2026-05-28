@@ -197,9 +197,23 @@ export default function AppHeader({
       <div className="ac-nav-cell ac-nav-cell-utils">
         {onOpenSearch && (
           <button
-            className="ac-icon-btn ac-cmdk-trigger"
+            className="ac-cmdk-btn ac-hide-mobile"
             aria-label="ค้นหา (Ctrl+K)"
-            title="ค้นหาห้อง / หน้า / คำสั่ง (Ctrl+K หรือ /)"
+            title="ค้นหา ห้อง · ผู้เช่า · เบอร์ · ทะเบียนรถ · หน้า (Ctrl+K หรือ /)"
+            onClick={onOpenSearch}
+          >
+            <Icon name="search" size={14} />
+            <span className="ac-cmdk-btn-text">ค้นหา</span>
+            <kbd className="ac-cmdk-btn-kbd" aria-hidden>⌘K</kbd>
+          </button>
+        )}
+        {onOpenSearch && (
+          /* Mobile keeps the icon-only variant — kbd hint isn't useful
+             on touch and the labeled pill would crowd the toolbar. */
+          <button
+            className="ac-icon-btn ac-show-mobile-only ac-cmdk-trigger"
+            aria-label="ค้นหา"
+            title="ค้นหา"
             onClick={onOpenSearch}
           >
             <Icon name="search" size={16} />
