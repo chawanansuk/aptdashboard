@@ -1163,6 +1163,11 @@ html.dark .ac-fs-stat.is-active {
   /* Mobile top nav is a 2-row grid, so the sticky offset doubles. */
   :root { --ac-topnav-h: 100px; }
 }
+/* Programmatic scrollIntoView() (and anchor jumps) must leave room for
+   the sticky top nav + sticky floor header — otherwise the scrolled
+   target lands under them and click handlers register on the header
+   instead. Caught by the room-modal-counter e2e on PR #188. */
+html { scroll-padding-top: calc(var(--ac-topnav-h) + 56px); }
 
 /* ROOM GRID */
 .ac-rg {
