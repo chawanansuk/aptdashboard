@@ -31,7 +31,10 @@ test.describe("authenticated dashboard shell", () => {
     // Must NOT have been bounced to /login.
     await expect(page).not.toHaveURL(/\/login/);
     // The brand logo in the header proves the authenticated shell mounted.
-    await expect(page.getByText("APARTCLOUD")).toBeVisible();
+    // Scoped to role=banner so the layout's print-only "APARTCLOUD"
+    // strip (hidden on screen, still in the DOM) doesn't trip strict
+    // mode by matching twice.
+    await expect(page.getByRole("banner").getByText("APARTCLOUD")).toBeVisible();
   });
 
   test("session endpoint reports the management role", async ({ page }) => {

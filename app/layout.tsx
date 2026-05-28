@@ -3,6 +3,7 @@ import "./globals.css";
 import PWAClient from "@/components/PWAClient";
 import SessionProviderClient from "@/components/SessionProviderClient";
 import HealthBanner from "@/components/HealthBanner";
+import PrintHeader from "@/components/PrintHeader";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { Toaster } from "sonner";
 import { auth } from "@/auth";
@@ -66,6 +67,7 @@ export default async function RootLayout({
         </a>
         <SessionProviderClient session={session}>
           <PWAClient />
+          <PrintHeader />
           <HealthBanner />
           {/* Global error boundary — catches anything that escapes per-route
               boundaries so the user never faces a blank white screen. */}
