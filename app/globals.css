@@ -3236,6 +3236,81 @@ html.dark .ac-user-trigger:hover { background: #334155; }
 .ac-user-pic img { width: 100%; height: 100%; object-fit: cover; }
 html.dark .ac-user-pic { background: #312E81; color: #A5B4FC; }
 
+/* QuickActionMenu — the "+ เพิ่ม" dropdown in the top nav. Mirrors the
+   ac-user-menu styling so the two dropdowns in the same toolbar feel
+   like a set. */
+.ac-add-btn-wrap { position: relative; display: inline-flex; }
+.ac-quick-menu-backdrop {
+  position: fixed; inset: 0; z-index: 199;
+}
+.ac-quick-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 200;
+  min-width: 260px;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  padding: 6px;
+}
+html.dark .ac-quick-menu {
+  background: #1E293B;
+  border-color: #334155;
+}
+.ac-quick-menu-head {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid #F1F5F9;
+  margin-bottom: 4px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+html.dark .ac-quick-menu-head { border-bottom-color: #334155; }
+.ac-quick-menu-title { font-size: 13px; font-weight: 700; color: #0F172A; }
+.ac-quick-menu-hint  { font-size: 11px; color: #94A3B8; }
+html.dark .ac-quick-menu-title { color: #F1F5F9; }
+html.dark .ac-quick-menu-hint  { color: #64748B; }
+.ac-quick-menu-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.ac-quick-menu-item {
+  width: 100%;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0F172A;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+html.dark .ac-quick-menu-item { color: #E2E8F0; }
+.ac-quick-menu-item:hover { background: #F1F5F9; }
+.ac-quick-menu-item:focus-visible {
+  outline: none;
+  background: #EFF6FF;
+  box-shadow: 0 0 0 2px #2563EB inset;
+}
+html.dark .ac-quick-menu-item:hover { background: #334155; }
+html.dark .ac-quick-menu-item:focus-visible { background: rgba(37, 99, 235, 0.18); box-shadow: 0 0 0 2px #60A5FA inset; }
+.ac-quick-menu-icon { font-size: 16px; line-height: 1; flex-shrink: 0; }
+.ac-quick-menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-quick-menu-kbd {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 20px; padding: 0 6px;
+  font: 600 11px/1 ui-monospace, "JetBrains Mono", monospace;
+  color: #64748B;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 5px;
+}
+html.dark .ac-quick-menu-kbd {
+  color: #CBD5E1;
+  background: #0F172A;
+  border-color: #334155;
+}
+
 .ac-user-menu-backdrop {
   position: fixed; inset: 0; z-index: 199;
 }

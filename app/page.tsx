@@ -40,7 +40,8 @@ import {
   hasOpenPrepTask,
   todayThaiDate as moveoutTodayThaiDate,
 } from "@/lib/moveoutTasks";
-import { canAccess, getDefaultRoute, type Route } from "@/lib/permissions";
+import { canAccess, canPerform, getDefaultRoute, type Route } from "@/lib/permissions";
+import type { QuickAction } from "@/components/QuickActionMenu";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
 import { getModeConfig, type GreetingStats } from "@/lib/modeConfig";
@@ -231,6 +232,7 @@ export default function Home() {
 
   // ---- Add task ----
   const [showAddTask, setShowAddTask] = useState(false);
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [tDate, setTDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
@@ -350,12 +352,18 @@ export default function Home() {
         if (showHelp) { setShowHelp(false); return; }
         if (selectedRoom) { setSelectedRoom(null); return; }
         if (showAddTask) { setShowAddTask(false); return; }
+        if (quickMenuOpen) { setQuickMenuOpen(false); return; }
         if (summaryOpen) { setSummaryOpen(false); return; }
         if (sidebarOpen) { setSidebarOpen(false); return; }
         return;
       }
       if (isInput) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // While the Quick Action menu is open, let its per-item shortcut
+      // letters win. Otherwise `R` would refresh AND trigger the
+      // "นัดซ่อม" item on the same keystroke.
+      if (quickMenuOpen) return;
 
       if (e.key === "/") {
         const input = document.querySelector<HTMLInputElement>(".ac-search input");
@@ -365,9 +373,12 @@ export default function Home() {
         // value (not code). Show shortcut cheatsheet.
         e.preventDefault();
         setShowHelp((s) => !s);
-      } else if (e.key.toLowerCase() === "n") {
+      } else if (e.key.toLowerCase() === "q" || e.key.toLowerCase() === "n") {
+        // Q opens the Quick Action menu (Problem #16). N kept as an
+        // alias for muscle memory — used to fire the legacy single
+        // "เพิ่มงาน" shortcut.
         e.preventDefault();
-        setShowAddTask(true);
+        setQuickMenuOpen(true);
       } else if (e.key.toLowerCase() === "r") {
         e.preventDefault();
         if (!isRefreshing) refresh();
@@ -381,7 +392,7 @@ export default function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRoom, showAddTask, summaryOpen, sidebarOpen, showHelp, isRefreshing, refresh, sidebarCollapsed]);
+  }, [selectedRoom, showAddTask, quickMenuOpen, summaryOpen, sidebarOpen, showHelp, isRefreshing, refresh, sidebarCollapsed]);
 
   // ---- Derived data ----
   const buildings = useMemo(() => {
@@ -694,6 +705,76 @@ export default function Home() {
     setSelectedRoom(null);
     setShowAddTask(true);
   }
+
+  /** Generic "+ เพิ่ม" → open AddTaskModal with the requested type and
+   *  a blank room. Used by the Quick Action menu (Problem #16). */
+  function openAddTaskWithType(type: string) {
+    setTType(type);
+    setTBuilding("");
+    setTRoom("");
+    setTCustomer("");
+    setTPhone("");
+    setTNote("");
+    setSelectedRoom(null);
+    setShowAddTask(true);
+  }
+
+  // Quick Action menu items — permission-gated. Order = the spec
+  // (Problem #16): lead, viewing, move-in, move-out, clean, repair.
+  // Shortcut letters chosen to be mnemonic + non-overlapping:
+  // L Lead / V Viewing / I move-In / O move-Out / C Clean / R Repair.
+  const quickActions = useMemo<QuickAction[]>(() => [
+    {
+      id: "lead",
+      label: "เพิ่มผู้สนใจเช่า",
+      shortcut: "L",
+      icon: "👤",
+      description: "บันทึกผู้สนใจรายใหม่ลง Lead pipeline",
+      visible: canPerform(roles, "lead.edit"),
+      onSelect: openQuickAddLead,
+    },
+    {
+      id: "viewing",
+      label: "นัดชมห้อง",
+      shortcut: "V",
+      icon: "👀",
+      visible: canPerform(roles, "task.add.sales"),
+      onSelect: () => openAddTaskWithType("ชมห้อง"),
+    },
+    {
+      id: "movein",
+      label: "ย้ายเข้า",
+      shortcut: "I",
+      icon: "📥",
+      visible: canPerform(roles, "task.add.sales"),
+      onSelect: () => openAddTaskWithType("ย้ายเข้า"),
+    },
+    {
+      id: "moveout",
+      label: "ย้ายออก",
+      shortcut: "O",
+      icon: "📤",
+      visible: canPerform(roles, "task.add.sales"),
+      onSelect: () => openAddTaskWithType("ย้ายออก"),
+    },
+    {
+      id: "clean",
+      label: "นัดทำสะอาด",
+      shortcut: "C",
+      icon: "🧹",
+      visible: canPerform(roles, "task.add.clean"),
+      onSelect: () => openAddTaskWithType("ทำสะอาด"),
+    },
+    {
+      id: "repair",
+      label: "นัดซ่อม",
+      shortcut: "R",
+      icon: "🔧",
+      visible: canPerform(roles, "task.add.eng"),
+      onSelect: () => openAddTaskWithType("ซ่อม"),
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [roles]);
 
   // ---- Command palette (Cmd+K / Ctrl+K / `/`) ----
   const cmdk = useCommandPalette();
@@ -1056,6 +1137,9 @@ export default function Home() {
         onOpenHelp={() => setShowHelp(true)}
         addLabel={modeConfig.addButtonLabel}
         modeLabel={modeConfig.label}
+        quickActions={quickActions}
+        quickMenuOpen={quickMenuOpen}
+        onSetQuickMenuOpen={setQuickMenuOpen}
         notifications={notifications}
         onNotificationNavigate={(route) => {
           if ((VALID_VIEWS as string[]).includes(route)) {
