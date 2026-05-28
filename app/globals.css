@@ -3851,6 +3851,71 @@ html.dark .ac-overview-card-skeleton {
   .ac-overview-card-value { font-size: 20px; }
 }
 
+/* Occupancy card — stacked bar + legend that replaced the duplicate
+   "Occupancy" insights card. Segments use the same colors the room dots
+   use (lib/statusTokens) so the bar visually maps to the room grid. */
+.ac-occ-bar {
+  display: flex;
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+.ac-occ-bar-seg {
+  height: 100%;
+  transition: opacity var(--transition-fast, 150ms) ease;
+}
+.ac-occ-bar-seg:hover { opacity: 0.78; }
+/* Colors match lib/statusTokens.ts so the bar = same palette as the
+   room-grid dots (STATUS_DOT). Light: occupied=slate-800 reads as solid
+   "filled"; dark: lighten to slate-400 so the segment stays visible
+   against the dark elevated card background. */
+.ac-occ-bar-occupied    { background: #1E293B; }
+.ac-occ-bar-available   { background: #22C55E; }
+.ac-occ-bar-pending     { background: #A855F7; }
+.ac-occ-bar-moveout     { background: #EF4444; }
+.ac-occ-bar-maintenance { background: #EAB308; }
+html.dark .ac-occ-bar-occupied { background: #64748B; }
+
+.ac-occ-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 4px 10px;
+  margin-top: 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  color: var(--color-text-faint, #64748B);
+}
+.ac-occ-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.ac-occ-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ac-occ-legend-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ac-occ-legend-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-left: auto;
+  color: var(--color-text-soft, #475569);
+}
+html.dark .ac-occ-legend { color: #94A3B8; }
+html.dark .ac-occ-legend-num { color: #CBD5E1; }
+/* Make the card a touch taller to fit bar + legend without crowding */
+.ac-occ-card { padding-bottom: 14px; }
+
 /* ===== Role switcher (multi-role view-as) ===== */
 .ac-role-switcher {
   display: inline-flex; align-items: center; gap: 6px;

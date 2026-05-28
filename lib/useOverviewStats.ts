@@ -30,17 +30,39 @@ export interface OccupancyStats {
   occupied: number;   // มีผู้เช่า + แจ้งย้ายออก
   vacant: number;     // ว่าง
   rate: number;       // 0..1
+  /**
+   * 5-segment breakdown for the OverviewCards stacked bar. Sum equals
+   * `total`. `maintenance` folds qc + repair + inactive — rooms that
+   * aren't rentable today, regardless of why.
+   */
+  breakdown: {
+    occupied: number;
+    available: number;
+    pending: number;
+    moveout: number;
+    maintenance: number;
+  };
 }
 
 export function computeOccupancy(rooms: RoomView[]): OccupancyStats {
   let occupied = 0;
   let vacant = 0;
+  const breakdown = { occupied: 0, available: 0, pending: 0, moveout: 0, maintenance: 0 };
   for (const r of rooms) {
     if (r.status === "occupied" || r.status === "moveout") occupied++;
     else if (r.status === "ready") vacant++;
+    switch (r.status) {
+      case "occupied": breakdown.occupied++; break;
+      case "ready":    breakdown.available++; break;
+      case "pending":  breakdown.pending++; break;
+      case "moveout":  breakdown.moveout++; break;
+      case "qc":
+      case "repair":
+      case "inactive": breakdown.maintenance++; break;
+    }
   }
   const total = rooms.length;
-  return { total, occupied, vacant, rate: total ? occupied / total : 0 };
+  return { total, occupied, vacant, rate: total ? occupied / total : 0, breakdown };
 }
 
 export function computeTodayTaskCount(tasks: SheetRow[]): number {
