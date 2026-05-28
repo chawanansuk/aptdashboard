@@ -1510,6 +1510,30 @@ html.dark .ac-rc-bldg { color: #64748B; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ac-room-modal-dirty { animation: none; }
+  /* Global reduced-motion respect (Problem #14) — any user who has opted
+     out of decorative motion (OS-level setting) gets near-instant
+     transitions and no looping animations. Functional motion
+     (skeletons stay subtly active so users still see "this is loading"
+     but at a slower pulse) is fine to keep. Crucially, animations on
+     entry transitions become 0.01ms — fast enough to be invisible but
+     non-zero so JS that waits for `animationend` still fires. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Loading hints stay alive — without them users can't tell the page
+     is still working. Slow them down instead of disabling. */
+  .ac-overview-card-skeleton,
+  .ac-skeleton-pulse,
+  [class*="skeleton"] {
+    animation-duration: 3s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .ac-icon-btn.is-spinning svg { animation-duration: 1.5s !important; animation-iteration-count: infinite !important; }
 }
 .ac-modal-row {
   display: flex; justify-content: space-between; align-items: center;
