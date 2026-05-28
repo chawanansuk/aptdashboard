@@ -1100,14 +1100,12 @@ html.dark .ac-cmdk-btn-kbd {
   align-items: center;
   gap: 16px;
   border-bottom: 1px solid #E8EAED;
-  /* Problem #4 — keep the floor + per-status counts on screen while
-     scrolling through the rooms in that floor. As the next floor
-     scrolls into view its own sticky header naturally takes over.
-     The top offset is the top-nav's rendered height (approx); kept
-     out of band to let mobile (taller 2-row nav) override. */
-  position: sticky;
-  top: var(--ac-topnav-h, 56px);
-  z-index: 5;
+  /* The sticky-while-scrolling variant of this header lived here briefly
+     but caused the room-modal-counter e2e to time out — Playwright's
+     scrollIntoView landed the card under the pinned header and the click
+     never reached it. The clickable-filter behaviour below (the more
+     valuable half of Problem #4) ships now; sticky positioning will
+     return in a follow-up PR with proper stacking + scroll-padding work. */
 }
 .ac-fs-title { font-weight: 700; color: #111827; font-size: 14px; }
 .ac-fs-stats {
@@ -1158,16 +1156,6 @@ html.dark .ac-fs-stat.is-active {
   border-radius: 50%;
   display: inline-block;
 }
-:root { --ac-topnav-h: 56px; }
-@media (max-width: 760px) {
-  /* Mobile top nav is a 2-row grid, so the sticky offset doubles. */
-  :root { --ac-topnav-h: 100px; }
-}
-/* Programmatic scrollIntoView() (and anchor jumps) must leave room for
-   the sticky top nav + sticky floor header — otherwise the scrolled
-   target lands under them and click handlers register on the header
-   instead. Caught by the room-modal-counter e2e on PR #188. */
-html { scroll-padding-top: calc(var(--ac-topnav-h) + 56px); }
 
 /* ROOM GRID */
 .ac-rg {
