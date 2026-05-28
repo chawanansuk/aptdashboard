@@ -367,6 +367,13 @@ html.dark .ac-search {
 }
 html.dark .ac-search input { color: #E5E7EB; }
 html.dark .ac-legend-item { color: #94A3B8; }
+html.dark .ac-rc-occupied {
+  background: #1E293B;
+  border-color: #334155;
+  border-top-color: #94A3B8;
+}
+html.dark .ac-rc-occupied .ac-rc-num { color: #E2E8F0; }
+html.dark .ac-rc-occupied .ac-rc-status { color: #94A3B8; }
 html.dark .ac-rc-ready {
   background: #064E3B;
   border-color: #065F46;
@@ -1291,9 +1298,14 @@ html.dark .ac-rc-more:hover { background: #0F172A; color: #F1F5F9; }
 }
 .ac-rg-compact .ac-rc-more { display: none; } /* not enough room in compact mode */
 
-.ac-rc-occupied { background: #1E293B; border-color: #334155; }
-.ac-rc-occupied .ac-rc-num { color: #94A3B8; }
-.ac-rc-occupied .ac-rc-status { color: #94A3B8; }
+/* Problem #2: "occupied" used to be a dark solid block among pastel
+   siblings — visually overwhelming and the loudest thing on the page.
+   Switch to a light slate tint with a strong slate top accent so it
+   reads as "the default + filled" rather than "alert!". Dark mode
+   keeps the deep slate fill (text contrast is fine there). */
+.ac-rc-occupied { background: #F8FAFC; border-color: #CBD5E1; }
+.ac-rc-occupied .ac-rc-num { color: #0F172A; }
+.ac-rc-occupied .ac-rc-status { color: #64748B; }
 
 .ac-rc-ready { background: #F0FDF4; border-color: #86EFAC; }
 .ac-rc-ready .ac-rc-num { color: #16A34A; }
@@ -1318,6 +1330,31 @@ html.dark .ac-rc-more:hover { background: #0F172A; color: #F1F5F9; }
 .ac-rc-inactive { background: #F1F5F9; border-color: #E2E8F0; }
 .ac-rc-inactive .ac-rc-num { color: #CBD5E1; }
 .ac-rc-inactive .ac-rc-status { color: #CBD5E1; }
+
+/* 3px colored top accent (Problem #2) — same template every card,
+   only the accent color changes per status. Makes status legible at
+   a glance even when the room number colour is muted. */
+.ac-rc { border-top-width: 3px; }
+.ac-rc-occupied { border-top-color: #475569; }
+.ac-rc-ready    { border-top-color: #16A34A; }
+.ac-rc-pending  { border-top-color: #7C3AED; }
+.ac-rc-moveout  { border-top-color: #DC2626; }
+.ac-rc-qc       { border-top-color: #EA580C; }
+.ac-rc-repair   { border-top-color: #CA8A04; }
+.ac-rc-inactive { border-top-color: #94A3B8; }
+
+/* Building sub-label (Problem #3) — disambiguates rooms with the
+   same number across buildings (102 exists in three of them).
+   Hidden in compact density where every pixel counts. */
+.ac-rc-bldg {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  line-height: 1;
+  color: #94A3B8;
+}
+html.dark .ac-rc-bldg { color: #64748B; }
+.ac-rg-compact .ac-rc-bldg { display: none; }
 
 /* MODAL */
 .ac-modal-backdrop {
