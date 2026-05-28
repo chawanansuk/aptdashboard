@@ -2788,6 +2788,27 @@ html.dark .ac-cal-day-detail { background: #1E293B; }
   .ac-cal-day-view { box-shadow: none; }
   .ac-cal-mode { display: none; }
 }
+
+/* Print header (Problem #18) — APARTCLOUD · date · user.
+   Hidden on screen; only paints on printed pages so every report
+   carries its provenance (who printed it, when). */
+.ac-print-header { display: none; }
+@media print {
+  .ac-print-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12pt;
+    padding: 6pt 0 8pt;
+    margin-bottom: 12pt;
+    border-bottom: 1pt solid #000;
+    font-size: 9pt;
+    color: #000;
+    page-break-inside: avoid;
+  }
+  .ac-print-header-brand { font-weight: 700; letter-spacing: 0.4pt; }
+  .ac-print-header-date,
+  .ac-print-header-user { color: #444; }
+}
 .ac-cal-task-list {
   display: flex;
   flex-direction: column;
