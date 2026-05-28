@@ -750,24 +750,35 @@ export default function Home() {
 
       // Create the move-in appointment (best-effort; don't fail the
       // whole flow if this errors — the room is already booked).
-      try {
-        await fetch("/api/sheet/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "addTask",
-            date: data.moveInDateIso,
-            type: "ย้ายเข้า",
-            building: data.building,
-            room: data.room,
-            customer: data.tenant,
-            phone: data.phone,
-            note: `ยืนยันการจอง — เข้าพัก ${data.moveInTime || ""}`.trim(),
-          }),
-        });
-      } catch { /* surfaced via refresh; room booking already saved */ }
+      // Guard against duplicates: confirming a booking (or re-opening the
+      // modal to re-copy the LINE message) shouldn't pile a second
+      // ย้ายเข้า on a room that already has one open. Mirrors the
+      // autoCreateMoveoutPrep guard.
+      const moveInExists = hasOpenPrepTask(tasks, data.building, data.room, "ย้ายเข้า");
+      if (!moveInExists) {
+        try {
+          await fetch("/api/sheet/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "addTask",
+              date: data.moveInDateIso,
+              type: "ย้ายเข้า",
+              building: data.building,
+              room: data.room,
+              customer: data.tenant,
+              phone: data.phone,
+              note: `ยืนยันการจอง — เข้าพัก ${data.moveInTime || ""}`.trim(),
+            }),
+          });
+        } catch { /* surfaced via refresh; room booking already saved */ }
+      }
 
-      toast.success("บันทึกการจอง + สร้างนัดย้ายเข้าแล้ว");
+      toast.success(
+        moveInExists
+          ? "บันทึกการจองแล้ว (มีนัดย้ายเข้าอยู่แล้ว)"
+          : "บันทึกการจอง + สร้างนัดย้ายเข้าแล้ว"
+      );
       publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
       optimisticUpdateRoom(data.building, data.room, {
         status: "รอสัญญา", tenant: data.tenant, phone: data.phone, price: String(data.monthlyRent),
