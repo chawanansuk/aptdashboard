@@ -1100,25 +1100,68 @@ html.dark .ac-cmdk-btn-kbd {
   align-items: center;
   gap: 16px;
   border-bottom: 1px solid #E8EAED;
+  /* Problem #4 — keep the floor + per-status counts on screen while
+     scrolling through the rooms in that floor. As the next floor
+     scrolls into view its own sticky header naturally takes over.
+     The top offset is the top-nav's rendered height (approx); kept
+     out of band to let mobile (taller 2-row nav) override. */
+  position: sticky;
+  top: var(--ac-topnav-h, 56px);
+  z-index: 5;
 }
 .ac-fs-title { font-weight: 700; color: #111827; font-size: 14px; }
 .ac-fs-stats {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-left: auto;
 }
+/* Each stat is a button — clicking filters the room grid to that
+   status (Problem #4 acceptance). Reset default button chrome. */
 .ac-fs-stat {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font: inherit;
   font-size: 11px;
-  color: #9CA3AF;
+  color: #6B7280;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms) ease, color var(--transition-fast, 150ms) ease;
+}
+.ac-fs-stat:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0F172A;
+}
+.ac-fs-stat.is-active {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.35);
+  color: #1D4ED8;
+  font-weight: 600;
+}
+.ac-fs-stat:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.5);
+}
+html.dark .ac-fs-stat { color: #94A3B8; }
+html.dark .ac-fs-stat:hover { background: rgba(148, 163, 184, 0.12); color: #E2E8F0; }
+html.dark .ac-fs-stat.is-active {
+  background: rgba(96, 165, 250, 0.20);
+  border-color: rgba(96, 165, 250, 0.4);
+  color: #BFDBFE;
 }
 .ac-fs-stat-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
   display: inline-block;
+}
+:root { --ac-topnav-h: 56px; }
+@media (max-width: 760px) {
+  /* Mobile top nav is a 2-row grid, so the sticky offset doubles. */
+  :root { --ac-topnav-h: 100px; }
 }
 
 /* ROOM GRID */

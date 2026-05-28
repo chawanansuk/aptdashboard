@@ -188,10 +188,17 @@ export default function RoomsView({
               <div className="ac-fs-title">ชั้น {g.floor}</div>
               <div className="ac-fs-stats">
                 {(Object.keys(counts) as RoomStatus[]).map((k) => (counts[k] > 0 ? (
-                  <span key={k} className="ac-fs-stat">
+                  <button
+                    key={k}
+                    type="button"
+                    className={`ac-fs-stat ${activeFilter === k ? "is-active" : ""}`}
+                    onClick={() => onChangeFilter(activeFilter === k ? "all" : k)}
+                    aria-pressed={activeFilter === k}
+                    title={`กรองห้องสถานะ ${STATUS_LABEL[k]} (ชั้นนี้ ${counts[k]} ห้อง)`}
+                  >
                     <span className="ac-fs-stat-dot" style={{ background: STATUS_DOT[k] }} />
                     {STATUS_LABEL[k]} {counts[k]}
-                  </span>
+                  </button>
                 ) : null))}
               </div>
             </header>
