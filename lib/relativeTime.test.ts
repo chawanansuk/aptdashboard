@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { relativeTimeLabel, parseSheetTimestamp } from "./relativeTime";
+import { relativeTimeLabel, relativeTimeShort, formatFullTimestamp, parseSheetTimestamp } from "./relativeTime";
 
 // Anchor "now" so tests are deterministic
 const NOW = new Date("2026-05-22T10:00:00");
@@ -14,6 +14,34 @@ function fmtLocal(d: Date): string {
 function ago(min: number): string {
   return fmtLocal(new Date(NOW.getTime() - min * 60_000));
 }
+
+describe("relativeTimeShort", () => {
+  it("empty / unparseable → empty output", () => {
+    expect(relativeTimeShort("", NOW)).toBe("");
+    expect(relativeTimeShort(undefined, NOW)).toBe("");
+    expect(relativeTimeShort("nope", NOW)).toBe("");
+  });
+  it("minutes / hours / days / weeks compact forms", () => {
+    expect(relativeTimeShort(ago(0), NOW)).toBe("ตอนนี้");
+    expect(relativeTimeShort(ago(19), NOW)).toBe("19m");
+    expect(relativeTimeShort(ago(60 * 2), NOW)).toBe("2h");
+    expect(relativeTimeShort(ago(60 * 24 * 3), NOW)).toBe("3d");
+    expect(relativeTimeShort(ago(60 * 24 * 14), NOW)).toBe("2w");
+  });
+  it("future timestamp (clock skew) → ตอนนี้", () => {
+    expect(relativeTimeShort(fmtLocal(new Date(NOW.getTime() + 60_000)), NOW)).toBe("ตอนนี้");
+  });
+});
+
+describe("formatFullTimestamp", () => {
+  it("formats to dd/MM/yyyy HH:mm", () => {
+    expect(formatFullTimestamp("2026-05-22 10:30")).toBe("22/05/2026 10:30");
+  });
+  it("returns raw input when unparseable (better than blank in a title)", () => {
+    expect(formatFullTimestamp("garbage")).toBe("garbage");
+    expect(formatFullTimestamp(undefined)).toBe("");
+  });
+});
 
 describe("relativeTimeLabel", () => {
   it("empty input → empty output", () => {

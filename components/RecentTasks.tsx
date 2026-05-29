@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { SheetRow, RoomView } from "@/types";
-import { relativeTimeLabel } from "@/lib/relativeTime";
+import { relativeTimeShort, formatFullTimestamp } from "@/lib/relativeTime";
 import { parseTaskLocation } from "@/lib/taskLocation";
 
 /**
@@ -83,7 +83,11 @@ export default function RecentTasks({ tasks, rooms, activeBuilding, onSelectRoom
         {recent.map((t) => {
           const loc = parseTaskLocation(t);
           const icon = TYPE_ICON[t.type] || "•";
-          const time = relativeTimeLabel(t.createdAt) || t.date;
+          // Compact time for the tight meta row (#12) — full timestamp
+          // in the title tooltip. Falls back to the task date when there's
+          // no createdAt to compute from.
+          const timeShort = relativeTimeShort(t.createdAt) || t.date;
+          const timeFull = formatFullTimestamp(t.createdAt) || t.date;
           const room = loc.kind === "room"
             ? rooms.find((r) => r.building === t.building && r.room === t.room)
             : undefined;
@@ -107,7 +111,7 @@ export default function RecentTasks({ tasks, rooms, activeBuilding, onSelectRoom
                     <span className="ac-recent-task-bldg"> · {t.building}</span>
                   </span>
                   <span className="ac-recent-task-meta">
-                    {shortenCreator(t.creator)} · {time}
+                    {shortenCreator(t.creator)} · <time title={timeFull}>{timeShort}</time>
                   </span>
                 </span>
                 {t.status && (
