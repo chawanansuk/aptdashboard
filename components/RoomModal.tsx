@@ -63,6 +63,10 @@ interface Props {
   /** 1-based position used by the "ห้อง N / M" label. */
   roomIndex?: number;
   roomTotal?: number;
+  /** Pin/bookmark state (#17). When isPinned is supplied a star toggle
+   *  renders in the header; onTogglePin flips it in the parent's store. */
+  isPinned?: boolean;
+  onTogglePin?: () => void;
 }
 
 type TabKey = "info" | "equipment" | "vehicles";
@@ -136,6 +140,7 @@ export default function RoomModal({
   onMoveoutInspect, onMoveoutClean,
   onMoveinClean, onMoveinSchedule, onConfirmBooking,
   onPrevRoom, onNextRoom, roomIndex, roomTotal,
+  isPinned, onTogglePin,
 }: Props) {
   const { data: session } = useSession();
   // Edit/view-tenant gates use ACTUAL roles — view-as preview must
@@ -377,6 +382,16 @@ export default function RoomModal({
             )}
             {isDirty && (
               <span className="ac-room-modal-dirty" title="มีการแก้ไขที่ยังไม่ได้บันทึก">●</span>
+            )}
+            {onTogglePin && (
+              <button
+                type="button"
+                className={`ac-room-modal-pin ${isPinned ? "is-pinned" : ""}`}
+                onClick={onTogglePin}
+                aria-pressed={isPinned}
+                aria-label={isPinned ? "เลิกปักหมุดห้องนี้" : "ปักหมุดห้องนี้"}
+                title={isPinned ? "เลิกปักหมุด" : "ปักหมุด — เข้าถึงเร็วจากเมนูข้าง"}
+              >{isPinned ? "★" : "☆"}</button>
             )}
             <button className="ac-modal-close" onClick={attemptClose} aria-label="ปิด">✕</button>
           </div>

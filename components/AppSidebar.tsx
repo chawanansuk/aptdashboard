@@ -1,8 +1,9 @@
 "use client";
 
-import type { RoomStatus } from "@/types";
+import type { RoomStatus, RoomView } from "@/types";
 import type { Role } from "@/auth";
 import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
+import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { canAccess, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
 
@@ -28,6 +29,11 @@ interface Props {
   /** Called when the user toggles collapse via the in-sidebar button.
    *  Page-level state owner persists the value. Omit to hide the button. */
   onToggleCollapse?: () => void;
+  /** Pinned + recently-opened rooms (#17). Rendered as quick-jump
+   *  sections under the nav; clicking opens that room's detail modal. */
+  pinnedRooms?: RoomView[];
+  recentRooms?: RoomView[];
+  onOpenRoom?: (r: RoomView) => void;
 }
 
 /**
@@ -205,6 +211,7 @@ function prefetch(url: string) {
 export default function AppSidebar({
   isOpen, activeView, onChangeView, counts, onBackdropClick, roles, groupOrder, assetAlerts,
   isCollapsed, onToggleCollapse,
+  pinnedRooms, recentRooms, onOpenRoom,
 }: Props) {
   const groups = reorderGroups(buildGroups(counts, roles, assetAlerts), groupOrder);
   // Mobile overlay forces full layout regardless of collapse — the rail
@@ -266,8 +273,51 @@ export default function AppSidebar({
             })}
           </div>
         ))}
+
+        {/* Room bookmarks (#17) — quick-jump to pinned + recently-opened
+            rooms. Hidden in rail mode (no room to show labels) and when
+            there's nothing to list. */}
+        {!railMode && onOpenRoom && pinnedRooms && pinnedRooms.length > 0 && (
+          <RoomBookmarkGroup label="ปักหมุด" rooms={pinnedRooms} onOpenRoom={onOpenRoom} />
+        )}
+        {!railMode && onOpenRoom && recentRooms && recentRooms.length > 0 && (
+          <RoomBookmarkGroup label="เข้าดูล่าสุด" rooms={recentRooms} onOpenRoom={onOpenRoom} />
+        )}
       </aside>
       {isOpen && <div className="ac-side-backdrop" onClick={onBackdropClick} />}
     </>
+  );
+}
+
+/** Quick-jump list of bookmarked rooms (pinned / recent). Each row
+ *  opens that room's detail modal. */
+function RoomBookmarkGroup({
+  label, rooms, onOpenRoom,
+}: {
+  label: string;
+  rooms: RoomView[];
+  onOpenRoom: (r: RoomView) => void;
+}) {
+  return (
+    <div className="ac-side-group">
+      <div className="ac-side-label">{label}</div>
+      {rooms.map((r) => (
+        <button
+          key={`${r.building}|${r.room}`}
+          className="ac-side-item ac-side-room"
+          onClick={() => onOpenRoom(r)}
+          title={`ห้อง ${r.room} · อาคาร ${r.building} · ${STATUS_LABEL[r.status]}`}
+          aria-label={`เปิดห้อง ${r.room} อาคาร ${r.building}`}
+        >
+          <span className="ac-side-icon">
+            <span className="ac-side-dot" style={{ background: STATUS_DOT[r.status] }} />
+          </span>
+          <span className="ac-side-text">
+            {r.room}
+            <span className="ac-side-room-bldg">{abbreviateBuilding(r.building)}</span>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }

@@ -955,6 +955,20 @@ html.dark .ac-cmdk-btn-kbd {
 }
 .ac-side-text { flex: 1; }
 
+/* Room bookmark rows (#17) — room number + faded building abbrev. */
+.ac-side-room .ac-side-text {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.ac-side-room-bldg {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-faint, #94A3B8);
+  flex-shrink: 0;
+}
+
 .ac-badge {
   font-size: 11px;
   font-weight: 700;
@@ -1496,6 +1510,27 @@ html.dark .ac-rc-bldg { color: #64748B; }
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Pin/bookmark star in the room-modal header (#17). Outline when
+   unpinned, gold-filled when pinned. */
+.ac-room-modal-pin {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--color-text-faint, #94A3B8);
+  font-size: 1.125rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.ac-room-modal-pin:hover { background: var(--color-surface-2, var(--color-bg)); color: #EAB308; }
+.ac-room-modal-pin.is-pinned { color: #EAB308; }
+.ac-room-modal-pin:focus-visible { outline: none; box-shadow: var(--shadow-focus, 0 0 0 3px rgba(37,99,235,0.45)); }
+
 .ac-room-modal-nav-pos {
   font-size: 0.75rem;
   color: var(--color-text-muted);
