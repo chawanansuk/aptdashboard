@@ -45,6 +45,12 @@ const nextConfig: NextConfig = {
       process.env.NEXT_PUBLIC_BUILD_ID ||
       "dev",
   },
+  // Trim per-icon / per-helper imports out of these libraries' barrels so
+  // the client bundle only ships what's actually referenced. Official
+  // Next optimization — no behaviour change, verified by the build.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "date-fns", "date-fns-tz", "recharts"],
+  },
   images: {
     remotePatterns: [
       // Google profile photos (used by next-auth Google provider)

@@ -243,7 +243,10 @@ export default function RoomsView({
             <header className="ac-fs-head">
               <div className="ac-fs-title">ชั้น {g.floor}</div>
               <div className="ac-fs-stats">
-                {(Object.keys(counts) as RoomStatus[]).map((k) => (counts[k] > 0 ? (
+                {/* STATUS_KEYS (a stable module constant) instead of
+                    Object.keys(counts), which allocated a fresh array for
+                    every floor on every render. Same fixed order. */}
+                {STATUS_KEYS.map((k) => (counts[k] > 0 ? (
                   <button
                     key={k}
                     type="button"
@@ -264,7 +267,7 @@ export default function RoomsView({
                 const checked = bulkSelected.has(k);
                 return (
                   <div
-                    key={`${r.building}-${r.room}`}
+                    key={k}
                     data-room-key={k}
                     className={`ac-rc ac-rc-${r.status} ${bulkMode ? "is-bulk" : ""} ${checked ? "is-checked" : ""}`}
                     role="button"
