@@ -7,6 +7,7 @@ import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
 import { useAssetAlertCounts } from "@/lib/useAssetAlertCounts";
 import { usePersistedString } from "@/lib/usePersistedString";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
+import { useRoomBookmarks, roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
 import type { RoomStatus, RoomView, SheetRow, Lead } from "@/types";
@@ -204,6 +205,8 @@ export default function Home() {
 
   // ---- Selected room ----
   const [selectedRoom, setSelectedRoom] = useState<RoomView | null>(null);
+  // Recent + pinned room bookmarks (#17) — persisted to localStorage.
+  const roomBookmarks = useRoomBookmarks();
   // Booking-confirmation flow target (null = closed).
   const [bookingRoom, setBookingRoom] = useState<RoomView | null>(null);
   const [bookingSaving, setBookingSaving] = useState(false);
@@ -394,6 +397,13 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoom, showAddTask, quickMenuOpen, summaryOpen, sidebarOpen, showHelp, isRefreshing, refresh, sidebarCollapsed]);
 
+  // Track the most recently opened room for the sidebar "เข้าดูล่าสุด"
+  // list (#17). Keyed by building|room.
+  const { recordVisit } = roomBookmarks;
+  useEffect(() => {
+    if (selectedRoom) recordVisit(roomBookmarkKey(selectedRoom.building, selectedRoom.room));
+  }, [selectedRoom, recordVisit]);
+
   // ---- Derived data ----
   const buildings = useMemo(() => {
     const set = new Set<string>();
@@ -559,6 +569,23 @@ export default function Home() {
     }
     return { ...c, total: scope.length, overdue } as { total: number; today: number; overdue: number } & Partial<Record<RoomStatus, number>>;
   }, [rooms, activeBuilding, tasks]);
+
+  // Resolve recent/pinned bookmark keys (#17) back to live RoomView
+  // objects for the sidebar. Keys that no longer match a room (deleted
+  // / renamed) are dropped silently.
+  const roomByKey = useMemo(() => {
+    const m = new Map<string, RoomView>();
+    for (const r of rooms) m.set(roomBookmarkKey(r.building, r.room), r);
+    return m;
+  }, [rooms]);
+  const pinnedRooms = useMemo(
+    () => roomBookmarks.pinned.map((k) => roomByKey.get(k)).filter((r): r is RoomView => !!r),
+    [roomBookmarks.pinned, roomByKey],
+  );
+  const recentRooms = useMemo(
+    () => roomBookmarks.recent.map((k) => roomByKey.get(k)).filter((r): r is RoomView => !!r),
+    [roomBookmarks.recent, roomByKey],
+  );
 
   // ---- Bulk helpers ----
   function toggleBulkRoom(building: string, room: string) {
@@ -1167,6 +1194,9 @@ export default function Home() {
           groupOrder={modeConfig.sidebarGroupOrder}
           isCollapsed={sidebarCollapsed}
           onToggleCollapse={toggleSidebarCollapse}
+          pinnedRooms={pinnedRooms}
+          recentRooms={recentRooms}
+          onOpenRoom={(r) => { setSidebarOpen(false); setSelectedRoom(r); }}
         />
 
         <main className="ac-main" id="main-content" tabIndex={-1}>
@@ -1527,6 +1557,8 @@ export default function Home() {
             onNextRoom={next ? () => setSelectedRoom(next) : undefined}
             roomIndex={idx >= 0 ? idx + 1 : undefined}
             roomTotal={navList.length}
+            isPinned={roomBookmarks.isPinned(roomBookmarkKey(selectedRoom.building, selectedRoom.room))}
+            onTogglePin={() => roomBookmarks.togglePin(roomBookmarkKey(selectedRoom.building, selectedRoom.room))}
           />
         );
       })()}
