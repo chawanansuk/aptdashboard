@@ -10,6 +10,7 @@ import { parseThaiDate } from "@/lib/dateUtils";
 import { sumCompletedCosts, formatBaht as formatTaskBaht } from "@/lib/taskCost";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
+import RoomImageGallery from "./RoomImageGallery";
 
 // Lazy-load equipment tab: fetches the chunk + first API call only when
 // the user clicks the "อุปกรณ์" tab
@@ -421,6 +422,10 @@ export default function RoomModal({
         <div className="ac-modal-body">
           {tab === "info" && (
             <>
+              {/* Room photos (#7) — read-only gallery from the sheet's
+                  image-URL column. Renders nothing when there are none. */}
+              <RoomImageGallery images={room.images} label={`${room.building} ${room.room}`} />
+
               {!canEdit && (
                 <div className="ac-banner ac-banner-info ac-room-readonly-banner">
                   ดูข้อมูลอย่างเดียว · เฉพาะ <strong>management</strong> แก้ไขข้อมูลห้องได้

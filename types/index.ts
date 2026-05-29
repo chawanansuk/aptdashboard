@@ -45,6 +45,10 @@ export interface RoomRow {
   tenant: string;
   phone: string;
   contractEnd: string;  // dd/MM/yyyy
+  /** Optional comma-separated image URLs (sheet column "รูป"). Empty /
+   *  absent when the workbook has no image column — the UI just hides
+   *  the gallery. Read-only: paste links into the sheet (Drive/LINE/etc). */
+  images?: string;
 }
 
 // ===== Unified room status (UI level) =====
@@ -67,6 +71,7 @@ export interface RoomView {
   tenant: string;
   phone: string;
   contractEnd: string;
+  images?: string;      // comma-separated URLs (#7) — passthrough from RoomRow
   today: boolean;       // มีงานรอทำวันนี้
   /**
    * มีงาน "ทำสะอาด" ค้างอยู่ แต่ headline status ไม่ใช่ qc — ใช้โชว์ตัวบ่งชี้รอง

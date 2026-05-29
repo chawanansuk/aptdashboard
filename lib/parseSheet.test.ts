@@ -85,6 +85,7 @@ describe("parseRoomsCSV (rooms sheet)", () => {
       tenant: "คุณบี",
       phone: "0899999999",
       contractEnd: "31/12/2026",
+      images: "", // #7 — no image column in this fixture → empty
     });
   });
 
