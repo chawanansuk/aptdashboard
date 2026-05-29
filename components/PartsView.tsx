@@ -11,6 +11,7 @@ import {
 import { canAddEngTask } from "@/lib/permissions";
 import { Icon } from "@/lib/icons";
 import { exportCsv } from "@/lib/csvExport";
+import { getCachedView, setCachedView, bustView } from "@/lib/viewCache";
 import AddPartModal from "./AddPartModal";
 import RequisitionModal from "./RequisitionModal";
 import RequisitionHistoryModal from "./RequisitionHistoryModal";
@@ -41,6 +42,8 @@ interface Props {
   rooms?: RoomView[];
 }
 
+const PARTS_CACHE_KEY = "parts";
+
 export default function PartsView({ rooms = [] }: Props) {
   const [reqTarget, setReqTarget] = useState<Part | null>(null);
   const [historyTarget, setHistoryTarget] = useState<Part | null>(null);
@@ -61,16 +64,20 @@ export default function PartsView({ rooms = [] }: Props) {
   const [adjustValues, setAdjustValues] = useState<Record<string, string>>({});
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
+    // SWR — see lib/viewCache + VehiclesView.
+    const cached = getCachedView<Part[]>(PARTS_CACHE_KEY);
+    if (cached) { setRows(cached); setLoading(false); } else { setLoading(true); }
     setErr(null);
     try {
       const res = await fetch("/api/parts", { cache: "no-store", signal });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-      setRows(data.rows || []);
+      const list: Part[] = data.rows || [];
+      setRows(list);
+      setCachedView(PARTS_CACHE_KEY, list);
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      setErr(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
+      if (!cached) setErr(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
@@ -103,7 +110,9 @@ export default function PartsView({ rooms = [] }: Props) {
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      // Server is the truth — re-pull
+      // Server is the truth — bust the SWR cache then re-pull so the
+      // refetch doesn't momentarily seed the pre-adjust snapshot.
+      bustView(PARTS_CACHE_KEY);
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "ปรับสต๊อกไม่สำเร็จ");
@@ -371,20 +380,20 @@ export default function PartsView({ rooms = [] }: Props) {
       <AddPartModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onSaved={() => load()}
+        onSaved={() => { bustView(PARTS_CACHE_KEY); load(); }}
       />
       <AddPartModal
         open={!!editTarget}
         initial={editTarget}
         onClose={() => setEditTarget(null)}
-        onSaved={() => load()}
+        onSaved={() => { bustView(PARTS_CACHE_KEY); load(); }}
       />
       <RequisitionModal
         open={!!reqTarget}
         part={reqTarget}
         rooms={rooms}
         onClose={() => setReqTarget(null)}
-        onSaved={() => load()}
+        onSaved={() => { bustView(PARTS_CACHE_KEY); load(); }}
       />
       <RequisitionHistoryModal
         open={!!historyTarget}
