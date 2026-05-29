@@ -75,13 +75,21 @@ export default function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
     // monthly recurring revenue from rent — doesn't include extras)
     const income = occupiedRooms.reduce((s, r) => s + parsePrice(r.price), 0);
 
-    // Tasks this week: created (or dated) within 7 days back
+    // Tasks in the last 7 days (Problem #9). The previous filter only had
+    // a lower bound (>= 7 days ago) with NO upper bound, so it also swept
+    // in every future-dated task — the count ballooned (e.g. "48") and
+    // disagreed with the calendar, which scopes to an actual window. Bound
+    // it to [today-7, end of today] so the number matches its "7 วันล่าสุด"
+    // label and the same task source the calendar reads.
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const sevenDaysAgo = new Date(today.getTime() - 7 * 86400_000);
+    const endOfToday = today.getTime() + 86400_000; // exclusive upper bound
     const tasksThisWeek = scopedTasks.filter((t) => {
       const d = parseThaiDate(t.date);
-      return d ? d.getTime() >= sevenDaysAgo.getTime() : false;
+      if (!d) return false;
+      const ts = d.getTime();
+      return ts >= sevenDaysAgo.getTime() && ts < endOfToday;
     });
 
     // Done rate (this month): done / (done + cancelled + open)
