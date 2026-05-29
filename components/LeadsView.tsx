@@ -7,6 +7,7 @@ import { canPerform } from "@/lib/permissions";
 import { Icon } from "@/lib/icons";
 import { exportCsv } from "@/lib/csvExport";
 import { relativeTimeShort, formatFullTimestamp } from "@/lib/relativeTime";
+import { computeFunnel, daysInStage, isStale } from "@/lib/leadFunnel";
 import AddLeadModal from "./AddLeadModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -131,6 +132,9 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
   }, [rows, search, stageFilter]);
 
   const grouped = useMemo(() => groupLeadsByStage(filtered), [filtered]);
+  // Funnel from the FULL list (rows), not the filtered view, so the
+  // pipeline shape doesn't change as the user narrows by search/stage.
+  const funnel = useMemo(() => computeFunnel(rows || []), [rows]);
 
   function handleExport() {
     if (filtered.length === 0) return;
@@ -210,6 +214,26 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
 
       <ErrorBanner message={err} onRetry={() => load()} onDismiss={() => setErr(null)} />
 
+      {/* Funnel widget (#10) — per-stage occupancy + conversion between
+          consecutive stages. Hidden until there's at least one lead. */}
+      {rows && rows.length > 0 && (
+        <section className="ac-lead-funnel" aria-label="ภาพรวม pipeline">
+          {funnel.map((f) => (
+            <div key={f.stage} className="ac-lead-funnel-stage">
+              {f.conversionFromPrev != null && (
+                <span className="ac-lead-funnel-conv" title={`อัตราผ่านจากขั้นก่อนหน้า ${f.conversionFromPrev}%`}>
+                  {f.conversionFromPrev}% →
+                </span>
+              )}
+              <div className="ac-lead-funnel-cell">
+                <span className="ac-lead-funnel-count">{f.count}</span>
+                <span className="ac-lead-funnel-label">{f.stage}</span>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
       {loading && !rows ? (
         <LoadingState />
       ) : filtered.length === 0 ? (
@@ -260,6 +284,20 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
                           )}
                           <div className="ac-lead-card-meta">
                             {lead.source && <span className="ac-lead-card-src">{lead.source}</span>}
+                            {(() => {
+                              // Days-in-stage + stale flag (#10). A lead idle past
+                              // the threshold in a non-terminal stage gets a red
+                              // "⏰ N วัน" warning so it doesn't quietly rot.
+                              const days = daysInStage(lead);
+                              if (days == null) return null;
+                              const stale = isStale(lead);
+                              return (
+                                <span
+                                  className={`ac-lead-card-age ${stale ? "is-stale" : ""}`}
+                                  title={stale ? `ค้างในขั้น "${lead.stage}" ${days} วัน — ควรตามต่อ` : `อยู่ในขั้นนี้ ${days} วัน`}
+                                >{stale ? "⏰ " : ""}{days} วัน</span>
+                              );
+                            })()}
                             {(lead.updatedAt || lead.createdAt) && (
                               <time
                                 className="ac-lead-card-time"
