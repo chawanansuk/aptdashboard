@@ -18,18 +18,23 @@ import AppSidebar from "@/components/AppSidebar";
 import OverviewCards from "@/components/OverviewCards";
 import InsightsCards from "@/components/InsightsCards";
 import RecentTasks from "@/components/RecentTasks";
-import KeyboardHelpModal from "@/components/KeyboardHelpModal";
 import ServiceDueBanner from "@/components/ServiceDueBanner";
 import RoomsView from "@/components/RoomsView";
-import CommandPalette from "@/components/CommandPalette";
 import { useCommandPalette } from "@/lib/useCommandPalette";
 import type { CommandDef } from "@/lib/commandPaletteSearch";
 import BottomNav, { type BottomNavView } from "@/components/BottomNav";
 import RoomModal from "@/components/RoomModal";
-import BookingConfirmModal, { type BookingSaveData } from "@/components/BookingConfirmModal";
+import { type BookingSaveData } from "@/components/BookingConfirmModal";
 import AddTaskModal from "@/components/AddTaskModal";
-import BulkAddModal from "@/components/BulkAddModal";
 import EditTaskModal from "@/components/EditTaskModal";
+
+// Rarely-opened modals — lazy so they leave the initial bundle. Each
+// renders behind an interaction (Cmd+K, ?, booking flow, bulk add) so
+// the small load delay on first open is invisible next to the network.
+const KeyboardHelpModal = lazy(() => import("@/components/KeyboardHelpModal"));
+const CommandPalette = lazy(() => import("@/components/CommandPalette"));
+const BookingConfirmModal = lazy(() => import("@/components/BookingConfirmModal"));
+const BulkAddModal = lazy(() => import("@/components/BulkAddModal"));
 import { buildNotifications } from "@/lib/notifications";
 import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
@@ -1470,15 +1475,19 @@ export default function Home() {
         todayCount={sidebarCounts.today}
       />
 
-      <CommandPalette
-        open={cmdk.open}
-        onClose={() => cmdk.setOpen(false)}
-        rooms={rooms}
-        roles={roles}
-        commands={paletteCommands}
-        onSelectRoom={(r) => setSelectedRoom(r)}
-        onChangeView={(v) => setActiveView(v)}
-      />
+      {cmdk.open && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            open={cmdk.open}
+            onClose={() => cmdk.setOpen(false)}
+            rooms={rooms}
+            roles={roles}
+            commands={paletteCommands}
+            onSelectRoom={(r) => setSelectedRoom(r)}
+            onChangeView={(v) => setActiveView(v)}
+          />
+        </Suspense>
+      )}
 
       <AddTaskModal
         open={showAddTask}
@@ -1564,19 +1573,25 @@ export default function Home() {
       })()}
 
       {bookingRoom && (
-        <BookingConfirmModal
-          building={bookingRoom.building}
-          room={bookingRoom.room}
-          defaultTenant={bookingRoom.tenant}
-          defaultPhone={bookingRoom.phone}
-          defaultRent={bookingRoom.price}
-          saving={bookingSaving}
-          onClose={() => setBookingRoom(null)}
-          onConfirm={handleBookingConfirm}
-        />
+        <Suspense fallback={null}>
+          <BookingConfirmModal
+            building={bookingRoom.building}
+            room={bookingRoom.room}
+            defaultTenant={bookingRoom.tenant}
+            defaultPhone={bookingRoom.phone}
+            defaultRent={bookingRoom.price}
+            saving={bookingSaving}
+            onClose={() => setBookingRoom(null)}
+            onConfirm={handleBookingConfirm}
+          />
+        </Suspense>
       )}
 
-      <KeyboardHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+      {showHelp && (
+        <Suspense fallback={null}>
+          <KeyboardHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+        </Suspense>
+      )}
 
       {/* Shared task-edit modal — triggered from EngineerKanban /
           TaskDetailDrawer. TasksList still owns its own instance because
@@ -1596,17 +1611,21 @@ export default function Home() {
         />
       )}
 
-      <BulkAddModal
-        open={bulkAddOpen}
-        selectedKeys={Array.from(bulkSelected)}
-        date={bulkAddDate} type={bulkAddType} note={bulkAddNote}
-        submitting={bulkSubmitting}
-        onChangeDate={setBulkAddDate}
-        onChangeType={setBulkAddType}
-        onChangeNote={setBulkAddNote}
-        onClose={() => setBulkAddOpen(false)}
-        onSubmit={submitBulkAdd}
-      />
+      {bulkAddOpen && (
+        <Suspense fallback={null}>
+          <BulkAddModal
+            open={bulkAddOpen}
+            selectedKeys={Array.from(bulkSelected)}
+            date={bulkAddDate} type={bulkAddType} note={bulkAddNote}
+            submitting={bulkSubmitting}
+            onChangeDate={setBulkAddDate}
+            onChangeType={setBulkAddType}
+            onChangeNote={setBulkAddNote}
+            onClose={() => setBulkAddOpen(false)}
+            onSubmit={submitBulkAdd}
+          />
+        </Suspense>
+      )}
 
       {summaryOpen && (
         <Suspense fallback={null}>
