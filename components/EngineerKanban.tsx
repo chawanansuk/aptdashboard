@@ -8,7 +8,6 @@ import { parseThaiDate } from "@/lib/dateUtils";
 import {
   TASK_STATUS,
   categorizeStatus,
-  type StatusCategory,
 } from "@/lib/taskStatus";
 import { computeSla, slaBadgeLabel } from "@/lib/sla";
 import {

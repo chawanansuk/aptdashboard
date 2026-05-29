@@ -92,7 +92,7 @@ function compareVehicles(a: Vehicle, b: Vehicle, key: SortKey): number {
   }
 }
 
-export default function VehiclesView({ buildings, activeBuilding, rooms }: Props) {
+export default function VehiclesView({ activeBuilding, rooms }: Props) {
   const { data: session } = useSession();
   const canWrite = canPerform(session?.user?.roles, "vehicle.edit");
 

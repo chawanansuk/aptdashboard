@@ -5,6 +5,7 @@ import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
 import { loadCache, saveCache } from "@/lib/cacheData";
 import { isClosedStatus } from "@/lib/constants";
 import { subscribeBus } from "@/lib/realtimeBus";
+import { taskKey } from "@/lib/taskKey";
 import { normalizeRoomStatus, isKnownRoomStatus } from "@/lib/roomStatus";
 import { parseSheetDate } from "@/lib/dateUtils";
 
@@ -107,11 +108,11 @@ export interface OptimisticTask {
   at: number;
 }
 
-/** A task's identity for optimistic reconciliation — matches the key the
- *  AddTaskModal uses (date|building|room|type). */
-export function taskKey(t: Pick<SheetRow, "date" | "building" | "room" | "type">): string {
-  return `${t.date}|${(t.building || "").trim()}|${(t.room || "").trim()}|${t.type}`;
-}
+/** A task's identity for optimistic reconciliation. Re-exports the
+ *  canonical helper in lib/taskKey so every consumer in the app keys
+ *  the same way (the previous local copy and lib/taskKey diverged on
+ *  whitespace handling — fixed). */
+export { taskKey };
 
 /**
  * Prepend still-pending optimistically-added tasks onto the freshly

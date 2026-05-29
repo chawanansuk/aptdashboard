@@ -55,7 +55,12 @@ function dedupKey(action: string, body: Record<string, unknown>): string {
   return action + ":" + JSON.stringify(body);
 }
 
-function shouldRetry(status: number, idempotent: boolean): boolean {
+// `idempotent` parameter is accepted but currently unused — the
+// retry-vs-not decision is purely status-driven. Kept in the signature
+// so callers can keep passing it (changing the surface would touch
+// every appsScriptCall site for no behavior benefit), and so a future
+// refactor can wire write-retries to it without changing callers.
+function shouldRetry(status: number, _idempotent: boolean): boolean {
   // Network/abort errors (caught separately) always retry once for idempotent
   if (status >= 500) return true;
   if (status === 408 || status === 429) return true;

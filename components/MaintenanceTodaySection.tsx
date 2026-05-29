@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Facility, RoomEquipment } from "@/types";
 import { EQUIPMENT_TYPE_ICON, FACILITY_TYPE_ICON } from "@/lib/constants";
-import { daysUntilService, formatDateLabel } from "@/lib/maintenanceUtils";
+import { daysUntilService } from "@/lib/maintenanceUtils";
 
 interface Props {
   activeBuilding: string;

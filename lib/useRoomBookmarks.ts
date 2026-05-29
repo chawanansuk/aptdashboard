@@ -70,20 +70,35 @@ export function useRoomBookmarks() {
     } catch { /* private mode — ignore */ }
   }, []);
 
+  // Multi-tab race fix — re-read from localStorage inside the updater
+  // before merging so a parallel write in another tab isn't clobbered.
+  // The in-memory `prev` may be stale (tab A's last render snapshot
+  // doesn't see tab B's later write); localStorage is the single
+  // source of truth at the moment we mutate.
   const recordVisit = useCallback((key: string) => {
-    setBookmarks((prev) => {
-      const next = { ...prev, recent: pushRecent(prev.recent, key) };
-      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-      return next;
-    });
+    const latest = load();
+    const next = { ...latest, recent: pushRecent(latest.recent, key) };
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* private mode — ignore */ }
+    setBookmarks(next);
   }, []);
 
   const togglePin = useCallback((key: string) => {
-    setBookmarks((prev) => {
-      const next = { ...prev, pinned: togglePinned(prev.pinned, key) };
-      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-      return next;
-    });
+    const latest = load();
+    const next = { ...latest, pinned: togglePinned(latest.pinned, key) };
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* private mode — ignore */ }
+    setBookmarks(next);
+  }, []);
+
+  // Cross-tab sync — when another tab mutates the bookmarks, the
+  // storage event fires here so this tab's UI reflects it without
+  // needing a manual refresh.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    function onStorage(e: StorageEvent) {
+      if (e.key === STORAGE_KEY) setBookmarks(load());
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const isPinned = useCallback((key: string) => bookmarks.pinned.includes(key), [bookmarks.pinned]);

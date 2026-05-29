@@ -9,7 +9,6 @@ import type { Role } from "@/auth";
 import { canAddSalesTask, canAddEngTask, canAddCleanTask } from "@/lib/permissions";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import {
-  BUILDINGS,
   makeTaskSchema,
   type TaskFormValues,
   type RoomRef,

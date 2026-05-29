@@ -1,4 +1,4 @@
-import { parse, startOfWeek, endOfWeek, isWithinInterval, isSameDay, getMonth, getYear } from "date-fns";
+import { startOfWeek, endOfWeek, isWithinInterval, isSameDay, getMonth, getYear } from "date-fns";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
 
 const TZ = "Asia/Bangkok";

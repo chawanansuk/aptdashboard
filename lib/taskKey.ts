@@ -9,11 +9,17 @@ import type { SheetRow } from "@/types";
  * is unique-by-construction (no two tasks of the same type happen in
  * the same room on the same day in practice).
  *
+ * Building / room are .trim()'d so the key is whitespace-stable: Apps
+ * Script's norm() trims when matching on the backend, so the client
+ * has to as well or optimistic reconciliation + bulk-select lookups
+ * miss when sheet data has stray padding (e.g. " 101" vs "101").
+ *
  * Used by:
  *   - EngineerKanban (busy/flash state, click handlers)
  *   - Time tracking (links a time log to a task row — Task 35)
+ *   - lib/useDashboardData (optimistic-update reconciliation)
  *   - any future cross-feature linking
  */
 export function taskKey(t: Pick<SheetRow, "date" | "building" | "room" | "type">): string {
-  return `${t.date}|${t.building}|${t.room}|${t.type}`;
+  return `${t.date}|${(t.building || "").trim()}|${(t.room || "").trim()}|${t.type}`;
 }

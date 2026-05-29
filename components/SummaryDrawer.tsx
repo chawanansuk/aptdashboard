@@ -50,7 +50,7 @@ function isPending(status: string): boolean {
   return s !== "เสร็จ" && s !== "ยกเลิก" && s !== "done" && s !== "cancelled";
 }
 
-export default function SummaryDrawer({ open, onClose, rooms, tasks, onAddTask, onTaskClick }: Props) {
+export default function SummaryDrawer({ open, onClose, tasks, onAddTask, onTaskClick }: Props) {
   const [range, setRange] = useState<RangeKey>("today");
 
   useEffect(() => {
