@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Role } from "@/auth";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
@@ -109,6 +109,48 @@ export default function RoomsView({
   const canSeeTenant = canViewTenant(roles);
   const [quickFor, setQuickFor] = useState<{ room: RoomView; anchor: DOMRect } | null>(null);
 
+  // Roving tabindex (Problem #15) — the grid is a single Tab stop; one
+  // card holds tabIndex 0 and Arrow keys move focus between cells. Keeps
+  // keyboard users from having to Tab through all 297 rooms. The active
+  // card key is tracked here; onFocus syncs it (covers click + Tab-in).
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const roomKey = (r: RoomView) => `${r.building}|${r.room}`;
+
+  /** Geometry-based arrow navigation — robust to density + wrapping
+   *  since it measures rendered positions instead of guessing columns.
+   *  Left/Right pick the nearest card on roughly the same row; Up/Down
+   *  the nearest in the adjacent row, biased to the same x. */
+  function moveFocus(currentEl: HTMLElement, key: string) {
+    const root = gridRef.current;
+    if (!root) return;
+    const cards = Array.from(root.querySelectorAll<HTMLElement>(".ac-rc"));
+    const cur = currentEl.getBoundingClientRect();
+    const cx = cur.left + cur.width / 2;
+    const cy = cur.top + cur.height / 2;
+    let best: HTMLElement | null = null;
+    let bestScore = Infinity;
+    for (const el of cards) {
+      if (el === currentEl) continue;
+      const r = el.getBoundingClientRect();
+      const dx = r.left + r.width / 2 - cx;
+      const dy = r.top + r.height / 2 - cy;
+      let ok = false;
+      let score = 0;
+      const rowTol = cur.height * 0.6;
+      if (key === "ArrowRight") { ok = dx > 1 && Math.abs(dy) < rowTol; score = dx + Math.abs(dy) * 4; }
+      else if (key === "ArrowLeft") { ok = dx < -1 && Math.abs(dy) < rowTol; score = -dx + Math.abs(dy) * 4; }
+      else if (key === "ArrowDown") { ok = dy > 1; score = dy + Math.abs(dx) * 2; }
+      else if (key === "ArrowUp") { ok = dy < -1; score = -dy + Math.abs(dx) * 2; }
+      if (ok && score < bestScore) { bestScore = score; best = el; }
+    }
+    if (best) {
+      best.focus();
+      const k = best.getAttribute("data-room-key");
+      if (k) setFocusKey(k);
+    }
+  }
+
   const floorGroups = useMemo(() => {
     const map = new Map<string, RoomView[]>();
     visibleRooms.forEach((r) => {
@@ -123,6 +165,10 @@ export default function RoomsView({
       }))
       .sort((a, b) => (a.floor || "").localeCompare(b.floor || "", undefined, { numeric: true }));
   }, [visibleRooms]);
+
+  // Default tab stop = first card in render order (floor-sorted).
+  const firstKey = floorGroups[0]?.list[0] ? roomKey(floorGroups[0].list[0]) : null;
+  const activeFocusKey = focusKey ?? firstKey;
 
   function openQuick(e: React.MouseEvent, r: RoomView) {
     e.stopPropagation();
@@ -179,6 +225,7 @@ export default function RoomsView({
         <div className="ac-legend-item"><span className="ac-legend-dot ac-legend-today" /><span>งานวันนี้</span></div>
       </section>
 
+      <div ref={gridRef}>
       {floorGroups.map((g) => {
         const counts: Record<RoomStatus, number> = { occupied: 0, ready: 0, pending: 0, moveout: 0, qc: 0, repair: 0, inactive: 0 };
         g.list.forEach((r) => counts[r.status]++);
@@ -209,14 +256,21 @@ export default function RoomsView({
                 return (
                   <div
                     key={`${r.building}-${r.room}`}
+                    data-room-key={k}
                     className={`ac-rc ac-rc-${r.status} ${bulkMode ? "is-bulk" : ""} ${checked ? "is-checked" : ""}`}
                     role="button"
-                    tabIndex={0}
+                    // Roving tabindex — only the active cell is in the Tab
+                    // order; Arrow keys move between cells (Problem #15).
+                    tabIndex={k === activeFocusKey ? 0 : -1}
+                    onFocus={() => setFocusKey(k)}
                     onClick={() => bulkMode ? onToggleBulkRoom(r.building, r.room) : onSelectRoom(r)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         bulkMode ? onToggleBulkRoom(r.building, r.room) : onSelectRoom(r);
+                      } else if (e.key.startsWith("Arrow")) {
+                        e.preventDefault();
+                        moveFocus(e.currentTarget, e.key);
                       }
                     }}
                     // Rich tooltip — multi-line, shows status + latest task
@@ -361,6 +415,7 @@ export default function RoomsView({
           </section>
         );
       })}
+      </div>
 
       {quickFor && (
         <RoomQuickActions
