@@ -7,6 +7,7 @@ import type { RoomChoice } from "./AddVehicleModal";
 import { canPerform } from "@/lib/permissions";
 import { Icon } from "@/lib/icons";
 import { exportCsv } from "@/lib/csvExport";
+import { getCachedView, setCachedView, bustView } from "@/lib/viewCache";
 import AddVehicleModal from "./AddVehicleModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -28,6 +29,9 @@ interface Props {
 }
 
 type SortKey = "location" | "plate" | "model" | "color" | "updated";
+
+// Single key — the view fetches all vehicles and filters client-side.
+const VEHICLES_CACHE_KEY = "vehicles";
 
 /** Numeric-aware compare so "ห้อง 2" sorts before "ห้อง 10". */
 function naturalCompare(a: string, b: string): number {
@@ -108,16 +112,29 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
+    // SWR: paint the last result instantly if it's still fresh, then
+    // revalidate in the background. A cold/expired cache shows the
+    // spinner as before. See lib/viewCache.
+    const cached = getCachedView<Vehicle[]>(VEHICLES_CACHE_KEY);
+    if (cached) {
+      setRows(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setErr(null);
     try {
       const res = await fetch("/api/vehicles", { cache: "no-store", signal });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-      setRows(data.rows || []);
+      const list: Vehicle[] = data.rows || [];
+      setRows(list);
+      setCachedView(VEHICLES_CACHE_KEY, list);
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      setErr(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
+      // Only surface the error when there's nothing cached to show — a
+      // failed background revalidate shouldn't blank out good rows.
+      if (!cached) setErr(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
@@ -141,6 +158,7 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setRows((prev) => (prev || []).filter((r) => r.id !== v.id));
+      bustView(VEHICLES_CACHE_KEY); // keep the next mount from serving the deleted row
     } catch (e) {
       setErr(e instanceof Error ? e.message : "ลบไม่สำเร็จ");
     } finally {
@@ -329,14 +347,14 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
         rooms={rooms}
         prefillRoom={activeBuilding !== "ทั้งหมด" ? { building: activeBuilding, room: "" } : null}
         onClose={() => setAddOpen(false)}
-        onSaved={() => load()}
+        onSaved={() => { bustView(VEHICLES_CACHE_KEY); load(); }}
       />
       <AddVehicleModal
         open={!!editTarget}
         initial={editTarget}
         rooms={rooms}
         onClose={() => setEditTarget(null)}
-        onSaved={() => load()}
+        onSaved={() => { bustView(VEHICLES_CACHE_KEY); load(); }}
       />
     </section>
   );
