@@ -547,7 +547,11 @@ function addTask_(b) {
     b.note || '',
     b.status || 'pending',
     b.creator || '',
-    Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm'),
+    // createdAt — ISO yyyy-MM-dd HH:mm to match every other createdAt
+    // column in the workbook (equipment / facility / part / vehicle /
+    // lead / recurring all use ISO). The previous Thai dd/MM/yyyy
+    // format made cross-sheet time comparisons need a special-case.
+    Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm'),
     isFinite(costNum) && costNum > 0 ? costNum : '',
   ];
   sh.appendRow(row);
@@ -596,16 +600,23 @@ function updateTaskStatus_(b) {
 }
 
 function deleteTask_(b) {
-  const row = findTaskRow_(b);
-  if (row < 0) throw new Error('task not found');
+  const rows = findAllTaskRows_(b);
+  if (rows.length === 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
-  sh.deleteRow(row);
+  // Delete every duplicate row sharing this key, not just the first
+  // (mirrors updateTaskStatus_ — the whole system treats this composite
+  // key as a single task's identity, so the deletion has to too).
+  // Iterate descending so each deleteRow doesn't shift the indices of
+  // the rows we still need to touch.
+  for (let i = rows.length - 1; i >= 0; i--) {
+    sh.deleteRow(rows[i]);
+  }
   clearTasksCache_();
   // Audit log — destructive op, always record
   const match = (b && b.match) || b;
   const taskId = (match.date || '') + '|' + (match.building || '') + '|' + (match.room || '') + '|' + (match.type || '');
   logAudit_('deleteTask', 'task', taskId, '', b.creator);
-  return { deleted: true, row: row };
+  return { deleted: true, rows: rows, count: rows.length };
 }
 
 /* ========== ROOM MUTATE ========== */
@@ -1861,7 +1872,11 @@ function runRecurringCheck_(b) {
   today.setHours(0, 0, 0, 0);
   const todayMs = today.getTime();
   const todayStr = Utilities.formatDate(today, 'Asia/Bangkok', 'yyyy-MM-dd');
-  const taskDateStr = Utilities.formatDate(today, 'Asia/Bangkok', 'dd/MM/yyyy');
+  // Task DATE column uses ISO yyyy-MM-dd everywhere else (addTask + the
+  // app's <input type="date"> writes ISO). The previous Thai dd/MM/yyyy
+  // string here put recurring-generated tasks in a different date
+  // format than manually-added ones in the same sheet.
+  const taskDateStr = todayStr;
 
   const data = recurringSh.getRange(2, 1, lastRow - 1, 12).getValues();
   const taskSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
@@ -1891,6 +1906,15 @@ function runRecurringCheck_(b) {
     const type = norm(r[2]);
     const building = norm(r[3]);
     const room = norm(r[4]);
+    // Dedup guard — skip if a task with the same key already exists
+    // (e.g. cron + manual trigger raced, or the template was bumped
+    // and the task wasn't yet cleared). Otherwise repeated runs pile
+    // identical rows that #178's "close all matching" can mask but
+    // never untangle.
+    if (findTaskRow_({ date: taskDateStr, type: type, building: building, room: room }) >= 0) {
+      skipped++;
+      continue;
+    }
     const note = (norm(r[9]) || '') + (norm(r[9]) ? ' · ' : '') + 'จากงานประจำ: ' + name;
     // Task sheet cols: DATE, TYPE, BUILDING, ROOM, CUSTOMER, PHONE, NOTE,
     // STATUS, CREATOR, CREATED_AT, COST
