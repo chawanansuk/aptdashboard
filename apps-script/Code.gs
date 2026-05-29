@@ -471,6 +471,9 @@ function getRooms_() {
   var iPhone  = findIdx(['เบอร์', 'เบอร์ติดต่อ', 'เบอร์โทร']);
   var iCntr   = findIdx(['สัญญา', 'วันสัญญาหมด', 'สัญญาหมด', 'วันหมดสัญญา']);
   var iPrice  = findIdx(['ค่าเช่า', 'ราคา/เดือน', 'ราคา', 'ค่าเช่ารายเดือน']);
+  // Optional image column (#7) — comma-separated URLs. -1 when absent,
+  // in which case images is '' and the dashboard hides the gallery.
+  var iImages = findIdx(['รูป', 'ภาพ', 'รูปภาพ', 'images', 'photos']);
 
   var rows = [];
   for (var i = 1; i < data.length; i++) {
@@ -487,6 +490,7 @@ function getRooms_() {
       phone:       iPhone  >= 0 ? norm(r[iPhone])  : '',
       contractEnd: iCntr   >= 0 ? fmtDate_(r[iCntr]) : '',
       price:       iPrice  >= 0 ? norm(r[iPrice])  : '',
+      images:      iImages >= 0 ? norm(r[iImages]) : '',
     });
   }
   return rows;

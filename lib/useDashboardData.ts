@@ -270,6 +270,7 @@ export function mergeRoomsAndTasks(
       tenant: r.tenant,
       phone: r.phone,
       contractEnd: r.contractEnd,
+      images: r.images,
       today: todayTasks.length > 0,
       needsCleaning,
       todayTasks,
