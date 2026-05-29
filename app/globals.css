@@ -4152,6 +4152,50 @@ html.dark .ac-overview-card-skeleton {
   .ac-overview-card-value { font-size: 20px; }
 }
 
+/* Mobile horizontal scroll-snap for the KPI + filter-chip rows (#12).
+   On narrow screens a 2-col grid still wraps awkwardly and chip rows
+   overflow; turning them into a single snap-scrolling track keeps each
+   card/chip readable and swipeable instead of cramped. */
+@media (max-width: 560px) {
+  .ac-overview-cards {
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-left: calc(-1 * var(--space-3));
+    margin-right: calc(-1 * var(--space-3));
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+  .ac-overview-cards::-webkit-scrollbar { display: none; }
+  .ac-overview-card {
+    scroll-snap-align: start;
+    flex: 0 0 78%;          /* peek the next card so the row reads as scrollable */
+    min-width: 78%;
+  }
+  /* Filter / status chip rows become a single swipeable track too. */
+  .ac-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .ac-chips::-webkit-scrollbar { display: none; }
+  .ac-chips .ac-chip { scroll-snap-align: start; flex-shrink: 0; }
+}
+
+/* Touch tap targets (#12) — icon-only buttons must be ≥44px on touch
+   devices (WCAG 2.5.5 / Apple HIG). The desktop visual size stays the
+   same; only the hit area grows via padding on coarse pointers. */
+@media (pointer: coarse) {
+  .ac-icon-btn { min-width: 44px; min-height: 44px; }
+  .ac-room-modal-pin,
+  .ac-room-modal-nav-btn { min-width: 44px; min-height: 44px; }
+}
+
 /* Occupancy card — stacked bar + legend that replaced the duplicate
    "Occupancy" insights card. Segments use the same colors the room dots
    use (lib/statusTokens) so the bar visually maps to the room grid. */

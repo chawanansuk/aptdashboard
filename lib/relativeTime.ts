@@ -73,3 +73,42 @@ export function relativeTimeLabel(s: string | undefined, now: Date = new Date())
   if (wk < 4)  return `${wk} สัปดาห์ที่แล้ว`;
   return ">1 เดือน";
 }
+
+/**
+ * Compact relative-time label for tight rows / mobile (Problem #12):
+ *   "ตอนนี้" / "19m" / "2h" / "3d" / "2w" / ">1เดือน"
+ * Pair with formatFullTimestamp() in a title= tooltip so the exact
+ * time is one hover/long-press away. Returns "" for bad input.
+ */
+export function relativeTimeShort(s: string | undefined, now: Date = new Date()): string {
+  const date = parseSheetTimestamp(s);
+  if (!date) return "";
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) return "ตอนนี้";
+  const min = Math.round(diffMs / 60_000);
+  if (min < 1)  return "ตอนนี้";
+  if (min < 60) return `${min}m`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h`;
+  const day = Math.round(hr / 24);
+  if (day < 7)  return `${day}d`;
+  const wk = Math.round(day / 7);
+  if (wk < 4)  return `${wk}w`;
+  return ">1เดือน";
+}
+
+/**
+ * Full, unambiguous timestamp for tooltips — "dd/MM/yyyy HH:mm".
+ * Returns the raw input if it can't be parsed (better than blank in a
+ * title attribute).
+ */
+export function formatFullTimestamp(s: string | undefined): string {
+  const date = parseSheetTimestamp(s);
+  if (!date) return s ? String(s) : "";
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mi = String(date.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+}

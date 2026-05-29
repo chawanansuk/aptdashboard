@@ -6,7 +6,7 @@ import { LEAD_STAGES, type Lead, type LeadStage, groupLeadsByStage } from "@/typ
 import { canPerform } from "@/lib/permissions";
 import { Icon } from "@/lib/icons";
 import { exportCsv } from "@/lib/csvExport";
-import { relativeTimeLabel } from "@/lib/relativeTime";
+import { relativeTimeShort, formatFullTimestamp } from "@/lib/relativeTime";
 import AddLeadModal from "./AddLeadModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -261,7 +261,10 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
                           <div className="ac-lead-card-meta">
                             {lead.source && <span className="ac-lead-card-src">{lead.source}</span>}
                             {(lead.updatedAt || lead.createdAt) && (
-                              <span className="ac-lead-card-time">{relativeTimeLabel(lead.updatedAt || lead.createdAt)}</span>
+                              <time
+                                className="ac-lead-card-time"
+                                title={formatFullTimestamp(lead.updatedAt || lead.createdAt)}
+                              >{relativeTimeShort(lead.updatedAt || lead.createdAt)}</time>
                             )}
                           </div>
                         </button>
