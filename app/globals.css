@@ -3744,6 +3744,19 @@ html.dark .ac-equipment-card-type { color: #F1F5F9; }
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
+  border: 1px solid transparent;
+}
+/* Dark-mode contrast fix (Problem #13). These badges set their colours
+   inline — background = status colour at ~13% opacity, ink = the full
+   status colour (e.g. green-600 #16A34A, red-600 #DC2626). On a dark
+   surface the faint tint nearly vanishes and the dark ink fails WCAG
+   AA against it. We can't recolour per-status from CSS (inline wins),
+   but brightening the whole chip lifts the dark ink toward its 400/500
+   shade (legible on dark) and a hairline border (currentColor = the
+   inline ink) restores the badge's edge now that the fill is invisible. */
+html.dark .ac-equipment-card-status {
+  filter: brightness(1.45) saturate(1.05);
+  border-color: color-mix(in srgb, currentColor 40%, transparent);
 }
 .ac-equipment-card-brand {
   font-size: 13px;
