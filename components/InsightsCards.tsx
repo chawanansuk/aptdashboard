@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { RoomView, SheetRow } from "@/types";
-import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { isDoneStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { canViewFinancials } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";

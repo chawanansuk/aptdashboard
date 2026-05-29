@@ -238,7 +238,7 @@ export default function Home() {
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
-  const [tDate, setTDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [tDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [tType, setTType] = useState<string>(() => modeConfig.defaultTaskType);
   // Keep tType in sync when mode changes (View-as swap) — only if the user
   // hasn't started editing the modal (i.e. when it's closed).

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Role } from "@/auth";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
@@ -169,6 +169,15 @@ export default function RoomsView({
   // Default tab stop = first card in render order (floor-sorted).
   const firstKey = floorGroups[0]?.list[0] ? roomKey(floorGroups[0].list[0]) : null;
   const activeFocusKey = focusKey ?? firstKey;
+
+  // Reset focusKey when the focused room has dropped out of the list
+  // (deleted, filter changed, etc.). Otherwise no rendered card holds
+  // tabIndex 0 and the grid stops being keyboard-reachable.
+  useEffect(() => {
+    if (focusKey == null) return;
+    const stillRendered = floorGroups.some((g) => g.list.some((r) => roomKey(r) === focusKey));
+    if (!stillRendered) setFocusKey(null);
+  }, [floorGroups, focusKey]);
 
   function openQuick(e: React.MouseEvent, r: RoomView) {
     e.stopPropagation();

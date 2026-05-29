@@ -18,10 +18,6 @@ interface Props {
   onNavigate: (view: ViewTarget) => void;
 }
 
-function fmtPct(n: number): string {
-  return Math.round(n * 100) + "%";
-}
-
 function fmtBaht(n: number): string {
   return n.toLocaleString("th-TH") + " ฿";
 }

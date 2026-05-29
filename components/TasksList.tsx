@@ -11,6 +11,7 @@ import {
 } from "@/lib/taskUrgency";
 import { TASK_STATUS } from "@/lib/taskStatus";
 import { TASK_TYPES } from "@/lib/taskSchema";
+import { taskKey as taskKeyOf } from "@/lib/taskKey";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
@@ -91,9 +92,9 @@ export default function TasksList({ tasks, title, emptyText, onChanged, onOptimi
    *  list with options to mark done / cancel / pending on all selected. */
   const [bulkSel, setBulkSel] = useState<Set<string>>(new Set());
   const [bulkRunning, setBulkRunning] = useState(false);
-  function taskKeyOf(t: SheetRow): string {
-    return `${t.date}|${t.building}|${t.room}|${t.type}`;
-  }
+  // taskKeyOf imported from lib/taskKey — was an inline duplicate that
+  // omitted trim() so a building/room with stray padding silently
+  // missed every bulk-select lookup.
   function toggleBulk(t: SheetRow) {
     const k = taskKeyOf(t);
     setBulkSel((prev) => {
@@ -184,7 +185,7 @@ export default function TasksList({ tasks, title, emptyText, onChanged, onOptimi
   }
 
   async function changeStatus(t: SheetRow, newStatus: string) {
-    const k = `${t.date}|${t.building}|${t.room}|${t.type}`;
+    const k = taskKeyOf(t);
     setBusyKey(k); setErr(null);
     try {
       await postUpdate({
@@ -455,7 +456,7 @@ function BucketSection({
       </header>
       <div className="ac-tasks-list">
         {tasks.map((t) => {
-          const tk = `${t.date}|${t.building}|${t.room}|${t.type}`;
+          const tk = taskKeyOf(t);
           return (
             <TaskCard
               key={tk}
@@ -497,7 +498,7 @@ function TaskCard({
   onPickStatus, onPickEdit, onPickDelete,
 }: TaskCardProps) {
   const t = task;
-  const k = `${t.date}|${t.building}|${t.room}|${t.type}`;
+  const k = taskKeyOf(t);
   const done = isDone(t.status);
   const cancelled = isCancelled(t.status);
   const notInterested = isNotInterested(t.status);
