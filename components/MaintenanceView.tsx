@@ -13,6 +13,9 @@ import {
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import { exportCsv } from "@/lib/csvExport";
+import { getCachedView, setCachedView } from "@/lib/viewCache";
+
+const MAINTENANCE_CACHE_KEY = "maintenance-plan";
 
 interface Props {
   activeBuilding: string;
@@ -55,8 +58,12 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
   const load = useCallback(async (opts?: { signal?: AbortSignal }) => {
+    // SWR — read-only view (edits happen via AddTaskModal outside it),
+    // so there's nothing to bust; the 30s TTL bounds staleness. See
+    // lib/viewCache + VehiclesView.
+    const cached = getCachedView<RoomEquipment[]>(MAINTENANCE_CACHE_KEY);
+    if (cached) { setRows(cached); setLoading(false); } else { setLoading(true); }
     setErr(null);
-    setLoading(true);
     try {
       const res = await fetch("/api/maintenance-plan", { cache: "no-store", signal: opts?.signal });
       const j = await res.json().catch(() => ({ error: "invalid JSON" }));
@@ -64,9 +71,10 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
       const list: RoomEquipment[] = Array.isArray(j.rows) ? j.rows : [];
       if (opts?.signal?.aborted) return;
       setRows(list);
+      setCachedView(MAINTENANCE_CACHE_KEY, list);
     } catch (e) {
       if (opts?.signal?.aborted) return;
-      setErr(e instanceof Error ? e.message : "Network error");
+      if (!cached) setErr(e instanceof Error ? e.message : "Network error");
     } finally {
       if (!opts?.signal?.aborted) setLoading(false);
     }

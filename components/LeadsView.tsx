@@ -8,6 +8,7 @@ import { Icon } from "@/lib/icons";
 import { exportCsv } from "@/lib/csvExport";
 import { relativeTimeShort, formatFullTimestamp } from "@/lib/relativeTime";
 import { computeFunnel, daysInStage, isStale } from "@/lib/leadFunnel";
+import { getCachedView, setCachedView, bustView } from "@/lib/viewCache";
 import AddLeadModal from "./AddLeadModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -30,6 +31,8 @@ interface Props {
    *  pass the lead up so parent can open AddTaskModal pre-filled. */
   onCreateMoveinTask?: (lead: Lead) => void;
 }
+
+const LEADS_CACHE_KEY = "leads";
 
 const STAGE_TONE: Record<LeadStage, string> = {
   "ใหม่":      "is-new",
@@ -56,15 +59,20 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true); setErr(null);
+    // SWR — see lib/viewCache + VehiclesView.
+    const cached = getCachedView<Lead[]>(LEADS_CACHE_KEY);
+    if (cached) { setRows(cached); setLoading(false); } else { setLoading(true); }
+    setErr(null);
     try {
       const res = await fetch("/api/leads", { cache: "no-store", signal });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-      setRows(data.rows || []);
+      const list: Lead[] = data.rows || [];
+      setRows(list);
+      setCachedView(LEADS_CACHE_KEY, list);
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      setErr(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
+      if (!cached) setErr(e instanceof Error ? e.message : "โหลดข้อมูลไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
@@ -90,6 +98,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
       });
       const data = await res.json().catch(() => ({ ok: false }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      bustView(LEADS_CACHE_KEY);
     } catch (e) {
       // Rollback
       setRows((prev) => (prev || []).map((l) => (l.id === lead.id ? { ...l, stage: lead.stage } : l)));
@@ -111,6 +120,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
       const data = await res.json().catch(() => ({ ok: false }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setRows((prev) => (prev || []).filter((l) => l.id !== lead.id));
+      bustView(LEADS_CACHE_KEY);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "ลบไม่สำเร็จ");
     } finally {
@@ -341,13 +351,13 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
         open={addOpen}
         initialStage={addStage}
         onClose={() => setAddOpen(false)}
-        onSaved={() => load()}
+        onSaved={() => { bustView(LEADS_CACHE_KEY); load(); }}
       />
       <AddLeadModal
         open={!!editTarget}
         initial={editTarget}
         onClose={() => setEditTarget(null)}
-        onSaved={() => load()}
+        onSaved={() => { bustView(LEADS_CACHE_KEY); load(); }}
         onCreateMoveinTask={onCreateMoveinTask}
       />
     </section>
