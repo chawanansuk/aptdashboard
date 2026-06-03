@@ -4,11 +4,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useEquipmentCountByRoom } from "./useEquipmentCountByRoom";
+import { _clearCachedFetch } from "./cachedFetchJson";
 
 const fetchMock = vi.fn();
 
 beforeEach(() => {
   fetchMock.mockReset();
+  _clearCachedFetch();
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -16,6 +18,8 @@ afterEach(() => vi.unstubAllGlobals());
 describe("useEquipmentCountByRoom", () => {
   it("counts equipment per building|room from /api/maintenance-plan", async () => {
     fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
       json: async () => ({
         rows: [
           { building: "A", room: "101" },

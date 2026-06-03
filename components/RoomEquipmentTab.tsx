@@ -16,6 +16,7 @@ import LoadingState from "./LoadingState";
 import {
   loadEquipmentCache, saveEquipmentCache, invalidateEquipmentCache,
 } from "@/lib/equipmentCache";
+import { bustCachedFetch } from "@/lib/cachedFetchJson";
 import AddEquipmentModal from "./AddEquipmentModal";
 
 interface Props {
@@ -167,6 +168,7 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
         throw new Error(j.error || `HTTP ${res.status}`);
       }
       invalidateEquipmentCache(building, room);
+      bustCachedFetch("/api/maintenance-plan");
       // Reconcile with canonical data (gets real id, createdAt, creator)
       await load({ force: true });
     } catch (e) {
@@ -207,6 +209,7 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
       const j = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
       invalidateEquipmentCache(building, room);
+      bustCachedFetch("/api/maintenance-plan");
       await load({ force: true });
     } catch (e) {
       setRows(snapshot);

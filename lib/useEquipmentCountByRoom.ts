@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { RoomEquipment } from "@/types";
+import { cachedFetchJson, bustCachedFetch } from "@/lib/cachedFetchJson";
 
 /**
  * Hook: fetch the all-equipment list once and return a count map
@@ -31,8 +32,7 @@ export function useEquipmentCountByRoom(): EquipmentCountMap {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch("/api/maintenance-plan", { cache: "no-store" })
-      .then((r) => r.json())
+    cachedFetchJson<{ rows: RoomEquipment[] }>("/api/maintenance-plan")
       .then((data) => {
         if (cancelled) return;
         const rows = (data?.rows || []) as RoomEquipment[];
@@ -54,7 +54,10 @@ export function useEquipmentCountByRoom(): EquipmentCountMap {
 
   return {
     get: (building, room) => counts.get(`${building}|${room}`) ?? 0,
-    refresh: () => setTick((t) => t + 1),
+    refresh: () => {
+      bustCachedFetch("/api/maintenance-plan");
+      setTick((t) => t + 1);
+    },
     loading,
   };
 }

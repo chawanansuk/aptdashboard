@@ -8,6 +8,7 @@ import {
   MAINTENANCE_STATUS_COLOR, MAINTENANCE_STATUS_LABEL,
 } from "@/lib/constants";
 import { canAddEngTask } from "@/lib/permissions";
+import { bustCachedFetch } from "@/lib/cachedFetchJson";
 import {
   loadFacilityCache, saveFacilityCache, invalidateFacilityCache,
 } from "@/lib/facilityCache";
@@ -160,6 +161,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
       const j = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
       invalidateFacilityCache();
+      bustCachedFetch("/api/facilities");
       await load({ force: true });
     } catch (e) {
       setRows(snapshot);
@@ -195,6 +197,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
       const j = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
       invalidateFacilityCache();
+      bustCachedFetch("/api/facilities");
       await load({ force: true });
     } catch (e) {
       setRows(snapshot);

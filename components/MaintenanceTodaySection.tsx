@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Facility, RoomEquipment } from "@/types";
 import { EQUIPMENT_TYPE_ICON, FACILITY_TYPE_ICON } from "@/lib/constants";
 import { daysUntilService } from "@/lib/maintenanceUtils";
+import { cachedFetchJson } from "@/lib/cachedFetchJson";
 
 interface Props {
   activeBuilding: string;
@@ -56,14 +57,16 @@ export default function MaintenanceTodaySection({
     setErr(null);
     setLoading(true);
     try {
-      // Fetch equipment + facility in parallel — both contribute to "due today"
+      // Fetch equipment + facility in parallel — both contribute to "due today".
+      // cachedFetchJson collapses concurrent overview-mount calls (also issued
+      // by useMaintenanceCounts / useAssetAlertCounts / ServiceDueBanner) into
+      // one round-trip per URL; AbortSignal is honoured at the consumer level
+      // via the `aborted` checks below.
       const [equipRes, facRes] = await Promise.all([
-        fetch("/api/maintenance-plan", { cache: "no-store", signal: opts?.signal })
-          .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        cachedFetchJson<{ rows: RoomEquipment[] }>("/api/maintenance-plan")
           .then((j) => (j.rows || []) as RoomEquipment[])
           .catch(() => [] as RoomEquipment[]),
-        fetch("/api/facilities", { cache: "no-store", signal: opts?.signal })
-          .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        cachedFetchJson<{ rows: Facility[] }>("/api/facilities")
           .then((j) => (j.rows || []) as Facility[])
           .catch(() => [] as Facility[]),
       ]);

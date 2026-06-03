@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useAssetAlertCounts } from "./useAssetAlertCounts";
+import { _clearCachedFetch } from "./cachedFetchJson";
 
 const fetchMock = vi.fn();
 
@@ -25,17 +26,18 @@ function routeFetch(opts: { partsReject?: boolean } = {}) {
     if (url.startsWith("/api/parts")) {
       return opts.partsReject
         ? Promise.reject(new Error("network"))
-        : Promise.resolve({ json: async () => ({ rows: parts }) });
+        : Promise.resolve({ ok: true, status: 200, json: async () => ({ rows: parts }) });
     }
     if (url.startsWith("/api/maintenance-plan")) {
-      return Promise.resolve({ json: async () => ({ rows: equipment }) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ rows: equipment }) });
     }
-    return Promise.resolve({ json: async () => ({}) });
+    return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
   });
 }
 
 beforeEach(() => {
   fetchMock.mockReset();
+  _clearCachedFetch();
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => vi.unstubAllGlobals());
