@@ -45,7 +45,15 @@ export interface RoomRef {
 export const baseTaskSchema = z.object({
   date: z.string().min(1, "กรอกวันที่"),
   type: z.enum(TASK_TYPES, { message: "เลือกประเภทงาน" }),
-  building: z.enum(BUILDINGS, { message: "เลือกตึก" }),
+  // Just "non-empty" — NOT z.enum(BUILDINGS). The building dropdown is
+  // populated from the live rooms sheet, and the room-exists refine in
+  // makeTaskSchema() validates the (building, room) pair against that
+  // same sheet. A hardcoded enum here only DUPLICATED that check while
+  // drifting from the sheet's spelling: the sheet stores "KL" but
+  // BUILDINGS had "Kl", so every sales attempt to add/update a task in
+  // KL was rejected with "เลือกตึก" even though KL was selected. The
+  // sheet is the single source of truth; trust it.
+  building: z.string().trim().min(1, "เลือกตึก"),
   room: z.string().min(1, "กรอกเลขห้อง").trim(),
   // Optional strings — RHF default values supply "" so the input field
   // never actually sees `undefined`. Keeping them strictly `string` here
