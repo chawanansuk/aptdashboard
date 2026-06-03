@@ -2,10 +2,23 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
+import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
 import type { Lead } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Server-side SWR slot for the lead pipeline. Invalidated on every
+// add / update / delete write.
+const leadSlot = new SwrSlot<Lead[]>();
+
+async function fetchLeads(): Promise<Lead[]> {
+  const json = await appsScriptCall<{ rows?: Lead[] }>(
+    "getLeads", {}, { idempotent: true },
+  );
+  if (!json.ok) throw new Error(json.error || "backend error");
+  return (json.result?.rows || []) as Lead[];
+}
 
 /**
  * Lead CRM (v3.15.0 — Task 26).
@@ -29,17 +42,7 @@ export async function GET() {
   if (!canPerform(session.user.roles, "lead.edit")) {
     return bad("ไม่มีสิทธิ์เข้าถึงผู้สนใจเช่า", 403);
   }
-  try {
-    const json = await appsScriptCall<{ rows?: Lead[] }>(
-      "getLeads", {}, { idempotent: true },
-    );
-    if (!json.ok) return bad(json.error || "backend error", 502);
-    return NextResponse.json({ rows: (json.result?.rows || []) as Lead[] });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown";
-    const status = e instanceof AppsScriptError ? e.status : 502;
-    return bad(`ดึงข้อมูล Lead ไม่สำเร็จ: ${msg}`, status);
-  }
+  return serveCachedRows(leadSlot, fetchLeads, "ดึงข้อมูล Lead ไม่สำเร็จ");
 }
 
 export async function POST(req: Request) {
@@ -82,6 +85,7 @@ export async function POST(req: Request) {
 
   try {
     const json = await appsScriptCall(upstream, body);
+    leadSlot.invalidate(); // next GET refetches the just-written data
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";

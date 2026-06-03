@@ -2,10 +2,23 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
+import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
 import type { Facility } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Server-side SWR slot — facility list is small and cross-building, so a
+// single slot covers all reads. Invalidated on any POST write below.
+const facilitySlot = new SwrSlot<Facility[]>();
+
+async function fetchFacilities(): Promise<Facility[]> {
+  const json = await appsScriptCall<{ rows?: Facility[] }>(
+    "getFacilities", {}, { idempotent: true },
+  );
+  if (!json.ok) throw new Error(json.error || "backend error");
+  return (json.result?.rows || []) as Facility[];
+}
 
 /**
  * Building-level facility tracking (v3.8.0).
@@ -27,19 +40,7 @@ function bad(msg: string, status = 400) {
 export async function GET() {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
-
-  try {
-    const json = await appsScriptCall<{ rows?: Facility[] }>(
-      "getFacilities", {}, { idempotent: true }
-    );
-    if (!json.ok) return bad(json.error || "backend error", 502);
-    const rows = (json.result?.rows || []) as Facility[];
-    return NextResponse.json({ rows });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown";
-    const status = e instanceof AppsScriptError ? e.status : 502;
-    return bad(`ดึงข้อมูลสาธารณูปโภคไม่สำเร็จ: ${msg}`, status);
-  }
+  return serveCachedRows(facilitySlot, fetchFacilities, "ดึงข้อมูลสาธารณูปโภคไม่สำเร็จ");
 }
 
 export async function POST(req: Request) {
@@ -80,6 +81,7 @@ export async function POST(req: Request) {
 
   try {
     const json = await appsScriptCall(upstreamAction, body);
+    facilitySlot.invalidate(); // next GET refetches the just-written data
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
