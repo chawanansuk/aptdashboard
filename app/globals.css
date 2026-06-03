@@ -1209,6 +1209,16 @@ html.dark .ac-fs-stat.is-active {
   cursor: pointer;
   user-select: none;
   background: transparent;
+  /* Skip rendering cards scrolled out of view — the grid holds all 297
+     rooms, but only ~20-40 are ever on screen. content-visibility: auto
+     lets the browser bypass layout/paint for the off-screen ones, so
+     scrolling and re-paints (filter, density toggle) stay light on
+     lower-end devices. contain-intrinsic-size feeds the card's known
+     dimensions so the scrollbar doesn't jump while cards are skipped;
+     overridden per density below. Browsers without support (Safari <18)
+     simply render everything as before — no regression. */
+  content-visibility: auto;
+  contain-intrinsic-size: 66px 58px;
 }
 .ac-rc:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
 .ac-rc:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
@@ -1329,11 +1339,15 @@ html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in
 
 /* Density variants — compact / comfy (default) / large */
 .ac-rg-compact .ac-rc { width: 44px; height: 36px; padding: 2px; gap: 0; }
+/* keep contain-intrinsic-size matched to the rendered size per density
+   so the skipped-card scrollbar estimate stays accurate */
+.ac-rg-compact .ac-rc { contain-intrinsic-size: 44px 36px; }
 .ac-rg-compact .ac-rc-num { font-size: 12px; }
 .ac-rg-compact .ac-rc-status { display: none; }
 .ac-rg-compact .ac-rc-today { top: 2px; right: 2px; width: 5px; height: 5px; }
 
 .ac-rg-large .ac-rc { width: 96px; height: 84px; padding: 6px; gap: 3px; }
+.ac-rg-large .ac-rc { contain-intrinsic-size: 96px 84px; }
 .ac-rg-large .ac-rc-num { font-size: 20px; }
 .ac-rg-large .ac-rc-status { font-size: 11px; }
 
@@ -1682,7 +1696,7 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   .ac-divider { display: none; }
   .ac-logo-text { display: none; }
   .ac-sg { grid-template-columns: repeat(2, 1fr); }
-  .ac-rc { width: 64px; height: 60px; padding: 6px; }
+  .ac-rc { width: 64px; height: 60px; padding: 6px; contain-intrinsic-size: 64px 60px; }
   .ac-rc-num { font-size: 16px; }
   .ac-rc-status { font-size: 10px; }
   .ac-search { min-width: 0; flex: 1; }
@@ -8927,6 +8941,10 @@ html.dark .ac-lead-card-age.is-stale { color: #FCA5A5; background: color-mix(in 
   /* Room grid: prefer larger cards in print so numbers stay legible */
   .ac-rg { gap: 4px !important; }
   .ac-rg-compact .ac-rc { width: auto !important; height: auto !important; padding: 6px !important; }
+  /* Force every card to render when printing — content-visibility: auto
+     would otherwise let off-screen cards stay skipped and drop out of
+     the printed page. */
+  .ac-rc { content-visibility: visible !important; }
 
   /* Tasks list: hide row dot + status pills' decorative bits, keep text */
   .ac-task-dot,
