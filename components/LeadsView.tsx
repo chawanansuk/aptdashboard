@@ -9,6 +9,7 @@ import { exportCsv } from "@/lib/csvExport";
 import { relativeTimeShort, formatFullTimestamp } from "@/lib/relativeTime";
 import { computeFunnel, daysInStage, isStale } from "@/lib/leadFunnel";
 import { getCachedView, setCachedView, bustView } from "@/lib/viewCache";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import AddLeadModal from "./AddLeadModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -52,6 +53,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [stageFilter, setStageFilter] = useState<"all" | LeadStage>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [addStage, setAddStage] = useState<LeadStage | undefined>(undefined);
@@ -130,7 +132,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
 
   const filtered = useMemo(() => {
     const list = rows || [];
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     return list.filter((l) => {
       if (stageFilter !== "all" && l.stage !== stageFilter) return false;
       if (q) {
@@ -139,7 +141,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
       }
       return true;
     });
-  }, [rows, search, stageFilter]);
+  }, [rows, debouncedSearch, stageFilter]);
 
   const grouped = useMemo(() => groupLeadsByStage(filtered), [filtered]);
   // Funnel from the FULL list (rows), not the filtered view, so the

@@ -12,6 +12,7 @@ import { canAddEngTask } from "@/lib/permissions";
 import { Icon } from "@/lib/icons";
 import { exportCsv } from "@/lib/csvExport";
 import { getCachedView, setCachedView, bustView } from "@/lib/viewCache";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import AddPartModal from "./AddPartModal";
 import RequisitionModal from "./RequisitionModal";
 import RequisitionHistoryModal from "./RequisitionHistoryModal";
@@ -54,6 +55,7 @@ export default function PartsView({ rooms = [] }: Props) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [catFilter, setCatFilter] = useState<CategoryFilter>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Part | null>(null);
@@ -131,7 +133,7 @@ export default function PartsView({ rooms = [] }: Props) {
 
   const filtered = useMemo(() => {
     const list = rows || [];
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     return list.filter((p) => {
       if (catFilter !== "all" && p.category !== catFilter) return false;
       if (q && !p.name.toLowerCase().includes(q) && !p.note.toLowerCase().includes(q)) {
@@ -139,7 +141,7 @@ export default function PartsView({ rooms = [] }: Props) {
       }
       return true;
     });
-  }, [rows, search, catFilter]);
+  }, [rows, debouncedSearch, catFilter]);
 
   const lowCount = useMemo(
     () => (rows || []).filter(isLowStock).length,

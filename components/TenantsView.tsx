@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { RoomView } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { exportCsv } from "@/lib/csvExport";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import EmptyState from "./EmptyState";
 
 interface Props {
@@ -25,6 +26,7 @@ function daysUntil(s: string): number | null {
 
 export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Props) {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [filter, setFilter] = useState<"all" | "expiringSoon" | "expired" | "occupied">("all");
   const [sortKey, setSortKey] = useState<SortKey>("daysLeft");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -44,8 +46,8 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
       return d !== null && d < 0;
     });
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       list = list.filter((r) => {
         const hay = `${r.tenant || ""} ${r.phone || ""} ${r.room} ${r.building}`.toLowerCase();
         return hay.includes(q);
@@ -71,7 +73,7 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
     });
 
     return list;
-  }, [rooms, activeBuilding, search, filter, sortKey, sortDir]);
+  }, [rooms, activeBuilding, debouncedSearch, filter, sortKey, sortDir]);
 
   function toggleSort(k: SortKey) {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));

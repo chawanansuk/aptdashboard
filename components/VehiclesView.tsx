@@ -8,6 +8,7 @@ import { canPerform } from "@/lib/permissions";
 import { Icon } from "@/lib/icons";
 import { exportCsv } from "@/lib/csvExport";
 import { getCachedView, setCachedView, bustView } from "@/lib/viewCache";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import AddVehicleModal from "./AddVehicleModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -104,6 +105,7 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Vehicle | null>(null);
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
@@ -172,7 +174,7 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
 
   const filtered = useMemo(() => {
     const list = rows || [];
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     const out = list.filter((v) => {
       if (activeBuilding !== "ทั้งหมด" && v.building !== activeBuilding) return false;
       if (q) {
@@ -184,7 +186,7 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
     if (!sort) return out;
     const sorted = [...out].sort((a, b) => compareVehicles(a, b, sort.key));
     return sort.dir === "desc" ? sorted.reverse() : sorted;
-  }, [rows, search, activeBuilding, sort]);
+  }, [rows, debouncedSearch, activeBuilding, sort]);
 
   function onClickSort(key: SortKey) {
     setSort((prev) => {
