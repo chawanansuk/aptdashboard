@@ -5,6 +5,7 @@ import type { RoomEquipment } from "@/types";
 import { getMaintenanceStatus } from "@/lib/maintenanceUtils";
 import { canAccess } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
+import { cachedFetchJson } from "@/lib/cachedFetchJson";
 
 /**
  * Service-due banner — surfaces on Overview when any equipment in the
@@ -37,8 +38,7 @@ export default function ServiceDueBanner({ activeBuilding, onNavigate }: Props) 
   useEffect(() => {
     if (!canSee) return;
     let cancelled = false;
-    fetch("/api/maintenance-plan", { cache: "no-store" })
-      .then((r) => r.json())
+    cachedFetchJson<{ rows: RoomEquipment[] }>("/api/maintenance-plan")
       .then((data) => {
         if (cancelled) return;
         setRows((data?.rows || []) as RoomEquipment[]);

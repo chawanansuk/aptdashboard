@@ -5,6 +5,7 @@ import type { Facility, RoomEquipment, RoomView, SheetRow } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { getMaintenanceStatus } from "@/lib/maintenanceUtils";
 import { isClosedStatus } from "@/lib/constants";
+import { cachedFetchJson } from "@/lib/cachedFetchJson";
 
 /* ====================================================================
  * Pure computation helpers — exported for testing.
@@ -139,12 +140,10 @@ export function useMaintenanceCounts(enabled: boolean): MaintenanceCounts {
     setState((s) => ({ ...s, loading: true, error: null }));
 
     Promise.all([
-      fetch("/api/maintenance-plan", { cache: "no-store" })
-        .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      cachedFetchJson<{ rows: RoomEquipment[] }>("/api/maintenance-plan")
         .then((j) => (j.rows || []) as RoomEquipment[])
         .catch(() => [] as RoomEquipment[]),
-      fetch("/api/facilities", { cache: "no-store" })
-        .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      cachedFetchJson<{ rows: Facility[] }>("/api/facilities")
         .then((j) => (j.rows || []) as Facility[])
         .catch(() => [] as Facility[]),
     ])

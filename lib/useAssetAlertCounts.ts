@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Part, RoomEquipment } from "@/types";
 import { isLowStock } from "@/types";
 import { getMaintenanceStatus } from "@/lib/maintenanceUtils";
+import { cachedFetchJson } from "@/lib/cachedFetchJson";
 
 /**
  * Aggregate counts for the engineer-side sidebar badges:
@@ -43,8 +44,8 @@ export function useAssetAlertCounts(enabled: boolean): AssetAlertCounts {
     setCounts((c) => ({ ...c, loading: true }));
 
     Promise.all([
-      fetch("/api/parts", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ rows: [] })),
-      fetch("/api/maintenance-plan", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ rows: [] })),
+      cachedFetchJson<{ rows: Part[] }>("/api/parts").catch(() => ({ rows: [] as Part[] })),
+      cachedFetchJson<{ rows: RoomEquipment[] }>("/api/maintenance-plan").catch(() => ({ rows: [] as RoomEquipment[] })),
     ]).then(([partsRes, eqRes]) => {
       if (cancelled) return;
       const parts = (partsRes?.rows || []) as Part[];
