@@ -2,10 +2,23 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
+import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
 import type { Part } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Server-side SWR slot for the parts inventory. Invalidated on every
+// add / update / adjust write so stock changes surface immediately.
+const partsSlot = new SwrSlot<Part[]>();
+
+async function fetchParts(): Promise<Part[]> {
+  const json = await appsScriptCall<{ rows?: Part[] }>(
+    "getParts", {}, { idempotent: true },
+  );
+  if (!json.ok) throw new Error(json.error || "backend error");
+  return (json.result?.rows || []) as Part[];
+}
 
 /**
  * Spare-parts inventory (v3.11.0 — Task 37).
@@ -32,19 +45,7 @@ function bad(msg: string, status = 400) {
 export async function GET() {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
-
-  try {
-    const json = await appsScriptCall<{ rows?: Part[] }>(
-      "getParts", {}, { idempotent: true },
-    );
-    if (!json.ok) return bad(json.error || "backend error", 502);
-    const rows = (json.result?.rows || []) as Part[];
-    return NextResponse.json({ rows });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown";
-    const status = e instanceof AppsScriptError ? e.status : 502;
-    return bad(`ดึงข้อมูลอะไหล่ไม่สำเร็จ: ${msg}`, status);
-  }
+  return serveCachedRows(partsSlot, fetchParts, "ดึงข้อมูลอะไหล่ไม่สำเร็จ");
 }
 
 export async function POST(req: Request) {
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
 
   try {
     const json = await appsScriptCall(upstreamAction, body);
+    partsSlot.invalidate(); // next GET refetches the just-written data
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
