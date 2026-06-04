@@ -59,7 +59,7 @@ export function formatBookingMessage(input: BookingMessageInput): string {
   if (calc.nextMonthRent > 0) {
     lines.push(`• ค่าห้องรายเดือน${nextMonthName}: ${baht(calc.nextMonthRent)} บาท`);
   }
-  lines.push(`• ค่าห้องเฉลี่ย (${prorateRangeLabel(moveInDate, calc.proratedDays)}): ${baht(calc.proratedAmount)} บาท`);
+  lines.push(`• ค่าห้องตามจำนวนวัน (${prorateRangeLabel(moveInDate, calc.proratedDays)}): ${baht(calc.proratedAmount)} บาท`);
   lines.push(`• ค่าประกัน: ${baht(calc.deposit)} บาท`);
   lines.push("");
   lines.push(`• ยอดรวมทั้งหมด: ${baht(calc.total)} บาท`);

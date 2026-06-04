@@ -51,7 +51,7 @@ describe("formatBookingMessage", () => {
   });
   it("contains the money breakdown matching the real confirmation", () => {
     expect(msg).toContain("• ค่าห้องรายเดือนมิถุนายน: 5,500 บาท");
-    expect(msg).toContain("• ค่าห้องเฉลี่ย (30-31 พฤษภาคม): 367 บาท");
+    expect(msg).toContain("• ค่าห้องตามจำนวนวัน (30-31 พฤษภาคม): 367 บาท");
     expect(msg).toContain("• ค่าประกัน: 10,000 บาท");
     expect(msg).toContain("• ยอดรวมทั้งหมด: 15,867 บาท");
     expect(msg).toContain("• ชำระมัดจำแล้ว: -5,500 บาท");
@@ -70,7 +70,7 @@ describe("formatBookingMessage", () => {
       moveInDate: new Date(2026, 5, 1), calc: c2,
     });
     expect(m2).not.toContain("ค่าห้องรายเดือน");
-    expect(m2).toContain("ค่าห้องเฉลี่ย");
+    expect(m2).toContain("ค่าห้องตามจำนวนวัน");
   });
 
   it("omits the extra block when no pet/contract", () => {
