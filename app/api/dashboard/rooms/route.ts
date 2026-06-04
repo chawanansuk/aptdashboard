@@ -9,6 +9,7 @@ import {
 } from "@/lib/dashboardCache";
 import { canViewTenant } from "@/lib/permissions";
 import type { RoomRow } from "@/types";
+import { createHash } from "node:crypto";
 
 /**
  * Strip tenant PII fields when the requester isn't allowed to read them.
@@ -67,63 +68,91 @@ function timing(name: string, ms: number, desc?: string): string {
   return `${name}${d};dur=${ms.toFixed(0)}`;
 }
 
-export async function GET() {
+/**
+ * Hash projected rows into a short ETag. Computed over the PROJECTED
+ * (PII-stripped per role) rows so a non-admin's 304 can't be satisfied
+ * by an admin's cached body — Cache-Control is already `private`, never
+ * CDN. Mirrors /api/dashboard/tasks.
+ */
+function makeEtag(rooms: RoomRow[]): string {
+  const hash = createHash("md5").update(JSON.stringify(rooms)).digest("hex");
+  return `W/"rooms-${hash.slice(0, 16)}"`;
+}
+
+// Browser cache only (`private`) — never CDN. Rooms response varies by
+// user role (PII strip, PR #61), so a shared CDN could leak management's
+// data to sales. 60s fresh covers typical click-back navigation cheaply.
+const ROOMS_CACHE_CONTROL = "private, max-age=60, stale-while-revalidate=300";
+
+interface BuildOpts {
+  body: { rooms: RoomRow[]; cached: boolean; cacheState: string; ageMs?: number; error?: string };
+  etag?: string;
+  status?: number;
+  timings: { name: string; ms: number; desc?: string }[];
+  ifNoneMatch: string | null;
+}
+function buildResponse({ body, etag, status, timings, ifNoneMatch }: BuildOpts): NextResponse {
+  const headers: Record<string, string> = {
+    "Cache-Control": ROOMS_CACHE_CONTROL,
+    "Server-Timing": timings.map((t) => timing(t.name, t.ms, t.desc)).join(", "),
+  };
+  if (etag) {
+    headers["ETag"] = etag;
+    // 304 short-circuit — skip body entirely if client has the same ETag.
+    if (ifNoneMatch === etag) {
+      return new NextResponse(null, { status: 304, headers });
+    }
+  }
+  return NextResponse.json(body, { status: status ?? 200, headers });
+}
+
+export async function GET(req: Request) {
   const handlerStart = Date.now();
+  const ifNoneMatch = req.headers.get("if-none-match");
+
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
   const authMs = Date.now() - handlerStart;
   // Single permission check at handler entry — applied to every response
-  // body below via `respond()` which strips PII for non-admins.
+  // body below via `project()` which strips PII for non-admins.
   const canTenant = canViewTenant(session.user.roles);
   const project = (rows: RoomRow[]): RoomRow[] => (canTenant ? rows : stripTenantPii(rows));
 
   const c = getRoomsCacheState();
 
   if (c.state === "fresh" && c.data) {
+    const out = project(c.data);
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/rooms] fresh", { ageMs: c.ageMs, totalMs });
-    return NextResponse.json(
-      { rooms: project(c.data), cached: true, cacheState: "fresh", ageMs: c.ageMs },
-      {
-        headers: {
-          // Browser cache only (`private`) — never CDN. Rooms response
-          // varies by user role (PII strip, PR #61), so a shared CDN
-          // could leak management's data to sales. 60s fresh covers
-          // typical click-back navigation cheaply.
-          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
-          "Server-Timing": [
-            timing("auth", authMs),
-            timing("cache", 0, "fresh hit"),
-            timing("total", totalMs),
-          ].join(", "),
-        },
-      },
-    );
+    return buildResponse({
+      body: { rooms: out, cached: true, cacheState: "fresh", ageMs: c.ageMs },
+      etag: makeEtag(out),
+      ifNoneMatch,
+      timings: [
+        timingEntry("auth", authMs),
+        timingEntry("cache", 0, "fresh hit"),
+        timingEntry("total", totalMs),
+      ],
+    });
   }
 
   if (c.state === "stale" && c.data) {
     scheduleRevalidate();
+    const out = project(c.data);
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/rooms] stale + bg revalidate", { ageMs: c.ageMs, totalMs });
-    return NextResponse.json(
-      { rooms: project(c.data), cached: true, cacheState: "stale", ageMs: c.ageMs },
-      {
-        headers: {
-          // Browser cache only (`private`) — never CDN. Rooms response
-          // varies by user role (PII strip, PR #61), so a shared CDN
-          // could leak management's data to sales. 60s fresh covers
-          // typical click-back navigation cheaply.
-          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
-          "Server-Timing": [
-            timing("auth", authMs),
-            timing("cache", 0, "stale hit"),
-            timing("total", totalMs),
-          ].join(", "),
-        },
-      },
-    );
+    return buildResponse({
+      body: { rooms: out, cached: true, cacheState: "stale", ageMs: c.ageMs },
+      etag: makeEtag(out),
+      ifNoneMatch,
+      timings: [
+        timingEntry("auth", authMs),
+        timingEntry("cache", 0, "stale hit"),
+        timingEntry("total", totalMs),
+      ],
+    });
   }
 
   // Missing — block on upstream
@@ -131,47 +160,37 @@ export async function GET() {
   try {
     const rooms = await fetchRooms();
     setRoomsCache(rooms);
+    const out = project(rooms);
     const fetchMs = Date.now() - fetchStart;
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/rooms] miss → fetched", { fetchMs, totalMs });
-    return NextResponse.json(
-      { rooms: project(rooms), cached: false, cacheState: "missing" },
-      {
-        headers: {
-          // Browser cache only (`private`) — never CDN. Rooms response
-          // varies by user role (PII strip, PR #61), so a shared CDN
-          // could leak management's data to sales. 60s fresh covers
-          // typical click-back navigation cheaply.
-          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
-          "Server-Timing": [
-            timing("auth", authMs),
-            timing("rooms", fetchMs),
-            timing("total", totalMs),
-          ].join(", "),
-        },
-      },
-    );
+    return buildResponse({
+      body: { rooms: out, cached: false, cacheState: "missing" },
+      etag: makeEtag(out),
+      ifNoneMatch,
+      timings: [
+        timingEntry("auth", authMs),
+        timingEntry("rooms", fetchMs),
+        timingEntry("total", totalMs),
+      ],
+    });
   } catch (e) {
     const error = e instanceof Error ? e.message : "unknown";
     const totalMs = Date.now() - handlerStart;
     console.error("[dashboard/rooms] miss fetch failed", { error, totalMs });
-    return NextResponse.json(
-      { rooms: [], cached: false, cacheState: "missing", error },
-      {
-        status: 502,
-        headers: {
-          // Browser cache only (`private`) — never CDN. Rooms response
-          // varies by user role (PII strip, PR #61), so a shared CDN
-          // could leak management's data to sales. 60s fresh covers
-          // typical click-back navigation cheaply.
-          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
-          "Server-Timing": [
-            timing("auth", authMs),
-            timing("rooms", Date.now() - fetchStart, `error: ${error}`),
-            timing("total", totalMs),
-          ].join(", "),
-        },
-      },
-    );
+    return buildResponse({
+      body: { rooms: [], cached: false, cacheState: "missing", error },
+      status: 502,
+      ifNoneMatch,
+      timings: [
+        timingEntry("auth", authMs),
+        timingEntry("rooms", Date.now() - fetchStart, `error: ${error}`),
+        timingEntry("total", totalMs),
+      ],
+    });
   }
+}
+
+function timingEntry(name: string, ms: number, desc?: string) {
+  return { name, ms, desc };
 }
