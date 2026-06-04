@@ -323,7 +323,18 @@ async function fetchWithRetry(url: string, signal: AbortSignal): Promise<Respons
     attempts = attempt + 1;
     if (signal.aborted) throw new Error("aborted");
     try {
-      const res = await fetch(url, { cache: "no-store", signal });
+      // `no-cache` (NOT `no-store`): the browser keeps a private copy and
+      // revalidates it on every request with `If-None-Match`. Freshness is
+      // identical to no-store (we always hit the origin), but when the data
+      // hasn't changed the route answers 304 Not Modified with an empty body
+      // and the browser serves the cached payload — so an idle 60s poll stops
+      // re-downloading the full tasks/rooms JSON every tick. `/api/dashboard/
+      // tasks` computes an ETag for exactly this; `no-store` was throwing that
+      // away by never sending the conditional header. (The browser turns the
+      // 304 back into a 200 + cached body for us, so callers below still see
+      // res.ok; the `status === 304` log branch is only reachable if a caller
+      // sets If-None-Match manually.)
+      const res = await fetch(url, { cache: "no-cache", signal });
       if (res.ok) {
         const dt = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
         // Success-path timing log: dev-only (noisy in prod). Failure
