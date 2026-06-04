@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
+import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
 import type { RecurringTemplate } from "@/types";
 
 export const runtime = "nodejs";
@@ -17,7 +18,25 @@ export const dynamic = "force-dynamic";
  *   - add: name, type, building, room, intervalDays, note?
  *   - delete: id
  *   - run: no body — runs the check, returns { created, skipped }
+ *
+ * GET is backed by a server-side SWR slot — the template list rarely
+ * changes and this view is lazy-loaded, so serving the last result
+ * instantly (with background revalidation) avoids a blocking Apps Script
+ * round-trip every time the engineer opens the tab. Every POST (add /
+ * delete / run — run mutates each fired template's nextRunDate) busts
+ * the slot so the next read reflects the change.
  */
+
+// Server-side SWR slot for the recurring template list.
+const recurringSlot = new SwrSlot<RecurringTemplate[]>();
+
+async function fetchRecurring(): Promise<RecurringTemplate[]> {
+  const json = await appsScriptCall<{ rows?: RecurringTemplate[] }>(
+    "getRecurring", {}, { idempotent: true },
+  );
+  if (!json.ok) throw new Error(json.error || "backend error");
+  return (json.result?.rows || []) as RecurringTemplate[];
+}
 
 function bad(msg: string, status = 400) {
   return NextResponse.json({ ok: false, error: msg }, { status });
@@ -29,17 +48,7 @@ export async function GET() {
   if (!canAddEngTask(session.user.roles)) {
     return bad("ไม่มีสิทธิ์ดูงานประจำ", 403);
   }
-  try {
-    const json = await appsScriptCall<{ rows?: RecurringTemplate[] }>(
-      "getRecurring", {}, { idempotent: true },
-    );
-    if (!json.ok) return bad(json.error || "backend error", 502);
-    return NextResponse.json({ rows: (json.result?.rows || []) as RecurringTemplate[] });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown";
-    const status = e instanceof AppsScriptError ? e.status : 502;
-    return bad(`ดึงงานประจำไม่สำเร็จ: ${msg}`, status);
-  }
+  return serveCachedRows(recurringSlot, fetchRecurring, "ดึงงานประจำไม่สำเร็จ");
 }
 
 export async function POST(req: Request) {
@@ -85,6 +94,9 @@ export async function POST(req: Request) {
 
   try {
     const json = await appsScriptCall(upstream, body);
+    // add/delete change the list; run advances each fired template's
+    // nextRunDate — all three mutate it, so drop the cache.
+    recurringSlot.invalidate();
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
