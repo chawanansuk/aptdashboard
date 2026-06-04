@@ -47,6 +47,21 @@ describe("computeBooking", () => {
     expect(c.total).toBe(20633); // 5133 + 5500 + 10000
   });
 
+  it("caps prorate at 29 days for a 2nd-of-31-day-month move-in (no false full month)", () => {
+    // The reported bug: ย้ายเข้า 2 ก.ค. (July has 31 days) → without the
+    // cap, dim-day+1 = 30, and 30 × (5500/30) = 5500 which the customer
+    // reads as a full month even though they didn't use July 1st.
+    const c = computeBooking({
+      monthlyRent: 5500,
+      moveInDate: new Date(2026, 6, 2), // 2 July
+      deposit: 0,
+      bookingPaid: 0,
+    });
+    expect(c.proratedDays).toBe(29);
+    expect(c.proratedAmount).toBe(5317); // 5500/30*29 = 5316.66 → 5317
+    expect(c.proratedAmount).toBeLessThan(5500);
+  });
+
   it("handles a 1st-of-month move-in as a full month", () => {
     const c = computeBooking({
       monthlyRent: 6000,
