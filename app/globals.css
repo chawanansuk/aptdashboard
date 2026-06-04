@@ -9615,6 +9615,52 @@ html.dark .ac-notif-row--warning .ac-notif-row-count {
 @media (max-width: 720px) {
   .ac-booking-body { grid-template-columns: 1fr; }
   .ac-booking-preview { position: static; }
+  /* The LINE message is a copy target, not something to read in full
+     here — cap it so it doesn't push the totals + confirm button far
+     down the mobile scroll. Still scrollable + resizable. */
+  .ac-booking-message { max-height: 200px; }
+  /* Full-width copy button on mobile — primary thing staff do next. */
+  .ac-booking-preview .ac-btn { width: 100%; }
+}
+
+/* Booking footer — always-visible "คงเหลือโอนเพิ่ม" + missing-field hint
+   above the action buttons, so the key number is reachable at any scroll
+   position (the footer is sticky). */
+.ac-booking-foot {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+.ac-booking-foot-sum {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.ac-booking-foot-sum-label { font-size: 0.8125rem; color: var(--color-text-muted); }
+.ac-booking-foot-sum-val {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+.ac-booking-foot-hint {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #DC2626;
+}
+html.dark .ac-booking-foot-hint { color: #F87171; }
+.ac-booking-foot-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ac-booking-foot-actions .ac-btn-primary { flex: 1 1 auto; }
+.ac-booking-date-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 4px;
 }
 
 /* Booking modal — "charge next month" toggle */

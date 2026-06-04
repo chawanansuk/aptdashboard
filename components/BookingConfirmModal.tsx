@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { computeBooking } from "@/lib/bookingMath";
-import { formatBookingMessage } from "@/lib/bookingMessage";
+import { formatBookingMessage, moveInLabel } from "@/lib/bookingMessage";
 import { toast } from "@/lib/toast";
 
 /**
@@ -40,6 +40,18 @@ interface Props {
 function parseMoney(s: string): number {
   const n = parseInt(String(s).replace(/[^0-9]/g, ""), 10);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Keep only digits — what we store in state for money fields. */
+function moneyDigits(s: string): string {
+  return s.replace(/[^0-9]/g, "");
+}
+
+/** Group the stored digits for display (5500 → "5,500"). Caret stays
+ *  put for the common case of appending at the end. */
+function formatMoneyDisplay(s: string): string {
+  const d = moneyDigits(s);
+  return d ? Number(d).toLocaleString("th-TH") : "";
 }
 
 function todayIso(): string {
@@ -111,6 +123,14 @@ export default function BookingConfirmModal({
 
   const fmt = (n: number) => n.toLocaleString("th-TH");
   const valid = !!(moveInDate && tenant.trim() && phone.trim() && parseMoney(rent) > 0);
+
+  // Spell out what's still missing so the disabled "บันทึก" button isn't
+  // a dead end — staff see exactly which required field to fill.
+  const missing: string[] = [];
+  if (!tenant.trim()) missing.push("ชื่อผู้เช่า");
+  if (!phone.trim()) missing.push("เบอร์ติดต่อ");
+  if (parseMoney(rent) <= 0) missing.push("ค่าเช่า");
+  if (!moveInDate) missing.push("วันที่เข้าพัก");
 
   async function copyMessage() {
     try {
@@ -189,6 +209,12 @@ export default function BookingConfirmModal({
                     onChange={(e) => setMoveInTime(e.target.value)} />
                 </div>
               </div>
+              {/* Echo the date in Thai/Buddhist-era form — the native picker
+                  shows ค.ศ. but the LINE message uses พ.ศ., so this keeps
+                  what staff confirm consistent with what the tenant sees. */}
+              {moveInDate && (
+                <div className="ac-booking-date-hint">📅 {moveInLabel(moveInDate, moveInTime.trim() || undefined)}</div>
+              )}
             </div>
 
             <div className="ac-form-section">
@@ -196,18 +222,18 @@ export default function BookingConfirmModal({
               <div className="ac-form-row">
                 <div className="ac-field">
                   <label htmlFor="ac-bk-rent">ค่าเช่า/เดือน</label>
-                  <input id="ac-bk-rent" inputMode="numeric" value={rent}
-                    onChange={(e) => setRent(e.target.value)} placeholder="5500" />
+                  <input id="ac-bk-rent" inputMode="numeric" value={formatMoneyDisplay(rent)}
+                    onChange={(e) => setRent(moneyDigits(e.target.value))} placeholder="5,500" />
                 </div>
                 <div className="ac-field">
                   <label htmlFor="ac-bk-deposit">ค่าประกัน</label>
-                  <input id="ac-bk-deposit" inputMode="numeric" value={deposit}
-                    onChange={(e) => setDeposit(e.target.value)} placeholder="10000" />
+                  <input id="ac-bk-deposit" inputMode="numeric" value={formatMoneyDisplay(deposit)}
+                    onChange={(e) => setDeposit(moneyDigits(e.target.value))} placeholder="10,000" />
                 </div>
                 <div className="ac-field">
                   <label htmlFor="ac-bk-paid">มัดจำที่จ่ายแล้ว</label>
-                  <input id="ac-bk-paid" inputMode="numeric" value={bookingPaid}
-                    onChange={(e) => setBookingPaid(e.target.value)} placeholder="5500" />
+                  <input id="ac-bk-paid" inputMode="numeric" value={formatMoneyDisplay(bookingPaid)}
+                    onChange={(e) => setBookingPaid(moneyDigits(e.target.value))} placeholder="5,500" />
                 </div>
               </div>
               <label className="ac-booking-checkbox">
@@ -241,7 +267,7 @@ export default function BookingConfirmModal({
                 {calc.nextMonthRent > 0 && (
                   <div className="ac-booking-total-row"><span>ค่าห้องรายเดือน</span><span>{fmt(calc.nextMonthRent)}</span></div>
                 )}
-                <div className="ac-booking-total-row"><span>ค่าห้องเฉลี่ย ({calc.proratedDays} วัน)</span><span>{fmt(calc.proratedAmount)}</span></div>
+                <div className="ac-booking-total-row"><span>ค่าห้องตามจำนวนวัน ({calc.proratedDays} วัน)</span><span>{fmt(calc.proratedAmount)}</span></div>
                 <div className="ac-booking-total-row"><span>ค่าประกัน</span><span>{fmt(calc.deposit)}</span></div>
                 <div className="ac-booking-total-row is-sum"><span>ยอดรวม</span><span>{fmt(calc.total)}</span></div>
                 <div className="ac-booking-total-row"><span>ชำระมัดจำแล้ว</span><span>-{fmt(calc.bookingPaid)}</span></div>
@@ -256,12 +282,30 @@ export default function BookingConfirmModal({
           </div>
         </div>
 
-        <footer className="ac-modal-foot ac-modal-foot-sticky">
-          <button className="ac-btn ac-btn-ghost" onClick={onClose} disabled={saving}>ยกเลิก</button>
-          <button className="ac-btn ac-btn-primary" onClick={handleConfirm} disabled={!valid || saving}>
-            {saving && <span className="ac-btn-spinner" aria-hidden />}
-            {saving ? "กำลังบันทึก..." : "บันทึก & สร้างนัดย้ายเข้า"}
-          </button>
+        <footer className="ac-modal-foot ac-modal-foot-sticky ac-booking-foot">
+          {calc && (
+            <div className="ac-booking-foot-sum" aria-live="polite">
+              <span className="ac-booking-foot-sum-label">คงเหลือโอนเพิ่ม</span>
+              <span className="ac-booking-foot-sum-val">฿{fmt(calc.remaining)}</span>
+            </div>
+          )}
+          {!valid && missing.length > 0 && (
+            <div className="ac-booking-foot-hint" id="ac-bk-missing">
+              ยังไม่ครบ: {missing.join(" · ")}
+            </div>
+          )}
+          <div className="ac-booking-foot-actions">
+            <button className="ac-btn ac-btn-ghost" onClick={onClose} disabled={saving}>ยกเลิก</button>
+            <button
+              className="ac-btn ac-btn-primary"
+              onClick={handleConfirm}
+              disabled={!valid || saving}
+              aria-describedby={!valid && missing.length > 0 ? "ac-bk-missing" : undefined}
+            >
+              {saving && <span className="ac-btn-spinner" aria-hidden />}
+              {saving ? "กำลังบันทึก..." : "บันทึก & สร้างนัดย้ายเข้า"}
+            </button>
+          </div>
         </footer>
       </div>
     </div>
