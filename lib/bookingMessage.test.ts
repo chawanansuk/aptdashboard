@@ -19,13 +19,10 @@ describe("prorateRangeLabel", () => {
   it("renders a single day", () => {
     expect(prorateRangeLabel(new Date(2026, 4, 31), 1)).toBe("31 พฤษภาคม");
   });
-  it("reflects the capped 29-day prorate (2 Jul) — label says 2-30 to match the 29 days charged", () => {
-    // Paired with the cap in computeBooking: a 2nd-of-31-day-month
-    // move-in gets 29 charged days, so the range stops at day 30 — the
-    // label and the charged days stay in sync (lower number = visible
-    // discount). The customer still moves out at end-of-July; this is
-    // a "days billed" label, not a "stay end" label.
-    expect(prorateRangeLabel(new Date(2026, 6, 2), 29)).toBe("2-30 กรกฎาคม");
+  it("renders the real stay range for a 2-Jul move-in (30 days, 2-31)", () => {
+    // Companion to computeBooking's /dim divisor: days charged now equals
+    // days actually used, so the label can show the customer's true stay.
+    expect(prorateRangeLabel(new Date(2026, 6, 2), 30)).toBe("2-31 กรกฎาคม");
   });
 });
 
@@ -59,11 +56,11 @@ describe("formatBookingMessage", () => {
   });
   it("contains the money breakdown matching the real confirmation", () => {
     expect(msg).toContain("• ค่าห้องรายเดือนมิถุนายน: 5,500 บาท");
-    expect(msg).toContain("• ค่าห้องตามจำนวนวัน (30-31 พฤษภาคม): 367 บาท");
+    expect(msg).toContain("• ค่าห้องตามจำนวนวัน (30-31 พฤษภาคม): 355 บาท");
     expect(msg).toContain("• ค่าประกัน: 10,000 บาท");
-    expect(msg).toContain("• ยอดรวมทั้งหมด: 15,867 บาท");
+    expect(msg).toContain("• ยอดรวมทั้งหมด: 15,855 บาท");
     expect(msg).toContain("• ชำระมัดจำแล้ว: -5,500 บาท");
-    expect(msg).toContain("• ยอดคงเหลือโอนเพิ่ม: 10,367 บาท");
+    expect(msg).toContain("• ยอดคงเหลือโอนเพิ่ม: 10,355 บาท");
   });
   it("contains the extra info block", () => {
     expect(msg).toContain("🐾 ข้อมูลเพิ่มเติม:");
