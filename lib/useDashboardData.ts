@@ -143,6 +143,42 @@ export interface OptimisticTaskStatus {
 }
 
 /**
+ * Drop duplicate task rows that share the same `taskKey`
+ * (`date|building|room|type`).
+ *
+ * The งาน sheet has no stable id column and the composite key is unique
+ * by construction (no two tasks of the same type happen in the same
+ * room on the same day in practice — see lib/taskKey). When two rows
+ * with the same key DO show up, that's a data bug: bookingConfirm,
+ * bulkAdd, or runRecurringCheck appended a second time (e.g. before
+ * Apps Script #182 / #200 guards land). On the client we'd otherwise
+ * render the row twice in every list view and inflate every count.
+ *
+ * Order is preserved (first occurrence wins). When multiple rows share
+ * a key, prefer the one with the richer customer/phone/note payload so
+ * a later edit isn't erased by an earlier stub — duplicates that are
+ * identical fall through unchanged.
+ */
+export function dedupTasks(rows: SheetRow[]): SheetRow[] {
+  if (rows.length < 2) return rows;
+  const indexByKey = new Map<string, number>();
+  const out: SheetRow[] = [];
+  const info = (t: SheetRow) =>
+    (t.customer || "").length + (t.phone || "").length + (t.note || "").length;
+  for (const t of rows) {
+    const k = taskKey(t);
+    const existing = indexByKey.get(k);
+    if (existing === undefined) {
+      indexByKey.set(k, out.length);
+      out.push(t);
+    } else if (info(t) > info(out[existing])) {
+      out[existing] = t;
+    }
+  }
+  return out;
+}
+
+/**
  * Re-apply still-pending optimistic task-status changes (e.g. closing a
  * task as "เสร็จ" / "ยกเลิก") on top of freshly fetched server tasks. The
  * write lands at Apps Script immediately, but the dashboard cache that
@@ -407,7 +443,7 @@ export function useDashboardData(): DashboardState {
     const cached = loadCache();
     if (cached) {
       setRooms(cached.rooms);
-      setTasks(cached.tasks);
+      setTasks(dedupTasks(cached.tasks));
       setLastUpdated(`${new Date(cached.savedAt).toLocaleTimeString("th-TH")} (จาก cache)`);
       setIsInitial(false);
     }
@@ -512,9 +548,12 @@ export function useDashboardData(): DashboardState {
         const withAdds = applyOptimisticTasks(
           arr, pendingTasksRef.current, now, OPTIMISTIC_MAX_TTL_MS,
         );
-        const next = applyOptimisticTaskStatus(
+        const withStatuses = applyOptimisticTaskStatus(
           withAdds, pendingTaskStatusRef.current, now, OPTIMISTIC_MAX_TTL_MS,
         );
+        // Drop server-side duplicate rows (data bug — see dedupTasks) so
+        // list views + counts don't double-count the same appointment.
+        const next = dedupTasks(withStatuses);
         latestTasks = next;
         // Same fix as rooms — write empty arrays so deletions show up
         setTasks(next);
