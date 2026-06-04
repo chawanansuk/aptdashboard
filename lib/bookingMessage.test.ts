@@ -19,6 +19,14 @@ describe("prorateRangeLabel", () => {
   it("renders a single day", () => {
     expect(prorateRangeLabel(new Date(2026, 4, 31), 1)).toBe("31 พฤษภาคม");
   });
+  it("reflects the capped 29-day prorate (2 Jul) — label says 2-30 to match the 29 days charged", () => {
+    // Paired with the cap in computeBooking: a 2nd-of-31-day-month
+    // move-in gets 29 charged days, so the range stops at day 30 — the
+    // label and the charged days stay in sync (lower number = visible
+    // discount). The customer still moves out at end-of-July; this is
+    // a "days billed" label, not a "stay end" label.
+    expect(prorateRangeLabel(new Date(2026, 6, 2), 29)).toBe("2-30 กรกฎาคม");
+  });
 });
 
 describe("formatBookingMessage", () => {

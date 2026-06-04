@@ -71,7 +71,14 @@ export function computeBooking(input: BookingInput): BookingCalc {
     proratedDays = dim;
     proratedAmount = rent;
   } else {
-    proratedDays = dim - day + 1;
+    // Cap at 29 days. In a 31-day month, (dim - day + 1) reaches 30 when
+    // day = 2, and 30 days × (rent/30) lands exactly on the full monthly
+    // rent — the customer sees "ค่าห้องตามจำนวนวัน (30 วัน) = 5,500" which
+    // is indistinguishable from "เก็บเต็มเดือน" even though they didn't
+    // use the 1st. A move-in after the 1st is by definition NOT a full
+    // month at the /30 rate, so cap at DAILY_DIVISOR - 1 so there's
+    // always at least one day of discount visible.
+    proratedDays = Math.min(dim - day + 1, DAILY_DIVISOR - 1);
     proratedAmount = Math.round((rent / DAILY_DIVISOR) * proratedDays);
   }
 
