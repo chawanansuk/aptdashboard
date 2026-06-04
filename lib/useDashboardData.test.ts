@@ -4,6 +4,7 @@ import {
   applyOptimisticRoomPatches,
   applyOptimisticTasks,
   applyOptimisticTaskStatus,
+  dedupTasks,
   describeFetchError,
   taskKey,
   type OptimisticRoomPatch,
@@ -336,5 +337,47 @@ describe("applyOptimisticRoomPatches", () => {
     const out = applyOptimisticRoomPatches(server, map, now, TTL);
     expect(out[0].status).toBe("รอสัญญา");
     expect(out[1].status).toBe("occupied");
+  });
+});
+
+describe("dedupTasks", () => {
+  it("returns the input untouched when nothing is duplicated", () => {
+    const a = task({ date: "06/06/2026", room: "407", type: "ย้ายเข้า", customer: "สาธินี" });
+    const b = task({ date: "06/06/2026", room: "403", type: "ย้ายเข้า", customer: "ออม" });
+    expect(dedupTasks([a, b])).toEqual([a, b]);
+  });
+
+  it("drops exact duplicates and preserves order", () => {
+    // The screenshot bug: same (date,building,room,type,customer,phone) twice.
+    const t = task({
+      date: "06/06/2026", building: "มีทอง", room: "407", type: "ย้ายเข้า",
+      customer: "สาธินี เทพไชย", phone: "092-3804052",
+    });
+    const other = task({ date: "10/06/2026", room: "605", type: "ย้ายเข้า" });
+    const out = dedupTasks([t, t, other]);
+    expect(out.length).toBe(2);
+    expect(out[0]).toBe(t);
+    expect(out[1]).toBe(other);
+  });
+
+  it("prefers the row with richer customer/phone/note when keys collide", () => {
+    // Stub row got created first; a later edit filled in customer + phone.
+    // We should keep the rich one so the edit isn't erased by the stub.
+    const stub = task({
+      date: "06/06/2026", building: "มีทอง", room: "407", type: "ย้ายเข้า",
+      customer: "", phone: "", note: "",
+    });
+    const rich = task({
+      date: "06/06/2026", building: "มีทอง", room: "407", type: "ย้ายเข้า",
+      customer: "สาธินี", phone: "092-3804052", note: "เข้าบ่าย",
+    });
+    expect(dedupTasks([stub, rich])).toEqual([rich]);
+    expect(dedupTasks([rich, stub])).toEqual([rich]);
+  });
+
+  it("trims building/room when comparing — matches taskKey semantics", () => {
+    const a = task({ date: "06/06/2026", building: "มีทอง", room: "407", type: "ย้ายเข้า" });
+    const b = task({ date: "06/06/2026", building: " มีทอง", room: "407 ", type: "ย้ายเข้า" });
+    expect(dedupTasks([a, b]).length).toBe(1);
   });
 });
