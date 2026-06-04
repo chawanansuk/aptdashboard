@@ -6,12 +6,16 @@
  * + one full upcoming month + the security deposit, minus whatever
  * booking deposit was already transferred.
  *
- * Daily rate uses the /30 convention (not the actual month length) —
- * that's what the existing confirmations use: 5,500 / 30 × 2 = 367.
+ * Daily rate uses the ACTUAL month length (rent/dim × days). The earlier
+ * /30 convention was simpler but had a stealth-full-month edge case
+ * (move-in on the 2nd of a 31-day month → 30 days × rent/30 = full
+ * rent), and the customer-facing label had to undercount the stay days
+ * to compensate ("2-30 กรกฎาคม" while they actually stay 2-31). Dividing
+ * by `dim` makes "days charged" = "days actually used" so the LINE
+ * label can show the real range. Amounts in 28- and 31-day months shift
+ * a few percent vs. the old /30 figure — 30-day months are unchanged.
  * All amounts are rounded to whole baht.
  */
-
-export const DAILY_DIVISOR = 30;
 
 export interface BookingInput {
   /** Monthly rent in baht. */
@@ -67,19 +71,12 @@ export function computeBooking(input: BookingInput): BookingCalc {
   let proratedAmount: number;
 
   if (day <= 1) {
-    // Move-in on the 1st: the "prorate" is the whole month (no /30 drift).
+    // Move-in on the 1st: the whole month (no rounding drift).
     proratedDays = dim;
     proratedAmount = rent;
   } else {
-    // Cap at 29 days. In a 31-day month, (dim - day + 1) reaches 30 when
-    // day = 2, and 30 days × (rent/30) lands exactly on the full monthly
-    // rent — the customer sees "ค่าห้องตามจำนวนวัน (30 วัน) = 5,500" which
-    // is indistinguishable from "เก็บเต็มเดือน" even though they didn't
-    // use the 1st. A move-in after the 1st is by definition NOT a full
-    // month at the /30 rate, so cap at DAILY_DIVISOR - 1 so there's
-    // always at least one day of discount visible.
-    proratedDays = Math.min(dim - day + 1, DAILY_DIVISOR - 1);
-    proratedAmount = Math.round((rent / DAILY_DIVISOR) * proratedDays);
+    proratedDays = dim - day + 1;
+    proratedAmount = Math.round((rent / dim) * proratedDays);
   }
 
   // The upcoming full month is collected ONLY when staff opt in

@@ -13,10 +13,10 @@ describe("computeBooking", () => {
       chargeNextMonth: true,
     });
     expect(c.proratedDays).toBe(2); // 30, 31 May
-    expect(c.proratedAmount).toBe(367); // 5500/30*2 = 366.67 → 367
+    expect(c.proratedAmount).toBe(355); // 5500/31*2 = 354.84 → 355
     expect(c.nextMonthRent).toBe(5500); // full June, opted in
-    expect(c.total).toBe(15867); // 5500 + 367 + 10000
-    expect(c.remaining).toBe(10367); // 15867 - 5500
+    expect(c.total).toBe(15855); // 5500 + 355 + 10000
+    expect(c.remaining).toBe(10355); // 15855 - 5500
   });
 
   it("early move-in does NOT charge next month by default (3 June)", () => {
@@ -29,7 +29,7 @@ describe("computeBooking", () => {
       bookingPaid: 5500,
     });
     expect(c.proratedDays).toBe(28); // 3..30 June
-    expect(c.proratedAmount).toBe(5133); // 5500/30*28 = 5133.3 → 5133
+    expect(c.proratedAmount).toBe(5133); // 5500/30*28 = 5133.3 → 5133 (June dim=30, no change)
     expect(c.nextMonthRent).toBe(0); // NOT charged
     expect(c.total).toBe(15133); // 5133 + 0 + 10000
     expect(c.remaining).toBe(9633);
@@ -47,18 +47,19 @@ describe("computeBooking", () => {
     expect(c.total).toBe(20633); // 5133 + 5500 + 10000
   });
 
-  it("caps prorate at 29 days for a 2nd-of-31-day-month move-in (no false full month)", () => {
-    // The reported bug: ย้ายเข้า 2 ก.ค. (July has 31 days) → without the
-    // cap, dim-day+1 = 30, and 30 × (5500/30) = 5500 which the customer
-    // reads as a full month even though they didn't use July 1st.
+  it("2nd-of-31-day-month move-in charges the real 30 days at /dim — not a stealth full month", () => {
+    // Reported bug: ย้ายเข้า 2 ก.ค. The old /30 convention gave 30 ×
+    // (5500/30) = 5500 (= a full month) for a stay of 2-31 July. Dividing
+    // by the month's actual length keeps "days charged" honest: 30 real
+    // days × (rent / 31) is visibly less than the monthly rate.
     const c = computeBooking({
       monthlyRent: 5500,
       moveInDate: new Date(2026, 6, 2), // 2 July
       deposit: 0,
       bookingPaid: 0,
     });
-    expect(c.proratedDays).toBe(29);
-    expect(c.proratedAmount).toBe(5317); // 5500/30*29 = 5316.66 → 5317
+    expect(c.proratedDays).toBe(30); // 2..31 July
+    expect(c.proratedAmount).toBe(5323); // 5500/31*30 = 5322.58 → 5323
     expect(c.proratedAmount).toBeLessThan(5500);
   });
 
@@ -85,9 +86,9 @@ describe("computeBooking", () => {
       chargeNextMonth: true,
     });
     expect(c.proratedDays).toBe(1);
-    expect(c.proratedAmount).toBe(300); // 9000/30*1
+    expect(c.proratedAmount).toBe(290); // 9000/31*1 = 290.32 → 290
     expect(c.nextMonthRent).toBe(9000);
-    expect(c.total).toBe(9300);
+    expect(c.total).toBe(9290);
   });
 
   it("remaining can go negative when overpaid", () => {
