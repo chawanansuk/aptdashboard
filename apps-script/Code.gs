@@ -540,6 +540,27 @@ function addTask_(b) {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   if (!sh) throw new Error('sheet "งาน" not found');
   ensureTaskCostColumn_(sh); // v3.10.0
+
+  // Idempotency guard — server-side mirror of the client's hasOpenPrepTask
+  // check. The client check can race (two staff clicking near-simultaneously,
+  // optimistic state not yet reconciled, BulkAdd issuing a batch). Without
+  // this guard those races landed identical rows in the sheet — the cause of
+  // the duplicate "ย้ายเข้า" appointments that #216 papered over on the
+  // client. Skip the append when an OPEN task with the same composite
+  // identity (date|type|building|room) already exists; closed/cancelled
+  // duplicates don't block — those are historical.
+  const existingRows = findAllTaskRows_({
+    date: b.date, type: b.type, building: b.building, room: b.room,
+  });
+  if (existingRows.length > 0) {
+    for (let i = 0; i < existingRows.length; i++) {
+      const existingStatus = norm(sh.getRange(existingRows[i], TASK_COL.STATUS).getValue());
+      if (existingStatus !== 'เสร็จ' && existingStatus !== 'ยกเลิก') {
+        return { appended: false, skipped: 'duplicate-open', row: existingRows[i] };
+      }
+    }
+  }
+
   const costNum = parseFloat(b.cost);
   const row = [
     b.date || '',
@@ -561,6 +582,74 @@ function addTask_(b) {
   sh.appendRow(row);
   clearTasksCache_();
   return { appended: true, row: sh.getLastRow() };
+}
+
+/**
+ * One-off cleanup utility — collapses pre-existing duplicate task rows in
+ * the งาน sheet to a single row per composite key. Safe to run repeatedly
+ * (idempotent: a sheet that's already clean exits with deleted=0).
+ *
+ * To run: Apps Script editor → select `dedupeTasksSheet_` from the function
+ * dropdown → ▶ Run. Check the execution log for the count of merged keys
+ * and the audit sheet for per-key entries.
+ *
+ * Strategy mirrors lib/useDashboardData.dedupTasks: group by
+ * (date|type|building|room), keep the row with the richest info payload
+ * (customer + phone + note total length), delete the rest. Iterates rows
+ * descending so deleteRow doesn't shift the indices of rows still to touch.
+ */
+function dedupeTasksSheet_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
+  if (!sh) throw new Error('sheet "งาน" not found');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 3) return { scanned: 0, deleted: 0, mergedKeys: 0 };
+
+  const data = sh.getRange(2, 1, lastRow - 1, 8).getValues();
+  const info = function (r) {
+    return String(r[4] || '').length + String(r[5] || '').length + String(r[6] || '').length;
+  };
+  const groups = {}; // key → { keepRowAbs, keepInfo, dupRowsAbs[] }
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    const rowAbs = i + 2; // sheet row (1-based, header at 1)
+    const key = fmtDate_(r[0]) + '|' + norm(r[1]) + '|' + norm(r[2]) + '|' + norm(r[3]);
+    if (!key || key === '|||') continue;
+    const g = groups[key];
+    if (!g) {
+      groups[key] = { keepRowAbs: rowAbs, keepInfo: info(r), dupRowsAbs: [] };
+    } else {
+      const rinfo = info(r);
+      if (rinfo > g.keepInfo) {
+        g.dupRowsAbs.push(g.keepRowAbs);
+        g.keepRowAbs = rowAbs;
+        g.keepInfo = rinfo;
+      } else {
+        g.dupRowsAbs.push(rowAbs);
+      }
+    }
+  }
+  // Collect every row to delete, sort descending so deleteRow doesn't shift
+  // the indices of remaining targets.
+  const toDelete = [];
+  let mergedKeys = 0;
+  for (const k in groups) {
+    if (groups[k].dupRowsAbs.length > 0) {
+      mergedKeys++;
+      for (let i = 0; i < groups[k].dupRowsAbs.length; i++) {
+        toDelete.push(groups[k].dupRowsAbs[i]);
+      }
+    }
+  }
+  toDelete.sort(function (a, b) { return b - a; });
+  for (let i = 0; i < toDelete.length; i++) {
+    sh.deleteRow(toDelete[i]);
+  }
+  if (toDelete.length > 0) {
+    clearTasksCache_();
+    logAudit_('dedupe', 'task', '', 'merged ' + mergedKeys + ' keys, deleted ' + toDelete.length + ' rows', 'cleanup');
+  }
+  Logger.log('dedupeTasksSheet_: scanned=%s, mergedKeys=%s, deleted=%s', data.length, mergedKeys, toDelete.length);
+  return { scanned: data.length, mergedKeys: mergedKeys, deleted: toDelete.length };
 }
 
 function updateTask_(b) {
