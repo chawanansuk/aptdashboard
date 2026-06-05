@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
 import { isClosedStatus, isDoneStatus, isCancelledStatus, isNotInterestedStatus } from "@/lib/constants";
+import { roomKey } from "@/lib/taskKey";
 import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
 
@@ -51,7 +52,7 @@ function dayLabelShort(d: Date): string {
 export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoom }: Props) {
   const roomMap = useMemo(() => {
     const m = new Map<string, RoomView>();
-    (rooms || []).forEach((r) => m.set(`${r.building}|${r.room}`, r));
+    (rooms || []).forEach((r) => m.set(roomKey(r.building, r.room), r));
     return m;
   }, [rooms]);
   const [cursor, setCursor] = useState<Date>(() => {
@@ -225,7 +226,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
   }
 
   function renderTaskCard(t: SheetRow, idx: number) {
-    const room = roomMap.get(`${t.building}|${t.room}`);
+    const room = roomMap.get(roomKey(t.building, t.room));
     const clickable = !!(room && onSelectRoom);
     return (
       <div
@@ -429,7 +430,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
           ) : (
             <div className="ac-cal-task-list">
               {selectedTasks.map((t, i) => {
-                const room = roomMap.get(`${t.building}|${t.room}`);
+                const room = roomMap.get(roomKey(t.building, t.room));
                 const clickable = !!(room && onSelectRoom);
                 return (
                 <div

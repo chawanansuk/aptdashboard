@@ -8,6 +8,7 @@ import { useAssetAlertCounts } from "@/lib/useAssetAlertCounts";
 import { usePersistedString } from "@/lib/usePersistedString";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
 import { parsePriceOr0 } from "@/lib/money";
+import { roomKey } from "@/lib/taskKey";
 import { useRoomBookmarks, roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
@@ -594,7 +595,7 @@ export default function Home() {
 
   // ---- Bulk helpers ----
   function toggleBulkRoom(building: string, room: string) {
-    const k = `${building}|${room}`;
+    const k = roomKey(building, room);
     setBulkSelected((s) => {
       const next = new Set(s);
       if (next.has(k)) next.delete(k); else next.add(k);

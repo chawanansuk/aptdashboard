@@ -2,6 +2,7 @@ import type { Role } from "@/auth";
 import type { RoomView } from "@/types";
 import { canAccess, canPerform, type Route } from "@/lib/permissions";
 import { STATUS_LABEL } from "@/lib/constants";
+import { roomKey } from "@/lib/taskKey";
 
 /** Minimal vehicle shape used for plate/model search in the palette. */
 export interface VehicleHit {
@@ -92,7 +93,7 @@ export function searchRooms(
   // Index vehicles by building|room — multiple per room ok
   const vehiclesByRoom = new Map<string, VehicleHit[]>();
   for (const v of vehicles) {
-    const k = `${v.building}|${v.room}`;
+    const k = roomKey(v.building, v.room);
     if (!vehiclesByRoom.has(k)) vehiclesByRoom.set(k, []);
     vehiclesByRoom.get(k)!.push(v);
   }
@@ -124,7 +125,7 @@ export function searchRooms(
     // Then check vehicles for this room; capture best matching vehicle
     let bestVehicleRank = -1;
     let bestVehicle: VehicleHit | undefined;
-    const vs = vehiclesByRoom.get(`${r.building}|${r.room}`) || [];
+    const vs = vehiclesByRoom.get(roomKey(r.building, r.room)) || [];
     for (const v of vs) {
       const rk = bestRank([v.plate, v.model, v.color], query);
       if (rk !== -1 && (bestVehicleRank === -1 || rk < bestVehicleRank)) {

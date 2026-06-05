@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Vehicle } from "@/types";
+import { roomKey } from "@/lib/taskKey";
 
 /**
  * Tiny hook: fetch /api/vehicles once on mount and return a count map
@@ -45,7 +46,7 @@ export function useVehicleCountByRoom(): VehicleCountMap {
         const rows = (data?.rows || []) as Vehicle[];
         const map = new Map<string, number>();
         for (const v of rows) {
-          const k = `${v.building}|${v.room}`;
+          const k = roomKey(v.building, v.room);
           map.set(k, (map.get(k) ?? 0) + 1);
         }
         setCounts(map);
@@ -61,7 +62,7 @@ export function useVehicleCountByRoom(): VehicleCountMap {
   }, [tick]);
 
   return {
-    get: (building, room) => counts.get(`${building}|${room}`) ?? 0,
+    get: (building, room) => counts.get(roomKey(building, room)) ?? 0,
     refresh: () => setTick((t) => t + 1),
     loading,
   };

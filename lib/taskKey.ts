@@ -23,3 +23,17 @@ import type { SheetRow } from "@/types";
 export function taskKey(t: Pick<SheetRow, "date" | "building" | "room" | "type">): string {
   return `${t.date}|${(t.building || "").trim()}|${(t.room || "").trim()}|${t.type}`;
 }
+
+/**
+ * `${building}|${room}` — the canonical room identifier used by every
+ * per-room Map/Set lookup (vehicle counts, equipment badges, sidebar
+ * filters, sales pipeline rooms, command palette).
+ *
+ * Always trims both halves so a stray space in one data source
+ * ("Kl |101" vs "Kl|101") doesn't silently miss a Map.get and show 0
+ * in a badge. The same idiom was hand-built in 15+ sites before this;
+ * several of them forgot the trim and were latent badge-mismatch bugs.
+ */
+export function roomKey(building: string | undefined | null, room: string | undefined | null): string {
+  return `${(building || "").trim()}|${(room || "").trim()}`;
+}
