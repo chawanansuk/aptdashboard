@@ -23,6 +23,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 
 export type CacheState = "fresh" | "stale" | "missing";
 
@@ -94,6 +95,29 @@ export class SwrSlot<T> {
   }
 }
 
+/** md5-prefix ETag over the rows JSON — same shape as the dashboard
+ *  endpoints. Collisions are harmless: a miss just sends the body anyway. */
+function makeRowsEtag<T>(rows: T[], tag: string): string {
+  const hash = createHash("md5").update(JSON.stringify(rows)).digest("hex");
+  return `W/"${tag}-${hash.slice(0, 16)}"`;
+}
+
+function jsonWithEtag<T>(
+  body: T,
+  rows: unknown[],
+  etagTag: string,
+  ifNoneMatch: string | null,
+  cacheHeaders: Record<string, string>,
+): NextResponse {
+  const etag = makeRowsEtag(rows, etagTag);
+  const headers = { ...cacheHeaders, ETag: etag };
+  if (ifNoneMatch === etag) {
+    // 304: body skipped, ETag echoed so the browser keeps using its copy.
+    return new NextResponse(null, { status: 304, headers });
+  }
+  return NextResponse.json(body, { headers });
+}
+
 /**
  * Serve a `{ rows }` JSON response backed by an SwrSlot.
  *
@@ -102,24 +126,31 @@ export class SwrSlot<T> {
  *   - miss   → block on `fetchFresh`, cache, return; on upstream failure
  *              fall back to emergency-stale if any, else surface the error
  *
- * `errorPrefix` is the Thai user-facing message stem for the hard-fail
- * case (no cache + upstream down).
+ * Pass `req` to opt into 304 short-circuits: the helper hashes the rows
+ * to a weak ETag and returns 304 when `If-None-Match` matches — the same
+ * pattern the dashboard slice endpoints use. `etagTag` is a short label
+ * baked into the ETag (e.g. "facilities") so two routes can't collide on
+ * a private CDN. `errorPrefix` is the Thai user-facing message stem for
+ * the hard-fail case (no cache + upstream down).
  */
 export async function serveCachedRows<T>(
   slot: SwrSlot<T[]>,
   fetchFresh: () => Promise<T[]>,
   errorPrefix: string,
+  opts: { req?: Request; etagTag?: string } = {},
 ): Promise<NextResponse> {
   const cacheHeaders = {
     "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
   };
+  const { req, etagTag = "rows" } = opts;
+  const ifNoneMatch = req?.headers.get("if-none-match") ?? null;
 
   const c = slot.get();
 
   if (c.state === "fresh" && c.data) {
-    return NextResponse.json(
+    return jsonWithEtag(
       { rows: c.data, cached: true, cacheState: "fresh", ageMs: c.ageMs },
-      { headers: cacheHeaders },
+      c.data, etagTag, ifNoneMatch, cacheHeaders,
     );
   }
 
@@ -137,9 +168,9 @@ export async function serveCachedRows<T>(
         }
       })();
     }
-    return NextResponse.json(
+    return jsonWithEtag(
       { rows: c.data, cached: true, cacheState: "stale", ageMs: c.ageMs },
-      { headers: cacheHeaders },
+      c.data, etagTag, ifNoneMatch, cacheHeaders,
     );
   }
 
@@ -147,17 +178,17 @@ export async function serveCachedRows<T>(
   try {
     const rows = await fetchFresh();
     slot.set(rows);
-    return NextResponse.json(
+    return jsonWithEtag(
       { rows, cached: false, cacheState: "missing" },
-      { headers: cacheHeaders },
+      rows, etagTag, ifNoneMatch, cacheHeaders,
     );
   } catch (e) {
     const error = e instanceof Error ? e.message : "unknown";
     const emergency = slot.peekEmergency();
     if (emergency) {
-      return NextResponse.json(
+      return jsonWithEtag(
         { rows: emergency, cached: true, cacheState: "emergency-stale", error },
-        { headers: cacheHeaders },
+        emergency, etagTag, ifNoneMatch, cacheHeaders,
       );
     }
     return NextResponse.json(

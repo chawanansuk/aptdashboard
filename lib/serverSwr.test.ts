@@ -119,4 +119,38 @@ describe("serveCachedRows", () => {
     expect(body.ok).toBe(false);
     expect(body.error).toBe("ดึงล้มเหลว: boom");
   });
+
+  it("emits a weak ETag and 304s on matching If-None-Match", async () => {
+    const slot = new SwrSlot<number[]>();
+    const fetchFresh = vi.fn(async () => [1, 2, 3]);
+
+    const res1 = await serveCachedRows(slot, fetchFresh, "err", {
+      req: new Request("https://x/api"), etagTag: "t",
+    });
+    const etag = res1.headers.get("ETag");
+    expect(etag).toMatch(/^W\/"t-[a-f0-9]+"$/);
+    expect(res1.status).toBe(200);
+
+    // Same rows, same etag → 304, empty body, ETag echoed.
+    const res2 = await serveCachedRows(slot, fetchFresh, "err", {
+      req: new Request("https://x/api", { headers: { "if-none-match": etag! } }),
+      etagTag: "t",
+    });
+    expect(res2.status).toBe(304);
+    expect(res2.headers.get("ETag")).toBe(etag);
+    expect(await res2.text()).toBe("");
+  });
+
+  it("ETag stays stable across fresh + stale states for the same rows", async () => {
+    const slot = new SwrSlot<number[]>(TTLS);
+    slot.set([1, 2], Date.now()); // fresh
+    const a = await serveCachedRows(slot, async () => [1, 2], "err", {
+      req: new Request("https://x/api"), etagTag: "t",
+    });
+    slot.set([1, 2], Date.now() - (TTLS.freshMs + 1_000)); // stale
+    const b = await serveCachedRows(slot, async () => [1, 2], "err", {
+      req: new Request("https://x/api"), etagTag: "t",
+    });
+    expect(a.headers.get("ETag")).toBe(b.headers.get("ETag"));
+  });
 });

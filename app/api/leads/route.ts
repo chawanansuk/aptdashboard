@@ -36,13 +36,13 @@ function bad(msg: string, status = 400) {
   return NextResponse.json({ ok: false, error: msg }, { status });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
   if (!canPerform(session.user.roles, "lead.edit")) {
     return bad("ไม่มีสิทธิ์เข้าถึงผู้สนใจเช่า", 403);
   }
-  return serveCachedRows(leadSlot, fetchLeads, "ดึงข้อมูล Lead ไม่สำเร็จ");
+  return serveCachedRows(leadSlot, fetchLeads, "ดึงข้อมูล Lead ไม่สำเร็จ", { req, etagTag: "leads" });
 }
 
 export async function POST(req: Request) {
