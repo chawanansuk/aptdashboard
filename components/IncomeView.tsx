@@ -2,20 +2,16 @@
 
 import { useMemo } from "react";
 import type { RoomView } from "@/types";
+import { formatBaht, parsePriceOr0 as priceNum } from "@/lib/money";
 
 interface Props {
   rooms: RoomView[];
   activeBuilding: string;
 }
 
-function priceNum(s: string): number {
-  if (!s) return 0;
-  const n = parseInt(String(s).replace(/[^0-9]/g, ""), 10);
-  return Number.isFinite(n) ? n : 0;
-}
-
+/** Show "0 ฿" not "" — IncomeView always wants a money value visible. */
 function fmtBaht(n: number): string {
-  return n.toLocaleString("th-TH") + " ฿";
+  return formatBaht(n, { showZero: true });
 }
 
 export default function IncomeView({ rooms, activeBuilding }: Props) {

@@ -6,16 +6,15 @@ import { parseThaiDate } from "@/lib/dateUtils";
 import { getMaintenanceStatus } from "@/lib/maintenanceUtils";
 import { isClosedStatus } from "@/lib/constants";
 import { cachedFetchJson } from "@/lib/cachedFetchJson";
+import { parsePriceOr0 } from "@/lib/money";
 
 /* ====================================================================
  * Pure computation helpers — exported for testing.
  * ==================================================================== */
 
-export function priceNum(s: string): number {
-  if (!s) return 0;
-  const n = parseInt(String(s).replace(/[^0-9]/g, ""), 10);
-  return Number.isFinite(n) ? n : 0;
-}
+/** Re-export of lib/money.parsePriceOr0 to keep this hook's existing
+ *  consumers (and their tests) importing `priceNum` unchanged. */
+export const priceNum = parsePriceOr0;
 
 function todayDDMMYYYY(): string {
   const d = new Date();

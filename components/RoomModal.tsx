@@ -7,7 +7,8 @@ import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
 import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask, canAddCleanTask } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
-import { sumCompletedCosts, formatBaht as formatTaskBaht } from "@/lib/taskCost";
+import { sumCompletedCosts } from "@/lib/taskCost";
+import { formatBaht as formatTaskBaht, formatBaht as fmtBahtFromMoney } from "@/lib/money";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
 import RoomImageGallery from "./RoomImageGallery";
@@ -92,11 +93,11 @@ function daysUntilContract(contractEnd: string): number | null {
   return Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+// Input-field formatter: digits only, no "฿" suffix (the input has its
+// own visual prefix). Delegates to lib/money so the parse rules match
+// every other money field in the app.
 function formatBaht(s: string): string {
-  if (!s) return "";
-  const n = parseInt(String(s).replace(/[^0-9]/g, ""), 10);
-  if (!Number.isFinite(n)) return "";
-  return n.toLocaleString("th-TH");
+  return fmtBahtFromMoney(s, { suffix: "" });
 }
 
 function relativeDate(s: string): string {

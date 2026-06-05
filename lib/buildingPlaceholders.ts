@@ -26,12 +26,7 @@ function median(nums: number[]): number | null {
   return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 }
 
-/** Extract leading numeric value from a price string. Returns NaN if none. */
-function parsePrice(s: string | undefined | null): number {
-  if (!s) return NaN;
-  const n = parseInt(String(s).replace(/[^0-9]/g, ""), 10);
-  return Number.isFinite(n) ? n : NaN;
-}
+import { parsePrice } from "./money";
 
 /**
  * Return a representative room number for the building — the most common
