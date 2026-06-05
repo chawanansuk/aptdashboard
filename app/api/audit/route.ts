@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { isManagement } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
+import { etagJsonResponse } from "@/lib/etagJsonResponse";
 import type { AuditEntry } from "@/types";
 
 export const runtime = "nodejs";
@@ -34,7 +35,8 @@ export async function GET(req: Request) {
       "getAudit", { limit }, { idempotent: true },
     );
     if (!json.ok) return bad(json.error || "backend error", 502);
-    return NextResponse.json({ rows: (json.result?.rows || []) as AuditEntry[] });
+    const rows = (json.result?.rows || []) as AuditEntry[];
+    return etagJsonResponse({ rows }, req, { tag: "audit" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     const status = e instanceof AppsScriptError ? e.status : 502;
