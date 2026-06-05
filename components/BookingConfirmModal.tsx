@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { computeBooking } from "@/lib/bookingMath";
 import { formatBookingMessage, moveInLabel } from "@/lib/bookingMessage";
 import { toast } from "@/lib/toast";
+import { parsePriceOr0 as parseMoney } from "@/lib/money";
 
 /**
  * Booking confirmation (dashboard-first). Staff fill the booking once
@@ -37,12 +38,9 @@ interface Props {
   onConfirm: (data: BookingSaveData) => void | Promise<void>;
 }
 
-function parseMoney(s: string): number {
-  const n = parseInt(String(s).replace(/[^0-9]/g, ""), 10);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** Keep only digits — what we store in state for money fields. */
+/** Keep only digits — what we store in state for money fields. Mirrors
+ *  parseMoney's strip strategy without going through parseInt — used by
+ *  the controlled-input onChange that needs the digit-only string. */
 function moneyDigits(s: string): string {
   return s.replace(/[^0-9]/g, "");
 }

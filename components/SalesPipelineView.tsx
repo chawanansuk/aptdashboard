@@ -6,6 +6,7 @@ import { STATUS_DOT } from "@/lib/constants";
 import { Icon } from "@/lib/icons";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { isClosedStatus } from "@/lib/constants";
+import { formatBaht as formatBahtFromMoney, parsePriceOr0 } from "@/lib/money";
 
 interface Props {
   rooms: RoomView[];
@@ -506,11 +507,11 @@ function KpiCard({ label, value, accent, onClick, ariaLabel }: KpiCardProps) {
  * Pure helpers — top-level so they're testable
  * ==================================================================== */
 
+/** Suffix-less baht formatter — kept here as an export so consumers
+ *  (incl. unit tests) don't churn. Delegates to lib/money so the parse
+ *  rules match every other money field in the app. */
 export function formatBaht(s: string | undefined | null): string {
-  if (!s) return "";
-  const n = parseInt(String(s).replace(/[^0-9]/g, ""), 10);
-  if (!Number.isFinite(n)) return "";
-  return n.toLocaleString("th-TH");
+  return formatBahtFromMoney(s, { suffix: "" });
 }
 
 export function formatDateShort(d: Date): string {

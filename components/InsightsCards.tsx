@@ -28,12 +28,7 @@ interface Props {
   activeBuilding: string;
 }
 
-function parsePrice(s: string): number {
-  // RoomRow.price is free-text from sheet ("3500", "3,500", "3,500 บาท")
-  // Strip non-digits, parse, NaN → 0.
-  const n = parseInt((s || "").replace(/[^\d]/g, ""), 10);
-  return Number.isFinite(n) ? n : 0;
-}
+import { parsePriceOr0 as parsePrice } from "@/lib/money";
 
 function fmtBaht(n: number): string {
   if (n === 0) return "—";

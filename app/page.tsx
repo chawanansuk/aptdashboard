@@ -7,6 +7,7 @@ import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
 import { useAssetAlertCounts } from "@/lib/useAssetAlertCounts";
 import { usePersistedString } from "@/lib/usePersistedString";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
+import { parsePriceOr0 } from "@/lib/money";
 import { useRoomBookmarks, roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
@@ -540,8 +541,7 @@ export default function Home() {
     let monthlyIncome = 0;
     for (const r of scope) {
       if (r.status !== "occupied") continue;
-      const n = parseInt(String(r.price || "").replace(/[^0-9]/g, ""), 10);
-      if (Number.isFinite(n)) monthlyIncome += n;
+      monthlyIncome += parsePriceOr0(r.price);
     }
     // maintenanceOverdue / DueSoon are owned by the (lazy) maintenance
     // module — left at 0 here so the greeting falls back gracefully; can
