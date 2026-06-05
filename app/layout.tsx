@@ -1,5 +1,23 @@
 import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Sans_Thai, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+
+// Sales dashboard (ภาพรวมขาย v2) typography. Exposed as CSS variables so
+// only `sales.module.css` opts in via var(--font-plex-*) — the rest of the
+// app keeps its existing system-font stack untouched. self-hosted by
+// next/font (no runtime Google request, no layout shift).
+const plexSansThai = IBM_Plex_Sans_Thai({
+  subsets: ["thai", "latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-plex-sans",
+  display: "swap",
+});
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-plex-mono",
+  display: "swap",
+});
 import PWAClient from "@/components/PWAClient";
 import SessionProviderClient from "@/components/SessionProviderClient";
 import HealthBanner from "@/components/HealthBanner";
@@ -53,7 +71,10 @@ export default async function RootLayout({
         <link rel="preconnect" href="https://lh3.googleusercontent.com" crossOrigin="" />
         <link rel="dns-prefetch" href="https://lh3.googleusercontent.com" />
       </head>
-      <body className="antialiased" style={{ minHeight: "100vh" }}>
+      <body
+        className={`antialiased ${plexSansThai.variable} ${plexMono.variable}`}
+        style={{ minHeight: "100vh" }}
+      >
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,

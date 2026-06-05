@@ -70,7 +70,7 @@ import { publishBusEvent } from "@/lib/realtimeBus";
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
 const TenantsView     = lazy(() => import("@/components/TenantsView"));
-const SalesPipelineView = lazy(() => import("@/components/SalesPipelineView"));
+const SalesPipelineView = lazy(() => import("@/components/sales/SalesPipelineV2"));
 const EngineerKanban    = lazy(() => import("@/components/EngineerKanban"));
 const CalendarView    = lazy(() => import("@/components/CalendarView"));
 const MaintenanceView = lazy(() => import("@/components/MaintenanceView"));
@@ -1365,6 +1365,7 @@ export default function Home() {
                   onSelectRoom={(r) => setSelectedRoom(r)}
                   onQuickAddLead={openQuickAddLead}
                   onChangeView={(v) => setActiveView(v)}
+                  lastUpdated={lastUpdated}
                 />
               </Suspense>
             </ErrorBoundary>
