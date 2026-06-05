@@ -2,10 +2,10 @@
  * Money formatting + parsing — single source of truth for THB.
  *
  * Replaces the three divergent `formatBaht` functions that were copy-
- * pasted across the codebase (`lib/taskCost.ts`, `components/RoomModal.tsx`,
- * `components/SalesPipelineView.tsx`) and the `parseInt(s.replace(...))`
- * idiom that was duplicated in 8 sites. The old `taskCost.formatBaht`
- * re-exports from here so existing callers don't churn.
+ * pasted across several components (taskCost, RoomModal, the sales view)
+ * and the `parseInt(s.replace(...))` idiom that was duplicated in 8
+ * sites. The old `taskCost.formatBaht` re-exports from here so existing
+ * callers don't churn.
  *
  * Inputs from the sheet are messy: prices come as free-text ("3500",
  * "3,500", "3,500 บาท", " 3500"), and money fields in our own UI
