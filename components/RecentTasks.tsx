@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { SheetRow, RoomView } from "@/types";
 import { relativeTimeShort, formatFullTimestamp } from "@/lib/relativeTime";
 import { parseTaskLocation } from "@/lib/taskLocation";
@@ -59,7 +59,7 @@ function sortKey(t: SheetRow): number {
   return 0;
 }
 
-export default function RecentTasks({ tasks, rooms, activeBuilding, onSelectRoom }: Props) {
+function RecentTasks({ tasks, rooms, activeBuilding, onSelectRoom }: Props) {
   const recent = useMemo(() => {
     const scoped = activeBuilding === "ทั้งหมด"
       ? tasks
@@ -127,3 +127,5 @@ export default function RecentTasks({ tasks, rooms, activeBuilding, onSelectRoom
     </section>
   );
 }
+
+export default memo(RecentTasks);

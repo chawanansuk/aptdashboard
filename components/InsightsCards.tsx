@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { RoomView, SheetRow } from "@/types";
 import { isDoneStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
@@ -48,7 +48,7 @@ function scopeTasks(tasks: SheetRow[], activeBuilding: string): SheetRow[] {
   return tasks.filter((t) => t.building === activeBuilding);
 }
 
-export default function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
+function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
   // Gate revenue card by finance permission. IMPORTANT: use the
   // effective roles (respects "view as" override) rather than the
   // raw session — management viewing-as-engineer must see the
@@ -156,3 +156,5 @@ export default function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
     </section>
   );
 }
+
+export default memo(InsightsCards);

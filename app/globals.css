@@ -1865,6 +1865,13 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   border: 1px solid #E2E8F0;
   border-radius: 12px;
   transition: background .15s ease;
+  /* Same trick as the room grid (.ac-rc) — large task lists on
+     task-heavy properties render every row; off-screen ones can skip
+     layout/paint. contain-intrinsic-size feeds an approximation so the
+     scrollbar doesn't jump while cards are skipped. Mobile rows are a
+     bit taller; the value is intentionally a floor not an exact match. */
+  content-visibility: auto;
+  contain-intrinsic-size: 0 88px;
 }
 .ac-task:hover {
   background: #F1F5F9;
@@ -6399,6 +6406,10 @@ button.ac-kanban-kpi:focus-visible {
   flex-direction: column;
   gap: 6px;
   transition: opacity 120ms ease;
+  /* Same trick as .ac-rc / .ac-task — kanban columns hold every open
+     task; off-screen cards skip layout/paint. */
+  content-visibility: auto;
+  contain-intrinsic-size: 0 140px;
 }
 /* Clickable card (Task 33) — hover + focus cue when entire card opens
    detail drawer. Inline action buttons keep their own onClick via

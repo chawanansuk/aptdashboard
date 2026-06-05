@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Role } from "@/auth";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
@@ -92,7 +92,7 @@ const DENSITY_TITLE: Record<RoomDensity, string> = {
   large: "ใหญ่ — เห็นข้อมูลผู้เช่า",
 };
 
-export default function RoomsView({
+function RoomsView({
   visibleRooms, activeFilter, onChangeFilter,
   bulkMode, bulkSelected, onToggleBulkMode, onToggleBulkRoom, onSelectRoom,
   roles, onRepairRoom, vehicleCountByRoom, equipmentCountByRoom,
@@ -440,3 +440,10 @@ export default function RoomsView({
     </>
   );
 }
+
+/** Memoized so a parent re-render (poll tick, search keystroke,
+ *  unrelated state change) doesn't reconcile the whole room grid when
+ *  inputs are unchanged. Default shallow compare is enough — props are
+ *  primitives + the rooms array, which keeps a stable identity across
+ *  no-change polls once the upstream ETag/304 skips a setTasks. */
+export default memo(RoomsView);

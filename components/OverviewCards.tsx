@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { Role } from "@/auth";
 import type { RoomView, SheetRow } from "@/types";
 import { canAccess, canPerform } from "@/lib/permissions";
@@ -121,7 +121,7 @@ function StatCard({ label, value, sub, tone = "neutral", onClick, loading }: Car
   );
 }
 
-export default function OverviewCards({
+function OverviewCards({
   rooms, tasks, activeBuilding, roles, onNavigate,
 }: Props) {
   // Scope rooms/tasks by activeBuilding (header chip controls this)
@@ -201,3 +201,9 @@ export default function OverviewCards({
     </section>
   );
 }
+
+/** Memoized so an idle 60s poll (or unrelated parent state churn)
+ *  doesn't recompute OccupancyCard + stat tiles. Stats lean on
+ *  useMemo over rooms/tasks, but those memos only fire if the
+ *  component renders at all — memoing here is the gate. */
+export default memo(OverviewCards);
