@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { SheetRow } from "@/types";
 import { canDeleteTask, canViewFinancials } from "@/lib/permissions";
@@ -50,7 +50,7 @@ function isClosed(status: string): boolean {
   return isDone(status) || isCancelled(status) || isNotInterested(status);
 }
 
-export default function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: Props) {
+function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: Props) {
   const { data: session } = useSession();
   const canDelete = canDeleteTask(session?.user?.roles);
   // Cost column in CSV exposed only to roles that can view financials
@@ -580,3 +580,5 @@ function TaskCard({
     </div>
   );
 }
+
+export default memo(TasksList);
