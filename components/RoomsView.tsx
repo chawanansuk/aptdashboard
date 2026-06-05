@@ -6,6 +6,8 @@ import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
 import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { relativeThaiDate } from "@/lib/relativeDate";
+import { roomKey as makeRoomKey } from "@/lib/taskKey";
 import { useRoomDensity, ROOM_DENSITY_VALUES, type RoomDensity } from "@/lib/useRoomDensity";
 import { canViewTenant } from "@/lib/permissions";
 import RoomQuickActions from "./RoomQuickActions";
@@ -15,17 +17,10 @@ import RoomQuickActions from "./RoomQuickActions";
  * Used in heatmap tooltip to give context on the most recent task
  * without forcing the user to click in.
  */
-function relativeDateLabel(dmy: string, now: Date = new Date()): string {
-  const d = parseThaiDate(dmy);
-  if (!d) return dmy || "";
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diff = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff === 0) return "วันนี้";
-  if (diff === 1) return "พรุ่งนี้";
-  if (diff === -1) return "เมื่อวาน";
-  if (diff > 1)  return `อีก ${diff} วัน`;
-  return `${Math.abs(diff)} วันที่แล้ว`;
-}
+/** Heatmap tooltip uses the no-clamp variant — every day diff shown
+ *  literally ("อีก 120 วัน") because the tooltip is meant to be precise. */
+const relativeDateLabel = (dmy: string, now: Date = new Date()): string =>
+  relativeThaiDate(dmy, { now });
 
 /**
  * Pick the "most relevant" task to show in heatmap tooltip.
@@ -115,7 +110,7 @@ export default function RoomsView({
   // card key is tracked here; onFocus syncs it (covers click + Tab-in).
   const gridRef = useRef<HTMLDivElement>(null);
   const [focusKey, setFocusKey] = useState<string | null>(null);
-  const roomKey = (r: RoomView) => `${r.building}|${r.room}`;
+  const roomKey = (r: RoomView) => makeRoomKey(r.building, r.room);
 
   /** Geometry-based arrow navigation — robust to density + wrapping
    *  since it measures rendered positions instead of guessing columns.
@@ -263,7 +258,7 @@ export default function RoomsView({
             </header>
             <div className={`ac-rg ac-rg-${density}`}>
               {g.list.map((r) => {
-                const k = `${r.building}|${r.room}`;
+                const k = makeRoomKey(r.building, r.room);
                 const checked = bulkSelected.has(k);
                 return (
                   <div

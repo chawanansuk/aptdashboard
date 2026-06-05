@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { taskKey } from "./taskKey";
+import { taskKey, roomKey } from "./taskKey";
 
 describe("taskKey", () => {
   it("joins date|building|room|type", () => {
@@ -33,5 +33,27 @@ describe("taskKey", () => {
     expect(
       taskKey({ date: "22/05/2026", building: "มั่งมี", room: "1.1", type: "ทำสะอาด" })
     ).toBe("22/05/2026|มั่งมี|1.1|ทำสะอาด");
+  });
+});
+
+describe("roomKey", () => {
+  it("joins building|room", () => {
+    expect(roomKey("Kl", "101")).toBe("Kl|101");
+  });
+
+  it("trims stray whitespace on both halves — the foot-gun the helper exists for", () => {
+    expect(roomKey(" Kl ", "101")).toBe("Kl|101");
+    expect(roomKey("Kl", " 101 ")).toBe("Kl|101");
+  });
+
+  it("matches what taskKey would produce for the same building/room", () => {
+    const tk = taskKey({ date: "x", building: " Kl ", room: " 101 ", type: "y" });
+    const rk = roomKey(" Kl ", " 101 ");
+    expect(tk.startsWith(`x|${rk}|`)).toBe(true);
+  });
+
+  it("handles null/undefined as empty", () => {
+    expect(roomKey(null, "101")).toBe("|101");
+    expect(roomKey("Kl", undefined)).toBe("Kl|");
   });
 });

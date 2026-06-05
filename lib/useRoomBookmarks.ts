@@ -25,9 +25,11 @@ export interface RoomBookmarks {
 
 const EMPTY: RoomBookmarks = { recent: [], pinned: [] };
 
-export function roomBookmarkKey(building: string, room: string): string {
-  return `${building}|${room}`;
-}
+/** Re-export of taskKey.roomKey under the bookmark-flavor name so
+ *  existing call sites (page.tsx + the bookmark UI) keep working. The
+ *  delegation adds whitespace trim — a bookmark stored with a stray
+ *  space used to silently miss its own match; centralizing fixed that. */
+export { roomKey as roomBookmarkKey } from "./taskKey";
 
 /** Prepend key, dedupe, cap. Most-recent-first. */
 export function pushRecent(recent: string[], key: string, max = MAX_RECENT): string[] {

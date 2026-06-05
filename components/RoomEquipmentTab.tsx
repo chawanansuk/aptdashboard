@@ -8,7 +8,7 @@ import {
   MAINTENANCE_STATUS_COLOR, MAINTENANCE_STATUS_LABEL,
 } from "@/lib/constants";
 import {
-  computeNextService, getMaintenanceStatus, daysUntilService,
+  computeNextService, getMaintenanceStatus, daysUntilService, formatDateLabel,
 } from "@/lib/maintenanceUtils";
 import { canAddEngTask } from "@/lib/permissions";
 import EmptyState from "./EmptyState";
@@ -29,13 +29,6 @@ interface Props {
 }
 
 type FilterKey = "all" | EquipmentType;
-
-function formatDateLabel(s: string): string {
-  if (!s) return "—";
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return s;
-  return `${m[3]}/${m[2]}/${m[1]}`;
-}
 
 export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
   const { data: session } = useSession();

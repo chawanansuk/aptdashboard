@@ -7,6 +7,7 @@ import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
 import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask, canAddCleanTask } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { relativeThaiDate } from "@/lib/relativeDate";
 import { sumCompletedCosts } from "@/lib/taskCost";
 import { formatBaht as formatTaskBaht, formatBaht as fmtBahtFromMoney } from "@/lib/money";
 import { useFocusTrap } from "@/lib/useFocusTrap";
@@ -100,18 +101,15 @@ function formatBaht(s: string): string {
   return fmtBahtFromMoney(s, { suffix: "" });
 }
 
+/** Modal clamps to ±7 days then shows the raw date — beyond a week
+ *  the literal date is more useful than "อีก 60 วัน". Wording for
+ *  near-term diffs intentionally differs from RoomsView ("ใน" vs
+ *  "อีก") because the modal is a detail view; that nuance was
+ *  preserved in the local override below. */
 function relativeDate(s: string): string {
-  const d = parseThaiDate(s);
-  if (!d) return s || "—";
-  const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const diff = Math.round((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff === 0) return "วันนี้";
-  if (diff === 1) return "พรุ่งนี้";
-  if (diff === -1) return "เมื่อวาน";
-  if (diff > 1 && diff <= 7) return `ใน ${diff} วัน`;
-  if (diff < -1 && diff >= -7) return `${Math.abs(diff)} วันที่แล้ว`;
-  return s;
+  const r = relativeThaiDate(s, { clampDays: 7, fallback: "raw" });
+  // Re-word "อีก N วัน" → "ใน N วัน" for the modal copy.
+  return r.replace(/^อีก /, "ใน ");
 }
 
 function validate(values: { price: string; phone: string; contractEnd: string }): Errors {
