@@ -38,12 +38,15 @@ describe("maintenanceCache — SWR semantics", () => {
     expect(out.ageMs).toBeGreaterThan(FRESH_TTL_MS);
   });
 
-  it("expires (and GCs) once past STALE_TTL", () => {
+  it("reports missing once past STALE_TTL but preserves the value for the emergency peek", () => {
     setEquipmentCache([]);
-    const out = getEquipmentCacheState(Date.now() + STALE_TTL_MS + 1_000);
-    expect(out.state).toBe("missing");
-    // Subsequent calls still missing (slot was GC'd)
-    expect(getEquipmentCacheState().state).toBe("missing");
+    const tFuture = Date.now() + STALE_TTL_MS + 1_000;
+    expect(getEquipmentCacheState(tFuture).state).toBe("missing");
+    // Slot is NOT GC'd — peekEmergency must still see the value (covered
+    // in the emergency-stale block below; this assertion just guards the
+    // intent so a future "free up memory" tweak doesn't silently re-break
+    // the fallback).
+    expect(peekEmergencyEquipmentCache(tFuture)).not.toBeNull();
   });
 
   it("invalidateEquipmentCacheServer forces missing", () => {
@@ -66,6 +69,18 @@ describe("maintenanceCache — emergency-stale peek", () => {
 
   it("returns null when slot has never been set", () => {
     expect(peekEmergencyEquipmentCache()).toBeNull();
+  });
+
+  it("survives a get() at past STALE_TTL — emergency peek still works after a normal lookup", () => {
+    // Regression for the dead-code bug in SwrSlot.get: it used to null the
+    // value once past STALE_TTL, which made peekEmergency unreachable —
+    // /api/maintenance-plan would return 502 instead of the 1-hour fallback
+    // on an upstream Apps Script outage. A normal `get()` must NOT destroy
+    // the slot used by the emergency path.
+    setEquipmentCache([{ kind: "marker" } as never]);
+    const t = Date.now() + STALE_TTL_MS + 60_000;
+    expect(getEquipmentCacheState(t).state).toBe("missing");
+    expect(peekEmergencyEquipmentCache(t)).not.toBeNull();
   });
 });
 

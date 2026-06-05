@@ -36,7 +36,11 @@ class SwrSlot<T> {
     const ageMs = now - this.savedAt;
     if (ageMs <= FRESH_TTL_MS) return { state: "fresh", data: this.value, ageMs };
     if (ageMs <= STALE_TTL_MS) return { state: "stale", data: this.value, ageMs };
-    this.value = null;
+    // Past STALE_TTL but keep `value` around so `peekEmergency` can still
+    // serve it on an upstream outage (up to EMERGENCY_STALE_TTL_MS). The
+    // previous `this.value = null` here defeated that fallback — once a
+    // slot tipped past 10 min, the 502-vs-emergency-stale path in
+    // /api/maintenance-plan could never return data.
     return { state: "missing", data: null, ageMs };
   }
 
