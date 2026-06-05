@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
+import { etagJsonResponse } from "@/lib/etagJsonResponse";
 import type { Requisition } from "@/types";
 
 export const runtime = "nodejs";
@@ -41,7 +42,8 @@ export async function GET(req: Request) {
       "getRequisitions", { partId }, { idempotent: true },
     );
     if (!json.ok) return bad(json.error || "backend error", 502);
-    return NextResponse.json({ rows: (json.result?.rows || []) as Requisition[] });
+    const rows = (json.result?.rows || []) as Requisition[];
+    return etagJsonResponse({ rows }, req, { tag: "requisitions" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     const status = e instanceof AppsScriptError ? e.status : 502;

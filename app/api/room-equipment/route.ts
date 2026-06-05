@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
+import { etagJsonResponse } from "@/lib/etagJsonResponse";
 import { invalidateEquipmentCacheServer } from "@/lib/maintenanceCache";
 import type { RoomEquipment } from "@/types";
 
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
     );
     if (!json.ok) return bad(json.error || "backend error", 502);
     const rows = (json.result?.rows || []) as RoomEquipment[];
-    return NextResponse.json({ rows });
+    return etagJsonResponse({ rows }, req, { tag: "room-equipment" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     const status = e instanceof AppsScriptError ? e.status : 502;
