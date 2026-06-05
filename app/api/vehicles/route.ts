@@ -38,10 +38,10 @@ function bad(msg: string, status = 400) {
   return NextResponse.json({ ok: false, error: msg }, { status });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
-  return serveCachedRows(vehicleSlot, fetchVehicles, "ดึงข้อมูลยานพาหนะไม่สำเร็จ");
+  return serveCachedRows(vehicleSlot, fetchVehicles, "ดึงข้อมูลยานพาหนะไม่สำเร็จ", { req, etagTag: "vehicles" });
 }
 
 export async function POST(req: Request) {

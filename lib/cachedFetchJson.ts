@@ -34,7 +34,9 @@ const cache = new Map<string, Entry>();
 const inflight = new Map<string, Promise<unknown>>();
 export const CACHED_FETCH_TTL_MS = 30_000;
 
-export async function cachedFetchJson<T>(url: string): Promise<T> {
+export async function cachedFetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+
   const now = Date.now();
   const hit = cache.get(url);
   if (hit && now - hit.at <= CACHED_FETCH_TTL_MS) {
@@ -43,9 +45,12 @@ export async function cachedFetchJson<T>(url: string): Promise<T> {
   if (hit) cache.delete(url);
 
   const existing = inflight.get(url);
-  if (existing) return existing as Promise<T>;
-
-  const p = fetch(url, { cache: "no-store" })
+  // `no-cache` (not `no-store`) so the browser participates in the
+  // ETag/304 dance the server now does (serverSwr.serveCachedRows). A
+  // matching ETag → 304 → browser HTTP cache returns the cached body
+  // (~50-150KB skipped per route per cycle), without us having to track
+  // ETags here. `no-store` would have stripped that path entirely.
+  const p = existing ?? fetch(url, { cache: "no-cache" })
     .then(async (r) => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return (await r.json()) as T;
@@ -60,8 +65,25 @@ export async function cachedFetchJson<T>(url: string): Promise<T> {
       throw e;
     });
 
-  inflight.set(url, p);
-  return p;
+  if (!existing) inflight.set(url, p);
+
+  // Race against the abort signal so a caller (e.g. an unmounted hook)
+  // can stop awaiting, while the underlying fetch still completes and
+  // populates the cache for the next caller — the inflight Map already
+  // dedups across them, so canceling one mustn't poison the others.
+  if (signal) return racedWithSignal(p as Promise<T>, signal);
+  return p as Promise<T>;
+}
+
+function racedWithSignal<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException("aborted", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(
+      (v) => { signal.removeEventListener("abort", onAbort); resolve(v); },
+      (e) => { signal.removeEventListener("abort", onAbort); reject(e); },
+    );
+  });
 }
 
 /** Drop a URL's cache (call after a POST/PUT mutation hitting it). */

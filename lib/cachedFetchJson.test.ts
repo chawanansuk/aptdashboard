@@ -89,4 +89,34 @@ describe("cachedFetchJson", () => {
     expect(b).toEqual({ k: "b" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("uses 'no-cache' so the browser ETag/304 flow stays intact", async () => {
+    fetchMock.mockResolvedValueOnce(ok({ v: 1 }));
+    await cachedFetchJson("/api/x");
+    expect(fetchMock).toHaveBeenCalledWith("/api/x", { cache: "no-cache" });
+  });
+
+  it("rejects with AbortError when the signal aborts mid-flight without poisoning the cache for others", async () => {
+    let resolveFetch: ((r: Response) => void) | null = null;
+    fetchMock.mockReturnValueOnce(new Promise<Response>((res) => { resolveFetch = res; }));
+
+    const ac = new AbortController();
+    const p1 = cachedFetchJson("/api/abortable", ac.signal);
+    const p2 = cachedFetchJson("/api/abortable"); // no signal
+
+    ac.abort();
+    await expect(p1).rejects.toThrow(/abort/i);
+
+    // The other caller still sees the resolved value (one fetch, shared promise).
+    resolveFetch!(ok({ v: 7 }));
+    await expect(p2).resolves.toEqual({ v: 7 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects synchronously if the signal is already aborted", async () => {
+    const ac = new AbortController();
+    ac.abort();
+    await expect(cachedFetchJson("/api/x", ac.signal)).rejects.toThrow(/abort/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

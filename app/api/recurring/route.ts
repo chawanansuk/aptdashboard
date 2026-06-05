@@ -42,13 +42,13 @@ function bad(msg: string, status = 400) {
   return NextResponse.json({ ok: false, error: msg }, { status });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
   if (!canAddEngTask(session.user.roles)) {
     return bad("ไม่มีสิทธิ์ดูงานประจำ", 403);
   }
-  return serveCachedRows(recurringSlot, fetchRecurring, "ดึงงานประจำไม่สำเร็จ");
+  return serveCachedRows(recurringSlot, fetchRecurring, "ดึงงานประจำไม่สำเร็จ", { req, etagTag: "recurring" });
 }
 
 export async function POST(req: Request) {
