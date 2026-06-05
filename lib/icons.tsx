@@ -22,6 +22,7 @@ import {
   Eye, Edit3, History, X, ChevronDown, ChevronRight, MoreHorizontal,
   Check, Circle, AlertCircle, Bell, ListChecks,
   LogOut, Package, Bike,
+  Home, DoorOpen, KeyRound, CalendarClock, Phone, Table2,
 } from "lucide-react";
 
 export const ICON_REGISTRY = {
@@ -59,6 +60,14 @@ export const ICON_REGISTRY = {
   alert: AlertCircle,
   bell: Bell,
   signOut: LogOut,
+
+  // Sales dashboard (ภาพรวมขาย v2)
+  home: Home,
+  doorOpen: DoorOpen,
+  key: KeyRound,
+  calendarClock: CalendarClock,
+  phone: Phone,
+  table: Table2,
 } as const;
 
 export type IconName = keyof typeof ICON_REGISTRY;
