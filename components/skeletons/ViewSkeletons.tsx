@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton, SkeletonText } from "@/components/ui/Skeleton";
+import salesStyles from "@/components/sales/sales.module.css";
 
 /**
  * Per-view skeleton screens — used as Suspense fallbacks while the
@@ -14,41 +15,109 @@ import { Skeleton, SkeletonText } from "@/components/ui/Skeleton";
  */
 
 /* ====================================================================
- * Sales Pipeline — KPI strip + 3 sections
+ * Sales Pipeline v2 — deep-navy KPI row + split(board + rail).
+ *
+ * Reuses sales.module.css so the loading state shares the same canvas
+ * (background, border-radius, padding, gap) as the live view. No CLS
+ * when the lazy chunk swaps in. Inner content is just shimmer rects
+ * inside the real layout containers — no need to repaint a different
+ * theme just for the fallback.
  * ==================================================================== */
 export function SalesPipelineSkeleton() {
   return (
-    <section className="ac-sales-pipeline" aria-busy="true" aria-label="กำลังโหลดภาพรวมขาย">
-      {/* KPI cards */}
-      <div className="ac-sales-kpi">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="ac-sales-kpi-card ac-sales-kpi-green">
-            <Skeleton width={48} height={26} ariaLabel="" />
-            <Skeleton shape="text" width="60%" ariaLabel="" style={{ marginTop: 6 }} />
+    <section
+      className={salesStyles.root}
+      aria-busy="true"
+      aria-label="กำลังโหลดภาพรวมขาย"
+    >
+      {/* Header — title + (legend-ish) row */}
+      <header className={salesStyles.head}>
+        <div className={salesStyles.titleWrap}>
+          <Skeleton shape="text" width={160} height={22} ariaLabel="" />
+          <Skeleton shape="text" width={240} ariaLabel="" style={{ display: "block", marginTop: 6 }} />
+        </div>
+        <div className={salesStyles.legend}>
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} shape="text" width={68} height={14} ariaLabel="" />
+          ))}
+        </div>
+      </header>
+
+      {/* KPI row — 4 cards */}
+      <div className={salesStyles.kpiRow}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className={salesStyles.kpiCard}>
+            <div className={salesStyles.kpiTop}>
+              <Skeleton shape="card" width={38} height={38} ariaLabel="" />
+              <Skeleton shape="text" width={42} height={16} ariaLabel="" />
+            </div>
+            <Skeleton shape="text" width={64} height={28} ariaLabel="" style={{ display: "block" }} />
+            <Skeleton shape="text" width="70%" ariaLabel="" style={{ display: "block" }} />
           </div>
         ))}
       </div>
-      {/* 3 sections of list */}
-      {[0, 1, 2].map((s) => (
-        <div key={s} className="ac-sales-section">
-          <div className="ac-sales-section-head">
-            <Skeleton shape="text" width={160} height={16} ariaLabel="" />
-            <Skeleton shape="text" width={48} ariaLabel="" />
+
+      {/* Split — board (left) + rail (right) */}
+      <div className={salesStyles.split}>
+        {/* Board */}
+        <div className={salesStyles.board}>
+          <div className={salesStyles.boardHead}>
+            <div className={salesStyles.boardTitleWrap}>
+              <Skeleton shape="text" width={140} height={16} ariaLabel="" />
+              <Skeleton shape="text" width={180} ariaLabel="" style={{ display: "block", marginTop: 4 }} />
+            </div>
+            <Skeleton shape="card" width={160} height={32} ariaLabel="" />
           </div>
-          <div className="ac-sales-list">
-            {[0, 1, 2, 3].map((r) => (
-              <div key={r} className="ac-sales-row ac-sales-row-static">
-                <Skeleton shape="circle" width={10} height={10} ariaLabel="" />
-                <span className="ac-sales-row-main">
-                  <Skeleton shape="text" width="50%" ariaLabel="" style={{ display: "block", marginBottom: 6 }} />
-                  <Skeleton shape="text" width="70%" ariaLabel="" style={{ display: "block" }} />
-                </span>
-                <Skeleton shape="text" width={60} ariaLabel="" />
+          <div className={salesStyles.filters}>
+            {[80, 88, 96].map((w, i) => (
+              <Skeleton key={`s${i}`} shape="card" width={w} height={26} ariaLabel="" />
+            ))}
+            {[40, 40, 40, 40].map((w, i) => (
+              <Skeleton key={`f${i}`} shape="card" width={w} height={26} ariaLabel="" />
+            ))}
+            <Skeleton shape="card" width={200} height={32} ariaLabel="" style={{ marginLeft: "auto" }} />
+          </div>
+          {/* Card-view shimmer: 2 buildings × 2 floors × cards */}
+          <div className={salesStyles.cardScroll}>
+            {[0, 1].map((b) => (
+              <div key={b} className={salesStyles.cvBuilding}>
+                <Skeleton shape="text" width={120} height={14} ariaLabel="" />
+                {[0, 1].map((f) => (
+                  <div key={f} className={salesStyles.cvFloor}>
+                    <Skeleton shape="text" width={60} ariaLabel="" />
+                    <div className={salesStyles.cvGrid}>
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <Skeleton key={i} shape="card" height={70} ariaLabel="" />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
         </div>
-      ))}
+
+        {/* Rail */}
+        <div className={salesStyles.rail}>
+          <div className={salesStyles.railHead}>
+            <Skeleton shape="text" width={140} height={15} ariaLabel="" />
+            <Skeleton shape="text" width={48} ariaLabel="" />
+          </div>
+          {[0, 1].map((d) => (
+            <div key={d} className={salesStyles.railDay}>
+              <Skeleton shape="text" width={90} height={13} ariaLabel="" />
+              {[0, 1, 2].map((r) => (
+                <div key={r} className={salesStyles.appt}>
+                  <div className={salesStyles.apptMain}>
+                    <Skeleton shape="text" width="55%" ariaLabel="" style={{ display: "block", marginBottom: 6 }} />
+                    <Skeleton shape="text" width="40%" ariaLabel="" style={{ display: "block" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
