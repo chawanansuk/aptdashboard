@@ -47,6 +47,14 @@ interface Props {
    *  alongside the menu's per-item shortcuts. */
   quickMenuOpen?: boolean;
   onSetQuickMenuOpen?: (open: boolean) => void;
+  /** Per-building count of vacant ("ห้องว่าง") rooms. When provided, the
+   *  building tab renders as `{name} {count}` so a sales user can see at
+   *  a glance which buildings have supply. Page-side only feeds this on
+   *  supply-relevant views (overview/sales/ready/pending/moveout) — for
+   *  engineer/maintenance/etc. it stays undefined and the tab renders
+   *  unchanged. Buildings with count === 0 also render unchanged so we
+   *  don't shout "Kl 0" at the user. */
+  vacancyByBuilding?: Record<string, number>;
 }
 
 function initialsFromName(name?: string | null): string {
@@ -92,6 +100,7 @@ export default function AppHeader({
   addLabel, modeLabel,
   notifications, onNotificationNavigate,
   quickActions, quickMenuOpen, onSetQuickMenuOpen,
+  vacancyByBuilding,
 }: Props) {
   // When the parent supplies a quickActions list AND a state controller,
   // the "+ เพิ่ม" button toggles a menu instead of firing the legacy
@@ -144,14 +153,31 @@ export default function AppHeader({
 
       {/* === Cell: Building filter (segmented pill control) === */}
       <nav className="ac-nav-cell ac-nav-cell-tabs ac-tabs" aria-label="ตัวกรองอาคาร">
-        {buildings.map((b) => (
-          <button
-            key={b}
-            className={`ac-tab ${activeBuilding === b ? "is-active" : ""}`}
-            onClick={() => onChangeBuilding(b)}
-            title={b === "ทั้งหมด" ? "ดูทุกอาคาร" : `กรองเฉพาะอาคาร ${b}`}
-          >{b}</button>
-        ))}
+        {buildings.map((b) => {
+          // Vacancy badge: only on real buildings (not "ทั้งหมด"), only
+          // when the parent opted in for this view, only when there's
+          // actually supply to advertise (>0).
+          const vacant = vacancyByBuilding && b !== "ทั้งหมด" ? vacancyByBuilding[b] ?? 0 : 0;
+          const showBadge = vacant > 0;
+          const title = b === "ทั้งหมด"
+            ? "ดูทุกอาคาร"
+            : showBadge
+              ? `กรองเฉพาะอาคาร ${b} · ห้องว่าง ${vacant}`
+              : `กรองเฉพาะอาคาร ${b}`;
+          return (
+            <button
+              key={b}
+              className={`ac-tab ${activeBuilding === b ? "is-active" : ""}`}
+              onClick={() => onChangeBuilding(b)}
+              title={title}
+            >
+              {b}
+              {showBadge && (
+                <span className="ac-tab-badge" aria-label={`ห้องว่าง ${vacant} ห้อง`}>{vacant}</span>
+              )}
+            </button>
+          );
+        })}
       </nav>
 
       {/* === Cell: Actions (refresh + add button) ===

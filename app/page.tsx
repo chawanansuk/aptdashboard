@@ -7,6 +7,7 @@ import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
 import { useAssetAlertCounts } from "@/lib/useAssetAlertCounts";
 import { usePersistedString } from "@/lib/usePersistedString";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
+import { computeVacancyByBuilding, isSupplyRelevantView } from "@/lib/headerVacancy";
 import { parsePriceOr0 } from "@/lib/money";
 import { roomKey } from "@/lib/taskKey";
 import { useRoomBookmarks, roomBookmarkKey } from "@/lib/useRoomBookmarks";
@@ -419,6 +420,13 @@ export default function Home() {
   }, [rooms]);
 
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
+
+  // Vacancy count per building — only fed to AppHeader on supply-relevant
+  // views (overview/sales/ready/pending/moveout) so engineer/maintenance
+  // users don't see badges unrelated to their work. Helper + allowlist
+  // live in lib/headerVacancy so the rule is unit-tested in one place.
+  const vacancyByBuilding = useMemo(() => computeVacancyByBuilding(rooms), [rooms]);
+  const headerVacancy = isSupplyRelevantView(activeView) ? vacancyByBuilding : undefined;
 
   const visibleRooms = useMemo(() => {
     if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "recurring" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
@@ -1157,6 +1165,7 @@ export default function Home() {
         buildings={buildingTabs}
         activeBuilding={activeBuilding}
         onChangeBuilding={setActiveBuilding}
+        vacancyByBuilding={headerVacancy}
         isRefreshing={isRefreshing}
         lastUpdated={lastUpdated}
         isDark={isDark}
