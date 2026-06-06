@@ -170,10 +170,17 @@ export default function AppHeader({
               className={`ac-tab ${activeBuilding === b ? "is-active" : ""}`}
               onClick={() => onChangeBuilding(b)}
               title={title}
+              // Keep the accessible name = building name only (override
+              // the visible text + badge). Otherwise a tab labelled
+              // "มีทอง 3" breaks tests/scripts that select tabs by
+              // exact building name and screen readers announce a
+              // jumbled "มีทอง three". Vacancy detail is still
+              // available via title (browser exposes as description).
+              aria-label={showBadge ? b : undefined}
             >
               {b}
               {showBadge && (
-                <span className="ac-tab-badge" aria-label={`ห้องว่าง ${vacant} ห้อง`}>{vacant}</span>
+                <span className="ac-tab-badge" aria-hidden>{vacant}</span>
               )}
             </button>
           );
