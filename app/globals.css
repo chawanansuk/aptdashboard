@@ -766,6 +766,36 @@ html.dark .ac-mode-badge.is-management {
     0 0 0 2px color-mix(in srgb, var(--color-accent, #4F46E5) 28%, transparent);
 }
 
+/* Vacancy badge on building tabs — shown only on supply-relevant views
+ * (overview/sales/ready/pending/moveout), and only when the building
+ * has at least one vacant room. Reads as "Kl 12" — the number is
+ * tinted ready-green so the eye picks up "supply" without needing a
+ * separate icon. Lives on the same line via inline-flex, not a stacked
+ * sub-line, so the topbar height stays unchanged on every view. */
+.ac-tab-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #22C55E;
+  background: rgba(34, 197, 94, .14);
+  line-height: 1.3;
+}
+.ac-tab.is-active .ac-tab-badge {
+  /* On the active (filled-accent) tab, switch to a semi-transparent
+     white pill so the green doesn't fight the accent fill. */
+  color: #fff;
+  background: rgba(255, 255, 255, .22);
+}
+html.dark .ac-tab-badge {
+  color: #4ADE80;
+  background: rgba(34, 197, 94, .18);
+}
+
 .ac-icon-btn {
   position: relative;
   width: 40px; height: 40px;
