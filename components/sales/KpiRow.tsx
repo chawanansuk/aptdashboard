@@ -12,11 +12,16 @@ type KpiKey = "available" | "appointments" | "pending" | "moveout";
 interface Props {
   kpis: SalesKpis;
   /**
-   * Real per-card trend series (oldest → newest, ~7 points). Optional —
-   * TODO: wire to a real time-series endpoint. Until that exists, the
-   * card derives a deterministic placeholder from its current value so
-   * the sparkline reads as a trend without faking history that changes
-   * every render.
+   * Real per-card trend series (oldest → newest, ~7 points). Any card
+   * whose key is omitted falls back to a deterministic placeholder
+   * derived from its current value.
+   *
+   * Currently only `appointments` has a real series — derived from the
+   * tasks sheet (events with dates already in the data). The three
+   * room-status cards need daily snapshots that aren't recorded yet;
+   * a backend endpoint that persists daily KPI counts will unblock
+   * them — until then they show the placeholder. Search for
+   * "TODO: snapshot endpoint" to find the wire point.
    */
   trends?: Partial<Record<KpiKey, number[]>>;
   /** Navigate to a sidebar status view when a card is clicked. */
@@ -51,7 +56,11 @@ const APPT_META: StatusMeta = {
  * Deterministic placeholder trend ending at `current`. A gentle wave so
  * the line looks like a trend without implying real data. Same input →
  * same output, so it won't jitter between renders.
- * TODO: replace with a real 7-period series from the backend.
+ *
+ * Used for the three room-status cards (available/pending/moveout).
+ * TODO: snapshot endpoint — once a backend stores a daily count for
+ * each status, feed it through the `trends` prop and this placeholder
+ * becomes dead code.
  */
 function placeholderTrend(current: number): number[] {
   const base = Math.max(current, 1);

@@ -4,7 +4,7 @@ import {
   scopeRooms, buildAppointments, countAppointmentsWithinDays,
   groupAppointmentsByDay, dayLabel, groupByBuildingFloor, buildBuildingGrids,
   buildKpis, applyBoardFilter, distinctFloors, formatDateShort,
-  buildOccupancyByBuilding,
+  buildOccupancyByBuilding, buildAppointmentsTrend,
 } from "./salesData";
 
 function mkRoom(p: Partial<RoomView>): RoomView {
@@ -217,5 +217,57 @@ describe("distinctFloors", () => {
 describe("formatDateShort", () => {
   it("pads to dd/MM", () => {
     expect(formatDateShort(new Date(2026, 0, 5))).toBe("05/01");
+  });
+});
+
+describe("buildAppointmentsTrend", () => {
+  // Anchor on Mon 1 Jun 2026 so weeks land on clean boundaries.
+  const NOW_MON = new Date(2026, 5, 1);
+
+  it("returns `weeks` slots, oldest → newest (current week last)", () => {
+    const out = buildAppointmentsTrend([], "ทั้งหมด", 7, NOW_MON);
+    expect(out).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it("counts a task in the current week into the last bucket", () => {
+    // Friday 5 Jun is the same week as Mon 1 Jun.
+    const tasks = [mkTask({ date: "05/06/2026", type: "ชมห้อง" })];
+    expect(buildAppointmentsTrend(tasks, "ทั้งหมด", 7, NOW_MON)).toEqual([0, 0, 0, 0, 0, 0, 1]);
+  });
+
+  it("counts a task in the previous week into bucket weeks-2", () => {
+    // Wed 27 May 2026 is in the previous week (Mon 25 May–Sun 31 May).
+    const tasks = [mkTask({ date: "27/05/2026", type: "ย้ายเข้า" })];
+    expect(buildAppointmentsTrend(tasks, "ทั้งหมด", 7, NOW_MON)).toEqual([0, 0, 0, 0, 0, 1, 0]);
+  });
+
+  it("ignores tasks older than the window and future tasks past current week", () => {
+    const tasks = [
+      mkTask({ date: "01/01/2026", type: "ชมห้อง" }), // way past
+      mkTask({ date: "20/06/2026", type: "ชมห้อง" }), // future, beyond current week
+    ];
+    expect(buildAppointmentsTrend(tasks, "ทั้งหมด", 7, NOW_MON)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it("respects the active building filter", () => {
+    const tasks = [
+      mkTask({ date: "05/06/2026", type: "ชมห้อง", building: "Kl" }),
+      mkTask({ date: "05/06/2026", type: "ชมห้อง", building: "มั่งมี" }),
+    ];
+    expect(buildAppointmentsTrend(tasks, "Kl", 7, NOW_MON)).toEqual([0, 0, 0, 0, 0, 0, 1]);
+  });
+
+  it("ignores non-sales task types", () => {
+    const tasks = [mkTask({ date: "05/06/2026", type: "ซ่อม" })];
+    expect(buildAppointmentsTrend(tasks, "ทั้งหมด", 7, NOW_MON)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it("aggregates multiple tasks in the same week", () => {
+    const tasks = [
+      mkTask({ date: "01/06/2026", type: "ชมห้อง" }),
+      mkTask({ date: "03/06/2026", type: "ย้ายเข้า" }),
+      mkTask({ date: "07/06/2026", type: "ย้ายออก" }),
+    ];
+    expect(buildAppointmentsTrend(tasks, "ทั้งหมด", 7, NOW_MON)).toEqual([0, 0, 0, 0, 0, 0, 3]);
   });
 });

@@ -5,6 +5,7 @@ import type { RoomView, SheetRow, RoomStatus } from "@/types";
 import { usePersistedString } from "@/lib/usePersistedString";
 import {
   scopeRooms, buildAppointments, buildKpis, buildOccupancyByBuilding,
+  buildAppointmentsTrend,
 } from "@/lib/salesData";
 import KpiRow from "./KpiRow";
 import OccupancyStrip from "./OccupancyStrip";
@@ -52,6 +53,10 @@ export default function SalesPipelineV2({
   const scopedRooms = useMemo(() => scopeRooms(rooms, activeBuilding), [rooms, activeBuilding]);
   const appointments = useMemo(() => buildAppointments(tasks, activeBuilding), [tasks, activeBuilding]);
   const kpis = useMemo(() => buildKpis(scopedRooms, appointments), [scopedRooms, appointments]);
+  // Real backwards-looking trend for the appointments KPI only — room
+  // status counts need daily snapshots we don't have, so those three
+  // cards stay on the placeholder until a snapshot endpoint exists.
+  const apptTrend = useMemo(() => buildAppointmentsTrend(tasks, activeBuilding), [tasks, activeBuilding]);
   // Occupancy strip always lists every building (so a user can switch
   // away from the current filter), so it reads from the full room list.
   const occupancy = useMemo(() => buildOccupancyByBuilding(rooms), [rooms]);
@@ -88,6 +93,7 @@ export default function SalesPipelineV2({
       {/* Section 2 — KPI row */}
       <KpiRow
         kpis={kpis}
+        trends={{ appointments: apptTrend }}
         onAvailable={onChangeView ? () => onChangeView("ready") : undefined}
         onPending={onChangeView ? () => onChangeView("pending") : undefined}
         onMoveout={onChangeView ? () => onChangeView("moveout") : undefined}

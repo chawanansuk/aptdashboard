@@ -90,6 +90,55 @@ export function countAppointmentsWithinDays(
   ).length;
 }
 
+/**
+ * Real 7-point trend for the appointments KPI: weekly counts ending in
+ * the current week (inclusive). Index 0 is the oldest week (~6 weeks
+ * ago), index 6 is the current week.
+ *
+ * Unlike room-status counts (which need daily snapshots we don't keep),
+ * appointments are events with dates already in the sheet, so we can
+ * derive an honest backwards-looking trend without any backend work.
+ * Both past and future task dates count — this measures "appointment
+ * activity per week" regardless of completion, which is the metric a
+ * sales user reads at a glance.
+ */
+export function buildAppointmentsTrend(
+  tasks: SheetRow[],
+  activeBuilding: string,
+  weeks: number = 7,
+  now: Date = new Date(),
+): number[] {
+  // Anchor: start of the current week (Sunday → Monday→…→Sunday boundary
+  // is locale-y; we use Mon as the week start which matches the Thai
+  // calendar convention used elsewhere in the app).
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // 0 = Sunday → shift so Monday = 0.
+  const dow = (today.getDay() + 6) % 7;
+  const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dow);
+  const MS_WEEK = 7 * 24 * 60 * 60 * 1000;
+
+  const counts: number[] = new Array(weeks).fill(0);
+  for (const t of tasks || []) {
+    if (activeBuilding !== "ทั้งหมด" && t.building !== activeBuilding) continue;
+    if (!SALES_TASK_TYPES.has(t.type)) continue;
+    const d = parseThaiDate(t.date);
+    if (!d) continue;
+    // Snap the task date to ITS OWN week-start, then count whole weeks
+    // back to ours. Naive (weekStart - d) / MS_WEEK floors mid-week
+    // tasks into the wrong bucket — e.g. a Friday in the current week
+    // returns -1 instead of 0. Using week-start-to-week-start with
+    // round() also sidesteps DST ms drift.
+    const dDow = (d.getDay() + 6) % 7;
+    const dWeekStart = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dDow);
+    const diffWeeks = Math.round((weekStart.getTime() - dWeekStart.getTime()) / MS_WEEK);
+    // diffWeeks = 0 → current week; positive → past; negative → future
+    // Map to index: oldest (weeks-1 ago) = 0, current = weeks-1.
+    const index = weeks - 1 - diffWeeks;
+    if (index >= 0 && index < weeks) counts[index]++;
+  }
+  return counts;
+}
+
 export interface ApptDayGroup {
   /** yyyy-mm-dd-ish stable key for React. */
   key: string;
