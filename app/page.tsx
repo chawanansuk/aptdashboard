@@ -1374,6 +1374,7 @@ export default function Home() {
                   onSelectRoom={(r) => setSelectedRoom(r)}
                   onQuickAddLead={openQuickAddLead}
                   onChangeView={(v) => setActiveView(v)}
+                  onChangeBuilding={(b) => setActiveBuilding(b)}
                   lastUpdated={lastUpdated}
                 />
               </Suspense>
