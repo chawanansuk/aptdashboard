@@ -6284,17 +6284,20 @@ button.ac-kanban-kpi:focus-visible {
   user-select: none;
   flex: none;
 }
-/* Priority "ด่วน" badge — derived from SLA overdue, red pill. */
+/* Priority "ด่วน" badge — derived from SLA overdue. Reads from the
+   shared status palette so the "ด่วน" badge agrees with the ติดขัด
+   column accent + sales moveout cards. */
 .ac-kanban-card-priority {
   font-size: 10px;
   font-weight: var(--font-weight-bold);
   color: #fff;
-  background: #DC2626;
+  background: var(--st-coral);
   border-radius: var(--radius-full);
   padding: 1px 7px;
   flex: none;
   white-space: nowrap;
   letter-spacing: 0.02em;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--st-coral) 50%, transparent);
 }
 /* Column drop target highlight while a card hovers it — glowing blue
    ring (--primary) so the destination reads instantly mid-drag. */
