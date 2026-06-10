@@ -19,6 +19,7 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 import PWAClient from "@/components/PWAClient";
+import GlobalErrorHandlers from "@/components/GlobalErrorHandlers";
 import SessionProviderClient from "@/components/SessionProviderClient";
 import HealthBanner from "@/components/HealthBanner";
 import PrintHeader from "@/components/PrintHeader";
@@ -87,6 +88,7 @@ export default async function RootLayout({
           ข้ามไปยังเนื้อหาหลัก
         </a>
         <SessionProviderClient session={session}>
+          <GlobalErrorHandlers />
           <PWAClient />
           <PrintHeader />
           <HealthBanner />
