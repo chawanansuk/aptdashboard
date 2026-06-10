@@ -4,21 +4,20 @@ import type { Role } from "@/auth";
 import { canPerform, type Action } from "@/lib/permissions";
 import { invalidateDashboardCache } from "@/lib/dashboardCache";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
+import {
+  SheetUpdateBodySchema,
+  formatSheetUpdateError,
+  type SheetUpdateBody,
+} from "@/lib/sheetUpdateSchema";
 
 export const runtime = "nodejs";
-
-type Body = {
-  action?: string;
-  type?: string;
-  [key: string]: unknown;
-};
 
 const SALES_TYPES = new Set(["ย้ายเข้า", "ย้ายออก", "ชมห้อง"]);
 const CLEAN_TYPES = new Set(["ทำสะอาด"]);
 const ENG_TYPES   = new Set(["ซ่อม"]);
 
 /** Map Apps Script action → permission Action. Null = not authorized. */
-function actionToPermission(action: string): Action | null {
+function actionToPermission(action: SheetUpdateBody["action"]): Action | null {
   switch (action) {
     case "addTask":          return "task.add";
     case "updateTask":       return "task.edit";
@@ -26,7 +25,6 @@ function actionToPermission(action: string): Action | null {
     case "deleteTask":       return "task.delete";
     case "updateRoomStatus": return "room.editStatus";
     case "debugFindTask":    return "task.edit";
-    default:                 return null;
   }
 }
 
@@ -63,24 +61,31 @@ export async function POST(req: Request) {
   const roles = session.user.roles;
   const email = session.user.email;
 
-  // 2. Parse body
-  let body: Body;
+  // 2. Parse + validate body. The discriminated-union schema covers all
+  //    six actions, strips unknown fields, and rejects malformed payloads
+  //    before we burn an Apps Script call. `safeParse` keeps the throw
+  //    in one place so we can format the issue path Thai-friendly.
+  let rawJson: unknown;
   try {
-    body = (await req.json()) as Body;
+    rawJson = await req.json();
   } catch {
     return NextResponse.json(
       { ok: false, error: "invalid JSON" },
       { status: 400 }
     );
   }
-
-  const action = typeof body.action === "string" ? body.action : "";
-  if (!action) {
+  const parsed = SheetUpdateBodySchema.safeParse(rawJson);
+  if (!parsed.success) {
+    // An unrecognized action lands here too (the union has no match) —
+    // safer than the old "missing action" check because it can't get
+    // out of sync with the action list above.
     return NextResponse.json(
-      { ok: false, error: "missing action" },
+      { ok: false, error: formatSheetUpdateError(parsed.error) },
       { status: 400 }
     );
   }
+  const body = parsed.data;
+  const action = body.action;
 
   // 3. Role check (action-level) — via canPerform single source of truth
   const permAction = actionToPermission(action);
@@ -93,19 +98,21 @@ export async function POST(req: Request) {
   }
 
   // 3b. Role check (task-type level) — sales ห้ามส่ง type="ซ่อม", ฯลฯ
-  const typeError = checkTaskTypePermission(action, typeof body.type === "string" ? body.type : undefined, roles);
+  const typeForPerm = "type" in body && typeof body.type === "string" ? body.type : undefined;
+  const typeError = checkTaskTypePermission(action, typeForPerm, roles);
   if (typeError) {
     return NextResponse.json({ ok: false, error: typeError }, { status: 403 });
   }
 
   // 4. Stamp creator from session — overrides anything client sent
-  body.creator = email;
+  //    (schema doesn't include `creator`; we attach after validation).
+  const { action: actionField, ...rest } = body as SheetUpdateBody & { action: string };
+  void actionField;
+  const payload: Record<string, unknown> = { ...rest, creator: email };
 
   // 5. Forward to Apps Script (retry + timeout via shared client)
-  const { action: actionField, ...rest } = body;
-  void actionField; // already captured in `action`
   try {
-    const data = await appsScriptCall(action, rest as Record<string, unknown>);
+    const data = await appsScriptCall(action, payload);
     // Successful write → invalidate function-local dashboard cache so the
     // next /api/dashboard call refetches fresh data
     if (data && data.ok !== false) {
