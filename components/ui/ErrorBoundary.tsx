@@ -2,6 +2,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Icon } from "@/lib/icons";
+import { reportClientError } from "@/lib/reportError";
 
 /**
  * ErrorBoundary — catches render-time errors in its subtree and shows
@@ -62,9 +63,18 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // Always log so it surfaces in browser devtools / Vercel runtime logs.
-    // Sentry integration (if added) will pick this up via window.onerror,
-    // or we can wire a dedicated SDK call here in a follow-up.
     console.error("[ErrorBoundary]", error, info.componentStack);
+    // Ship to /api/client-error so production failures show up in the
+    // Vercel log search — without this, every user error was invisible
+    // to us until someone screenshotted the fallback.
+    const level = this.props.level ?? "section";
+    reportClientError({
+      message: error.message,
+      stack: error.stack,
+      componentStack: info.componentStack ?? undefined,
+      source: `ErrorBoundary:${level}${this.props.label ? `:${this.props.label}` : ""}`,
+      level,
+    });
     this.props.onError?.(error, info);
   }
 
