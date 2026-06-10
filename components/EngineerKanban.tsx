@@ -55,11 +55,15 @@ const ENG_TASK_TYPES = new Set(["ซ่อม", "ทำสะอาด"]);
 
 type ColumnKey = "pending" | "in_progress" | "blocked" | "done";
 
+// Column accents reference the shared premium-polish tokens declared in
+// globals.css :root — same palette as the sales board, so status colors
+// agree across the whole app (รอเริ่ม=indigo, กำลังทำ=เขียว, ติดขัด=coral,
+// เสร็จ=เขียวเข้ม).
 const COLUMNS: { key: ColumnKey; label: string; emoji: string; accent: string }[] = [
-  { key: "pending",     label: "รอเริ่ม",     emoji: "🆕", accent: "var(--color-text-muted)" },
-  { key: "in_progress", label: "กำลังทำ",     emoji: "🔧", accent: "#0D9488" },
-  { key: "blocked",     label: "ติดขัด",      emoji: "⏸",  accent: "#F97316" },
-  { key: "done",        label: "เสร็จวันนี้",   emoji: "✅", accent: "#22C55E" },
+  { key: "pending",     label: "รอเริ่ม",     emoji: "🆕", accent: "var(--primary)" },
+  { key: "in_progress", label: "กำลังทำ",     emoji: "🔧", accent: "var(--st-green)" },
+  { key: "blocked",     label: "ติดขัด",      emoji: "⏸",  accent: "var(--st-coral)" },
+  { key: "done",        label: "เสร็จวันนี้",   emoji: "✅", accent: "var(--st-green-deep)" },
 ];
 
 /** Target status written when a card is dropped into a column. Exported
@@ -601,7 +605,10 @@ function KanbanColumn({
         if (key) onColDrop(key);
       }}
     >
-      <div className="ac-kanban-col-head" style={{ borderTopColor: accent }}>
+      <div
+        className="ac-kanban-col-head"
+        style={{ borderTopColor: accent, "--col-accent": accent } as React.CSSProperties}
+      >
         <span className="ac-kanban-col-emoji" aria-hidden>{emoji}</span>
         <span className="ac-kanban-col-label">{label}</span>
         <span className="ac-kanban-col-count">{tasks.length}</span>
