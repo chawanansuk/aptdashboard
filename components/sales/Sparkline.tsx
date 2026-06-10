@@ -40,9 +40,13 @@ export default function Sparkline({ data, color, width = 100, height = 32, class
     return [x, y] as const;
   });
 
-  const line = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  // Area polygon: line + down to the baseline + back to start.
-  const area = `${line} ${width},${height} 0,${height}`;
+  // Smooth bezier through the points (Catmull-Rom → cubic conversion).
+  // Reads softer/premium vs the old hard polyline; passes through every
+  // data point exactly so the trend is still honest.
+  const d = smoothPath(points);
+  // Area: the same curve closed down to the baseline.
+  const area = `${d} L ${width},${height} L 0,${height} Z`;
+  const [endX, endY] = points[points.length - 1];
 
   return (
     <svg
@@ -56,13 +60,13 @@ export default function Sparkline({ data, color, width = 100, height = 32, class
     >
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.26" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <polygon points={area} fill={`url(#${gradId})`} stroke="none" />
-      <polyline
-        points={line}
+      <path d={area} fill={`url(#${gradId})`} stroke="none" />
+      <path
+        d={d}
         fill="none"
         stroke={color}
         strokeWidth={2}
@@ -70,6 +74,38 @@ export default function Sparkline({ data, color, width = 100, height = 32, class
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
       />
+      {/* End-point marker — white ring makes "now" pop on the dark card. */}
+      <circle
+        cx={endX}
+        cy={endY}
+        r={3}
+        fill={color}
+        stroke="rgba(255,255,255,.85)"
+        strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
+      />
     </svg>
   );
+}
+
+/**
+ * Catmull-Rom spline rendered as cubic beziers. Standard uniform
+ * parameterization with tension 1/6 — smooth but never overshooting
+ * enough to invert a trend visually.
+ */
+function smoothPath(pts: ReadonlyArray<readonly [number, number]>): string {
+  if (pts.length < 2) return "";
+  let d = `M ${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return d;
 }
