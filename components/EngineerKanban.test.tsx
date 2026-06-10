@@ -1,7 +1,27 @@
 import { describe, expect, it } from "vitest";
 import type { SheetRow } from "@/types";
-import { groupTasksForKanban, ageLabel, creatorLabel } from "./EngineerKanban";
+import { groupTasksForKanban, ageLabel, creatorLabel, COLUMN_STATUS } from "./EngineerKanban";
 import { TASK_STATUS } from "@/lib/taskStatus";
+
+describe("COLUMN_STATUS — drop target mapping", () => {
+  it("maps each column to the status a drop should write", () => {
+    expect(COLUMN_STATUS.pending).toBe(TASK_STATUS.PENDING);
+    expect(COLUMN_STATUS.in_progress).toBe(TASK_STATUS.IN_PROGRESS);
+    expect(COLUMN_STATUS.blocked).toBe(TASK_STATUS.BLOCKED);
+    expect(COLUMN_STATUS.done).toBe(TASK_STATUS.DONE);
+  });
+
+  it("round-trips through groupTasksForKanban — a task written with a column's status buckets back there", () => {
+    const today = "06/06/2026";
+    const moved: SheetRow = {
+      building: "Kl", room: "101", type: "ซ่อม", customer: "", phone: "",
+      note: "", date: today, status: COLUMN_STATUS.in_progress,
+    };
+    const buckets = groupTasksForKanban([moved], today);
+    expect(buckets.in_progress).toHaveLength(1);
+    expect(buckets.pending).toHaveLength(0);
+  });
+});
 
 describe("creatorLabel (Task 39)", () => {
   it("strips @domain from email so card stays compact", () => {

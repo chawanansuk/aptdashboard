@@ -6019,7 +6019,17 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-3);
+  /* Stick the KPI strip to the top of the scroll container (.ac-main)
+     while the board scrolls. Opaque app background + a little vertical
+     padding so cards can't show through behind it. The board's
+     ancestors don't set overflow:hidden, so sticky resolves to .ac-main. */
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--color-bg, var(--color-surface-2));
+  padding: var(--space-2) 0;
 }
+html.dark .ac-kanban-strip { background: #0F172A; }
 @media (max-width: 600px) {
   .ac-kanban-strip { grid-template-columns: 1fr 1fr 1fr; gap: var(--space-2); }
 }
@@ -6196,6 +6206,43 @@ button.ac-kanban-kpi:focus-visible {
 .ac-kanban-card[data-type="ซ่อม"]    { border-left: 3px solid #F97316; }
 .ac-kanban-card[data-type="ทำสะอาด"] { border-left: 3px solid #EAB308; }
 
+/* Drag-and-drop (desktop). Card is the drag source; the ⠿ handle is a
+   visual affordance (whole card is draggable). Touch users use the
+   inline action buttons, which cover the same transitions. */
+.ac-kanban-card[draggable="true"] { cursor: grab; }
+.ac-kanban-card.is-dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+.ac-kanban-card-handle {
+  color: var(--color-text-faint);
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: -2px;
+  cursor: grab;
+  user-select: none;
+  flex: none;
+}
+/* Priority "ด่วน" badge — derived from SLA overdue, red pill. */
+.ac-kanban-card-priority {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  color: #fff;
+  background: #DC2626;
+  border-radius: var(--radius-full);
+  padding: 1px 7px;
+  flex: none;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+/* Column drop target highlight while a card hovers it. */
+.ac-kanban-col.is-drag-over {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  outline: 2px dashed color-mix(in srgb, var(--color-accent) 45%, transparent);
+  outline-offset: -2px;
+  border-radius: var(--radius-md);
+}
+
 /* SLA state cues (Task 36) — subtle background tint + ring so the
    card is identifiable at a glance without screaming. */
 .ac-kanban-card.is-sla-warn {
@@ -6223,7 +6270,7 @@ button.ac-kanban-kpi:focus-visible {
 
 .ac-kanban-card-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
 }
 .ac-kanban-card-type {
