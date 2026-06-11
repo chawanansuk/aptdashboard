@@ -22,7 +22,7 @@ export const TASK_ORDER: TaskType[] = ["ทำสะอาด", "ย้ายเ
 // Previous duplicate had "G48"/no "มีทอง" and silently drifted from
 // taskSchema's "มีทอง"/no "G48", causing CleaningChart to render the
 // wrong building set (Task 12).
-export { BUILDINGS } from "@/lib/taskSchema";
+export { BUILDINGS } from "@/lib/taskConstants";
 
 export interface CapacityWarning {
   building: string;
