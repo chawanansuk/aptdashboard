@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
 import { useAssetAlertCounts } from "@/lib/useAssetAlertCounts";
 import { usePersistedString } from "@/lib/usePersistedString";
+import { useViewRouting, VALID_VIEWS, type ActiveView } from "@/lib/useViewRouting";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
 import { computeVacancyByBuilding, isSupplyRelevantView } from "@/lib/headerVacancy";
 import { parsePriceOr0 } from "@/lib/money";
@@ -49,7 +50,7 @@ import {
   bumpLeadOnViewingClosed,
   autoCreateMoveoutPrep,
 } from "@/lib/dashboardActions";
-import { canAccess, canPerform, getDefaultRoute, type Route } from "@/lib/permissions";
+import { canAccess, canPerform } from "@/lib/permissions";
 import type { QuickAction } from "@/components/QuickActionMenu";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
@@ -146,12 +147,6 @@ export default function Home() {
     document.documentElement.setAttribute("data-mode", modeConfig.mode);
   }, [modeConfig.mode]);
 
-  // Mode-driven landing view: send the user to their mode's home page
-  // (sales → salespipeline, engineer → engineerkanban, mgmt → overview)
-  // on first load AND whenever they switch View-as. We track the last
-  // mode the user "landed" on; switching mode re-applies the landing.
-  const lastLandedModeRef = useRef<string | null>(null);
-
   // ---- Presets ----
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [presetMenuOpen, setPresetMenuOpen] = useState(false);
@@ -174,39 +169,16 @@ export default function Home() {
   const activeFilter = activeFilterRaw as ActiveFilter;
   const setActiveFilter = (v: ActiveFilter) => setActiveFilterRaw(v);
   const [search, setSearch] = useState("");
-  type ActiveView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "parts" | "vehicles" | "leads" | "recurring" | "salespipeline" | "engineerkanban" | "reports";
-  const VALID_VIEWS: ActiveView[] = [
-    "overview", "today", "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive",
-    "income", "tenants", "calendar", "maintenance", "facilities", "parts", "vehicles", "leads", "recurring",
-    "salespipeline", "engineerkanban", "reports",
-  ];
-  const [activeViewRaw, setActiveViewRaw] = usePersistedString(
-    "activeView",
-    "overview",
-    (v) => (VALID_VIEWS as string[]).includes(v),
-  );
-  const activeView = activeViewRaw as ActiveView;
-  const setActiveView = (v: ActiveView) => setActiveViewRaw(v);
-  // Re-apply mode default landing view whenever the effective mode
-  // changes (initial load OR View-as switch). Without this, switching
-  // from sales → engineer would leave activeView on a sales-only route
-  // and trigger the "ไม่มีสิทธิ์เข้าถึงหน้านี้" toast incorrectly.
-  useEffect(() => {
-    if (!effectiveRoles || effectiveRoles.length === 0) {
-      // Sign-out / role-loss: reset the ref so a NEW user who signs in
-      // within the same SPA session will still get redirected to their
-      // landing view (previous ref would mark "already landed").
-      lastLandedModeRef.current = null;
-      return;
-    }
-    if (lastLandedModeRef.current === modeConfig.mode) return;
-    lastLandedModeRef.current = modeConfig.mode;
-    const target = modeConfig.defaultLandingView as typeof activeView;
-    if (target && target !== activeView && canAccess(roles, target as Route)) {
-      setActiveView(target);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modeConfig.mode, effectiveRoles.join("|")]);
+  // View routing (activeView + mode landing + route guard) — extracted
+  // to lib/useViewRouting (breakup PR 2). `type ActiveView` re-exported
+  // there; VALID_VIEWS used by notification navigation below.
+  const { activeView, setActiveView } = useViewRouting({
+    role,
+    roles,
+    effectiveRoles,
+    mode: modeConfig.mode,
+    defaultLandingView: modeConfig.defaultLandingView,
+  });
   const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "custom">("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -307,42 +279,6 @@ export default function Home() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-
-  // ---- Route guard: redirect + toast if user lacks access ----
-  // Fires on URL/preset hack, on role change, or after View-as switch
-  // that excludes the current view. Uses actualRoles so we don't
-  // bounce the user when they're just filtering UI via View-as
-  // (View-as = sales but real role includes engineer → still allowed
-  //  at server, but UI hides it; redirect to a route that's actually
-  //  visible to the filtered view).
-  // Track the mode the route guard last saw — when the mode changes,
-  // the landing useEffect above will move activeView; we suppress the
-  // "ไม่มีสิทธิ์" toast for that one tick because the user didn't try
-  // to enter a forbidden view, they just switched modes.
-  const guardSeenModeRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!role) return; // session still loading
-    const justSwitchedMode = guardSeenModeRef.current !== modeConfig.mode;
-    guardSeenModeRef.current = modeConfig.mode;
-
-    // Guard against the *effective* role set so View-as also redirects
-    if (!canAccess(roles, activeView as Route)) {
-      // Prefer the mode's home page when redirecting — feels natural after
-      // a View-as switch. Fall back to the generic default if the mode
-      // landing also isn't accessible (defensive).
-      const modeLanding = modeConfig.defaultLandingView as Route;
-      const fallback: Route = canAccess(roles, modeLanding)
-        ? modeLanding
-        : getDefaultRoute(roles);
-      setActiveView(fallback as typeof activeView);
-      // Only surface the error toast when the redirect is NOT caused by a
-      // mode switch (e.g. user navigated to a forbidden view via cmdk).
-      if (!justSwitchedMode) {
-        toast.error("ไม่มีสิทธิ์เข้าถึงหน้านี้");
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, activeView, roles.join("|"), modeConfig.mode]);
 
   // ---- Tab-focus refresh: when user returns to the tab, refetch the
   // dashboard and invalidate caches that don't auto-revalidate. Skips if
@@ -1024,7 +960,7 @@ export default function Home() {
 
   // ---- Preset helpers ----
   function applyPreset(p: FilterPreset) {
-    setActiveView(p.view as typeof activeView);
+    setActiveView(p.view as ActiveView);
     setActiveBuilding(p.building);
     setDateRange(p.dateRange as typeof dateRange);
     setCustomStart(p.customStart);
