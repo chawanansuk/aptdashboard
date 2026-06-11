@@ -26,7 +26,7 @@ import RoomsView from "@/components/RoomsView";
 import { useCommandPalette } from "@/lib/useCommandPalette";
 import type { CommandDef } from "@/lib/commandPaletteSearch";
 import BottomNav, { type BottomNavView } from "@/components/BottomNav";
-import RoomModal from "@/components/RoomModal";
+import RoomModalHost from "@/components/RoomModalHost";
 import { type BookingSaveData } from "@/components/BookingConfirmModal";
 import AddTaskModal from "@/components/AddTaskModal";
 import EditTaskModal from "@/components/EditTaskModal";
@@ -48,7 +48,6 @@ import { hasOpenPrepTask } from "@/lib/moveoutTasks";
 import {
   linkLeadOnViewingScheduled,
   bumpLeadOnViewingClosed,
-  autoCreateMoveoutPrep,
 } from "@/lib/dashboardActions";
 import { canAccess, canPerform } from "@/lib/permissions";
 import type { QuickAction } from "@/components/QuickActionMenu";
@@ -194,24 +193,8 @@ export default function Home() {
   // tree so EngineerKanban / TaskDetailDrawer can trigger the same
   // edit flow that TasksList already uses internally.
   const [editingTask, setEditingTask] = useState<SheetRow | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [editStatus, setEditStatus] = useState("");
-  const [editTenant, setEditTenant] = useState("");
-  const [editPhone, setEditPhone] = useState("");
-  const [editContractEnd, setEditContractEnd] = useState("");
-  const [editNote, setEditNote] = useState("");
-  const [editPrice, setEditPrice] = useState("");
-
-  useEffect(() => {
-    if (selectedRoom) {
-      setEditStatus(selectedRoom.rawStatus || "");
-      setEditTenant(selectedRoom.tenant || "");
-      setEditPhone(selectedRoom.phone || "");
-      setEditContractEnd(selectedRoom.contractEnd || "");
-      setEditPrice(selectedRoom.price || "");
-      setEditNote("");
-    }
-  }, [selectedRoom]);
+  // (Room edit-field state + save flow live in components/RoomModalHost
+  //  — breakup PR 3.)
 
   // ---- Add task ----
   const [showAddTask, setShowAddTask] = useState(false);
@@ -910,54 +893,6 @@ export default function Home() {
     } finally { setSavingTask(false); }
   }
 
-  async function handleSave() {
-    if (!selectedRoom) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "updateRoomStatus",
-          building: selectedRoom.building, room: selectedRoom.room,
-          status: editStatus, tenant: editTenant, phone: editPhone,
-          contractEnd: editContractEnd, note: editNote, price: editPrice,
-        }),
-      });
-      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
-      console.log("[write] updateRoomStatus response", res.status, data);
-      if (data.ok) {
-        toast.success("บันทึกแล้ว — รีเฟรชข้อมูล");
-        publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
-        // Optimistic local update — shows the change immediately even if the
-        // canonical CSV publish behind /api/sheet/rooms hasn't refreshed yet
-        optimisticUpdateRoom(selectedRoom.building, selectedRoom.room, {
-          status: editStatus,
-          tenant: editTenant,
-          phone: editPhone,
-          contractEnd: editContractEnd,
-          price: editPrice,
-        });
-        // Bridge sales → engineer: when a room flips into "แจ้งย้ายออก"
-        // for the first time, auto-create the prep tasks engineers need
-        // (inspection + post-tenant clean). Skip when one already exists.
-        const wasMoveout = selectedRoom.status === "moveout";
-        const isMoveout = editStatus === "moveout";
-        if (!wasMoveout && isMoveout) {
-          void autoCreateMoveoutPrep(tasks, selectedRoom.building, selectedRoom.room, refresh);
-        }
-        setSelectedRoom(null);
-        refresh();
-      } else {
-        const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
-        toast.error(`บันทึกไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}`);
-      }
-    } catch (e) {
-      console.error("[write] updateRoomStatus failed", e);
-      toast.error(e instanceof Error ? e.message : "Network error");
-    } finally { setSaving(false); }
-  }
-
   // ---- Preset helpers ----
   function applyPreset(p: FilterPreset) {
     setActiveView(p.view as ActiveView);
@@ -1354,62 +1289,26 @@ export default function Home() {
         onSubmit={handleAddTask}
       />
 
-      {selectedRoom && (() => {
-        // RoomModal prev/next nav (#9). Prefer the user's current
-        // filtered view (so "next" follows what they actually see).
-        // If the selected room isn't in that list (e.g. opened from
-        // calendar task → outside visibleRooms), fall back to the
-        // full sorted rooms list so navigation still works.
-        const navList = (() => {
-          const inVisible = visibleRooms.findIndex(
-            (r) => r.building === selectedRoom.building && r.room === selectedRoom.room,
-          );
-          if (inVisible >= 0) return visibleRooms;
-          return [...rooms].sort((a, b) => {
-            if (a.building !== b.building) return a.building.localeCompare(b.building);
-            const fa = parseInt(a.floor || "0", 10) || 0;
-            const fb = parseInt(b.floor || "0", 10) || 0;
-            if (fa !== fb) return fa - fb;
-            return a.room.localeCompare(b.room, undefined, { numeric: true });
-          });
-        })();
-        const idx = navList.findIndex(
-          (r) => r.building === selectedRoom.building && r.room === selectedRoom.room,
-        );
-        const prev = idx > 0 ? navList[idx - 1] : null;
-        const next = idx >= 0 && idx < navList.length - 1 ? navList[idx + 1] : null;
-        return (
-          <RoomModal
-            room={selectedRoom}
-            saving={saving}
-            defaultTab={modeConfig.roomModalDefaultTab}
-            status={editStatus} tenant={editTenant} phone={editPhone}
-            contractEnd={editContractEnd} note={editNote} price={editPrice}
-            onChange={(p) => {
-              if (p.status !== undefined) setEditStatus(p.status);
-              if (p.tenant !== undefined) setEditTenant(p.tenant);
-              if (p.phone !== undefined) setEditPhone(p.phone);
-              if (p.contractEnd !== undefined) setEditContractEnd(p.contractEnd);
-              if (p.note !== undefined) setEditNote(p.note);
-              if (p.price !== undefined) setEditPrice(p.price);
-            }}
-            onClose={() => setSelectedRoom(null)}
-            onSave={handleSave}
-            onAddTaskHere={() => openAddTaskForRoom(selectedRoom.building, selectedRoom.room)}
-            onMoveoutInspect={() => openMoveoutInspection(selectedRoom.building, selectedRoom.room)}
-            onMoveoutClean={() => openMoveoutCleaning(selectedRoom.building, selectedRoom.room)}
-            onMoveinClean={() => openMoveinCleaning(selectedRoom.building, selectedRoom.room)}
-            onMoveinSchedule={() => openMoveinSchedule(selectedRoom.building, selectedRoom.room)}
-            onConfirmBooking={() => { setBookingRoom(selectedRoom); setSelectedRoom(null); }}
-            onPrevRoom={prev ? () => setSelectedRoom(prev) : undefined}
-            onNextRoom={next ? () => setSelectedRoom(next) : undefined}
-            roomIndex={idx >= 0 ? idx + 1 : undefined}
-            roomTotal={navList.length}
-            isPinned={roomBookmarks.isPinned(roomBookmarkKey(selectedRoom.building, selectedRoom.room))}
-            onTogglePin={() => roomBookmarks.togglePin(roomBookmarkKey(selectedRoom.building, selectedRoom.room))}
-          />
-        );
-      })()}
+      {selectedRoom && (
+        <RoomModalHost
+          room={selectedRoom}
+          rooms={rooms}
+          visibleRooms={visibleRooms}
+          tasks={tasks}
+          defaultTab={modeConfig.roomModalDefaultTab}
+          onClose={() => setSelectedRoom(null)}
+          onNavigate={setSelectedRoom}
+          optimisticUpdateRoom={optimisticUpdateRoom}
+          refresh={refresh}
+          onAddTaskHere={openAddTaskForRoom}
+          onMoveoutInspect={openMoveoutInspection}
+          onMoveoutClean={openMoveoutCleaning}
+          onMoveinClean={openMoveinCleaning}
+          onMoveinSchedule={openMoveinSchedule}
+          onConfirmBooking={(r) => { setBookingRoom(r); setSelectedRoom(null); }}
+          bookmarks={roomBookmarks}
+        />
+      )}
 
       {bookingRoom && (
         <Suspense fallback={null}>
