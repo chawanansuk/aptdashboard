@@ -23,7 +23,7 @@
  */
 
 import { z } from "zod";
-import { TASK_TYPES } from "@/lib/taskSchema";
+import { TASK_TYPES } from "@/lib/taskConstants";
 
 // Reusable bits — the same building/room/date triple appears in every action.
 const Building = z.string().trim().min(1, "เลือกตึก").max(40);

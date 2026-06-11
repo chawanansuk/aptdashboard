@@ -18,16 +18,13 @@ import { COMMON_AREA_PREFIX } from "@/lib/taskLocation";
  * เรียกตัวเดียวกันด้วย rooms ที่ดึงจาก source of truth
  */
 
-export const TASK_TYPES = [
-  "ย้ายเข้า",
-  "ย้ายออก",
-  "ชมห้อง",
-  "ทำสะอาด",
-  "ซ่อม",
-  "อื่นๆ",
-] as const;
-
-export const BUILDINGS = ["Kl", "มั่งมี", "มายทรี48", "มีทรัพย์", "มีทอง"] as const;
+// Plain constants moved to lib/taskConstants so consumers who only need
+// the value lists (TasksList chip, RecurringView, sheetUpdateSchema,
+// types/index re-export) don't pull zod into their bundle. Re-exported
+// here so existing `import { TASK_TYPES } from "@/lib/taskSchema"`
+// still compiles for back-compat.
+import { TASK_TYPES, BUILDINGS } from "./taskConstants";
+export { TASK_TYPES, BUILDINGS };
 
 export interface RoomRef {
   building: string;

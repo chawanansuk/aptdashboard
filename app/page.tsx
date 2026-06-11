@@ -31,16 +31,20 @@ import type { CommandDef } from "@/lib/commandPaletteSearch";
 import BottomNav, { type BottomNavView } from "@/components/BottomNav";
 import RoomModalHost from "@/components/RoomModalHost";
 import { type BookingSaveData } from "@/components/BookingConfirmModal";
-import AddTaskModal from "@/components/AddTaskModal";
-import EditTaskModal from "@/components/EditTaskModal";
 
 // Rarely-opened modals — lazy so they leave the initial bundle. Each
 // renders behind an interaction (Cmd+K, ?, booking flow, bulk add) so
 // the small load delay on first open is invisible next to the network.
+// AddTask/EditTask are lazy too (zod + react-hook-form would otherwise
+// add ~300KB to every first paint, even for users who never open them).
+// A 2s post-mount warm-up below prefetches both chunks while the
+// browser is idle so the first click is instant.
 const KeyboardHelpModal = lazy(() => import("@/components/KeyboardHelpModal"));
 const CommandPalette = lazy(() => import("@/components/CommandPalette"));
 const BookingConfirmModal = lazy(() => import("@/components/BookingConfirmModal"));
 const BulkAddModal = lazy(() => import("@/components/BulkAddModal"));
+const AddTaskModal = lazy(() => import("@/components/AddTaskModal"));
+const EditTaskModal = lazy(() => import("@/components/EditTaskModal"));
 import { buildNotifications } from "@/lib/notifications";
 import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
@@ -153,6 +157,28 @@ export default function Home() {
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [presetMenuOpen, setPresetMenuOpen] = useState(false);
   useEffect(() => { setPresets(loadPresets()); }, []);
+
+  // Warm up the AddTask / EditTask chunks ~2s after mount so the first
+  // click pops the modal instantly. They drag in zod + react-hook-form
+  // (~300KB combined) which we don't want in the initial bundle but DO
+  // want resident by the time the user reaches for them. Falls back to
+  // setTimeout when requestIdleCallback isn't available (Safari).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const prefetch = () => {
+      void import("@/components/AddTaskModal");
+      void import("@/components/EditTaskModal");
+    };
+    const ric = (window as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    const handle = ric
+      ? ric(prefetch, { timeout: 4000 })
+      : window.setTimeout(prefetch, 2000);
+    return () => {
+      const cic = (window as { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback;
+      if (ric && cic) cic(handle);
+      else window.clearTimeout(handle);
+    };
+  }, []);
 
   // ---- Filter state ----
   // Persist activeBuilding + activeView across reloads — UX: user
@@ -1195,8 +1221,13 @@ export default function Home() {
         </Suspense>
       )}
 
-      <AddTaskModal
-        open={showAddTask}
+      {/* Guard with `showAddTask` so the lazy chunk only loads on first
+          open — Suspense fallback can be null (button stays clickable;
+          warm-up below usually has the chunk ready by then). */}
+      {showAddTask && (
+        <Suspense fallback={null}>
+          <AddTaskModal
+            open={showAddTask}
         saving={savingTask}
         buildings={buildings}
         defaultType={modeConfig.defaultTaskType}
@@ -1217,9 +1248,11 @@ export default function Home() {
         // Rooms list for "ห้องนี้มีในตึก" cross-field zod validation +
         // building-aware placeholder hints (room convention, median price).
         rooms={rooms.map((r) => ({ building: r.building, room: r.room, price: r.price }))}
-        onClose={() => setShowAddTask(false)}
-        onSubmit={handleAddTask}
-      />
+            onClose={() => setShowAddTask(false)}
+            onSubmit={handleAddTask}
+          />
+        </Suspense>
+      )}
 
       {selectedRoom && (
         <RoomModalHost
@@ -1265,12 +1298,17 @@ export default function Home() {
 
       {/* Shared task-edit modal — triggered from EngineerKanban /
           TaskDetailDrawer. TasksList still owns its own instance because
-          its edit state is local to the rows it renders. */}
-      <EditTaskModal
-        task={editingTask}
-        onClose={() => setEditingTask(null)}
-        onSaved={() => refresh()}
-      />
+          its edit state is local to the rows it renders. Lazy + gated
+          on `editingTask` so the chunk only loads when a row opens. */}
+      {editingTask && (
+        <Suspense fallback={null}>
+          <EditTaskModal
+            task={editingTask}
+            onClose={() => setEditingTask(null)}
+            onSaved={() => refresh()}
+          />
+        </Suspense>
+      )}
 
       {bulkMode && (
         <BulkActionBar
