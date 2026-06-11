@@ -17,6 +17,7 @@ import { invalidateFacilityCache } from "@/lib/facilityCache";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
 import AppHeader from "@/components/AppHeader";
+import AppShell from "@/components/AppShell";
 import AppSidebar from "@/components/AppSidebar";
 import OverviewCards from "@/components/OverviewCards";
 import InsightsCards from "@/components/InsightsCards";
@@ -921,45 +922,60 @@ export default function Home() {
     setPresets((list) => list.filter((p) => p.id !== id));
   }
 
-  return (
-    <div className="ac-app">
-      <AppHeader
-        buildings={buildingTabs}
-        activeBuilding={activeBuilding}
-        onChangeBuilding={setActiveBuilding}
-        vacancyByBuilding={headerVacancy}
-        isRefreshing={isRefreshing}
-        lastUpdated={lastUpdated}
-        isDark={isDark}
-        onAddTask={() => setShowAddTask(true)}
-        onRefresh={refresh}
-        onToggleTheme={toggleTheme}
-        onOpenSummary={() => setSummaryOpen(true)}
-        onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        onOpenSearch={() => cmdk.setOpen(true)}
-        onOpenHelp={() => setShowHelp(true)}
-        addLabel={modeConfig.addButtonLabel}
-        modeLabel={modeConfig.label}
-        quickActions={quickActions}
-        quickMenuOpen={quickMenuOpen}
-        onSetQuickMenuOpen={setQuickMenuOpen}
-        notifications={notifications}
-        onNotificationNavigate={(route) => {
-          if ((VALID_VIEWS as string[]).includes(route)) {
-            // Notification counts are property-wide, but the today/
-            // moveout/status views are scoped by activeBuilding +
-            // activeFilter. Clear both so the items the badge counted
-            // are actually visible after navigating (otherwise a user
-            // filtered to one building taps the alert and lands on an
-            // empty page — the "ไม่มาแสดง" report).
-            setActiveBuilding("ทั้งหมด");
-            setActiveFilter("all");
-            setActiveView(route as ActiveView);
-          }
-        }}
-      />
+  // Errors banner is in-flow inside <main>; null when nothing to show.
+  const errorsBanner = errors.length > 0 ? (
+    <div className="ac-banner ac-banner-warn">
+      <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
+      {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}
+      {rooms.length > 0 && <span> — กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ ({lastUpdated})</span>}
+      <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={refresh} disabled={isRefreshing} style={{ marginLeft: 8 }}>
+        {isRefreshing ? "กำลังลอง..." : "ลองอีกครั้ง"}
+      </button>{" "}
+      <a href="https://github.com/chawanansuk/aptdashboard/blob/main/docs/SETUP.md" target="_blank" rel="noreferrer">วิธีตั้งค่า</a>
+    </div>
+  ) : null;
 
-      <div className="ac-body">
+  return (
+    <>
+    <AppShell
+      header={
+        <AppHeader
+          buildings={buildingTabs}
+          activeBuilding={activeBuilding}
+          onChangeBuilding={setActiveBuilding}
+          vacancyByBuilding={headerVacancy}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+          isDark={isDark}
+          onAddTask={() => setShowAddTask(true)}
+          onRefresh={refresh}
+          onToggleTheme={toggleTheme}
+          onOpenSummary={() => setSummaryOpen(true)}
+          onToggleSidebar={() => setSidebarOpen((v) => !v)}
+          onOpenSearch={() => cmdk.setOpen(true)}
+          onOpenHelp={() => setShowHelp(true)}
+          addLabel={modeConfig.addButtonLabel}
+          modeLabel={modeConfig.label}
+          quickActions={quickActions}
+          quickMenuOpen={quickMenuOpen}
+          onSetQuickMenuOpen={setQuickMenuOpen}
+          notifications={notifications}
+          onNotificationNavigate={(route) => {
+            if ((VALID_VIEWS as string[]).includes(route)) {
+              // Notification counts are property-wide, but the today/
+              // moveout/status views are scoped by activeBuilding +
+              // activeFilter. Clear both so the items the badge counted
+              // are actually visible after navigating (otherwise a user
+              // filtered to one building taps the alert and lands on an
+              // empty page — the "ไม่มาแสดง" report).
+              setActiveBuilding("ทั้งหมด");
+              setActiveFilter("all");
+              setActiveView(route as ActiveView);
+            }
+          }}
+        />
+      }
+      sidebar={
         <AppSidebar
           isOpen={sidebarOpen}
           activeView={activeView}
@@ -975,21 +991,19 @@ export default function Home() {
           recentRooms={recentRooms}
           onOpenRoom={(r) => { setSidebarOpen(false); setSelectedRoom(r); }}
         />
-
-        <main className="ac-main" id="main-content" tabIndex={-1}>
-          {errors.length > 0 && (
-            <div className="ac-banner ac-banner-warn">
-              <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
-              {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}
-              {rooms.length > 0 && <span> — กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ ({lastUpdated})</span>}
-              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={refresh} disabled={isRefreshing} style={{ marginLeft: 8 }}>
-                {isRefreshing ? "กำลังลอง..." : "ลองอีกครั้ง"}
-              </button>{" "}
-              <a href="https://github.com/chawanansuk/aptdashboard/blob/main/docs/SETUP.md" target="_blank" rel="noreferrer">วิธีตั้งค่า</a>
-            </div>
-          )}
-
-          {isInitial && rooms.length === 0 && status !== "error" && <SkeletonLoader />}
+      }
+      bottomNav={
+        <BottomNav
+          activeView={activeView}
+          roles={roles}
+          onNavigate={(v: BottomNavView) => setActiveView(v)}
+          onAddTask={() => setShowAddTask(true)}
+          todayCount={sidebarCounts.today}
+        />
+      }
+      errorsBanner={errorsBanner}
+    >
+      {isInitial && rooms.length === 0 && status !== "error" && <SkeletonLoader />}
 
           {activeView === "overview" && rooms.length > 0 && (
             <WelcomeHero config={modeConfig} stats={greetingStats} />
@@ -1238,16 +1252,7 @@ export default function Home() {
               </Suspense>
             </ErrorBoundary>
           )}
-        </main>
-      </div>
-
-      <BottomNav
-        activeView={activeView}
-        roles={roles}
-        onNavigate={(v: BottomNavView) => setActiveView(v)}
-        onAddTask={() => setShowAddTask(true)}
-        todayCount={sidebarCounts.today}
-      />
+    </AppShell>
 
       {cmdk.open && (
         <Suspense fallback={null}>
@@ -1396,6 +1401,6 @@ export default function Home() {
           />
         </Suspense>
       )}
-    </div>
+    </>
   );
 }
