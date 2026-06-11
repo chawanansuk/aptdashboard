@@ -9,6 +9,8 @@ import { usePersistedString } from "@/lib/usePersistedString";
 import { useViewRouting, VALID_VIEWS, type ActiveView } from "@/lib/useViewRouting";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
 import { computeVacancyByBuilding, isSupplyRelevantView } from "@/lib/headerVacancy";
+import { computeSidebarCounts } from "@/lib/sidebarCounts";
+import { buildQuickActions, buildPaletteCommands } from "@/lib/menuConfigs";
 import { parsePriceOr0 } from "@/lib/money";
 import { roomKey } from "@/lib/taskKey";
 import { useRoomBookmarks, roomBookmarkKey } from "@/lib/useRoomBookmarks";
@@ -44,13 +46,13 @@ import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
-import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isClosedStatus } from "@/lib/constants";
+import { VIEW_LABEL, VIEW_TO_TASK_TYPE, isClosedStatus } from "@/lib/constants";
 import { hasOpenPrepTask } from "@/lib/moveoutTasks";
 import {
   linkLeadOnViewingScheduled,
   bumpLeadOnViewingClosed,
 } from "@/lib/dashboardActions";
-import { canAccess, canPerform } from "@/lib/permissions";
+import { canAccess } from "@/lib/permissions";
 import type { QuickAction } from "@/components/QuickActionMenu";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
@@ -483,26 +485,10 @@ export default function Home() {
     };
   }, [rooms, tasks, activeBuilding]);
 
-  const sidebarCounts = useMemo(() => {
-    const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
-    const c: Record<string, number> = { today: 0 };
-    STATUS_KEYS.forEach((k) => (c[k] = 0));
-    scope.forEach((r) => { c[r.status]++; if (r.today) c.today++; });
-    // Overdue tasks count — sales/engineer/management all care about
-    // these. Filtered by activeBuilding for consistency.
-    const todayDate = new Date();
-    const todayMs = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()).getTime();
-    const tasksScope = activeBuilding === "ทั้งหมด"
-      ? tasks
-      : tasks.filter((t) => t.building === activeBuilding);
-    let overdue = 0;
-    for (const t of tasksScope) {
-      if (isClosedStatus(t.status)) continue;
-      const d = parseThaiDate(t.date);
-      if (d && d.getTime() < todayMs) overdue++;
-    }
-    return { ...c, total: scope.length, overdue } as { total: number; today: number; overdue: number } & Partial<Record<RoomStatus, number>>;
-  }, [rooms, activeBuilding, tasks]);
+  const sidebarCounts = useMemo(
+    () => computeSidebarCounts(rooms, tasks, activeBuilding),
+    [rooms, activeBuilding, tasks],
+  );
 
   // Resolve recent/pinned bookmark keys (#17) back to live RoomView
   // objects for the sidebar. Keys that no longer match a room (deleted
@@ -683,88 +669,29 @@ export default function Home() {
   // (Problem #16): lead, viewing, move-in, move-out, clean, repair.
   // Shortcut letters chosen to be mnemonic + non-overlapping:
   // L Lead / V Viewing / I move-In / O move-Out / C Clean / R Repair.
-  const quickActions = useMemo<QuickAction[]>(() => [
-    {
-      id: "lead",
-      label: "เพิ่มผู้สนใจเช่า",
-      shortcut: "L",
-      icon: "👤",
-      description: "บันทึกผู้สนใจรายใหม่ลง Lead pipeline",
-      visible: canPerform(roles, "lead.edit"),
-      onSelect: openQuickAddLead,
-    },
-    {
-      id: "viewing",
-      label: "นัดชมห้อง",
-      shortcut: "V",
-      icon: "👀",
-      visible: canPerform(roles, "task.add.sales"),
-      onSelect: () => openAddTaskWithType("ชมห้อง"),
-    },
-    {
-      id: "movein",
-      label: "ย้ายเข้า",
-      shortcut: "I",
-      icon: "📥",
-      visible: canPerform(roles, "task.add.sales"),
-      onSelect: () => openAddTaskWithType("ย้ายเข้า"),
-    },
-    {
-      id: "moveout",
-      label: "ย้ายออก",
-      shortcut: "O",
-      icon: "📤",
-      visible: canPerform(roles, "task.add.sales"),
-      onSelect: () => openAddTaskWithType("ย้ายออก"),
-    },
-    {
-      id: "clean",
-      label: "นัดทำสะอาด",
-      shortcut: "C",
-      icon: "🧹",
-      visible: canPerform(roles, "task.add.clean"),
-      onSelect: () => openAddTaskWithType("ทำสะอาด"),
-    },
-    {
-      id: "repair",
-      label: "นัดซ่อม",
-      shortcut: "R",
-      icon: "🔧",
-      visible: canPerform(roles, "task.add.eng"),
-      onSelect: () => openAddTaskWithType("ซ่อม"),
-    },
+  // Menu/command configs live in lib/menuConfigs (breakup PR 5);
+  // the memo deps preserve the original semantics ([roles] / [isDark]).
+  const quickActions = useMemo<QuickAction[]>(
+    () => buildQuickActions(roles, {
+      onQuickAddLead: openQuickAddLead,
+      onAddTaskWithType: openAddTaskWithType,
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [roles]);
+    [roles],
+  );
 
   // ---- Command palette (Cmd+K / Ctrl+K / `/`) ----
   const cmdk = useCommandPalette();
-  const paletteCommands = useMemo<CommandDef[]>(() => [
-    {
-      id: "addTask",
-      label: "เพิ่มงานใหม่",
-      hint: "Add task",
-      requires: { action: "task.add" },
-      run: () => setShowAddTask(true),
-    },
-    {
-      id: "refresh",
-      label: "Refresh ข้อมูล",
-      hint: "ดึงข้อมูลใหม่จากชีต",
-      run: () => refresh(),
-    },
-    {
-      id: "toggleTheme",
-      label: isDark ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด",
-      hint: "Dark mode toggle",
-      run: () => toggleTheme(),
-    },
-    {
-      id: "openSummary",
-      label: "เปิด Summary",
-      hint: "สรุปภาพรวมทั้งหมด",
-      run: () => setSummaryOpen(true),
-    },
-  ], [isDark]); // eslint-disable-line react-hooks/exhaustive-deps
+  const paletteCommands = useMemo<CommandDef[]>(
+    () => buildPaletteCommands(isDark, {
+      onAddTask: () => setShowAddTask(true),
+      onRefresh: refresh,
+      onToggleTheme: toggleTheme,
+      onOpenSummary: () => setSummaryOpen(true),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isDark],
+  );
 
   /**
    * Submit handler รับค่าที่ validate แล้วจาก AddTaskModal (RHF + zod).
