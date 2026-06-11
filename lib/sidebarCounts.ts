@@ -1,0 +1,45 @@
+/**
+ * Sidebar badge counts — pure computation extracted from app/page.tsx
+ * (breakup PR 5) so it's unit-testable and the page keeps only a thin
+ * useMemo wrapper.
+ *
+ * Counts are scoped by the active building filter:
+ *   - per-status room counts (STATUS_KEYS) + today's task flag count
+ *   - total rooms in scope
+ *   - overdue: open tasks dated before today (sales/engineer/management
+ *     all care; same building scope for consistency)
+ */
+
+import type { RoomStatus, RoomView, SheetRow } from "@/types";
+import { STATUS_KEYS, isClosedStatus } from "@/lib/constants";
+import { parseThaiDate } from "@/lib/dateUtils";
+
+export type SidebarCounts = {
+  total: number;
+  today: number;
+  overdue: number;
+} & Partial<Record<RoomStatus, number>>;
+
+export function computeSidebarCounts(
+  rooms: RoomView[],
+  tasks: SheetRow[],
+  activeBuilding: string,
+  now: Date = new Date(),
+): SidebarCounts {
+  const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
+  const c: Record<string, number> = { today: 0 };
+  STATUS_KEYS.forEach((k) => (c[k] = 0));
+  scope.forEach((r) => { c[r.status]++; if (r.today) c.today++; });
+
+  const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const tasksScope = activeBuilding === "ทั้งหมด"
+    ? tasks
+    : tasks.filter((t) => t.building === activeBuilding);
+  let overdue = 0;
+  for (const t of tasksScope) {
+    if (isClosedStatus(t.status)) continue;
+    const d = parseThaiDate(t.date);
+    if (d && d.getTime() < todayMs) overdue++;
+  }
+  return { ...c, total: scope.length, overdue } as SidebarCounts;
+}
