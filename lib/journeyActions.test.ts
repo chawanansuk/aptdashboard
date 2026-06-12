@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.clearAllMocks());
 
-function mkRoom(p: Partial<RoomView>): RoomView {
+function mkRoom(p: Partial<RoomView> = {}): RoomView {
   return {
     building: "Kl", room: "101", floor: "1", price: "5000",
     status: "moveout", rawStatus: "แจ้งย้ายออก", tenant: "", phone: "",
