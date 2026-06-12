@@ -3,10 +3,20 @@
 import { useEffect, useState } from "react";
 import type { RoomView, SheetRow } from "@/types";
 import RoomModal from "@/components/RoomModal";
+import RoomJourneyPanel from "@/components/RoomJourneyPanel";
 import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { autoCreateMoveoutPrep } from "@/lib/dashboardActions";
 import { roomBookmarkKey } from "@/lib/useRoomBookmarks";
+import type { JourneyAction } from "@/lib/roomJourney";
+import {
+  MOVEOUT_CLEAN_TYPE, MOVEOUT_CLEAN_NOTE,
+  MOVEOUT_INSPECT_TYPE, MOVEOUT_INSPECT_NOTE,
+  AFTER_REPAIR_CLEAN_TYPE, AFTER_REPAIR_CLEAN_NOTE,
+  QC_CHECKLIST_TYPE, QC_CHECKLIST_NOTE,
+  TURNOVER_REPAIR_TYPE, TURNOVER_REPAIR_NOTE,
+  todayThaiDate,
+} from "@/lib/moveoutTasks";
 
 /**
  * RoomModalHost — owns everything RoomModal needs that used to live
@@ -134,6 +144,104 @@ export default function RoomModalHost({
     } finally { setSaving(false); }
   }
 
+  /* ====================================================================
+   * Room-journey actions (ขั้นตอนถัดไป panel).
+   *
+   * Two primitives cover every step:
+   *   - quickSetStatus: one-tap room status change that PRESERVES the
+   *     other fields (vs handleSave which writes the edit-form state)
+   *   - createMarkerTask: file a turnover task with the marker note the
+   *     journey state machine keys on
+   * ==================================================================== */
+
+  async function quickSetStatus(
+    rawStatus: string,
+    opts: { clearTenant?: boolean } = {},
+  ): Promise<void> {
+    if (!room) return;
+    const res = await fetch("/api/sheet/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "updateRoomStatus",
+        building: room.building, room: room.room,
+        status: rawStatus,
+        // Preserve current values — a quick status hop must not blank
+        // tenant data. Release (→ว่าง) explicitly clears the old tenant.
+        tenant: opts.clearTenant ? "" : room.tenant,
+        phone: opts.clearTenant ? "" : room.phone,
+        contractEnd: opts.clearTenant ? "" : room.contractEnd,
+        price: room.price,
+      }),
+    });
+    const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+    if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    toast.success(`อัปเดตสถานะห้อง → ${rawStatus}`);
+    publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
+    optimisticUpdateRoom(room.building, room.room, {
+      status: rawStatus,
+      ...(opts.clearTenant ? { tenant: "", phone: "", contractEnd: "" } : {}),
+    });
+    refresh();
+  }
+
+  async function createMarkerTask(type: string, note: string, label: string): Promise<void> {
+    if (!room) return;
+    const res = await fetch("/api/sheet/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "addTask",
+        date: todayThaiDate(), type,
+        building: room.building, room: room.room,
+        note,
+      }),
+    });
+    const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+    if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    toast.success(`สร้างงาน${label}แล้ว — ดูในกระดานงานช่าง`);
+    publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+    refresh();
+  }
+
+  async function handleJourneyAction(id: JourneyAction["id"]): Promise<void> {
+    if (!room) return;
+    try {
+      switch (id) {
+        case "confirmBooking": onConfirmBooking(room); return;
+        case "addViewing": onAddTaskHere(room.building, room.room); return;
+        case "confirmMoveIn": await quickSetStatus("มีผู้เช่า"); return;
+        case "noticeMoveout":
+          await quickSetStatus("แจ้งย้ายออก");
+          // Same sales→engineer bridge as handleSave: file the prep clean.
+          void autoCreateMoveoutPrep(tasks, room.building, room.room, refresh);
+          return;
+        case "createCleanBefore":
+          await createMarkerTask(MOVEOUT_CLEAN_TYPE, MOVEOUT_CLEAN_NOTE, "ทำสะอาดก่อนตรวจ");
+          return;
+        case "createInspect":
+          await createMarkerTask(MOVEOUT_INSPECT_TYPE, MOVEOUT_INSPECT_NOTE, "ตรวจห้อง+คืนประกัน");
+          return;
+        case "createRepair":
+          await createMarkerTask(TURNOVER_REPAIR_TYPE, TURNOVER_REPAIR_NOTE, "ซ่อมตามผลตรวจ");
+          return;
+        case "skipRepair":
+        case "createQcChecklist":
+          // Skip-repair lands on the same next step: the QC checklist.
+          await createMarkerTask(QC_CHECKLIST_TYPE, QC_CHECKLIST_NOTE, " Checklist QC");
+          return;
+        case "createCleanAfter":
+          await createMarkerTask(AFTER_REPAIR_CLEAN_TYPE, AFTER_REPAIR_CLEAN_NOTE, "ทำสะอาดหลังซ่อม");
+          return;
+        case "releaseRoom":
+          await quickSetStatus("ว่าง", { clearTenant: true });
+          return;
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ดำเนินการไม่สำเร็จ");
+    }
+  }
+
   if (!room) return null;
 
   // RoomModal prev/next nav (#9). Prefer the user's current filtered
@@ -166,6 +274,7 @@ export default function RoomModalHost({
       room={room}
       saving={saving}
       defaultTab={defaultTab}
+      journeySlot={<RoomJourneyPanel room={room} onAction={handleJourneyAction} />}
       status={editStatus} tenant={editTenant} phone={editPhone}
       contractEnd={editContractEnd} note={editNote} price={editPrice}
       onChange={(p) => {

@@ -21,6 +21,29 @@ export const MOVEOUT_INSPECT_NOTE =
 export const MOVEOUT_CLEAN_TYPE = "ทำสะอาด";
 export const MOVEOUT_CLEAN_NOTE = "ทำสะอาดหลังย้ายออก — ปล่อยห้องใหม่ต่อ";
 
+/* ====================================================================
+ * Room-journey extension markers (turnover ขั้น 6-10).
+ *
+ * The journey panel distinguishes work items by NOTE PREFIX because the
+ * sheet's task `type` column is too coarse (two different cleans both
+ * use type "ทำสะอาด"). Each marker's first segment (before " —") is the
+ * stable match key — lib/roomJourney matches with startsWith so a user
+ * appending detail after the dash doesn't break stage detection.
+ * ==================================================================== */
+
+/** ทำสะอาดหลังซ่อม — distinct from MOVEOUT_CLEAN_NOTE (ก่อนตรวจ). */
+export const AFTER_REPAIR_CLEAN_TYPE = "ทำสะอาด";
+export const AFTER_REPAIR_CLEAN_NOTE = "ทำสะอาดหลังซ่อม — เตรียม QC ก่อนปล่อยขาย";
+
+/** Checklist QC ก่อนปล่อยขาย (ฟอร์มกระดาษ 6 หมวด 28 ข้อ). */
+export const QC_CHECKLIST_TYPE = "อื่นๆ";
+export const QC_CHECKLIST_NOTE =
+  "Checklist สภาพห้องก่อนปล่อยขาย — ตรวจตามฟอร์ม QC 6 หมวด";
+
+/** งานซ่อมที่เกิดจากผลตรวจห้อง (เฟสซ่อมของ turnover). */
+export const TURNOVER_REPAIR_TYPE = "ซ่อม";
+export const TURNOVER_REPAIR_NOTE = "ซ่อมตามผลตรวจห้อง — ก่อนปล่อยขาย";
+
 export interface MoveoutPrepKind {
   /** Distinguishes the two prep tasks — used to label panel rows. */
   kind: "inspect" | "clean";
