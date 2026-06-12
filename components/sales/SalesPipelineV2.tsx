@@ -50,6 +50,17 @@ export default function SalesPipelineV2({
   const [viewModeRaw, setViewMode] = usePersistedString("salesViewMode", "card", isViewMode);
   const viewMode: ViewMode = isViewMode(viewModeRaw) ? viewModeRaw : "card";
   const [selected, setSelected] = useState<RoomView | null>(null);
+  // `selected` is a snapshot from click-time; after a journey write +
+  // refresh the rooms array carries fresh tasks but the snapshot
+  // doesn't. Re-resolve against the live list so the drawer's journey
+  // panel advances in place (falls back to the snapshot if the room
+  // vanished from the list mid-session).
+  const selectedFresh = useMemo(
+    () => selected
+      ? rooms.find((r) => r.building === selected.building && r.room === selected.room) ?? selected
+      : null,
+    [selected, rooms],
+  );
   const railRef = useRef<HTMLDivElement>(null);
 
   const scopedRooms = useMemo(() => scopeRooms(rooms, activeBuilding), [rooms, activeBuilding]);
@@ -127,9 +138,9 @@ export default function SalesPipelineV2({
         />
       </div>
 
-      {selected && (
+      {selectedFresh && (
         <RoomDetailDrawer
-          room={selected}
+          room={selectedFresh}
           onClose={() => setSelected(null)}
           onOpenFull={openFull}
           onRefresh={refresh}

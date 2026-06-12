@@ -77,7 +77,11 @@ export default function RoomModalHost({
   const [editNote, setEditNote] = useState("");
   const [editPrice, setEditPrice] = useState("");
 
-  // Re-seed the edit fields whenever a (different) room opens.
+  // Re-seed the edit fields whenever a DIFFERENT room opens. Keyed on
+  // identity (building|room), not the object reference — the parent now
+  // passes a fresh RoomView object after every data refresh so the
+  // journey panel can advance, and re-seeding on every refresh would
+  // wipe the user's in-progress edits mid-typing.
   useEffect(() => {
     if (room) {
       setEditStatus(room.rawStatus || "");
@@ -87,7 +91,8 @@ export default function RoomModalHost({
       setEditPrice(room.price || "");
       setEditNote("");
     }
-  }, [room]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.building, room?.room]);
 
   async function handleSave() {
     if (!room) return;
