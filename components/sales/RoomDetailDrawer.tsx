@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RoomView } from "@/types";
+import type { RoomView, SheetRow } from "@/types";
 import { Icon } from "@/lib/icons";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { formatBaht } from "@/lib/money";
@@ -22,11 +22,14 @@ interface Props {
   /** Refetch dashboard data after a journey write. When omitted the
    *  journey section renders read-only (stage shown, no buttons). */
   onRefresh?: () => void;
+  /** Live tasks list — passed into the journey executor so the
+   *  moveout auto-prep bridge can dup-guard against existing prep tasks. */
+  tasks?: SheetRow[];
 }
 
 /** Lightweight read-only room summary. Slides in from the right; the
  *  heavy edit modal is one tap away via "เปิดรายละเอียดเต็ม". */
-export default function RoomDetailDrawer({ room, onClose, onOpenFull, onRefresh }: Props) {
+export default function RoomDetailDrawer({ room, onClose, onOpenFull, onRefresh, tasks }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [journeyBusy, setJourneyBusy] = useState(false);
 
@@ -37,7 +40,7 @@ export default function RoomDetailDrawer({ room, onClose, onOpenFull, onRefresh 
     if (journeyBusy || !onRefresh) return;
     setJourneyBusy(true);
     try {
-      const result = await executeJourneyAction(id, room, { refresh: onRefresh });
+      const result = await executeJourneyAction(id, room, { refresh: onRefresh, tasks });
       if (result === "delegate") onOpenFull?.(room);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "ดำเนินการไม่สำเร็จ");
