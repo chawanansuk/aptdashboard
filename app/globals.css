@@ -9397,3 +9397,112 @@ html.dark .ac-booking-foot-hint { color: #F87171; }
     transform: none !important;
   }
 }
+
+/* ====================================================================
+ * Room journey panel (ขั้นตอนถัดไป) — RoomJourneyPanel.tsx
+ * Lifecycle stepper + the single contextual next-step button. Uses the
+ * premium-polish tokens (card-grad/glass/st-colors) from :root.
+ * ==================================================================== */
+.ac-journey {
+  background: var(--card-grad), var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ac-journey-steps {
+  display: flex;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.ac-journey-step {
+  flex: 1;
+  min-width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+/* Connector line between steps */
+.ac-journey-step + .ac-journey-step::before {
+  content: "";
+  position: absolute;
+  top: 11px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--color-border);
+  z-index: 0;
+}
+.ac-journey-step.is-done + .ac-journey-step::before,
+.ac-journey-step.is-done + .ac-journey-step.is-current::before {
+  background: var(--st-green);
+}
+.ac-journey-step-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  z-index: 1;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.ac-journey-step.is-done .ac-journey-step-dot {
+  background: var(--st-green);
+  border-color: var(--st-green);
+  color: #fff;
+}
+.ac-journey-step.is-current .ac-journey-step-dot {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+.ac-journey-step-label {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-align: center;
+}
+.ac-journey-step.is-current .ac-journey-step-label {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+.ac-journey-body { display: flex; flex-direction: column; gap: var(--space-2); }
+.ac-journey-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+.ac-journey-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.ac-journey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.ac-journey-waiting {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ac-journey-step-dot { box-shadow: none !important; }
+}

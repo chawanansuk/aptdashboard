@@ -38,6 +38,13 @@ interface Props {
   /** Mode-specific initial tab ("info" or "equipment"). Defaults to "info". */
   defaultTab?: "info" | "equipment" | "vehicles";
   /**
+   * Room-journey panel (ขั้นตอนถัดไป) — rendered above the form by the
+   * host. When present, the legacy per-status workflow banners
+   * (booking / move-in / move-out) are hidden so the user sees ONE set
+   * of next-step buttons, not two competing ones.
+   */
+  journeySlot?: React.ReactNode;
+  /**
    * Move-out workflow (Task 30). Optional — only used when the room's
    * current status is moveout. Each callback opens AddTaskModal with
    * a pre-filled task type + note appropriate for that step. Modal
@@ -137,6 +144,7 @@ function validate(values: { price: string; phone: string; contractEnd: string })
 export default function RoomModal({
   room, saving, status, tenant, phone, contractEnd, note, price,
   onChange, onClose, onSave, onAddTaskHere, defaultTab,
+  journeySlot,
   onMoveoutInspect, onMoveoutClean,
   onMoveinClean, onMoveinSchedule, onConfirmBooking,
   onPrevRoom, onNextRoom, roomIndex, roomTotal,
@@ -431,10 +439,15 @@ export default function RoomModal({
                 </div>
               )}
 
+              {/* Room journey (ขั้นตอนถัดไป) — supplied by RoomModalHost.
+                  When present it REPLACES the three legacy workflow
+                  banners below (single source of next-step buttons). */}
+              {journeySlot}
+
               {/* Booking — a vacant (ว่าง) room that's about to be
                   reserved. One tap opens the confirmation flow that
                   generates the LINE message + creates the ย้ายเข้า nat. */}
-              {room.status === "ready" && canBook && onConfirmBooking && (
+              {!journeySlot && room.status === "ready" && canBook && onConfirmBooking && (
                 <div className="ac-moveout-workflow ac-moveout-workflow--in" role="region" aria-label="จองห้อง">
                   <header className="ac-moveout-head">
                     <span className="ac-moveout-icon" aria-hidden>📋</span>
@@ -455,7 +468,7 @@ export default function RoomModal({
                   new tenant. Mirrors the move-OUT banner below for
                   symmetry; covers: schedule pre-arrival cleaning,
                   log the move-in event with customer details. */}
-              {room.status === "pending" && canBook && (
+              {!journeySlot && room.status === "pending" && canBook && (
                 <div
                   className="ac-moveout-workflow ac-moveout-workflow--in"
                   role="region"
@@ -501,7 +514,7 @@ export default function RoomModal({
                   digging through tabs. Each button opens AddTaskModal
                   pre-filled. "เคลียร์ข้อมูลผู้เช่า" stages a local
                   field clear; user still presses Save to commit. */}
-              {room.status === "moveout" && (canEdit || canAddClean) && (
+              {!journeySlot && room.status === "moveout" && (canEdit || canAddClean) && (
                 <div className="ac-moveout-workflow" role="region" aria-label="ขั้นตอนย้ายออก">
                   <header className="ac-moveout-head">
                     <span className="ac-moveout-icon" aria-hidden>📤</span>
