@@ -213,6 +213,15 @@ export default function Home() {
 
   // ---- Selected room ----
   const [selectedRoom, setSelectedRoom] = useState<RoomView | null>(null);
+  // Click-time snapshot → re-resolve against live rooms so the journey
+  // panel (and tenant fields' base values) advance in place after a
+  // write + refresh, instead of freezing until the modal is reopened.
+  const selectedRoomFresh = useMemo(
+    () => selectedRoom
+      ? rooms.find((r) => r.building === selectedRoom.building && r.room === selectedRoom.room) ?? selectedRoom
+      : null,
+    [selectedRoom, rooms],
+  );
   // Recent + pinned room bookmarks (#17) — persisted to localStorage.
   const roomBookmarks = useRoomBookmarks();
   // Booking-confirmation flow target (null = closed).
@@ -1255,9 +1264,9 @@ export default function Home() {
         </Suspense>
       )}
 
-      {selectedRoom && (
+      {selectedRoomFresh && (
         <RoomModalHost
-          room={selectedRoom}
+          room={selectedRoomFresh}
           rooms={rooms}
           visibleRooms={visibleRooms}
           tasks={tasks}

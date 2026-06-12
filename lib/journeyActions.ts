@@ -19,7 +19,8 @@ import type { RoomView, SheetRow } from "@/types";
 import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { autoCreateMoveoutPrep } from "@/lib/dashboardActions";
-import type { JourneyAction } from "@/lib/roomJourney";
+import { isClosedStatus } from "@/lib/constants";
+import { markerKey, type JourneyAction } from "@/lib/roomJourney";
 import {
   MOVEOUT_CLEAN_TYPE, MOVEOUT_CLEAN_NOTE,
   MOVEOUT_INSPECT_TYPE, MOVEOUT_INSPECT_NOTE,
@@ -115,6 +116,31 @@ export async function createJourneyTask(
   publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
 }
 
+/**
+ * Dup guard: is there already an OPEN task with this marker on the
+ * room? Uses the same note-prefix matching as the journey state
+ * machine. Protects against the stale-snapshot double-click: if the
+ * UI's room object hasn't refreshed yet, the button may still render —
+ * this stops the second POST from filing a duplicate.
+ */
+export function hasOpenJourneyTask(
+  room: RoomView,
+  spec: { type: string; note: string },
+): boolean {
+  const key = markerKey(spec.note);
+  const tasks: SheetRow[] = [
+    ...(room.todayTasks || []),
+    ...(room.upcomingTasks || []),
+    ...(room.pastTasks || []),
+  ];
+  return tasks.some(
+    (t) =>
+      t.type === spec.type &&
+      (t.note || "").trim().startsWith(key) &&
+      !isClosedStatus(t.status),
+  );
+}
+
 export type JourneyExecResult = "done" | "delegate";
 
 /**
@@ -145,6 +171,13 @@ export async function executeJourneyAction(
     default: {
       const spec = journeyTaskSpec(id);
       if (!spec) return "done"; // unknown — nothing to do
+      if (hasOpenJourneyTask(room, spec)) {
+        // Already filed (likely a double-click on a stale panel) —
+        // surface gently instead of duplicating the kanban card.
+        toast.info(`มีงาน${spec.label}ของห้องนี้ค้างอยู่แล้ว`);
+        deps.refresh();
+        return "done";
+      }
       await createJourneyTask(room, spec);
       deps.refresh();
       return "done";

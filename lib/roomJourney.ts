@@ -83,8 +83,9 @@ export interface JourneyState {
  * ==================================================================== */
 
 /** Stable match key — everything before the " —" separator, so users
- *  can append detail to a note without breaking stage detection. */
-function markerKey(note: string): string {
+ *  can append detail to a note without breaking stage detection.
+ *  Exported for journeyActions' dup guard (same matching rule). */
+export function markerKey(note: string): string {
   return note.split(" —")[0].trim();
 }
 
