@@ -1105,6 +1105,7 @@ export default function Home() {
                   onChangeView={(v) => setActiveView(v)}
                   onChangeBuilding={(b) => setActiveBuilding(b)}
                   lastUpdated={lastUpdated}
+                  refresh={refresh}
                 />
               </Suspense>
             </ErrorBoundary>

@@ -805,6 +805,87 @@
 }
 .occMeta b { color: var(--text); font-weight: 600; }
 
+
+/* ====================================================================
+ * Journey section in the room drawer (ขั้นตอนถัดไป)
+ * ==================================================================== */
+.journeyBox {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.journeySteps {
+  display: flex;
+  gap: 2px;
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+.journeyStep {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  position: relative;
+}
+.journeyStep + .journeyStep::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+.journeyStepDone + .journeyStep::before { background: var(--st-base, #34D399); }
+.journeyDot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-num);
+  z-index: 1;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  color: var(--text-3);
+}
+.journeyStepDone .journeyDot {
+  background: #34D399;
+  border-color: #34D399;
+  color: #06281c;
+}
+.journeyStepCurrent .journeyDot {
+  border-color: var(--primary);
+  color: var(--primary-2);
+  box-shadow: 0 0 0 3px var(--primary-tint);
+}
+.journeyStepLabel {
+  font-size: 9px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.journeyStepCurrent .journeyStepLabel { color: var(--text); font-weight: 600; }
+.journeyTitle { font-size: 13px; font-weight: 600; color: var(--text); }
+.journeySub { font-size: 11.5px; color: var(--text-2); }
+.journeyActions { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.journeyWaiting { font-size: 11.5px; color: var(--text-3); }
+@media (prefers-reduced-motion: reduce) {
+  .journeyStepCurrent .journeyDot { box-shadow: none !important; }
+}
+
 /* ====================================================================
  * Responsive
  * ==================================================================== */
