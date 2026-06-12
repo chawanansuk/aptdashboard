@@ -29,6 +29,8 @@ interface Props {
   onChangeBuilding?: (b: string) => void;
   /** "อัปเดต …" timestamp for the subtitle. */
   lastUpdated?: string;
+  /** Refetch dashboard data — enables journey actions in the drawer. */
+  refresh?: () => void;
 }
 
 const isViewMode = (v: string): v is ViewMode => v === "card" || v === "grid";
@@ -43,7 +45,7 @@ const isViewMode = (v: string): v is ViewMode => v === "card" || v === "grid";
  * edit/equipment functionality is lost.
  */
 export default function SalesPipelineV2({
-  rooms, tasks, activeBuilding, onSelectRoom, onChangeView, onChangeBuilding, lastUpdated,
+  rooms, tasks, activeBuilding, onSelectRoom, onChangeView, onChangeBuilding, lastUpdated, refresh,
 }: Props) {
   const [viewModeRaw, setViewMode] = usePersistedString("salesViewMode", "card", isViewMode);
   const viewMode: ViewMode = isViewMode(viewModeRaw) ? viewModeRaw : "card";
@@ -130,6 +132,7 @@ export default function SalesPipelineV2({
           room={selected}
           onClose={() => setSelected(null)}
           onOpenFull={openFull}
+          onRefresh={refresh}
         />
       )}
     </div>
