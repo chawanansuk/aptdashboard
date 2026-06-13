@@ -144,6 +144,7 @@ export default function SalesPipelineV2({
           onClose={() => setSelected(null)}
           onOpenFull={openFull}
           onRefresh={refresh}
+          tasks={tasks}
         />
       )}
     </div>

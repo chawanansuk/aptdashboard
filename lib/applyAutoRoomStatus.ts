@@ -26,6 +26,7 @@ interface TaskShape {
   type: string;
   building: string;
   room: string;
+  note?: string;
 }
 
 export async function applyAutoRoomStatus(opts: {
@@ -42,7 +43,7 @@ export async function applyAutoRoomStatus(opts: {
   const room = rooms.find((r) => r.building === task.building && r.room === task.room);
   if (!room) return;
 
-  const suggestion = suggestRoomStatusAfterTaskDone(task.type, newTaskStatus, room.status);
+  const suggestion = suggestRoomStatusAfterTaskDone(task.type, newTaskStatus, room.status, task.note);
   if (!suggestion) return;
 
   const canWrite = canPerform(roles, "room.editStatus");
