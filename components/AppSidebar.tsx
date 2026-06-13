@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { RoomStatus, RoomView } from "@/types";
 import type { Role } from "@/auth";
 import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
@@ -208,7 +209,7 @@ function prefetch(url: string) {
   }
 }
 
-export default function AppSidebar({
+function AppSidebar({
   isOpen, activeView, onChangeView, counts, onBackdropClick, roles, groupOrder, assetAlerts,
   isCollapsed, onToggleCollapse,
   pinnedRooms, recentRooms, onOpenRoom,
@@ -321,3 +322,9 @@ function RoomBookmarkGroup({
     </div>
   );
 }
+
+// Memoized: Home re-renders frequently for reasons unrelated to the
+// sidebar (modal typing, view toggles, room selection). All sidebar
+// props are memoized or stable refs at the call site, so memo skips
+// those reconciliations.
+export default memo(AppSidebar);
