@@ -8,7 +8,6 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from "recharts";
-import Papa from "papaparse";
 import type { RoomView, SheetRow } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
@@ -133,7 +132,11 @@ export default function ReportsView({ rooms, tasks }: Props) {
   }, [filtered, days]);
 
   // ---- Export CSV ----
-  function exportCSV() {
+  // papaparse (~45KB) is only needed the moment the user clicks Export,
+  // so it's dynamically imported here instead of at module load — keeps
+  // it out of the Reports view chunk that loads just to *view* charts.
+  async function exportCSV() {
+    const { default: Papa } = await import("papaparse");
     const rows = filtered.map((t) => ({
       วันที่: t.date,
       ประเภท: t.type,
@@ -199,7 +202,7 @@ export default function ReportsView({ rooms, tasks }: Props) {
           <button
             type="button"
             className="ac-btn ac-btn-ghost"
-            onClick={exportCSV}
+            onClick={() => void exportCSV()}
             disabled={filtered.length === 0}
             title="ดาวน์โหลด CSV (เปิดใน Excel/Google Sheets ได้)"
           >📥 CSV</button>

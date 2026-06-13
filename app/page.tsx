@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useState, useCallback, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
@@ -113,7 +113,13 @@ export default function Home() {
     (v) => v === "0" || v === "1",
   );
   const sidebarCollapsed = sidebarCollapsedRaw === "1";
-  const toggleSidebarCollapse = () => setSidebarCollapsedRaw(sidebarCollapsed ? "0" : "1");
+  // Stable across the frequent Home re-renders (only changes when the
+  // collapse state itself flips) so the memoized sidebar isn't forced to
+  // reconcile on unrelated renders.
+  const toggleSidebarCollapse = useCallback(
+    () => setSidebarCollapsedRaw(sidebarCollapsed ? "0" : "1"),
+    [sidebarCollapsed, setSidebarCollapsedRaw],
+  );
 
   // ---- Role-based access (multi-role + view-as) ----
   useSession(); // initialize session so useEffectiveRoles can read it
@@ -471,44 +477,45 @@ export default function Home() {
   // sees, just summarised for greeting copy. Building-scoped so the hero
   // narrative matches the current building filter.
   const greetingStats = useMemo<GreetingStats>(() => {
-    const scope = activeBuilding === "ทั้งหมด"
-      ? rooms
-      : rooms.filter((r) => r.building === activeBuilding);
-    const vacant   = scope.filter((r) => r.status === "ready").length;
-    const occupied = scope.filter((r) => r.status === "occupied").length;
-    const total    = scope.length;
-    const occupancyRate = total > 0 ? occupied / total : 0;
-    // Today's task count (any non-done/non-cancelled task dated today)
+    const allBuildings = activeBuilding === "ทั้งหมด";
     const d = new Date();
     const dd = String(d.getDate()).padStart(2, "0");
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const todayStr = `${dd}/${mm}/${d.getFullYear()}`;
+    const thisMonth = d.getMonth();
+    const thisYear  = d.getFullYear();
+
+    // Single pass over the building-scoped rooms — was 4 filters + 2
+    // for-loops over the same array. Accumulate every room-derived stat
+    // here: vacancy/occupancy counts, expiring contracts (parseThaiDate
+    // is regex-heavy, so we only call it once per room), moveout pipeline
+    // signal, and the occupied-rent income proxy.
+    let vacant = 0, occupied = 0, total = 0, moveoutCount = 0;
+    let expiringContractsThisMonth = 0, monthlyIncome = 0;
+    for (const r of rooms) {
+      if (!allBuildings && r.building !== activeBuilding) continue;
+      total++;
+      if (r.status === "ready") vacant++;
+      else if (r.status === "occupied") {
+        occupied++;
+        monthlyIncome += parsePriceOr0(r.price);
+      } else if (r.status === "moveout") moveoutCount++;
+      if (r.contractEnd) {
+        const td = parseThaiDate(r.contractEnd);
+        if (td && td.getMonth() === thisMonth && td.getFullYear() === thisYear) {
+          expiringContractsThisMonth++;
+        }
+      }
+    }
+    const occupancyRate = total > 0 ? occupied / total : 0;
+
+    // Today's task count (any non-done/non-cancelled task dated today).
     const tasksToday = (tasks || []).filter((t) =>
       t.date === todayStr
       && !isClosedStatus(t.status)
-      && (activeBuilding === "ทั้งหมด" || t.building === activeBuilding)
+      && (allBuildings || t.building === activeBuilding)
     ).length;
-    // Contracts expiring this calendar month — used by management greeting only;
-    // sales greeting uses moveoutCount instead (contracts auto-renew here).
-    const thisMonth = d.getMonth();
-    const thisYear  = d.getFullYear();
-    let expiringContractsThisMonth = 0;
-    for (const r of scope) {
-      if (!r.contractEnd) continue;
-      const td = parseThaiDate(r.contractEnd);
-      if (!td) continue;
-      if (td.getMonth() === thisMonth && td.getFullYear() === thisYear) {
-        expiringContractsThisMonth++;
-      }
-    }
-    // Rooms with moveout notice — re-sell pipeline signal for sales mode.
-    const moveoutCount = scope.filter((r) => r.status === "moveout").length;
-    // Monthly income proxy: sum of occupied-room prices
-    let monthlyIncome = 0;
-    for (const r of scope) {
-      if (r.status !== "occupied") continue;
-      monthlyIncome += parsePriceOr0(r.price);
-    }
+
     // maintenanceOverdue / DueSoon are owned by the (lazy) maintenance
     // module — left at 0 here so the greeting falls back gracefully; can
     // be wired in once a lightweight summary endpoint exists.
@@ -541,6 +548,14 @@ export default function Home() {
     () => roomBookmarks.recent.map((k) => roomByKey.get(k)).filter((r): r is RoomView => !!r),
     [roomBookmarks.recent, roomByKey],
   );
+
+  // Stable handlers for the memoized sidebar — inline arrows would defeat
+  // React.memo by handing it a fresh function reference each render.
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const openRoomFromSidebar = useCallback((r: RoomView) => {
+    setSidebarOpen(false);
+    setSelectedRoom(r);
+  }, []);
 
   // ---- Bulk helpers ----
   function toggleBulkRoom(building: string, room: string) {
@@ -823,7 +838,9 @@ export default function Home() {
         }),
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
-      console.log("[write] addTask response", res.status, data);
+      if (process.env.NODE_ENV === "development") {
+        console.log("[write] addTask response", res.status, data);
+      }
       if (data.ok) {
         toast.success("เพิ่มงานแล้ว — รีเฟรชข้อมูล");
         publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
@@ -944,14 +961,14 @@ export default function Home() {
           onChangeView={setActiveView}
           counts={sidebarCounts}
           assetAlerts={assetAlerts}
-          onBackdropClick={() => setSidebarOpen(false)}
+          onBackdropClick={closeSidebar}
           roles={roles}
           groupOrder={modeConfig.sidebarGroupOrder}
           isCollapsed={sidebarCollapsed}
           onToggleCollapse={toggleSidebarCollapse}
           pinnedRooms={pinnedRooms}
           recentRooms={recentRooms}
-          onOpenRoom={(r) => { setSidebarOpen(false); setSelectedRoom(r); }}
+          onOpenRoom={openRoomFromSidebar}
         />
       }
       bottomNav={
