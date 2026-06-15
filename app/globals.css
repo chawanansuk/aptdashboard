@@ -6001,6 +6001,7 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
     max-width: none !important;
     width: auto !important;
     max-height: calc(100vh - 80px) !important;
+    max-height: calc(100dvh - 80px) !important; /* dvh: account for mobile browser chrome */
     overflow-y: auto !important;
   }
 }
@@ -6793,6 +6794,7 @@ html.dark .ac-empty-state-warning .ac-empty-title { color: #FB923C; }
  * ============================================================ */
 .ac-notfound {
   min-height: 100vh;
+  min-height: 100dvh; /* dvh: avoid the mobile-chrome height jump */
   display: flex;
   align-items: center;
   justify-content: center;
