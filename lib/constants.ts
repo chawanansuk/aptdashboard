@@ -1,6 +1,21 @@
 import type { RoomStatus, EquipmentType, EquipmentStatus, FacilityType, FacilityStatus } from "@/types";
 import { TOKEN } from "@/lib/statusTokens";
 
+/**
+ * Color swatch per task type — used by every task list/calendar/card view
+ * to color the type chip/dot. Single source so the palette stays in sync
+ * across CalendarView, TasksList, SummaryDrawer, RoomModal. Fallback
+ * `#64748B` (slate-500) is implicit at each call site (`TYPE_COLOR[t] ||
+ * "#64748B"`).
+ */
+export const TASK_TYPE_COLOR: Record<string, string> = {
+  "ทำสะอาด": "#EAB308",
+  "ย้ายเข้า": "#22C55E",
+  "ย้ายออก": "#EF4444",
+  "ชมห้อง":  "#A855F7",
+  "ซ่อม":    "#F97316",
+};
+
 export const STATUS_LABEL: Record<RoomStatus, string> = {
   occupied: "มีผู้เช่า",
   ready: "พร้อมขาย",

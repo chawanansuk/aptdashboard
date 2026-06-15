@@ -11,7 +11,7 @@
  */
 
 import type { RoomView, SheetRow, RoomStatus } from "@/types";
-import { parseThaiDate } from "@/lib/dateUtils";
+import { parseThaiDate, THAI_MONTHS } from "@/lib/dateUtils";
 import { isClosedStatus } from "@/lib/constants";
 import { toSalesStatus, type SalesStatus } from "@/lib/salesTheme";
 
@@ -99,7 +99,6 @@ export interface ApptDayGroup {
 }
 
 const THAI_DOW = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัส", "ศุกร์", "เสาร์"];
-const THAI_MON = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
 function dayKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -112,7 +111,7 @@ export function dayLabel(d: Date, now: Date = new Date()): string {
   const diff = Math.round((that.getTime() - today.getTime()) / 86_400_000);
   if (diff === 0) return "วันนี้";
   if (diff === 1) return "พรุ่งนี้";
-  return `${THAI_DOW[that.getDay()]} ${that.getDate()} ${THAI_MON[that.getMonth()]}`;
+  return `${THAI_DOW[that.getDay()]} ${that.getDate()} ${THAI_MONTHS[that.getMonth()]}`;
 }
 
 /** Group already-sorted appointments by calendar day, preserving order. */

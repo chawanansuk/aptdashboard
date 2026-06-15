@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { RoomRow, SheetRow } from "@/types";
 import { parseSheetDate, getBangkokNow } from "@/lib/dateUtils";
+import { TASK_TYPE_COLOR } from "@/lib/constants";
 import EmptyState from "./EmptyState";
 
 type Props = {
@@ -25,15 +26,6 @@ const RANGE_LABEL: Record<RangeKey, string> = {
 };
 
 const RANGE_ORDER: RangeKey[] = ["today", "tomorrow", "week", "month", "overdue"];
-
-// Match colors used by existing TasksList component (do NOT introduce new palette)
-const TYPE_COLOR: Record<string, string> = {
-  ทำสะอาด: "#EAB308",
-  ย้ายเข้า: "#22C55E",
-  ย้ายออก: "#EF4444",
-  ชมห้อง: "#A855F7",
-  ซ่อม: "#F97316",
-};
 
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -168,7 +160,7 @@ export default function SummaryDrawer({ open, onClose, tasks, onAddTask, onTaskC
                       <span className="ac-summary-row-date">{dateLabel}</span>
                       <span
                         className="ac-summary-row-type"
-                        style={{ background: (TYPE_COLOR[type] || "#94A3B8") + "22", color: TYPE_COLOR[type] || "#475569" }}
+                        style={{ background: (TASK_TYPE_COLOR[type] || "#94A3B8") + "22", color: TASK_TYPE_COLOR[type] || "#475569" }}
                       >
                         {type || "อื่นๆ"}
                       </span>

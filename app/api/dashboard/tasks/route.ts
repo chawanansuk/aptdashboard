@@ -10,7 +10,7 @@ import {
 } from "@/lib/dashboardCache";
 import type { SheetRow } from "@/types";
 import { canViewTaskCustomer } from "@/lib/permissions";
-import { createHash } from "node:crypto";
+import { makeEtag, timing } from "@/lib/apiTiming";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,23 +59,6 @@ function scheduleRevalidate(): void {
   })();
 }
 
-function timing(name: string, ms: number, desc?: string): string {
-  const d = desc ? `;desc="${desc.replace(/"/g, "'")}"` : "";
-  return `${name}${d};dur=${ms.toFixed(0)}`;
-}
-
-/**
- * Hash a value into a short ETag. Cheap (md5, 8-char prefix) — collisions
- * don't cause correctness bugs because a mismatch just makes us send the
- * body anyway.
- */
-function makeEtag(tasks: SheetRow[]): string {
-  // Stringify is non-trivial for big arrays; we keep this on the
-  // upstream-success path so the cost is bounded to fresh fetches and
-  // not paid per request.
-  const hash = createHash("md5").update(JSON.stringify(tasks)).digest("hex");
-  return `W/"tasks-${hash.slice(0, 16)}"`;
-}
 
 interface BuildOpts {
   body: { tasks: SheetRow[]; cached: boolean; cacheState: string; ageMs?: number; error?: string };
@@ -130,7 +113,7 @@ export async function GET(req: Request) {
   // ---- Fresh hit ----
   if (c.state === "fresh" && c.data) {
     const out = project(c.data);
-    const etag = makeEtag(out);
+    const etag = makeEtag("tasks", out);
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/tasks] fresh", { ageMs: c.ageMs, totalMs, cacheMs });
     return buildResponse({
@@ -149,7 +132,7 @@ export async function GET(req: Request) {
   if (c.state === "stale" && c.data) {
     scheduleRevalidate();
     const out = project(c.data);
-    const etag = makeEtag(out);
+    const etag = makeEtag("tasks", out);
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/tasks] stale + bg revalidate", { ageMs: c.ageMs, totalMs, cacheMs });
     return buildResponse({
@@ -176,7 +159,7 @@ export async function GET(req: Request) {
     const parseMs = Date.now() - parseStart;
 
     const etagStart = Date.now();
-    const etag = makeEtag(out);
+    const etag = makeEtag("tasks", out);
     const etagMs = Date.now() - etagStart;
 
     const totalMs = Date.now() - handlerStart;
@@ -203,7 +186,7 @@ export async function GET(req: Request) {
     const emergency = peekEmergencyTasksCache();
     if (emergency) {
       const out = project(emergency);
-      const etag = makeEtag(out);
+      const etag = makeEtag("tasks", out);
       const totalMs = Date.now() - handlerStart;
       console.warn("[dashboard/tasks] miss-fail → emergency stale served", { error, fetchMs, totalMs });
       return buildResponse({

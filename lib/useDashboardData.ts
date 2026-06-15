@@ -5,7 +5,7 @@ import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
 import { loadCache, saveCache } from "@/lib/cacheData";
 import { isClosedStatus } from "@/lib/constants";
 import { subscribeBus } from "@/lib/realtimeBus";
-import { taskKey } from "@/lib/taskKey";
+import { roomKey, taskKey } from "@/lib/taskKey";
 import { normalizeRoomStatus, isKnownRoomStatus } from "@/lib/roomStatus";
 import { parseSheetDate } from "@/lib/dateUtils";
 
@@ -28,10 +28,6 @@ function parseDateDMY(s: string): Date | null {
 
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function buildingRoomKey(b: string, r: string): string {
-  return `${(b || "").trim()}|${(r || "").trim()}`;
 }
 
 /**
@@ -90,13 +86,13 @@ export function applyOptimisticRoomPatches(
   }
   if (patches.size === 0) return rooms;
   return rooms.map((row) => {
-    const entry = patches.get(buildingRoomKey(row.building, row.room));
+    const entry = patches.get(roomKey(row.building, row.room));
     if (!entry) return row;
     const confirmed = Object.entries(entry.patch).every(
       ([f, val]) => (row as unknown as Record<string, unknown>)[f] === val,
     );
     if (confirmed) {
-      patches.delete(buildingRoomKey(row.building, row.room));
+      patches.delete(roomKey(row.building, row.room));
       return row;
     }
     return { ...row, ...entry.patch };
@@ -226,13 +222,13 @@ export function mergeRoomsAndTasks(
   // index tasks by building+room
   const tasksByRoom = new Map<string, SheetRow[]>();
   for (const t of tasks) {
-    const k = buildingRoomKey(t.building, t.room);
+    const k = roomKey(t.building, t.room);
     if (!tasksByRoom.has(k)) tasksByRoom.set(k, []);
     tasksByRoom.get(k)!.push(t);
   }
 
   return rooms.map<RoomView>((r) => {
-    const k = buildingRoomKey(r.building, r.room);
+    const k = roomKey(r.building, r.room);
     const all = tasksByRoom.get(k) || [];
 
     // r.today flag: task dated today AND not closed (done OR cancelled).
@@ -643,7 +639,7 @@ export function useDashboardData(): DashboardState {
       lastOptimisticAtRef.current = now;
       // Record the patch so it also survives an explicit refresh() (which
       // re-fetches the still-stale CSV) until the server row confirms it.
-      const key = buildingRoomKey(b, r);
+      const key = roomKey(b, r);
       const existing = pendingRoomPatchesRef.current.get(key);
       pendingRoomPatchesRef.current.set(key, {
         patch: { ...(existing?.patch ?? {}), ...patch },

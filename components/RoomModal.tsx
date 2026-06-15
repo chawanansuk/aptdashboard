@@ -3,7 +3,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
-import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
+import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS, TASK_TYPE_COLOR } from "@/lib/constants";
 import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask, canAddCleanTask } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
@@ -75,15 +75,6 @@ interface Props {
 type TabKey = "info" | "equipment" | "vehicles";
 type FieldKey = "price" | "phone" | "contractEnd";
 type Errors = Partial<Record<FieldKey, string>>;
-
-const TYPE_COLOR: Record<string, string> = {
-  "ทำสะอาด": "#EAB308",
-  "ย้ายเข้า": "#22C55E",
-  "ย้ายออก": "#EF4444",
-  "ชมห้อง": "#A855F7",
-  "ซ่อม": "#F97316",
-  "อื่นๆ": "#64748B",
-};
 
 /** Pure helpers (top-level so they're testable + obvious) */
 function daysUntilContract(contractEnd: string): number | null {
@@ -674,7 +665,7 @@ export default function RoomModal({
                   </div>
                   <ul className="ac-room-upcoming-list">
                     {room.upcomingTasks.map((t, i) => {
-                      const dot = TYPE_COLOR[t.type] || "#64748B";
+                      const dot = TASK_TYPE_COLOR[t.type] || "#64748B";
                       return (
                         <li key={i} className="ac-room-upcoming-item">
                           <span className="ac-room-upcoming-dot" style={{ background: dot }} />
@@ -718,7 +709,7 @@ export default function RoomModal({
                         const s = (t.status || "").trim();
                         const isDone = s === "เสร็จ" || s === "done" || s === "ปิดแล้ว";
                         const isCancel = s === "ยกเลิก" || s === "cancelled";
-                        const dot = TYPE_COLOR[t.type] || "#64748B";
+                        const dot = TASK_TYPE_COLOR[t.type] || "#64748B";
                         return (
                           <li
                             key={i}

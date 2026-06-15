@@ -10,7 +10,7 @@ import {
   tryBeginEquipmentRevalidation,
 } from "@/lib/maintenanceCache";
 import type { RoomEquipment } from "@/types";
-import { createHash } from "node:crypto";
+import { makeEtag, timing } from "@/lib/apiTiming";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,16 +64,6 @@ function scheduleRevalidate(): void {
   })();
 }
 
-function timing(name: string, ms: number, desc?: string): string {
-  const d = desc ? `;desc="${desc.replace(/"/g, "'")}"` : "";
-  return `${name}${d};dur=${ms.toFixed(0)}`;
-}
-
-function makeEtag(rows: RoomEquipment[]): string {
-  const hash = createHash("md5").update(JSON.stringify(rows)).digest("hex");
-  return `W/"maint-${hash.slice(0, 16)}"`;
-}
-
 interface BuildOpts {
   body: {
     rows: RoomEquipment[];
@@ -121,7 +111,7 @@ export async function GET(req: Request) {
   const cacheMs = Date.now() - cacheStart;
 
   if (c.state === "fresh" && c.data) {
-    const etag = makeEtag(c.data);
+    const etag = makeEtag("maint", c.data);
     const totalMs = Date.now() - handlerStart;
     console.info("[maintenance-plan] fresh", { ageMs: c.ageMs, totalMs, cacheMs });
     return buildResponse({
@@ -138,7 +128,7 @@ export async function GET(req: Request) {
 
   if (c.state === "stale" && c.data) {
     scheduleRevalidate();
-    const etag = makeEtag(c.data);
+    const etag = makeEtag("maint", c.data);
     const totalMs = Date.now() - handlerStart;
     console.info("[maintenance-plan] stale + bg revalidate", { ageMs: c.ageMs, totalMs, cacheMs });
     return buildResponse({
@@ -161,7 +151,7 @@ export async function GET(req: Request) {
     setEquipmentCache(rows);
 
     const etagStart = Date.now();
-    const etag = makeEtag(rows);
+    const etag = makeEtag("maint", rows);
     const etagMs = Date.now() - etagStart;
 
     const totalMs = Date.now() - handlerStart;
@@ -184,7 +174,7 @@ export async function GET(req: Request) {
 
     const emergency = peekEmergencyEquipmentCache();
     if (emergency) {
-      const etag = makeEtag(emergency);
+      const etag = makeEtag("maint", emergency);
       const totalMs = Date.now() - handlerStart;
       console.warn("[maintenance-plan] miss-fail → emergency stale served", { error, fetchMs, totalMs });
       return buildResponse({
