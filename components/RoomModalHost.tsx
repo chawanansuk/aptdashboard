@@ -102,14 +102,17 @@ export default function RoomModalHost({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "updateRoomStatus",
+          // Free-form room edit (status + tenant identity + contract + price).
+          // Management-only at the route (tenant.edit); the Save button + status
+          // select are already gated to canEditTenant in RoomModal. (security split)
+          action: "updateRoomData",
           building: room.building, room: room.room,
           status: editStatus, tenant: editTenant, phone: editPhone,
           contractEnd: editContractEnd, note: editNote, price: editPrice,
         }),
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
-      console.log("[write] updateRoomStatus response", res.status, data);
+      console.log("[write] updateRoomData response", res.status, data);
       if (data.ok) {
         toast.success("บันทึกแล้ว — รีเฟรชข้อมูล");
         publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });

@@ -3,13 +3,13 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
-import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS } from "@/lib/constants";
+import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS, TASK_TYPE_COLOR } from "@/lib/constants";
 import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask, canAddCleanTask } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
 import { sumCompletedCosts } from "@/lib/taskCost";
-import { formatBaht as formatTaskBaht, formatBaht as fmtBahtFromMoney } from "@/lib/money";
+import { formatBaht } from "@/lib/money";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
 import RoomImageGallery from "./RoomImageGallery";
@@ -83,15 +83,6 @@ type TabKey = "info" | "equipment" | "vehicles";
 type FieldKey = "price" | "phone" | "contractEnd";
 type Errors = Partial<Record<FieldKey, string>>;
 
-const TYPE_COLOR: Record<string, string> = {
-  "ทำสะอาด": "#EAB308",
-  "ย้ายเข้า": "#22C55E",
-  "ย้ายออก": "#EF4444",
-  "ชมห้อง": "#A855F7",
-  "ซ่อม": "#F97316",
-  "อื่นๆ": "#64748B",
-};
-
 /** Pure helpers (top-level so they're testable + obvious) */
 function daysUntilContract(contractEnd: string): number | null {
   const d = parseThaiDate(contractEnd);
@@ -99,13 +90,6 @@ function daysUntilContract(contractEnd: string): number | null {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-// Input-field formatter: digits only, no "฿" suffix (the input has its
-// own visual prefix). Delegates to lib/money so the parse rules match
-// every other money field in the app.
-function formatBaht(s: string): string {
-  return fmtBahtFromMoney(s, { suffix: "" });
 }
 
 /** Modal clamps to ±7 days then shows the raw date — beyond a week
@@ -294,7 +278,7 @@ export default function RoomModal({
 
   /* ----- Derived header facts ----- */
   const daysLeft = daysUntilContract(contractEnd);
-  const priceDisplay = formatBaht(price);
+  const priceDisplay = formatBaht(price, { suffix: "" });
   const completedCostsTotal = useMemo(
     () => sumCompletedCosts(room.pastTasks),
     [room.pastTasks]
@@ -357,7 +341,7 @@ export default function RoomModal({
               {canSeeCost && completedCostsTotal > 0 && (
                 <span className="ac-room-modal-chip ac-room-modal-chip-muted">
                   <span className="ac-room-modal-chip-icon">฿</span>
-                  รวมที่ใช้จ่าย {formatTaskBaht(completedCostsTotal)}
+                  รวมที่ใช้จ่าย {formatBaht(completedCostsTotal, { suffix: "" })}
                 </span>
               )}
             </div>
@@ -694,7 +678,7 @@ export default function RoomModal({
                   </div>
                   <ul className="ac-room-upcoming-list">
                     {room.upcomingTasks.map((t, i) => {
-                      const dot = TYPE_COLOR[t.type] || "#64748B";
+                      const dot = TASK_TYPE_COLOR[t.type] || "#64748B";
                       return (
                         <li key={i} className="ac-room-upcoming-item">
                           <span className="ac-room-upcoming-dot" style={{ background: dot }} />
@@ -738,7 +722,7 @@ export default function RoomModal({
                         const s = (t.status || "").trim();
                         const isDone = s === "เสร็จ" || s === "done" || s === "ปิดแล้ว";
                         const isCancel = s === "ยกเลิก" || s === "cancelled";
-                        const dot = TYPE_COLOR[t.type] || "#64748B";
+                        const dot = TASK_TYPE_COLOR[t.type] || "#64748B";
                         return (
                           <li
                             key={i}
@@ -754,7 +738,7 @@ export default function RoomModal({
                                 )}
                                 {canSeeCost && typeof t.cost === "number" && t.cost > 0 && (
                                   <span className="ac-room-history-cost">
-                                    · {formatTaskBaht(t.cost)}
+                                    · {formatBaht(t.cost, { suffix: "" })}
                                   </span>
                                 )}
                               </div>

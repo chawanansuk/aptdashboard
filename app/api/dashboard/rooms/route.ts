@@ -9,7 +9,7 @@ import {
 } from "@/lib/dashboardCache";
 import { canViewTenant } from "@/lib/permissions";
 import type { RoomRow } from "@/types";
-import { createHash } from "node:crypto";
+import { makeEtag, timing } from "@/lib/apiTiming";
 
 /**
  * Strip tenant PII fields when the requester isn't allowed to read them.
@@ -63,22 +63,6 @@ function scheduleRevalidate(): void {
   })();
 }
 
-function timing(name: string, ms: number, desc?: string): string {
-  const d = desc ? `;desc="${desc.replace(/"/g, "'")}"` : "";
-  return `${name}${d};dur=${ms.toFixed(0)}`;
-}
-
-/**
- * Hash projected rows into a short ETag. Computed over the PROJECTED
- * (PII-stripped per role) rows so a non-admin's 304 can't be satisfied
- * by an admin's cached body — Cache-Control is already `private`, never
- * CDN. Mirrors /api/dashboard/tasks.
- */
-function makeEtag(rooms: RoomRow[]): string {
-  const hash = createHash("md5").update(JSON.stringify(rooms)).digest("hex");
-  return `W/"rooms-${hash.slice(0, 16)}"`;
-}
-
 // Browser cache only (`private`) — never CDN. Rooms response varies by
 // user role (PII strip, PR #61), so a shared CDN could leak management's
 // data to sales. 60s fresh covers typical click-back navigation cheaply.
@@ -128,7 +112,7 @@ export async function GET(req: Request) {
     console.info("[dashboard/rooms] fresh", { ageMs: c.ageMs, totalMs });
     return buildResponse({
       body: { rooms: out, cached: true, cacheState: "fresh", ageMs: c.ageMs },
-      etag: makeEtag(out),
+      etag: makeEtag("rooms", out),
       ifNoneMatch,
       timings: [
         timingEntry("auth", authMs),
@@ -145,7 +129,7 @@ export async function GET(req: Request) {
     console.info("[dashboard/rooms] stale + bg revalidate", { ageMs: c.ageMs, totalMs });
     return buildResponse({
       body: { rooms: out, cached: true, cacheState: "stale", ageMs: c.ageMs },
-      etag: makeEtag(out),
+      etag: makeEtag("rooms", out),
       ifNoneMatch,
       timings: [
         timingEntry("auth", authMs),
@@ -166,7 +150,7 @@ export async function GET(req: Request) {
     console.info("[dashboard/rooms] miss → fetched", { fetchMs, totalMs });
     return buildResponse({
       body: { rooms: out, cached: false, cacheState: "missing" },
-      etag: makeEtag(out),
+      etag: makeEtag("rooms", out),
       ifNoneMatch,
       timings: [
         timingEntry("auth", authMs),

@@ -5,7 +5,7 @@ import type { Role } from "@/auth";
  * (canAccess) and DO (canPerform). All UI gates + API guards funnel
  * through these two helpers.
  *
- * The legacy single-purpose helpers (canAddTask, canDeleteTask, etc.)
+ * The legacy single-purpose helpers (canDeleteTask, canEditTenant, etc.)
  * are kept for backward compatibility and now delegate to canPerform()
  * so the rules live in one table.
  *
@@ -194,18 +194,6 @@ export function canPerform(input: RoleInput, action: Action): boolean {
  * Legacy helpers — delegate to canPerform. Kept so existing call sites
  * keep working without churn. Prefer canPerform() in new code.
  * ==================================================================== */
-
-export function canRead(input: RoleInput): boolean {
-  return has(input, "sales", "engineer", "management");
-}
-
-export function canAddTask(input: RoleInput): boolean {
-  return canPerform(input, "task.add");
-}
-
-export function canEditTask(input: RoleInput): boolean {
-  return canPerform(input, "task.edit");
-}
 
 export function canDeleteTask(input: RoleInput): boolean {
   return canPerform(input, "task.delete");

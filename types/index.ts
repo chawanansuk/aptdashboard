@@ -154,7 +154,7 @@ export interface Facility {
  * unit defaults to "ชิ้น" but can be any unit ("ม.", "ลิตร", "ลูก").
  */
 export const PART_CATEGORIES = [
-  "ประปา", "ไฟฟ้า", "แอร์", "ของใช้ในห้องน้ำ", "ทั่วไป", "อื่นๆ",
+  "ประปา", "ไฟฟ้า", "แอร์", "ของใช้ในห้องน้ำ", "ของใช้แม่บ้าน", "ทั่วไป", "อื่นๆ",
 ] as const;
 export type PartCategory = typeof PART_CATEGORIES[number];
 

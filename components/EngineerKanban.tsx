@@ -158,7 +158,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
   // `${building}|${room}|${kind}` so two chips on a row spin independently.
   const [creatingPrep, setCreatingPrep] = useState<Set<string>>(new Set());
 
-  const todayStr = useMemo(() => todayThai(), []);
+  const todayStr = todayThai();
 
   // Filter: engineer-side tasks + active building + location kind
   const filtered = useMemo(() => {

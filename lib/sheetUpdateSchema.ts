@@ -151,6 +151,21 @@ export const UpdateRoomStatusSchema = z.object({
 }).strip();
 
 /**
+ * Room-write security split (v3.x): bookRoom and updateRoomData share
+ * updateRoomStatus's body shape and the same Apps Script writer; they
+ * differ only in the permission the route enforces:
+ *   - updateRoomData → tenant.edit (management) free-form edit incl. contract
+ *   - bookRoom       → room.editStatus (sales) booking bundle
+ * Plain updateRoomStatus is status+note only (route strips PII).
+ */
+export const UpdateRoomDataSchema = UpdateRoomStatusSchema.extend({
+  action: z.literal("updateRoomData"),
+});
+export const BookRoomSchema = UpdateRoomStatusSchema.extend({
+  action: z.literal("bookRoom"),
+});
+
+/**
  * debugFindTask: read-only diagnostic. Same 4-tuple shape; Apps Script
  * returns the matched row (or null) so the engineer can confirm what
  * the sheet thinks exists. No data is mutated.
@@ -174,6 +189,8 @@ export const SheetUpdateBodySchema = z.discriminatedUnion("action", [
   UpdateTaskStatusSchema,
   DeleteTaskSchema,
   UpdateRoomStatusSchema,
+  UpdateRoomDataSchema,
+  BookRoomSchema,
   DebugFindTaskSchema,
 ]);
 

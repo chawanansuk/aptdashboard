@@ -300,12 +300,15 @@ export default function AddTaskModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, reset]);
 
-  // Coerce type to allowed value when role mix changes
+  // Coerce type to allowed value when role mix changes. Only the type
+  // field is rewritten — a session refresh re-creates `roles` identity
+  // and re-runs this; a full reset() here would wipe whatever the user
+  // had already typed (building/room/customer/note) mid-edit.
   useEffect(() => {
     if (!open) return;
     if (!allowedTypes.includes(currentType)) {
       const next = defaultTypeFor(roles, currentType, defaultType);
-      reset({ ...defaults, type: next });
+      setValue("type", next, { shouldValidate: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, roles, allowedTypes]);

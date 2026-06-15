@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { etagJsonResponse } from "@/lib/etagJsonResponse";
+import { partsSlot } from "@/lib/partsCache";
 import type { Requisition } from "@/types";
 
 export const runtime = "nodejs";
@@ -78,6 +79,11 @@ export async function POST(req: Request) {
 
   try {
     const json = await appsScriptCall("addRequisition", body);
+    // addRequisition decrements part stock, so the parts inventory slot is
+    // now stale — bust it (shared module) or /api/parts serves the old,
+    // higher stock until its fresh-TTL expires and an engineer can
+    // over-requisition against a number already spent.
+    partsSlot.invalidate();
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";

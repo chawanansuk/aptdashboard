@@ -10,7 +10,7 @@
  * (a new building added in the sheet won't crash; it just gets a
  * less-curated abbrev until someone updates this map).
  */
-export const BUILDING_ABBREV: Record<string, string> = {
+const BUILDING_ABBREV: Record<string, string> = {
   "Kl": "KL",
   "KL": "KL",
   "มั่งมี": "มม",

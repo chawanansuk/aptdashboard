@@ -11,7 +11,7 @@
  * Script timestamps and is its own concern.
  */
 
-import { parseThaiDate } from "./dateUtils";
+import { parseThaiDate, getBangkokNow } from "./dateUtils";
 
 export interface RelativeDateOptions {
   /** Inject a clock for tests. Default: real now. */
@@ -37,7 +37,10 @@ export function relativeThaiDate(
   input: string,
   opts: RelativeDateOptions = {},
 ): string {
-  const { now = new Date(), clampDays = Infinity, fallback = "raw" } = opts;
+  // Default clock is Bangkok wall-clock (matches parseThaiDate's frame);
+  // a plain new Date() on a UTC host shifts the "วันนี้/พรุ่งนี้" boundary
+  // off by one near midnight (#157). Tests still inject `now` explicitly.
+  const { now = getBangkokNow(), clampDays = Infinity, fallback = "raw" } = opts;
   const d = parseThaiDate(input);
   if (!d) return fallback === "raw" ? (input || "") : "";
 

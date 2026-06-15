@@ -768,7 +768,10 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "updateRoomStatus",
+          // Booking bundle: status=รอสัญญา + tenant identity + price. This
+          // is sales' one legitimate path to write a tenant; gated to
+          // room.editStatus and audit-logged at the route. (security split)
+          action: "bookRoom",
           building: data.building,
           room: data.room,
           status: "รอสัญญา",

@@ -2,15 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
-import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
+import { serveCachedRows } from "@/lib/serverSwr";
+import { partsSlot } from "@/lib/partsCache";
 import type { Part } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// Server-side SWR slot for the parts inventory. Invalidated on every
-// add / update / adjust write so stock changes surface immediately.
-const partsSlot = new SwrSlot<Part[]>();
 
 async function fetchParts(): Promise<Part[]> {
   const json = await appsScriptCall<{ rows?: Part[] }>(

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
-import { isClosedStatus, isDoneStatus, isCancelledStatus, isNotInterestedStatus } from "@/lib/constants";
+import { isClosedStatus, isDoneStatus, isCancelledStatus, isNotInterestedStatus, TASK_TYPE_COLOR } from "@/lib/constants";
 import { roomKey } from "@/lib/taskKey";
 import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
@@ -16,14 +16,6 @@ interface Props {
   rooms?: RoomView[];
   onSelectRoom?: (r: RoomView) => void;
 }
-
-const TYPE_COLOR: Record<string, string> = {
-  "ทำสะอาด": "#EAB308",
-  "ย้ายเข้า": "#22C55E",
-  "ย้ายออก": "#EF4444",
-  "ชมห้อง": "#A855F7",
-  "ซ่อม": "#F97316",
-};
 
 const TYPE_ORDER = ["ทำสะอาด", "ย้ายเข้า", "ย้ายออก", "ชมห้อง", "ซ่อม"];
 
@@ -78,10 +70,10 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
     return new Date(n.getFullYear(), n.getMonth(), n.getDate());
   });
 
-  const today = useMemo(() => {
+  const today = (() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), n.getDate());
-  }, []);
+  })();
 
   // group tasks by dmy key (filtered by activeBuilding)
   const tasksByDay = useMemo(() => {
@@ -236,7 +228,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
         role={clickable ? "button" : undefined}
         tabIndex={clickable ? 0 : undefined}
       >
-        <span className="ac-cal-task-dot" style={{ background: TYPE_COLOR[t.type] || "#64748B" }} />
+        <span className="ac-cal-task-dot" style={{ background: TASK_TYPE_COLOR[t.type] || "#64748B" }} />
         <div className="ac-cal-task-main">
           <div className="ac-cal-task-line1">
             <strong>{t.type}</strong> · {t.building} {t.room}
@@ -331,7 +323,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
                         <span
                           key={t}
                           className="ac-cal-week-dot"
-                          style={{ background: TYPE_COLOR[t] || "#64748B" }}
+                          style={{ background: TASK_TYPE_COLOR[t] || "#64748B" }}
                         />
                       ))}
                   </div>
@@ -347,7 +339,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
         <section className="ac-cal-legend ac-no-print" aria-label="คำอธิบายสี">
           {visibleTypes.map((t) => (
             <span key={t} className="ac-cal-legend-item">
-              <span className="ac-cal-legend-swatch" style={{ background: TYPE_COLOR[t] || "#64748B" }} />
+              <span className="ac-cal-legend-swatch" style={{ background: TASK_TYPE_COLOR[t] || "#64748B" }} />
               <span className="ac-cal-legend-label">{t}</span>
             </span>
           ))}
@@ -391,7 +383,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
                           <span
                             key={type}
                             className="ac-cal-dot"
-                            style={{ background: TYPE_COLOR[type] || "#64748B" }}
+                            style={{ background: TASK_TYPE_COLOR[type] || "#64748B" }}
                             title={`${type} (${count})`}
                           >
                             {count > 1 && <span className="ac-cal-dot-count">{count}</span>}
@@ -440,7 +432,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
                   role={clickable ? "button" : undefined}
                   tabIndex={clickable ? 0 : undefined}
                 >
-                  <span className="ac-cal-task-dot" style={{ background: TYPE_COLOR[t.type] || "#64748B" }} />
+                  <span className="ac-cal-task-dot" style={{ background: TASK_TYPE_COLOR[t.type] || "#64748B" }} />
                   <div className="ac-cal-task-main">
                     <div className="ac-cal-task-line1">
                       <strong>{t.type}</strong> · {t.building} {t.room}

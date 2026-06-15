@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canAccess, canPerform, getDefaultRoute,
   isSales, isEngineer, isManagement,
-  canAddTask, canDeleteTask, canEditTenant, canViewFinancials,
+  canDeleteTask, canEditTenant, canViewFinancials,
   canAddSalesTask, canAddEngTask, canAddCleanTask, canViewTaskCustomer,
 } from "./permissions";
 
@@ -150,13 +150,6 @@ describe("permissions: legacy helpers delegate to canPerform", () => {
     expect(canEditTenant(["management"])).toBe(true);
     expect(canViewFinancials(["sales", "engineer"])).toBe(false);
     expect(canViewFinancials(["management"])).toBe(true);
-  });
-
-  it("canAddTask is true for any authenticated role", () => {
-    expect(canAddTask(["sales"])).toBe(true);
-    expect(canAddTask(["engineer"])).toBe(true);
-    expect(canAddTask(["management"])).toBe(true);
-    expect(canAddTask([])).toBe(false);
   });
 
   it("canAddSalesTask + canAddEngTask delegate correctly", () => {

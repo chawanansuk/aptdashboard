@@ -11,6 +11,7 @@ import {
 } from "@/lib/taskUrgency";
 import { TASK_STATUS } from "@/lib/taskStatus";
 import { TASK_TYPES } from "@/lib/taskConstants";
+import { TASK_TYPE_COLOR } from "@/lib/constants";
 import { taskKey as taskKeyOf } from "@/lib/taskKey";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { usePersistedString } from "@/lib/usePersistedString";
@@ -28,14 +29,6 @@ interface Props {
    *  doesn't pop back open while the dashboard cache catches up. */
   onOptimisticStatus?: (t: SheetRow, status: string) => void;
 }
-
-const TYPE_COLOR: Record<string, string> = {
-  "ทำสะอาด": "#EAB308",
-  "ย้ายเข้า": "#22C55E",
-  "ย้ายออก": "#EF4444",
-  "ชมห้อง": "#A855F7",
-  "ซ่อม": "#F97316",
-};
 
 function isDone(status: string): boolean {
   const s = (status || "").trim();
@@ -509,7 +502,7 @@ function TaskCard({
   const cancelled = isCancelled(t.status);
   const notInterested = isNotInterested(t.status);
   const closed = done || cancelled || notInterested;
-  const dot = TYPE_COLOR[t.type] || "#64748B";
+  const dot = TASK_TYPE_COLOR[t.type] || "#64748B";
   const overdueDays = urgency === "overdue" ? daysOverdue(t) : 0;
   const busy = busyKey === k;
 

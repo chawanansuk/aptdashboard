@@ -111,7 +111,7 @@ const FACILITY_STATUS  = ['ใช้งานได้', 'ต้องซ่อ�
 
 // v3.11.0 — Inventory categories (Task 37). "อื่นๆ" fallback ensures
 // any free-text new category still passes the dropdown.
-const PART_CATEGORIES  = ['ประปา', 'ไฟฟ้า', 'แอร์', 'ของใช้ในห้องน้ำ', 'ทั่วไป', 'อื่นๆ'];
+const PART_CATEGORIES  = ['ประปา', 'ไฟฟ้า', 'แอร์', 'ของใช้ในห้องน้ำ', 'ของใช้แม่บ้าน', 'ทั่วไป', 'อื่นๆ'];
 
 // v3.15.0 — Lead CRM stages (Task 26). Kanban columns left → right.
 const LEAD_STAGES = ['ใหม่', 'นัดดูแล้ว', 'กำลังคุย', 'ทำสัญญา', 'ปิดดีล', 'ปิดเลิก'];
@@ -351,7 +351,15 @@ function doPost(e) {
       case 'updateTask':       return ok_(withWriteLock_(function () { return updateTask_(body); }));
       case 'updateTaskStatus': return ok_(withWriteLock_(function () { return updateTaskStatus_(body); }));
       case 'deleteTask':       return ok_(withWriteLock_(function () { return deleteTask_(body); }));
+      // Three room-write actions share one writer (updateRoomStatus_ writes
+      // only the fields present in body); the per-action field/permission
+      // gating lives in the Next.js route (app/api/sheet/update). Splitting
+      // the action lets the route enforce: updateRoomData = management-only
+      // free-form edit, bookRoom = sales booking bundle, updateRoomStatus =
+      // status/note only (PII stripped) so the status path can't write PII.
       case 'updateRoomStatus': return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
+      case 'updateRoomData':   return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
+      case 'bookRoom':         return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
       case 'addEquipment':     return ok_(withWriteLock_(function () { return addEquipment_(body); }));
       case 'updateEquipment':  return ok_(withWriteLock_(function () { return updateEquipment_(body); }));
       case 'addFacility':      return ok_(withWriteLock_(function () { return addFacility_(body); }));
