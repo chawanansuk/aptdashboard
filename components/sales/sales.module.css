@@ -907,6 +907,16 @@
 }
 
 /* ====================================================================
+ * Touch tap targets — the drawer is a sales tool used mostly on phones.
+ * .drawerBtn was ~38px and .drawerClose 34px; lift both to the 44px
+ * WCAG 2.5.5 / HIG floor on coarse pointers (desktop sizing unchanged).
+ * ==================================================================== */
+@media (pointer: coarse) {
+  .drawerBtn { min-height: 44px; }
+  .drawerClose { width: 44px; height: 44px; }
+}
+
+/* ====================================================================
  * Reduced motion — disable the polish transforms for users who opt out.
  * ==================================================================== */
 @media (prefers-reduced-motion: reduce) {

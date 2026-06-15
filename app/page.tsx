@@ -15,6 +15,8 @@ import { parsePriceOr0 } from "@/lib/money";
 import { roomKey } from "@/lib/taskKey";
 import { useRoomBookmarks, roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
+import { useMediaQuery } from "@/lib/useMediaQuery";
+import { MQ } from "@/lib/breakpoints";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
@@ -300,12 +302,16 @@ export default function Home() {
     });
   }
 
-  // ---- Sidebar auto-close on resize ----
+  // ---- Close the overlay sidebar when entering desktop rail mode ----
+  // The sidebar is a hamburger overlay at ≤1280px (CSS) and the static
+  // rail above it. The old handler closed it at >980px — a different
+  // threshold from the CSS — so a resize within the 981–1280 overlay band
+  // would force the overlay shut. Drive it off the SAME breakpoint the CSS
+  // uses so JS and CSS agree on when the overlay applies.
+  const isDesktopRail = useMediaQuery(MQ.desktopRail);
   useEffect(() => {
-    const onResize = () => { if (window.innerWidth > 980) setSidebarOpen(false); };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+    if (isDesktopRail) setSidebarOpen(false);
+  }, [isDesktopRail]);
 
   // ---- Tab-focus refresh: when user returns to the tab, refetch the
   // dashboard and invalidate caches that don't auto-revalidate. Skips if
