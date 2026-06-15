@@ -111,7 +111,7 @@ const FACILITY_STATUS  = ['ใช้งานได้', 'ต้องซ่อ�
 
 // v3.11.0 — Inventory categories (Task 37). "อื่นๆ" fallback ensures
 // any free-text new category still passes the dropdown.
-const PART_CATEGORIES  = ['ประปา', 'ไฟฟ้า', 'แอร์', 'ของใช้ในห้องน้ำ', 'ทั่วไป', 'อื่นๆ'];
+const PART_CATEGORIES  = ['ประปา', 'ไฟฟ้า', 'แอร์', 'ของใช้ในห้องน้ำ', 'ของใช้แม่บ้าน', 'ทั่วไป', 'อื่นๆ'];
 
 // v3.15.0 — Lead CRM stages (Task 26). Kanban columns left → right.
 const LEAD_STAGES = ['ใหม่', 'นัดดูแล้ว', 'กำลังคุย', 'ทำสัญญา', 'ปิดดีล', 'ปิดเลิก'];
