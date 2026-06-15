@@ -407,6 +407,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
       />
 
       <AddFacilityModal
+        key={editTarget?.id ?? "edit"}
         open={!!editTarget}
         buildings={buildings}
         submitting={submitting}

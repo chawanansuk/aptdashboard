@@ -362,6 +362,7 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
       />
 
       <AddEquipmentModal
+        key={editTarget?.id ?? "edit"}
         open={!!editTarget}
         building={building}
         room={room}
