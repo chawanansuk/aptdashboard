@@ -15,6 +15,14 @@ describe("parsePrice", () => {
     expect(parsePrice(" 3500 ฿")).toBe(3500);
   });
 
+  it("takes the integer part of decimal strings (no 100× inflation)", () => {
+    // A pasted "5,500.00" must not become 550000 (the "." + decimals
+    // concatenated into the integer). Thai rents are whole baht.
+    expect(parsePrice("5,500.00")).toBe(5500);
+    expect(parsePrice("3500.50")).toBe(3500);
+    expect(parsePrice("12.5")).toBe(12);
+  });
+
   it("passes through finite numbers", () => {
     expect(parsePrice(1234)).toBe(1234);
     expect(parsePrice(0)).toBe(0);
