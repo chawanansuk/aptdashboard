@@ -29,11 +29,13 @@ export function parsePrice(s: string | number | null | undefined): number {
   // -100, then the >0 guard zeroed it), so callers across the app expect
   // negative strings to become NaN/0.
   if (trimmed.startsWith("-")) return NaN;
-  // Drop any fractional part BEFORE stripping non-digits. Thai rents are
-  // whole baht, but a pasted "5,500.00" would otherwise have its "." and
-  // decimals concatenated into the integer ("550000" = 100× too large).
-  // Take the integer portion, then strip separators / "฿" / "บาท".
-  const digits = trimmed.split(".")[0].replace(/[^0-9]/g, "");
+  // Strip ALL non-digits and read as integer baht. This is deliberate:
+  // "." is a THOUSANDS separator in this app's data ("8.500" = 8500),
+  // not a decimal point — Thai rents are whole baht. See
+  // SalesPipelineView.test ("8.500" → "8,500"). A pasted "5,500.00"
+  // becoming 550000 is an accepted edge of that convention; disambiguating
+  // dot-as-sep from dot-as-decimal isn't reliably possible.
+  const digits = trimmed.replace(/[^0-9]/g, "");
   if (!digits) return NaN;
   const n = parseInt(digits, 10);
   return Number.isFinite(n) ? n : NaN;

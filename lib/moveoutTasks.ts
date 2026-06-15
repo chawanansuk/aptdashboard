@@ -1,5 +1,6 @@
 import type { SheetRow } from "@/types";
 import { isClosedStatus } from "@/lib/constants";
+import { getBangkokNow } from "@/lib/dateUtils";
 
 /**
  * Move-out auto-prep — bridge between sales and engineer modes.
@@ -89,9 +90,11 @@ export function findOpenPrepTask(
   return undefined;
 }
 
-/** Today as dd/MM/yyyy — matches sheet format used elsewhere. */
+/** Today as dd/MM/yyyy — matches sheet format used elsewhere. Bangkok
+ *  wall-clock so an auto-created task stamped just after Bangkok midnight
+ *  from a UTC host doesn't get yesterday's date (#157). */
 export function todayThaiDate(): string {
-  const d = new Date();
+  const d = getBangkokNow();
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   return `${dd}/${mm}/${d.getFullYear()}`;

@@ -11,7 +11,7 @@
  */
 
 import type { RoomView, SheetRow, RoomStatus } from "@/types";
-import { parseThaiDate, THAI_MONTHS } from "@/lib/dateUtils";
+import { parseThaiDate, getBangkokNow, THAI_MONTHS } from "@/lib/dateUtils";
 import { isClosedStatus } from "@/lib/constants";
 import { toSalesStatus, type SalesStatus } from "@/lib/salesTheme";
 
@@ -59,7 +59,7 @@ export interface Appointment {
 export function buildAppointments(
   tasks: SheetRow[],
   activeBuilding: string,
-  now: Date = new Date(),
+  now: Date = getBangkokNow(),
 ): Appointment[] {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return (tasks || [])
@@ -81,7 +81,7 @@ export function buildAppointments(
 export function countAppointmentsWithinDays(
   items: { date: Date }[],
   days: number,
-  from: Date = new Date(),
+  from: Date = getBangkokNow(),
 ): number {
   const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   const cutoff = new Date(start.getFullYear(), start.getMonth(), start.getDate() + days + 1);
@@ -105,7 +105,7 @@ function dayKey(d: Date): string {
 }
 
 /** Human day label relative to `now`: วันนี้ / พรุ่งนี้ / เสาร์ 7 มิ.ย. */
-export function dayLabel(d: Date, now: Date = new Date()): string {
+export function dayLabel(d: Date, now: Date = getBangkokNow()): string {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diff = Math.round((that.getTime() - today.getTime()) / 86_400_000);
@@ -117,7 +117,7 @@ export function dayLabel(d: Date, now: Date = new Date()): string {
 /** Group already-sorted appointments by calendar day, preserving order. */
 export function groupAppointmentsByDay(
   appts: Appointment[],
-  now: Date = new Date(),
+  now: Date = getBangkokNow(),
 ): ApptDayGroup[] {
   const out: ApptDayGroup[] = [];
   const index = new Map<string, ApptDayGroup>();
@@ -240,7 +240,7 @@ export function countByStatus(rooms: RoomView[], status: SalesStatus): number {
 export function buildKpis(
   scopedRooms: RoomView[],
   appointments: Appointment[],
-  now: Date = new Date(),
+  now: Date = getBangkokNow(),
 ): SalesKpis {
   return {
     available: countByStatus(scopedRooms, "available"),

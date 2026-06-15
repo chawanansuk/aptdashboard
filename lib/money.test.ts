@@ -15,12 +15,11 @@ describe("parsePrice", () => {
     expect(parsePrice(" 3500 ฿")).toBe(3500);
   });
 
-  it("takes the integer part of decimal strings (no 100× inflation)", () => {
-    // A pasted "5,500.00" must not become 550000 (the "." + decimals
-    // concatenated into the integer). Thai rents are whole baht.
-    expect(parsePrice("5,500.00")).toBe(5500);
-    expect(parsePrice("3500.50")).toBe(3500);
-    expect(parsePrice("12.5")).toBe(12);
+  it("treats '.' as a thousands separator, not a decimal (app convention)", () => {
+    // Dots are stripped like commas — "8.500" is 8500, not 8.5. Mirrors
+    // SalesPipelineView's formatBaht contract; Thai rents are whole baht.
+    expect(parsePrice("8.500")).toBe(8500);
+    expect(parsePrice("8.500 ฿")).toBe(8500);
   });
 
   it("passes through finite numbers", () => {

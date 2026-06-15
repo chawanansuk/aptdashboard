@@ -1,4 +1,5 @@
 import type { MaintenanceStatus } from "@/types";
+import { getBangkokNow } from "@/lib/dateUtils";
 
 const DUE_SOON_DAYS = 14;
 
@@ -62,8 +63,11 @@ export function daysUntilService(eq: Serviceable): number | null {
   if (!next) return null;
   const nextDate = parseYmd(next);
   if (!nextDate) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Anchor "today" to the Bangkok calendar day in parseYmd's local frame
+  // (both are local-midnight of a Y/M/D), so the due-soon / overdue badge
+  // doesn't flip a day early/late for a non-Bangkok viewer near midnight.
+  const now = getBangkokNow();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffMs = nextDate.getTime() - today.getTime();
   return Math.round(diffMs / (24 * 60 * 60 * 1000));
 }
