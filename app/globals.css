@@ -1747,7 +1747,13 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   .ac-btn-foot-start { margin-right: 0; order: 99; }
 }
 
-/* RESPONSIVE */
+/* RESPONSIVE
+ * Canonical breakpoints (keep in sync with lib/breakpoints.ts — the JS
+ * source of truth used by useMediaQuery):
+ *   768px  → mobile: bottom nav, compact header
+ *   1280px → sidebar overlay boundary (≤ overlay/hamburger, ≥1281 rail)
+ * CSS @media can't read JS values, so these numbers are duplicated by
+ * design; change them in both places together. */
 @media (max-width: 1280px) {
   .ac-side {
     position: fixed;
@@ -4292,6 +4298,11 @@ html.dark .ac-overview-card-skeleton {
   .ac-icon-btn { min-width: 44px; min-height: 44px; }
   .ac-room-modal-pin,
   .ac-room-modal-nav-btn { min-width: 44px; min-height: 44px; }
+  /* Primary nav rows were ~33px (8px pad + 13px text) and bottom-nav
+     tabs ~40px (no min-height) — both under the 44px WCAG 2.5.5 floor.
+     Grow the hit area on touch only; the desktop rail keeps its density. */
+  .ac-side-item { min-height: 44px; }
+  .ac-bottom-nav-tab { min-height: 44px; }
 }
 
 /* Occupancy card — stacked bar + legend that replaced the duplicate
