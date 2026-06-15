@@ -29,7 +29,9 @@ interface Props {
   onEditTask?: (t: SheetRow) => void;
   /** Opens the room editor when a moveout-panel row is clicked. */
   onSelectRoom?: (r: RoomView) => void;
-  /** Trigger ad-hoc add-task for a specific room (used by moveout panel). */
+  /** @deprecated The move-out "+ สร้าง" chips now create the prep task
+   *  inline (createPrepTask) instead of opening the add-task modal.
+   *  Kept on the interface so existing callers in page.tsx don't break. */
   onAddTaskForRoom?: (building: string, room: string) => void;
 }
 
@@ -53,12 +55,28 @@ const ENG_TASK_TYPES = new Set(["ซ่อม", "ทำสะอาด"]);
 
 type ColumnKey = "pending" | "in_progress" | "blocked" | "done";
 
+// Column accents reference the shared premium-polish tokens declared in
+// globals.css :root — same palette as the sales board, so status colors
+// agree across the whole app (รอเริ่ม=indigo, กำลังทำ=เขียว, ติดขัด=coral,
+// เสร็จ=เขียวเข้ม).
 const COLUMNS: { key: ColumnKey; label: string; emoji: string; accent: string }[] = [
-  { key: "pending",     label: "รอเริ่ม",     emoji: "🆕", accent: "var(--color-text-muted)" },
-  { key: "in_progress", label: "กำลังทำ",     emoji: "🔧", accent: "#0D9488" },
-  { key: "blocked",     label: "ติดขัด",      emoji: "⏸",  accent: "#F97316" },
-  { key: "done",        label: "เสร็จวันนี้",   emoji: "✅", accent: "#22C55E" },
+  { key: "pending",     label: "รอเริ่ม",     emoji: "🆕", accent: "var(--primary)" },
+  { key: "in_progress", label: "กำลังทำ",     emoji: "🔧", accent: "var(--st-green)" },
+  { key: "blocked",     label: "ติดขัด",      emoji: "⏸",  accent: "var(--st-coral)" },
+  { key: "done",        label: "เสร็จวันนี้",   emoji: "✅", accent: "var(--st-green-deep)" },
 ];
+
+/** Target status written when a card is dropped into a column. Exported
+ *  for unit tests so the drop mapping is verified against TASK_STATUS. */
+export const COLUMN_STATUS: Record<ColumnKey, string> = {
+  pending:     TASK_STATUS.PENDING,
+  in_progress: TASK_STATUS.IN_PROGRESS,
+  blocked:     TASK_STATUS.BLOCKED,
+  done:        TASK_STATUS.DONE,
+};
+
+/** MIME-ish key for the drag payload — just the taskKey string. */
+const DRAG_MIME = "application/x-task-key";
 
 function todayThai(): string {
   const d = new Date();
@@ -113,7 +131,7 @@ export function ageLabel(taskDate: string, now: Date = new Date()): string {
   return `เลย ${Math.abs(diff)} วัน`;
 }
 
-export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged, onEditTask, onSelectRoom, onAddTaskForRoom }: Props) {
+export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged, onEditTask, onSelectRoom }: Props) {
   const { data: session } = useSession();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -131,6 +149,14 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
   const [locFilter, setLocFilter] = useState<LocationFilter>("all");
   // Task selected for the detail drawer (Task 33). Null when no drawer.
   const [drawerTask, setDrawerTask] = useState<SheetRow | null>(null);
+  // Drag-and-drop (desktop): key of the card being dragged + the column
+  // currently hovered, for highlight feedback. Touch users use the inline
+  // action buttons (เริ่ม/เสร็จ/…) which cover the same transitions.
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<ColumnKey | null>(null);
+  // Move-out prep chips currently being created (POST in flight), keyed
+  // `${building}|${room}|${kind}` so two chips on a row spin independently.
+  const [creatingPrep, setCreatingPrep] = useState<Set<string>>(new Set());
 
   const todayStr = todayThai();
 
@@ -193,6 +219,64 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
       setErr(e instanceof Error ? e.message : "เปลี่ยนสถานะไม่สำเร็จ");
     } finally {
       setBusyKey(null);
+    }
+  }
+
+  // Fast lookup taskKey → task so a drop (which only carries the key
+  // string) can resolve the row to move.
+  const taskByKey = useMemo(() => {
+    const m = new Map<string, SheetRow>();
+    for (const t of filtered) m.set(taskKey(t), t);
+    return m;
+  }, [filtered]);
+
+  /** Drop a dragged card into `col`: write the column's status via the
+   *  same updateTaskStatus path the inline action buttons use. Skips the
+   *  write when the card is already in that column. */
+  function handleDrop(col: ColumnKey, key: string) {
+    setDragOverCol(null);
+    setDraggingKey(null);
+    const t = taskByKey.get(key);
+    if (!t) return;
+    const cat = categorizeStatus(t.status);
+    const curCol: ColumnKey =
+      cat === "in_progress" ? "in_progress"
+      : cat === "blocked"   ? "blocked"
+      : cat === "done"      ? "done"
+      : "pending";
+    if (curCol === col) return; // already here — nothing to do
+    moveTo(t, COLUMN_STATUS[col]);
+  }
+
+  /**
+   * Create a move-out prep task (ตรวจห้อง / ทำสะอาด) directly — no modal.
+   * After the write + refresh, findOpenPrepTask picks it up and the chip
+   * flips from "+ สร้าง" to "รอเริ่ม" on its own. Guarded so a double
+   * tap (or a racing operator) can't file duplicates.
+   */
+  async function createPrepTask(building: string, room: string, kind: typeof MOVEOUT_PREP_KINDS[number]) {
+    const ckey = `${building}|${room}|${kind.kind}`;
+    if (creatingPrep.has(ckey)) return;
+    if (findOpenPrepTask(tasks, building, room, kind.type)) return; // already exists
+    setCreatingPrep((s) => new Set(s).add(ckey));
+    setErr(null);
+    try {
+      const res = await fetch("/api/sheet/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "addTask",
+          date: todayStr, type: kind.type,
+          building, room, note: kind.note,
+        }),
+      });
+      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+      if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      onChanged?.();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "สร้างงานไม่สำเร็จ");
+    } finally {
+      setCreatingPrep((s) => { const n = new Set(s); n.delete(ckey); return n; });
     }
   }
 
@@ -348,18 +432,22 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
                         </button>
                       );
                     }
+                    const creating = creatingPrep.has(`${room.building}|${room.room}|${kind.kind}`);
                     return (
                       <button
                         key={kind.kind}
                         type="button"
                         className="ac-kanban-moveout-chip is-state-missing"
-                        onClick={() => onAddTaskForRoom?.(room.building, room.room)}
-                        disabled={!onAddTaskForRoom}
-                        title={`สร้างงาน ${kind.label}`}
+                        onClick={() => createPrepTask(room.building, room.room, kind)}
+                        disabled={creating}
+                        aria-busy={creating}
+                        title={`สร้างงาน ${kind.label} เข้าคอลัมน์รอเริ่ม`}
                       >
                         <span aria-hidden>{kind.icon}</span>
                         <span>{kind.label}</span>
-                        <span className="ac-kanban-moveout-chip-state">+ สร้าง</span>
+                        <span className="ac-kanban-moveout-chip-state">
+                          {creating ? "กำลังสร้าง…" : "+ สร้าง"}
+                        </span>
                       </button>
                     );
                   })}
@@ -416,6 +504,13 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
             column={col.key}
             isFlashing={flashCol === col.key}
             flashKeys={flashKeys}
+            draggingKey={draggingKey}
+            isDragOver={dragOverCol === col.key}
+            onDragStartCard={setDraggingKey}
+            onDragEndCard={() => { setDraggingKey(null); setDragOverCol(null); }}
+            onColDragOver={() => setDragOverCol(col.key)}
+            onColDragLeave={() => setDragOverCol((c) => (c === col.key ? null : c))}
+            onColDrop={(key) => handleDrop(col.key, key)}
           />
         ))}
       </div>
@@ -473,7 +568,8 @@ function KpiCell({ label, value, accent, onClick, ariaLabel }: KpiCellProps) {
 
 function KanbanColumn({
   label, emoji, accent, tasks, busyKey, onMove, onEditTask, onSelectTask, column,
-  isFlashing, flashKeys,
+  isFlashing, flashKeys, draggingKey, isDragOver,
+  onDragStartCard, onDragEndCard, onColDragOver, onColDragLeave, onColDrop,
 }: {
   label: string;
   emoji: string;
@@ -486,13 +582,33 @@ function KanbanColumn({
   column: ColumnKey;
   isFlashing?: boolean;
   flashKeys?: Set<string>;
+  draggingKey: string | null;
+  isDragOver: boolean;
+  onDragStartCard: (key: string) => void;
+  onDragEndCard: () => void;
+  onColDragOver: () => void;
+  onColDragLeave: () => void;
+  onColDrop: (key: string) => void;
 }) {
   return (
     <div
-      className={`ac-kanban-col ${isFlashing ? "is-flash" : ""}`}
+      className={`ac-kanban-col ${isFlashing ? "is-flash" : ""} ${isDragOver ? "is-drag-over" : ""}`}
       data-column={column}
+      onDragOver={(e) => {
+        // Allow drop + highlight while a card hovers this column.
+        if (draggingKey) { e.preventDefault(); onColDragOver(); }
+      }}
+      onDragLeave={onColDragLeave}
+      onDrop={(e) => {
+        e.preventDefault();
+        const key = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData("text/plain");
+        if (key) onColDrop(key);
+      }}
     >
-      <div className="ac-kanban-col-head" style={{ borderTopColor: accent }}>
+      <div
+        className="ac-kanban-col-head"
+        style={{ borderTopColor: accent, "--col-accent": accent } as React.CSSProperties}
+      >
         <span className="ac-kanban-col-emoji" aria-hidden>{emoji}</span>
         <span className="ac-kanban-col-label">{label}</span>
         <span className="ac-kanban-col-count">{tasks.length}</span>
@@ -511,6 +627,9 @@ function KanbanColumn({
               onSelect={onSelectTask}
               column={column}
               flashing={flashKeys?.has(taskKey(t)) ?? false}
+              dragging={draggingKey === taskKey(t)}
+              onDragStart={onDragStartCard}
+              onDragEnd={onDragEndCard}
             />
           ))
         )}
@@ -532,6 +651,7 @@ export function creatorLabel(creator: string | undefined): string {
 
 function KanbanCard({
   task, busy, onMove, onEdit, onSelect, column, flashing,
+  dragging, onDragStart, onDragEnd,
 }: {
   task: SheetRow;
   busy: boolean;
@@ -541,6 +661,9 @@ function KanbanCard({
   onSelect?: (t: SheetRow) => void;
   column: ColumnKey;
   flashing?: boolean;
+  dragging?: boolean;
+  onDragStart?: (key: string) => void;
+  onDragEnd?: () => void;
 }) {
   const typeIcon = task.type === "ซ่อม" ? "🔧" : task.type === "ทำสะอาด" ? "🧹" : "•";
   const age = ageLabel(task.date);
@@ -554,13 +677,25 @@ function KanbanCard({
     : sla.state === "warn" ? "is-sla-warn"
     : "";
   const slaBadge = slaBadgeLabel(sla);
+  // Priority "ด่วน": SheetRow has no priority field, so we derive it from
+  // the SLA — anything past its window is urgent. No schema change needed.
+  const urgent = sla.state === "overdue";
   const reporter = creatorLabel(task.creator);
   const note = task.note?.trim() || "—";
+  const k = taskKey(task);
 
   return (
     <article
-      className={`ac-kanban-card ${onSelect ? "is-clickable" : ""} ${busy ? "is-busy" : ""} ${flashing ? "is-flash" : ""} ${slaClass}`}
+      className={`ac-kanban-card ${onSelect ? "is-clickable" : ""} ${busy ? "is-busy" : ""} ${flashing ? "is-flash" : ""} ${dragging ? "is-dragging" : ""} ${slaClass}`}
       data-type={task.type}
+      draggable={!busy}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData(DRAG_MIME, k);
+        e.dataTransfer.setData("text/plain", k);
+        onDragStart?.(k);
+      }}
+      onDragEnd={() => onDragEnd?.()}
       role={onSelect ? "button" : undefined}
       tabIndex={onSelect ? 0 : undefined}
       onClick={onSelect ? () => onSelect(task) : undefined}
@@ -572,6 +707,7 @@ function KanbanCard({
       } : undefined}
     >
       <header className="ac-kanban-card-head">
+        <span className="ac-kanban-card-handle" aria-hidden title="ลากเพื่อย้ายสถานะ">⠿</span>
         <span className="ac-kanban-card-type" aria-hidden>
           {isCommon ? "🏢" : typeIcon}
         </span>
@@ -579,6 +715,7 @@ function KanbanCard({
           {isCommon ? location.label : `ห้อง ${task.room}`}
           <span className="ac-kanban-card-building"> · {task.building}</span>
         </span>
+        {urgent && <span className="ac-kanban-card-priority" title="เลยกำหนด — ด่วน">ด่วน</span>}
         <span className={`ac-kanban-card-age ${overdue ? "is-overdue" : ""}`}>{age}</span>
       </header>
 

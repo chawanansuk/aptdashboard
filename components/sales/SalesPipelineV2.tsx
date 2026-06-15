@@ -4,9 +4,11 @@ import { useMemo, useRef, useState } from "react";
 import type { RoomView, SheetRow, RoomStatus } from "@/types";
 import { usePersistedString } from "@/lib/usePersistedString";
 import {
-  scopeRooms, buildAppointments, buildKpis,
+  scopeRooms, buildAppointments, buildKpis, buildOccupancyByBuilding,
+  buildAppointmentsTrend,
 } from "@/lib/salesData";
 import KpiRow from "./KpiRow";
+import OccupancyStrip from "./OccupancyStrip";
 import RoomBoard, { type ViewMode } from "./RoomBoard";
 import AppointmentsRail from "./AppointmentsRail";
 import RoomDetailDrawer from "./RoomDetailDrawer";
@@ -22,8 +24,13 @@ interface Props {
   onQuickAddLead: () => void;
   /** Jump to a sidebar status view (KPI cards). */
   onChangeView?: (v: RoomStatus) => void;
+  /** Filter to a building (syncs the topbar tab). Used by the occupancy
+   *  strip — clicking a building card here moves the shared filter. */
+  onChangeBuilding?: (b: string) => void;
   /** "อัปเดต …" timestamp for the subtitle. */
   lastUpdated?: string;
+  /** Refetch dashboard data — enables journey actions in the drawer. */
+  refresh?: () => void;
 }
 
 const isViewMode = (v: string): v is ViewMode => v === "card" || v === "grid";
@@ -38,16 +45,40 @@ const isViewMode = (v: string): v is ViewMode => v === "card" || v === "grid";
  * edit/equipment functionality is lost.
  */
 export default function SalesPipelineV2({
-  rooms, tasks, activeBuilding, onSelectRoom, onChangeView, lastUpdated,
+  rooms, tasks, activeBuilding, onSelectRoom, onChangeView, onChangeBuilding, lastUpdated, refresh,
 }: Props) {
   const [viewModeRaw, setViewMode] = usePersistedString("salesViewMode", "card", isViewMode);
   const viewMode: ViewMode = isViewMode(viewModeRaw) ? viewModeRaw : "card";
   const [selected, setSelected] = useState<RoomView | null>(null);
+  // `selected` is a snapshot from click-time; after a journey write +
+  // refresh the rooms array carries fresh tasks but the snapshot
+  // doesn't. Re-resolve against the live list so the drawer's journey
+  // panel advances in place (falls back to the snapshot if the room
+  // vanished from the list mid-session).
+  const selectedFresh = useMemo(
+    () => selected
+      ? rooms.find((r) => r.building === selected.building && r.room === selected.room) ?? selected
+      : null,
+    [selected, rooms],
+  );
   const railRef = useRef<HTMLDivElement>(null);
 
   const scopedRooms = useMemo(() => scopeRooms(rooms, activeBuilding), [rooms, activeBuilding]);
   const appointments = useMemo(() => buildAppointments(tasks, activeBuilding), [tasks, activeBuilding]);
   const kpis = useMemo(() => buildKpis(scopedRooms, appointments), [scopedRooms, appointments]);
+  // Real backwards-looking trend for the appointments KPI only — room
+  // status counts need daily snapshots we don't have, so those three
+  // cards stay on the placeholder until a snapshot endpoint exists.
+  const apptTrend = useMemo(() => buildAppointmentsTrend(tasks, activeBuilding), [tasks, activeBuilding]);
+  // Occupancy strip always lists every building (so a user can switch
+  // away from the current filter), so it reads from the full room list.
+  const occupancy = useMemo(() => buildOccupancyByBuilding(rooms), [rooms]);
+  const selectedBuilding = activeBuilding === "ทั้งหมด" ? null : activeBuilding;
+
+  function toggleBuilding(b: string) {
+    // Clicking the already-active building clears the filter.
+    onChangeBuilding?.(b === activeBuilding ? "ทั้งหมด" : b);
+  }
 
   function selectByRoom(building: string, room: string) {
     const r = rooms.find((x) => x.building === building && x.room === room);
@@ -75,11 +106,22 @@ export default function SalesPipelineV2({
       {/* Section 2 — KPI row */}
       <KpiRow
         kpis={kpis}
+        trends={{ appointments: apptTrend }}
         onAvailable={onChangeView ? () => onChangeView("ready") : undefined}
         onPending={onChangeView ? () => onChangeView("pending") : undefined}
         onMoveout={onChangeView ? () => onChangeView("moveout") : undefined}
         onAppointments={() => railRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
       />
+
+      {/* Occupancy strip — per-building, click to filter (only when the
+          parent wired onChangeBuilding; harmless no-op otherwise). */}
+      {onChangeBuilding && (
+        <OccupancyStrip
+          buildings={occupancy}
+          selected={selectedBuilding}
+          onSelect={toggleBuilding}
+        />
+      )}
 
       {/* Sections 3 + 4 — board + appointments rail */}
       <div className={styles.split}>
@@ -96,11 +138,13 @@ export default function SalesPipelineV2({
         />
       </div>
 
-      {selected && (
+      {selectedFresh && (
         <RoomDetailDrawer
-          room={selected}
+          room={selectedFresh}
           onClose={() => setSelected(null)}
           onOpenFull={openFull}
+          onRefresh={refresh}
+          tasks={tasks}
         />
       )}
     </div>

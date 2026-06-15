@@ -1,21 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useState, useCallback, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
 import { useAssetAlertCounts } from "@/lib/useAssetAlertCounts";
 import { usePersistedString } from "@/lib/usePersistedString";
+import { useViewRouting, VALID_VIEWS, type ActiveView } from "@/lib/useViewRouting";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
+import { computeVacancyByBuilding, isSupplyRelevantView } from "@/lib/headerVacancy";
+import { computeSidebarCounts } from "@/lib/sidebarCounts";
+import { buildQuickActions, buildPaletteCommands } from "@/lib/menuConfigs";
 import { parsePriceOr0 } from "@/lib/money";
 import { roomKey } from "@/lib/taskKey";
 import { useRoomBookmarks, roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import { useTabFocusRefresh } from "@/lib/useTabFocusRefresh";
+import { useMediaQuery } from "@/lib/useMediaQuery";
+import { MQ } from "@/lib/breakpoints";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
-import type { RoomStatus, RoomView, SheetRow, Lead } from "@/types";
-import { findLeadByPhone, nextStageOnViewingClosed, STAGE_ON_VIEWING_SCHEDULED } from "@/lib/leadLink";
+import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import TasksList from "@/components/TasksList";
 import AppHeader from "@/components/AppHeader";
+import AppShell from "@/components/AppShell";
 import AppSidebar from "@/components/AppSidebar";
 import OverviewCards from "@/components/OverviewCards";
 import InsightsCards from "@/components/InsightsCards";
@@ -25,30 +31,34 @@ import RoomsView from "@/components/RoomsView";
 import { useCommandPalette } from "@/lib/useCommandPalette";
 import type { CommandDef } from "@/lib/commandPaletteSearch";
 import BottomNav, { type BottomNavView } from "@/components/BottomNav";
-import RoomModal from "@/components/RoomModal";
+import RoomModalHost from "@/components/RoomModalHost";
 import { type BookingSaveData } from "@/components/BookingConfirmModal";
-import AddTaskModal from "@/components/AddTaskModal";
-import EditTaskModal from "@/components/EditTaskModal";
 
 // Rarely-opened modals — lazy so they leave the initial bundle. Each
 // renders behind an interaction (Cmd+K, ?, booking flow, bulk add) so
 // the small load delay on first open is invisible next to the network.
+// AddTask/EditTask are lazy too (zod + react-hook-form would otherwise
+// add ~300KB to every first paint, even for users who never open them).
+// A 2s post-mount warm-up below prefetches both chunks while the
+// browser is idle so the first click is instant.
 const KeyboardHelpModal = lazy(() => import("@/components/KeyboardHelpModal"));
 const CommandPalette = lazy(() => import("@/components/CommandPalette"));
 const BookingConfirmModal = lazy(() => import("@/components/BookingConfirmModal"));
 const BulkAddModal = lazy(() => import("@/components/BulkAddModal"));
+const AddTaskModal = lazy(() => import("@/components/AddTaskModal"));
+const EditTaskModal = lazy(() => import("@/components/EditTaskModal"));
 import { buildNotifications } from "@/lib/notifications";
 import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
-import { STATUS_KEYS, VIEW_LABEL, VIEW_TO_TASK_TYPE, isClosedStatus } from "@/lib/constants";
+import { VIEW_LABEL, VIEW_TO_TASK_TYPE, isClosedStatus } from "@/lib/constants";
+import { hasOpenPrepTask } from "@/lib/moveoutTasks";
 import {
-  MOVEOUT_PREP_KINDS,
-  hasOpenPrepTask,
-  todayThaiDate as moveoutTodayThaiDate,
-} from "@/lib/moveoutTasks";
-import { canAccess, canPerform, getDefaultRoute, type Route } from "@/lib/permissions";
+  linkLeadOnViewingScheduled,
+  bumpLeadOnViewingClosed,
+} from "@/lib/dashboardActions";
+import { canAccess } from "@/lib/permissions";
 import type { QuickAction } from "@/components/QuickActionMenu";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
@@ -105,7 +115,13 @@ export default function Home() {
     (v) => v === "0" || v === "1",
   );
   const sidebarCollapsed = sidebarCollapsedRaw === "1";
-  const toggleSidebarCollapse = () => setSidebarCollapsedRaw(sidebarCollapsed ? "0" : "1");
+  // Stable across the frequent Home re-renders (only changes when the
+  // collapse state itself flips) so the memoized sidebar isn't forced to
+  // reconcile on unrelated renders.
+  const toggleSidebarCollapse = useCallback(
+    () => setSidebarCollapsedRaw(sidebarCollapsed ? "0" : "1"),
+    [sidebarCollapsed, setSidebarCollapsedRaw],
+  );
 
   // ---- Role-based access (multi-role + view-as) ----
   useSession(); // initialize session so useEffectiveRoles can read it
@@ -145,16 +161,32 @@ export default function Home() {
     document.documentElement.setAttribute("data-mode", modeConfig.mode);
   }, [modeConfig.mode]);
 
-  // Mode-driven landing view: send the user to their mode's home page
-  // (sales → salespipeline, engineer → engineerkanban, mgmt → overview)
-  // on first load AND whenever they switch View-as. We track the last
-  // mode the user "landed" on; switching mode re-applies the landing.
-  const lastLandedModeRef = useRef<string | null>(null);
-
   // ---- Presets ----
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [presetMenuOpen, setPresetMenuOpen] = useState(false);
   useEffect(() => { setPresets(loadPresets()); }, []);
+
+  // Warm up the AddTask / EditTask chunks ~2s after mount so the first
+  // click pops the modal instantly. They drag in zod + react-hook-form
+  // (~300KB combined) which we don't want in the initial bundle but DO
+  // want resident by the time the user reaches for them. Falls back to
+  // setTimeout when requestIdleCallback isn't available (Safari).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const prefetch = () => {
+      void import("@/components/AddTaskModal");
+      void import("@/components/EditTaskModal");
+    };
+    const ric = (window as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    const handle = ric
+      ? ric(prefetch, { timeout: 4000 })
+      : window.setTimeout(prefetch, 2000);
+    return () => {
+      const cic = (window as { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback;
+      if (ric && cic) cic(handle);
+      else window.clearTimeout(handle);
+    };
+  }, []);
 
   // ---- Filter state ----
   // Persist activeBuilding + activeView across reloads — UX: user
@@ -173,45 +205,31 @@ export default function Home() {
   const activeFilter = activeFilterRaw as ActiveFilter;
   const setActiveFilter = (v: ActiveFilter) => setActiveFilterRaw(v);
   const [search, setSearch] = useState("");
-  type ActiveView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "parts" | "vehicles" | "leads" | "recurring" | "salespipeline" | "engineerkanban" | "reports";
-  const VALID_VIEWS: ActiveView[] = [
-    "overview", "today", "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive",
-    "income", "tenants", "calendar", "maintenance", "facilities", "parts", "vehicles", "leads", "recurring",
-    "salespipeline", "engineerkanban", "reports",
-  ];
-  const [activeViewRaw, setActiveViewRaw] = usePersistedString(
-    "activeView",
-    "overview",
-    (v) => (VALID_VIEWS as string[]).includes(v),
-  );
-  const activeView = activeViewRaw as ActiveView;
-  const setActiveView = (v: ActiveView) => setActiveViewRaw(v);
-  // Re-apply mode default landing view whenever the effective mode
-  // changes (initial load OR View-as switch). Without this, switching
-  // from sales → engineer would leave activeView on a sales-only route
-  // and trigger the "ไม่มีสิทธิ์เข้าถึงหน้านี้" toast incorrectly.
-  useEffect(() => {
-    if (!effectiveRoles || effectiveRoles.length === 0) {
-      // Sign-out / role-loss: reset the ref so a NEW user who signs in
-      // within the same SPA session will still get redirected to their
-      // landing view (previous ref would mark "already landed").
-      lastLandedModeRef.current = null;
-      return;
-    }
-    if (lastLandedModeRef.current === modeConfig.mode) return;
-    lastLandedModeRef.current = modeConfig.mode;
-    const target = modeConfig.defaultLandingView as typeof activeView;
-    if (target && target !== activeView && canAccess(roles, target as Route)) {
-      setActiveView(target);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modeConfig.mode, effectiveRoles.join("|")]);
+  // View routing (activeView + mode landing + route guard) — extracted
+  // to lib/useViewRouting (breakup PR 2). `type ActiveView` re-exported
+  // there; VALID_VIEWS used by notification navigation below.
+  const { activeView, setActiveView } = useViewRouting({
+    role,
+    roles,
+    effectiveRoles,
+    mode: modeConfig.mode,
+    defaultLandingView: modeConfig.defaultLandingView,
+  });
   const [dateRange, setDateRange] = useState<"all" | "week" | "month" | "custom">("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
   // ---- Selected room ----
   const [selectedRoom, setSelectedRoom] = useState<RoomView | null>(null);
+  // Click-time snapshot → re-resolve against live rooms so the journey
+  // panel (and tenant fields' base values) advance in place after a
+  // write + refresh, instead of freezing until the modal is reopened.
+  const selectedRoomFresh = useMemo(
+    () => selectedRoom
+      ? rooms.find((r) => r.building === selectedRoom.building && r.room === selectedRoom.room) ?? selectedRoom
+      : null,
+    [selectedRoom, rooms],
+  );
   // Recent + pinned room bookmarks (#17) — persisted to localStorage.
   const roomBookmarks = useRoomBookmarks();
   // Booking-confirmation flow target (null = closed).
@@ -221,24 +239,8 @@ export default function Home() {
   // tree so EngineerKanban / TaskDetailDrawer can trigger the same
   // edit flow that TasksList already uses internally.
   const [editingTask, setEditingTask] = useState<SheetRow | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [editStatus, setEditStatus] = useState("");
-  const [editTenant, setEditTenant] = useState("");
-  const [editPhone, setEditPhone] = useState("");
-  const [editContractEnd, setEditContractEnd] = useState("");
-  const [editNote, setEditNote] = useState("");
-  const [editPrice, setEditPrice] = useState("");
-
-  useEffect(() => {
-    if (selectedRoom) {
-      setEditStatus(selectedRoom.rawStatus || "");
-      setEditTenant(selectedRoom.tenant || "");
-      setEditPhone(selectedRoom.phone || "");
-      setEditContractEnd(selectedRoom.contractEnd || "");
-      setEditPrice(selectedRoom.price || "");
-      setEditNote("");
-    }
-  }, [selectedRoom]);
+  // (Room edit-field state + save flow live in components/RoomModalHost
+  //  — breakup PR 3.)
 
   // ---- Add task ----
   const [showAddTask, setShowAddTask] = useState(false);
@@ -300,48 +302,16 @@ export default function Home() {
     });
   }
 
-  // ---- Sidebar auto-close on resize ----
+  // ---- Close the overlay sidebar when entering desktop rail mode ----
+  // The sidebar is a hamburger overlay at ≤1280px (CSS) and the static
+  // rail above it. The old handler closed it at >980px — a different
+  // threshold from the CSS — so a resize within the 981–1280 overlay band
+  // would force the overlay shut. Drive it off the SAME breakpoint the CSS
+  // uses so JS and CSS agree on when the overlay applies.
+  const isDesktopRail = useMediaQuery(MQ.desktopRail);
   useEffect(() => {
-    const onResize = () => { if (window.innerWidth > 980) setSidebarOpen(false); };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  // ---- Route guard: redirect + toast if user lacks access ----
-  // Fires on URL/preset hack, on role change, or after View-as switch
-  // that excludes the current view. Uses actualRoles so we don't
-  // bounce the user when they're just filtering UI via View-as
-  // (View-as = sales but real role includes engineer → still allowed
-  //  at server, but UI hides it; redirect to a route that's actually
-  //  visible to the filtered view).
-  // Track the mode the route guard last saw — when the mode changes,
-  // the landing useEffect above will move activeView; we suppress the
-  // "ไม่มีสิทธิ์" toast for that one tick because the user didn't try
-  // to enter a forbidden view, they just switched modes.
-  const guardSeenModeRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!role) return; // session still loading
-    const justSwitchedMode = guardSeenModeRef.current !== modeConfig.mode;
-    guardSeenModeRef.current = modeConfig.mode;
-
-    // Guard against the *effective* role set so View-as also redirects
-    if (!canAccess(roles, activeView as Route)) {
-      // Prefer the mode's home page when redirecting — feels natural after
-      // a View-as switch. Fall back to the generic default if the mode
-      // landing also isn't accessible (defensive).
-      const modeLanding = modeConfig.defaultLandingView as Route;
-      const fallback: Route = canAccess(roles, modeLanding)
-        ? modeLanding
-        : getDefaultRoute(roles);
-      setActiveView(fallback as typeof activeView);
-      // Only surface the error toast when the redirect is NOT caused by a
-      // mode switch (e.g. user navigated to a forbidden view via cmdk).
-      if (!justSwitchedMode) {
-        toast.error("ไม่มีสิทธิ์เข้าถึงหน้านี้");
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, activeView, roles.join("|"), modeConfig.mode]);
+    if (isDesktopRail) setSidebarOpen(false);
+  }, [isDesktopRail]);
 
   // ---- Tab-focus refresh: when user returns to the tab, refetch the
   // dashboard and invalidate caches that don't auto-revalidate. Skips if
@@ -419,6 +389,13 @@ export default function Home() {
   }, [rooms]);
 
   const buildingTabs = useMemo(() => ["ทั้งหมด", ...buildings], [buildings]);
+
+  // Vacancy count per building — only fed to AppHeader on supply-relevant
+  // views (overview/sales/ready/pending/moveout) so engineer/maintenance
+  // users don't see badges unrelated to their work. Helper + allowlist
+  // live in lib/headerVacancy so the rule is unit-tested in one place.
+  const vacancyByBuilding = useMemo(() => computeVacancyByBuilding(rooms), [rooms]);
+  const headerVacancy = isSupplyRelevantView(activeView) ? vacancyByBuilding : undefined;
 
   const visibleRooms = useMemo(() => {
     if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "recurring" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
@@ -506,44 +483,45 @@ export default function Home() {
   // sees, just summarised for greeting copy. Building-scoped so the hero
   // narrative matches the current building filter.
   const greetingStats = useMemo<GreetingStats>(() => {
-    const scope = activeBuilding === "ทั้งหมด"
-      ? rooms
-      : rooms.filter((r) => r.building === activeBuilding);
-    const vacant   = scope.filter((r) => r.status === "ready").length;
-    const occupied = scope.filter((r) => r.status === "occupied").length;
-    const total    = scope.length;
-    const occupancyRate = total > 0 ? occupied / total : 0;
-    // Today's task count (any non-done/non-cancelled task dated today)
+    const allBuildings = activeBuilding === "ทั้งหมด";
     const d = new Date();
     const dd = String(d.getDate()).padStart(2, "0");
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const todayStr = `${dd}/${mm}/${d.getFullYear()}`;
+    const thisMonth = d.getMonth();
+    const thisYear  = d.getFullYear();
+
+    // Single pass over the building-scoped rooms — was 4 filters + 2
+    // for-loops over the same array. Accumulate every room-derived stat
+    // here: vacancy/occupancy counts, expiring contracts (parseThaiDate
+    // is regex-heavy, so we only call it once per room), moveout pipeline
+    // signal, and the occupied-rent income proxy.
+    let vacant = 0, occupied = 0, total = 0, moveoutCount = 0;
+    let expiringContractsThisMonth = 0, monthlyIncome = 0;
+    for (const r of rooms) {
+      if (!allBuildings && r.building !== activeBuilding) continue;
+      total++;
+      if (r.status === "ready") vacant++;
+      else if (r.status === "occupied") {
+        occupied++;
+        monthlyIncome += parsePriceOr0(r.price);
+      } else if (r.status === "moveout") moveoutCount++;
+      if (r.contractEnd) {
+        const td = parseThaiDate(r.contractEnd);
+        if (td && td.getMonth() === thisMonth && td.getFullYear() === thisYear) {
+          expiringContractsThisMonth++;
+        }
+      }
+    }
+    const occupancyRate = total > 0 ? occupied / total : 0;
+
+    // Today's task count (any non-done/non-cancelled task dated today).
     const tasksToday = (tasks || []).filter((t) =>
       t.date === todayStr
       && !isClosedStatus(t.status)
-      && (activeBuilding === "ทั้งหมด" || t.building === activeBuilding)
+      && (allBuildings || t.building === activeBuilding)
     ).length;
-    // Contracts expiring this calendar month — used by management greeting only;
-    // sales greeting uses moveoutCount instead (contracts auto-renew here).
-    const thisMonth = d.getMonth();
-    const thisYear  = d.getFullYear();
-    let expiringContractsThisMonth = 0;
-    for (const r of scope) {
-      if (!r.contractEnd) continue;
-      const td = parseThaiDate(r.contractEnd);
-      if (!td) continue;
-      if (td.getMonth() === thisMonth && td.getFullYear() === thisYear) {
-        expiringContractsThisMonth++;
-      }
-    }
-    // Rooms with moveout notice — re-sell pipeline signal for sales mode.
-    const moveoutCount = scope.filter((r) => r.status === "moveout").length;
-    // Monthly income proxy: sum of occupied-room prices
-    let monthlyIncome = 0;
-    for (const r of scope) {
-      if (r.status !== "occupied") continue;
-      monthlyIncome += parsePriceOr0(r.price);
-    }
+
     // maintenanceOverdue / DueSoon are owned by the (lazy) maintenance
     // module — left at 0 here so the greeting falls back gracefully; can
     // be wired in once a lightweight summary endpoint exists.
@@ -555,26 +533,10 @@ export default function Home() {
     };
   }, [rooms, tasks, activeBuilding]);
 
-  const sidebarCounts = useMemo(() => {
-    const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
-    const c: Record<string, number> = { today: 0 };
-    STATUS_KEYS.forEach((k) => (c[k] = 0));
-    scope.forEach((r) => { c[r.status]++; if (r.today) c.today++; });
-    // Overdue tasks count — sales/engineer/management all care about
-    // these. Filtered by activeBuilding for consistency.
-    const todayDate = new Date();
-    const todayMs = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()).getTime();
-    const tasksScope = activeBuilding === "ทั้งหมด"
-      ? tasks
-      : tasks.filter((t) => t.building === activeBuilding);
-    let overdue = 0;
-    for (const t of tasksScope) {
-      if (isClosedStatus(t.status)) continue;
-      const d = parseThaiDate(t.date);
-      if (d && d.getTime() < todayMs) overdue++;
-    }
-    return { ...c, total: scope.length, overdue } as { total: number; today: number; overdue: number } & Partial<Record<RoomStatus, number>>;
-  }, [rooms, activeBuilding, tasks]);
+  const sidebarCounts = useMemo(
+    () => computeSidebarCounts(rooms, tasks, activeBuilding),
+    [rooms, activeBuilding, tasks],
+  );
 
   // Resolve recent/pinned bookmark keys (#17) back to live RoomView
   // objects for the sidebar. Keys that no longer match a room (deleted
@@ -592,6 +554,14 @@ export default function Home() {
     () => roomBookmarks.recent.map((k) => roomByKey.get(k)).filter((r): r is RoomView => !!r),
     [roomBookmarks.recent, roomByKey],
   );
+
+  // Stable handlers for the memoized sidebar — inline arrows would defeat
+  // React.memo by handing it a fresh function reference each render.
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const openRoomFromSidebar = useCallback((r: RoomView) => {
+    setSidebarOpen(false);
+    setSelectedRoom(r);
+  }, []);
 
   // ---- Bulk helpers ----
   function toggleBulkRoom(building: string, room: string) {
@@ -755,88 +725,29 @@ export default function Home() {
   // (Problem #16): lead, viewing, move-in, move-out, clean, repair.
   // Shortcut letters chosen to be mnemonic + non-overlapping:
   // L Lead / V Viewing / I move-In / O move-Out / C Clean / R Repair.
-  const quickActions = useMemo<QuickAction[]>(() => [
-    {
-      id: "lead",
-      label: "เพิ่มผู้สนใจเช่า",
-      shortcut: "L",
-      icon: "👤",
-      description: "บันทึกผู้สนใจรายใหม่ลง Lead pipeline",
-      visible: canPerform(roles, "lead.edit"),
-      onSelect: openQuickAddLead,
-    },
-    {
-      id: "viewing",
-      label: "นัดชมห้อง",
-      shortcut: "V",
-      icon: "👀",
-      visible: canPerform(roles, "task.add.sales"),
-      onSelect: () => openAddTaskWithType("ชมห้อง"),
-    },
-    {
-      id: "movein",
-      label: "ย้ายเข้า",
-      shortcut: "I",
-      icon: "📥",
-      visible: canPerform(roles, "task.add.sales"),
-      onSelect: () => openAddTaskWithType("ย้ายเข้า"),
-    },
-    {
-      id: "moveout",
-      label: "ย้ายออก",
-      shortcut: "O",
-      icon: "📤",
-      visible: canPerform(roles, "task.add.sales"),
-      onSelect: () => openAddTaskWithType("ย้ายออก"),
-    },
-    {
-      id: "clean",
-      label: "นัดทำสะอาด",
-      shortcut: "C",
-      icon: "🧹",
-      visible: canPerform(roles, "task.add.clean"),
-      onSelect: () => openAddTaskWithType("ทำสะอาด"),
-    },
-    {
-      id: "repair",
-      label: "นัดซ่อม",
-      shortcut: "R",
-      icon: "🔧",
-      visible: canPerform(roles, "task.add.eng"),
-      onSelect: () => openAddTaskWithType("ซ่อม"),
-    },
+  // Menu/command configs live in lib/menuConfigs (breakup PR 5);
+  // the memo deps preserve the original semantics ([roles] / [isDark]).
+  const quickActions = useMemo<QuickAction[]>(
+    () => buildQuickActions(roles, {
+      onQuickAddLead: openQuickAddLead,
+      onAddTaskWithType: openAddTaskWithType,
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [roles]);
+    [roles],
+  );
 
   // ---- Command palette (Cmd+K / Ctrl+K / `/`) ----
   const cmdk = useCommandPalette();
-  const paletteCommands = useMemo<CommandDef[]>(() => [
-    {
-      id: "addTask",
-      label: "เพิ่มงานใหม่",
-      hint: "Add task",
-      requires: { action: "task.add" },
-      run: () => setShowAddTask(true),
-    },
-    {
-      id: "refresh",
-      label: "Refresh ข้อมูล",
-      hint: "ดึงข้อมูลใหม่จากชีต",
-      run: () => refresh(),
-    },
-    {
-      id: "toggleTheme",
-      label: isDark ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด",
-      hint: "Dark mode toggle",
-      run: () => toggleTheme(),
-    },
-    {
-      id: "openSummary",
-      label: "เปิด Summary",
-      hint: "สรุปภาพรวมทั้งหมด",
-      run: () => setSummaryOpen(true),
-    },
-  ], [isDark]); // eslint-disable-line react-hooks/exhaustive-deps
+  const paletteCommands = useMemo<CommandDef[]>(
+    () => buildPaletteCommands(isDark, {
+      onAddTask: () => setShowAddTask(true),
+      onRefresh: refresh,
+      onToggleTheme: toggleTheme,
+      onOpenSummary: () => setSummaryOpen(true),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isDark],
+  );
 
   /**
    * Submit handler รับค่าที่ validate แล้วจาก AddTaskModal (RHF + zod).
@@ -857,6 +768,9 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // Booking bundle: status=รอสัญญา + tenant identity + price. This
+          // is sales' one legitimate path to write a tenant; gated to
+          // room.editStatus and audit-logged at the route. (security split)
           action: "bookRoom",
           building: data.building,
           room: data.room,
@@ -933,7 +847,9 @@ export default function Home() {
         }),
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
-      console.log("[write] addTask response", res.status, data);
+      if (process.env.NODE_ENV === "development") {
+        console.log("[write] addTask response", res.status, data);
+      }
       if (data.ok) {
         toast.success("เพิ่มงานแล้ว — รีเฟรชข้อมูล");
         publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
@@ -966,169 +882,9 @@ export default function Home() {
     } finally { setSavingTask(false); }
   }
 
-  /**
-   * Auto-link a "ชมห้อง" (viewing) task to the Lead CRM (ผู้สนใจเช่า):
-   * ensure a lead exists for the prospect's phone so conversion can be
-   * tracked without sales doing extra data entry. Correlated by phone; an
-   * existing lead is left untouched (never regress its stage). Fire-and-
-   * forget — the task is already saved, so failures here never block it.
-   * Requires lead.edit (sales/management) — engineers get 403 → no-op.
-   */
-  async function linkLeadOnViewingScheduled(
-    values: import("@/lib/taskSchema").TaskFormValues,
-  ) {
-    if (values.type !== "ชมห้อง") return;
-    const phone = (values.phone || "").trim();
-    if (!phone) return; // can't track or dedup without a phone
-    try {
-      const res = await fetch("/api/leads", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
-      const leads: Lead[] = data.rows || [];
-      if (findLeadByPhone(leads, phone)) return; // already tracked — keep stage
-      const roomLabel = [values.building, values.room].filter(Boolean).join("-");
-      const addRes = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "add",
-          name: values.customer || "",
-          phone,
-          source: "อื่นๆ",
-          interest: roomLabel ? `นัดชมห้อง ${roomLabel}` : "",
-          stage: STAGE_ON_VIEWING_SCHEDULED,
-          note: "สร้างอัตโนมัติจากการนัดชมห้อง",
-        }),
-      });
-      const addData = await addRes.json().catch(() => ({ ok: false }));
-      if (addData.ok) toast.success("เพิ่มผู้สนใจเช่าอัตโนมัติแล้ว");
-    } catch (e) {
-      console.warn("[lead-link] scheduled failed (non-blocking)", e);
-    }
-  }
-
-  /**
-   * When a "ชมห้อง" task is closed, advance the linked lead's pipeline
-   * stage: "เสร็จ" (viewed) → กำลังคุย, "ไม่สนใจ" → ปิดเลิก. No-ops on
-   * other statuses, when no phone, or when no matching lead exists.
-   * Fire-and-forget — the close itself already succeeded.
-   */
-  async function bumpLeadOnViewingClosed(t: SheetRow, status: string) {
-    if (t.type !== "ชมห้อง") return;
-    const phone = (t.phone || "").trim();
-    if (!phone) return;
-    if (status !== "เสร็จ" && status !== "ไม่สนใจ") return;
-    try {
-      const res = await fetch("/api/leads", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
-      const leads: Lead[] = data.rows || [];
-      const lead = findLeadByPhone(leads, phone);
-      if (!lead) return;
-      const next = nextStageOnViewingClosed(lead.stage, status);
-      if (!next || next === lead.stage) return;
-      const upRes = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update", id: lead.id, stage: next }),
-      });
-      const upData = await upRes.json().catch(() => ({ ok: false }));
-      if (upData.ok) toast.success(`อัปเดตผู้สนใจเช่า → ${next}`);
-    } catch (e) {
-      console.warn("[lead-link] close failed (non-blocking)", e);
-    }
-  }
-
-  /**
-   * Auto-create the two engineer prep tasks (ตรวจห้อง + ทำสะอาด) for a
-   * room that just entered "แจ้งย้ายออก". Silently skips a task type if
-   * one already exists open. Errors here don't block the room save — the
-   * user can still create tasks manually via the workflow buttons.
-   */
-  async function autoCreateMoveoutPrep(building: string, room: string) {
-    const created: string[] = [];
-    for (const kind of MOVEOUT_PREP_KINDS) {
-      if (hasOpenPrepTask(tasks, building, room, kind.type)) continue;
-      try {
-        const r = await fetch("/api/sheet/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "addTask",
-            date: moveoutTodayThaiDate(),
-            type: kind.type,
-            building,
-            room,
-            note: kind.note,
-          }),
-        });
-        const j = await r.json().catch(() => ({ ok: false }));
-        if (j.ok) created.push(kind.label);
-      } catch {
-        /* ignore — silent best-effort */
-      }
-    }
-    if (created.length > 0) {
-      toast.success(`สร้างงานเตรียมห้องอัตโนมัติ: ${created.join(" + ")}`);
-      publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
-      refresh();
-    }
-  }
-
-  async function handleSave() {
-    if (!selectedRoom) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Free-form room edit (status + tenant identity + contract + price).
-          // Management-only at the route (tenant.edit); the Save button + status
-          // select are already gated to canEditTenant in RoomModal.
-          action: "updateRoomData",
-          building: selectedRoom.building, room: selectedRoom.room,
-          status: editStatus, tenant: editTenant, phone: editPhone,
-          contractEnd: editContractEnd, note: editNote, price: editPrice,
-        }),
-      });
-      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
-      console.log("[write] updateRoomData response", res.status, data);
-      if (data.ok) {
-        toast.success("บันทึกแล้ว — รีเฟรชข้อมูล");
-        publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
-        // Optimistic local update — shows the change immediately even if the
-        // canonical CSV publish behind /api/sheet/rooms hasn't refreshed yet
-        optimisticUpdateRoom(selectedRoom.building, selectedRoom.room, {
-          status: editStatus,
-          tenant: editTenant,
-          phone: editPhone,
-          contractEnd: editContractEnd,
-          price: editPrice,
-        });
-        // Bridge sales → engineer: when a room flips into "แจ้งย้ายออก"
-        // for the first time, auto-create the prep tasks engineers need
-        // (inspection + post-tenant clean). Skip when one already exists.
-        const wasMoveout = selectedRoom.status === "moveout";
-        const isMoveout = editStatus === "moveout";
-        if (!wasMoveout && isMoveout) {
-          void autoCreateMoveoutPrep(selectedRoom.building, selectedRoom.room);
-        }
-        setSelectedRoom(null);
-        refresh();
-      } else {
-        const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
-        toast.error(`บันทึกไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}`);
-      }
-    } catch (e) {
-      console.error("[write] updateRoomStatus failed", e);
-      toast.error(e instanceof Error ? e.message : "Network error");
-    } finally { setSaving(false); }
-  }
-
   // ---- Preset helpers ----
   function applyPreset(p: FilterPreset) {
-    setActiveView(p.view as typeof activeView);
+    setActiveView(p.view as ActiveView);
     setActiveBuilding(p.building);
     setDateRange(p.dateRange as typeof dateRange);
     setCustomStart(p.customStart);
@@ -1154,74 +910,88 @@ export default function Home() {
     setPresets((list) => list.filter((p) => p.id !== id));
   }
 
-  return (
-    <div className="ac-app">
-      <AppHeader
-        buildings={buildingTabs}
-        activeBuilding={activeBuilding}
-        onChangeBuilding={setActiveBuilding}
-        isRefreshing={isRefreshing}
-        lastUpdated={lastUpdated}
-        isDark={isDark}
-        onAddTask={() => setShowAddTask(true)}
-        onRefresh={refresh}
-        onToggleTheme={toggleTheme}
-        onOpenSummary={() => setSummaryOpen(true)}
-        onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        onOpenSearch={() => cmdk.setOpen(true)}
-        onOpenHelp={() => setShowHelp(true)}
-        addLabel={modeConfig.addButtonLabel}
-        modeLabel={modeConfig.label}
-        quickActions={quickActions}
-        quickMenuOpen={quickMenuOpen}
-        onSetQuickMenuOpen={setQuickMenuOpen}
-        notifications={notifications}
-        onNotificationNavigate={(route) => {
-          if ((VALID_VIEWS as string[]).includes(route)) {
-            // Notification counts are property-wide, but the today/
-            // moveout/status views are scoped by activeBuilding +
-            // activeFilter. Clear both so the items the badge counted
-            // are actually visible after navigating (otherwise a user
-            // filtered to one building taps the alert and lands on an
-            // empty page — the "ไม่มาแสดง" report).
-            setActiveBuilding("ทั้งหมด");
-            setActiveFilter("all");
-            setActiveView(route as ActiveView);
-          }
-        }}
-      />
+  // Errors banner is in-flow inside <main>; null when nothing to show.
+  const errorsBanner = errors.length > 0 ? (
+    <div className="ac-banner ac-banner-warn">
+      <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
+      {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}
+      {rooms.length > 0 && <span> — กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ ({lastUpdated})</span>}
+      <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={refresh} disabled={isRefreshing} style={{ marginLeft: 8 }}>
+        {isRefreshing ? "กำลังลอง..." : "ลองอีกครั้ง"}
+      </button>{" "}
+      <a href="https://github.com/chawanansuk/aptdashboard/blob/main/docs/SETUP.md" target="_blank" rel="noreferrer">วิธีตั้งค่า</a>
+    </div>
+  ) : null;
 
-      <div className="ac-body">
+  return (
+    <>
+    <AppShell
+      header={
+        <AppHeader
+          buildings={buildingTabs}
+          activeBuilding={activeBuilding}
+          onChangeBuilding={setActiveBuilding}
+          vacancyByBuilding={headerVacancy}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+          isDark={isDark}
+          onAddTask={() => setShowAddTask(true)}
+          onRefresh={refresh}
+          onToggleTheme={toggleTheme}
+          onOpenSummary={() => setSummaryOpen(true)}
+          onToggleSidebar={() => setSidebarOpen((v) => !v)}
+          onOpenSearch={() => cmdk.setOpen(true)}
+          onOpenHelp={() => setShowHelp(true)}
+          addLabel={modeConfig.addButtonLabel}
+          modeLabel={modeConfig.label}
+          quickActions={quickActions}
+          quickMenuOpen={quickMenuOpen}
+          onSetQuickMenuOpen={setQuickMenuOpen}
+          notifications={notifications}
+          onNotificationNavigate={(route) => {
+            if ((VALID_VIEWS as string[]).includes(route)) {
+              // Notification counts are property-wide, but the today/
+              // moveout/status views are scoped by activeBuilding +
+              // activeFilter. Clear both so the items the badge counted
+              // are actually visible after navigating (otherwise a user
+              // filtered to one building taps the alert and lands on an
+              // empty page — the "ไม่มาแสดง" report).
+              setActiveBuilding("ทั้งหมด");
+              setActiveFilter("all");
+              setActiveView(route as ActiveView);
+            }
+          }}
+        />
+      }
+      sidebar={
         <AppSidebar
           isOpen={sidebarOpen}
           activeView={activeView}
           onChangeView={setActiveView}
           counts={sidebarCounts}
           assetAlerts={assetAlerts}
-          onBackdropClick={() => setSidebarOpen(false)}
+          onBackdropClick={closeSidebar}
           roles={roles}
           groupOrder={modeConfig.sidebarGroupOrder}
           isCollapsed={sidebarCollapsed}
           onToggleCollapse={toggleSidebarCollapse}
           pinnedRooms={pinnedRooms}
           recentRooms={recentRooms}
-          onOpenRoom={(r) => { setSidebarOpen(false); setSelectedRoom(r); }}
+          onOpenRoom={openRoomFromSidebar}
         />
-
-        <main className="ac-main" id="main-content" tabIndex={-1}>
-          {errors.length > 0 && (
-            <div className="ac-banner ac-banner-warn">
-              <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
-              {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}
-              {rooms.length > 0 && <span> — กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ ({lastUpdated})</span>}
-              <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={refresh} disabled={isRefreshing} style={{ marginLeft: 8 }}>
-                {isRefreshing ? "กำลังลอง..." : "ลองอีกครั้ง"}
-              </button>{" "}
-              <a href="https://github.com/chawanansuk/aptdashboard/blob/main/docs/SETUP.md" target="_blank" rel="noreferrer">วิธีตั้งค่า</a>
-            </div>
-          )}
-
-          {isInitial && rooms.length === 0 && status !== "error" && <SkeletonLoader />}
+      }
+      bottomNav={
+        <BottomNav
+          activeView={activeView}
+          roles={roles}
+          onNavigate={(v: BottomNavView) => setActiveView(v)}
+          onAddTask={() => setShowAddTask(true)}
+          todayCount={sidebarCounts.today}
+        />
+      }
+      errorsBanner={errorsBanner}
+    >
+      {isInitial && rooms.length === 0 && status !== "error" && <SkeletonLoader />}
 
           {activeView === "overview" && rooms.length > 0 && (
             <WelcomeHero config={modeConfig} stats={greetingStats} />
@@ -1368,7 +1138,9 @@ export default function Home() {
                   onSelectRoom={(r) => setSelectedRoom(r)}
                   onQuickAddLead={openQuickAddLead}
                   onChangeView={(v) => setActiveView(v)}
+                  onChangeBuilding={(b) => setActiveBuilding(b)}
                   lastUpdated={lastUpdated}
+                  refresh={refresh}
                 />
               </Suspense>
             </ErrorBoundary>
@@ -1469,16 +1241,7 @@ export default function Home() {
               </Suspense>
             </ErrorBoundary>
           )}
-        </main>
-      </div>
-
-      <BottomNav
-        activeView={activeView}
-        roles={roles}
-        onNavigate={(v: BottomNavView) => setActiveView(v)}
-        onAddTask={() => setShowAddTask(true)}
-        todayCount={sidebarCounts.today}
-      />
+    </AppShell>
 
       {cmdk.open && (
         <Suspense fallback={null}>
@@ -1494,8 +1257,13 @@ export default function Home() {
         </Suspense>
       )}
 
-      <AddTaskModal
-        open={showAddTask}
+      {/* Guard with `showAddTask` so the lazy chunk only loads on first
+          open — Suspense fallback can be null (button stays clickable;
+          warm-up below usually has the chunk ready by then). */}
+      {showAddTask && (
+        <Suspense fallback={null}>
+          <AddTaskModal
+            open={showAddTask}
         saving={savingTask}
         buildings={buildings}
         defaultType={modeConfig.defaultTaskType}
@@ -1516,66 +1284,32 @@ export default function Home() {
         // Rooms list for "ห้องนี้มีในตึก" cross-field zod validation +
         // building-aware placeholder hints (room convention, median price).
         rooms={rooms.map((r) => ({ building: r.building, room: r.room, price: r.price }))}
-        onClose={() => setShowAddTask(false)}
-        onSubmit={handleAddTask}
-      />
-
-      {selectedRoom && (() => {
-        // RoomModal prev/next nav (#9). Prefer the user's current
-        // filtered view (so "next" follows what they actually see).
-        // If the selected room isn't in that list (e.g. opened from
-        // calendar task → outside visibleRooms), fall back to the
-        // full sorted rooms list so navigation still works.
-        const navList = (() => {
-          const inVisible = visibleRooms.findIndex(
-            (r) => r.building === selectedRoom.building && r.room === selectedRoom.room,
-          );
-          if (inVisible >= 0) return visibleRooms;
-          return [...rooms].sort((a, b) => {
-            if (a.building !== b.building) return a.building.localeCompare(b.building);
-            const fa = parseInt(a.floor || "0", 10) || 0;
-            const fb = parseInt(b.floor || "0", 10) || 0;
-            if (fa !== fb) return fa - fb;
-            return a.room.localeCompare(b.room, undefined, { numeric: true });
-          });
-        })();
-        const idx = navList.findIndex(
-          (r) => r.building === selectedRoom.building && r.room === selectedRoom.room,
-        );
-        const prev = idx > 0 ? navList[idx - 1] : null;
-        const next = idx >= 0 && idx < navList.length - 1 ? navList[idx + 1] : null;
-        return (
-          <RoomModal
-            room={selectedRoom}
-            saving={saving}
-            defaultTab={modeConfig.roomModalDefaultTab}
-            status={editStatus} tenant={editTenant} phone={editPhone}
-            contractEnd={editContractEnd} note={editNote} price={editPrice}
-            onChange={(p) => {
-              if (p.status !== undefined) setEditStatus(p.status);
-              if (p.tenant !== undefined) setEditTenant(p.tenant);
-              if (p.phone !== undefined) setEditPhone(p.phone);
-              if (p.contractEnd !== undefined) setEditContractEnd(p.contractEnd);
-              if (p.note !== undefined) setEditNote(p.note);
-              if (p.price !== undefined) setEditPrice(p.price);
-            }}
-            onClose={() => setSelectedRoom(null)}
-            onSave={handleSave}
-            onAddTaskHere={() => openAddTaskForRoom(selectedRoom.building, selectedRoom.room)}
-            onMoveoutInspect={() => openMoveoutInspection(selectedRoom.building, selectedRoom.room)}
-            onMoveoutClean={() => openMoveoutCleaning(selectedRoom.building, selectedRoom.room)}
-            onMoveinClean={() => openMoveinCleaning(selectedRoom.building, selectedRoom.room)}
-            onMoveinSchedule={() => openMoveinSchedule(selectedRoom.building, selectedRoom.room)}
-            onConfirmBooking={() => { setBookingRoom(selectedRoom); setSelectedRoom(null); }}
-            onPrevRoom={prev ? () => setSelectedRoom(prev) : undefined}
-            onNextRoom={next ? () => setSelectedRoom(next) : undefined}
-            roomIndex={idx >= 0 ? idx + 1 : undefined}
-            roomTotal={navList.length}
-            isPinned={roomBookmarks.isPinned(roomBookmarkKey(selectedRoom.building, selectedRoom.room))}
-            onTogglePin={() => roomBookmarks.togglePin(roomBookmarkKey(selectedRoom.building, selectedRoom.room))}
+            onClose={() => setShowAddTask(false)}
+            onSubmit={handleAddTask}
           />
-        );
-      })()}
+        </Suspense>
+      )}
+
+      {selectedRoomFresh && (
+        <RoomModalHost
+          room={selectedRoomFresh}
+          rooms={rooms}
+          visibleRooms={visibleRooms}
+          tasks={tasks}
+          defaultTab={modeConfig.roomModalDefaultTab}
+          onClose={() => setSelectedRoom(null)}
+          onNavigate={setSelectedRoom}
+          optimisticUpdateRoom={optimisticUpdateRoom}
+          refresh={refresh}
+          onAddTaskHere={openAddTaskForRoom}
+          onMoveoutInspect={openMoveoutInspection}
+          onMoveoutClean={openMoveoutCleaning}
+          onMoveinClean={openMoveinCleaning}
+          onMoveinSchedule={openMoveinSchedule}
+          onConfirmBooking={(r) => { setBookingRoom(r); setSelectedRoom(null); }}
+          bookmarks={roomBookmarks}
+        />
+      )}
 
       {bookingRoom && (
         <Suspense fallback={null}>
@@ -1600,12 +1334,17 @@ export default function Home() {
 
       {/* Shared task-edit modal — triggered from EngineerKanban /
           TaskDetailDrawer. TasksList still owns its own instance because
-          its edit state is local to the rows it renders. */}
-      <EditTaskModal
-        task={editingTask}
-        onClose={() => setEditingTask(null)}
-        onSaved={() => refresh()}
-      />
+          its edit state is local to the rows it renders. Lazy + gated
+          on `editingTask` so the chunk only loads when a row opens. */}
+      {editingTask && (
+        <Suspense fallback={null}>
+          <EditTaskModal
+            task={editingTask}
+            onClose={() => setEditingTask(null)}
+            onSaved={() => refresh()}
+          />
+        </Suspense>
+      )}
 
       {bulkMode && (
         <BulkActionBar
@@ -1663,6 +1402,6 @@ export default function Home() {
           />
         </Suspense>
       )}
-    </div>
+    </>
   );
 }

@@ -8,6 +8,7 @@ import { subscribeBus } from "@/lib/realtimeBus";
 import { roomKey, taskKey } from "@/lib/taskKey";
 import { normalizeRoomStatus, isKnownRoomStatus } from "@/lib/roomStatus";
 import { parseSheetDate } from "@/lib/dateUtils";
+import { sameRowArray } from "@/lib/sameArray";
 
 /**
  * Parse a task-row date for bucketing into today/upcoming/past.
@@ -524,8 +525,12 @@ export function useDashboardData(): DashboardState {
         latestRooms = next;
         // Always write the new array — including empty `[]` — so that when
         // the last room in a building is deleted/moved the UI reflects it
-        // instead of showing stale data forever.
-        setRooms(next);
+        // instead of showing stale data forever. Bail out of the setState
+        // when the rows are structurally identical to what's already in
+        // state — every memoized child below us re-renders otherwise (the
+        // 60s poll burns react reconciliation across the whole tree even
+        // when the ETag/304 path returned the same JSON).
+        setRooms((prev) => sameRowArray(prev as unknown as Record<string, unknown>[], next as unknown as Record<string, unknown>[]) ? prev : next);
         roomsDone = true;
         // Progressive: as soon as rooms land, drop the initial spinner.
         // We still gate on `arr.length` here because an empty initial
@@ -551,8 +556,11 @@ export function useDashboardData(): DashboardState {
         // list views + counts don't double-count the same appointment.
         const next = dedupTasks(withStatuses);
         latestTasks = next;
-        // Same fix as rooms — write empty arrays so deletions show up
-        setTasks(next);
+        // Same fix as rooms — write empty arrays so deletions show up.
+        // Skip the setState when structurally identical so child memos
+        // (RoomsView/OverviewCards/TasksList) actually no-op on a 60s
+        // no-change poll.
+        setTasks((prev) => sameRowArray(prev as unknown as Record<string, unknown>[], next as unknown as Record<string, unknown>[]) ? prev : next);
         tasksDone = true;
       });
       await Promise.all([roomsPromise, tasksPromise]);

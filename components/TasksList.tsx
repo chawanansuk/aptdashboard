@@ -1,5 +1,5 @@
 "use client";
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import type { SheetRow } from "@/types";
 import { canDeleteTask, canViewFinancials } from "@/lib/permissions";
@@ -10,13 +10,15 @@ import {
   bucketTasks, daysOverdue, URGENCY_META, type Urgency,
 } from "@/lib/taskUrgency";
 import { TASK_STATUS } from "@/lib/taskStatus";
-import { TASK_TYPES } from "@/lib/taskSchema";
+import { TASK_TYPES } from "@/lib/taskConstants";
 import { TASK_TYPE_COLOR } from "@/lib/constants";
 import { taskKey as taskKeyOf } from "@/lib/taskKey";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
-import EditTaskModal from "./EditTaskModal";
+// Lazy — drags in zod + react-hook-form (~300KB). Page.tsx warms the
+// chunk shortly after mount so the first row-edit pops instantly.
+const EditTaskModal = lazy(() => import("./EditTaskModal"));
 
 interface Props {
   tasks: SheetRow[];
@@ -344,11 +346,15 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
         />
       ))}
 
-      <EditTaskModal
-        task={editTask}
-        onClose={() => setEditTask(null)}
-        onSaved={() => onChanged?.()}
-      />
+      {editTask && (
+        <Suspense fallback={null}>
+          <EditTaskModal
+            task={editTask}
+            onClose={() => setEditTask(null)}
+            onSaved={() => onChanged?.()}
+          />
+        </Suspense>
+      )}
 
       {confirmDel && (
         <div className="ac-modal-backdrop" onClick={() => !saving && setConfirmDel(null)}>

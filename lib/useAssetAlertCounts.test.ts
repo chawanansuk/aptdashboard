@@ -65,4 +65,34 @@ describe("useAssetAlertCounts", () => {
     expect(result.current.lowStockParts).toBe(0);
     expect(result.current.overdueEquipment).toBe(1);
   });
+
+  it("re-fetches on the 60s poll so a write surfaces on the badge without a reload", async () => {
+    vi.useFakeTimers();
+    try {
+      // Start with 1 low-stock part; after the write the source reports 2.
+      let livePartsData = parts;
+      fetchMock.mockImplementation((url: string) => {
+        if (url.startsWith("/api/parts")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ rows: livePartsData }) });
+        }
+        if (url.startsWith("/api/maintenance-plan")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ rows: equipment }) });
+        }
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+      });
+
+      const { result } = renderHook(() => useAssetAlertCounts(true));
+      await vi.waitFor(() => expect(result.current.lowStockParts).toBe(1));
+
+      // Simulate a stock adjustment dropping a second part below threshold.
+      livePartsData = [...parts, { stock: 1, threshold: 5 }];
+
+      // Advance past the poll interval — the 30s fetch TTL has also expired
+      // (timers are faked), so the refetch hits the new data.
+      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.waitFor(() => expect(result.current.lowStockParts).toBe(2));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

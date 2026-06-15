@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { RecurringTemplate } from "@/types";
-import { TASK_TYPES } from "@/lib/taskSchema";
+import { TASK_TYPES } from "@/lib/taskConstants";
 import { Icon } from "@/lib/icons";
 import { toast } from "@/lib/toast";
 import { parseSheetDate, getBangkokNow } from "@/lib/dateUtils";

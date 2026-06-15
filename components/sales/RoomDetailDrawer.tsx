@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { RoomView } from "@/types";
+import { useEffect, useRef, useState } from "react";
+import type { RoomView, SheetRow } from "@/types";
 import { Icon } from "@/lib/icons";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { formatBaht } from "@/lib/money";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { salesMeta, apptKindFromType, APPT_KIND_META } from "@/lib/salesTheme";
 import { formatDateShort } from "@/lib/salesData";
+import { deriveJourney, TURNOVER_STEP_LABELS, type JourneyAction } from "@/lib/roomJourney";
+import { executeJourneyAction } from "@/lib/journeyActions";
+import { toast } from "@/lib/toast";
 import styles from "./sales.module.css";
 
 interface Props {
@@ -16,12 +19,35 @@ interface Props {
   /** Open the full RoomModal (edit, equipment, history) — keeps the
    *  existing heavyweight detail flow reachable from the light drawer. */
   onOpenFull?: (r: RoomView) => void;
+  /** Refetch dashboard data after a journey write. When omitted the
+   *  journey section renders read-only (stage shown, no buttons). */
+  onRefresh?: () => void;
+  /** Live tasks list — passed into the journey executor so the
+   *  moveout auto-prep bridge can dup-guard against existing prep tasks. */
+  tasks?: SheetRow[];
 }
 
 /** Lightweight read-only room summary. Slides in from the right; the
  *  heavy edit modal is one tap away via "เปิดรายละเอียดเต็ม". */
-export default function RoomDetailDrawer({ room, onClose, onOpenFull }: Props) {
+export default function RoomDetailDrawer({ room, onClose, onOpenFull, onRefresh, tasks }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const [journeyBusy, setJourneyBusy] = useState(false);
+
+  // ขั้นตอนถัดไป — same state machine as the full modal. Flow-opening
+  // actions (booking/viewing) delegate to the full modal via onOpenFull.
+  const journey = deriveJourney(room);
+  async function runJourney(id: JourneyAction["id"]) {
+    if (journeyBusy || !onRefresh) return;
+    setJourneyBusy(true);
+    try {
+      const result = await executeJourneyAction(id, room, { refresh: onRefresh, tasks });
+      if (result === "delegate") onOpenFull?.(room);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ดำเนินการไม่สำเร็จ");
+    } finally {
+      setJourneyBusy(false);
+    }
+  }
   useFocusTrap(true, ref);
 
   // Escape closes the drawer.
@@ -101,6 +127,54 @@ export default function RoomDetailDrawer({ room, onClose, onOpenFull }: Props) {
               <a className={`${styles.fieldValue} ${styles.drawerPhone}`} href={`tel:${room.phone}`}>
                 <Icon name="phone" size={14} />{room.phone}
               </a>
+            </div>
+          )}
+
+          {/* ขั้นตอนถัดไป — one next-step button, same state machine as
+              the full modal. Hidden for rooms outside the journey. */}
+          {journey.stage !== "other" && (
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>ขั้นตอนถัดไป</span>
+              <div className={styles.journeyBox}>
+                {journey.step && (
+                  <ol className={styles.journeySteps} aria-label={`ขั้นตอน ${journey.step[0]} จาก ${journey.step[1]}`}>
+                    {TURNOVER_STEP_LABELS.map((label, i) => {
+                      const n = i + 1;
+                      const state = n < journey.step![0] ? "done" : n === journey.step![0] ? "current" : "todo";
+                      return (
+                        <li
+                          key={label}
+                          className={`${styles.journeyStep} ${state === "done" ? styles.journeyStepDone : state === "current" ? styles.journeyStepCurrent : ""}`}
+                          title={label}
+                        >
+                          <span className={styles.journeyDot} aria-hidden>{state === "done" ? "✓" : n}</span>
+                          <span className={styles.journeyStepLabel}>{label}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+                <div className={styles.journeyTitle}>{journey.title}</div>
+                {journey.subtitle && <div className={styles.journeySub}>{journey.subtitle}</div>}
+                {onRefresh && journey.actions.length > 0 && (
+                  <div className={styles.journeyActions}>
+                    {journey.actions.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className={`${styles.drawerBtn} ${a.variant === "primary" ? styles.drawerBtnPrimary : styles.drawerBtnGhost}`}
+                        disabled={journeyBusy}
+                        onClick={() => void runJourney(a.id)}
+                      >
+                        {journeyBusy ? "กำลังบันทึก…" : a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {journey.actions.length === 0 && journey.step && (
+                  <div className={styles.journeyWaiting}>⏳ รอปิดงานในกระดานงานช่าง</div>
+                )}
+              </div>
             </div>
           )}
 
