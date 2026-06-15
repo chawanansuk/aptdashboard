@@ -351,7 +351,15 @@ function doPost(e) {
       case 'updateTask':       return ok_(withWriteLock_(function () { return updateTask_(body); }));
       case 'updateTaskStatus': return ok_(withWriteLock_(function () { return updateTaskStatus_(body); }));
       case 'deleteTask':       return ok_(withWriteLock_(function () { return deleteTask_(body); }));
+      // Three room-write actions share one writer (updateRoomStatus_ writes
+      // only the fields present in body); the per-action field/permission
+      // gating lives in the Next.js route (app/api/sheet/update). Splitting
+      // the action lets the route enforce: updateRoomData = management-only
+      // free-form edit, bookRoom = sales booking bundle, updateRoomStatus =
+      // status/note only (PII stripped) so the status path can't write PII.
       case 'updateRoomStatus': return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
+      case 'updateRoomData':   return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
+      case 'bookRoom':         return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
       case 'addEquipment':     return ok_(withWriteLock_(function () { return addEquipment_(body); }));
       case 'updateEquipment':  return ok_(withWriteLock_(function () { return updateEquipment_(body); }));
       case 'addFacility':      return ok_(withWriteLock_(function () { return addFacility_(body); }));

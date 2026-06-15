@@ -24,7 +24,13 @@ function actionToPermission(action: string): Action | null {
     case "updateTask":       return "task.edit";
     case "updateTaskStatus": return "task.edit";
     case "deleteTask":       return "task.delete";
+    // Room writes split three ways (see field guard below + Code.gs):
+    //   updateRoomStatus → status/note only (sales+mgmt)
+    //   bookRoom         → booking bundle: status+tenant+phone+price (sales+mgmt)
+    //   updateRoomData   → free-form room edit incl. contract (management only)
     case "updateRoomStatus": return "room.editStatus";
+    case "bookRoom":         return "room.editStatus";
+    case "updateRoomData":   return "tenant.edit";
     case "debugFindTask":    return "task.edit";
     default:                 return null;
   }
@@ -96,6 +102,22 @@ export async function POST(req: Request) {
   const typeError = checkTaskTypePermission(action, typeof body.type === "string" ? body.type : undefined, roles);
   if (typeError) {
     return NextResponse.json({ ok: false, error: typeError }, { status: 403 });
+  }
+
+  // 3c. Field-level guard for room writes (defense in depth — the room
+  // edit form is already management-gated in the UI, but the trust
+  // boundary is here). Only updateRoomData (tenant.edit / management) may
+  // write tenant identity, contract, and price freely. bookRoom (sales)
+  // writes the tenant/phone/price booking bundle but never a contract.
+  // updateRoomStatus is status+note only, so a raw sales POST can't
+  // overwrite tenant PII or rent through the status path.
+  if (action === "updateRoomStatus") {
+    delete body.tenant;
+    delete body.phone;
+    delete body.contractEnd;
+    delete body.price;
+  } else if (action === "bookRoom") {
+    delete body.contractEnd;
   }
 
   // 4. Stamp creator from session — overrides anything client sent
