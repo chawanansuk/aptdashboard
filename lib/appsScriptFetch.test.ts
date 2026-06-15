@@ -66,3 +66,41 @@ describe("appsScriptCall — action spread precedence", () => {
     expect(sent.lastService).toBe("2026-05-19");
   });
 });
+
+describe("appsScriptCall — non-idempotent writes never retry (dup-append guard)", () => {
+  const ORIG_FETCH = global.fetch;
+
+  beforeEach(() => {
+    process.env.SHEET_WRITE_URL = "https://script.google.com/macros/s/MOCK/exec";
+  });
+  afterEach(() => {
+    global.fetch = ORIG_FETCH;
+    delete process.env.SHEET_WRITE_URL;
+  });
+
+  it("does not retry a write on HTTP 500 (single fetch)", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response("upstream boom", { status: 500 }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    // A retry here could duplicate an already-committed append, so the
+    // write must hit the network exactly once and surface the error.
+    await expect(appsScriptCall("addRequisition", { partId: "p1", quantity: 1 }))
+      .rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries an idempotent read on HTTP 500", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response("upstream boom", { status: 500 }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(
+      appsScriptCall("getTasks", {}, { idempotent: true }),
+    ).rejects.toThrow();
+    // Reads still retry through the configured backoff (> 1 attempt).
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+  });
+});

@@ -147,7 +147,9 @@ async function runCall<T>(
 
       // Non-2xx
       lastErr = new AppsScriptError(`upstream HTTP ${res.status}`, 502);
-      if (!shouldRetry(res.status, idempotent)) {
+      // Non-idempotent writes never retry (see catch below); reads retry
+      // only on the retryable statuses.
+      if (!idempotent || !shouldRetry(res.status, idempotent)) {
         throw lastErr;
       }
     } catch (e) {
@@ -156,11 +158,14 @@ async function runCall<T>(
         throw e;
       }
       lastErr = e instanceof Error ? e : new Error(String(e));
-      // Network errors: only retry idempotent calls aggressively. For writes,
-      // we still retry, since Apps Script `withWriteLock_` makes duplicate
-      // appends visible (caller should rely on optimistic-then-reconcile).
-      if (!idempotent && attempt > 0) {
-        // For writes: only one extra attempt on network failure
+      // Never retry a non-idempotent write. A timeout/abort can fire AFTER
+      // Apps Script already committed the append (cold starts routinely
+      // exceed the abort window), so a retry duplicates the row. Only
+      // addTask_ dedups server-side (findTaskRow_); parts / leads /
+      // vehicles / facilities / equipment / requisitions do not — and a
+      // duplicate requisition double-decrements stock. Fail fast and let
+      // the user retry deliberately if the write truly didn't land.
+      if (!idempotent) {
         break;
       }
     }
