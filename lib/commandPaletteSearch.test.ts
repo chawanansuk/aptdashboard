@@ -298,7 +298,6 @@ describe("buildActions — flat list ordering", () => {
     ];
     const actions = buildActions({
       rooms, roles: ["management"], commands: cmds, query: "",
-      onSelectRoom: () => {}, onChangeView: () => {},
     });
 
     const groups = actions.map((a) => a.groupOrder);
@@ -316,7 +315,6 @@ describe("buildActions — flat list ordering", () => {
     const actions = buildActions({
       rooms, roles: ["management"],
       commands: [], query: "305",
-      onSelectRoom: () => {}, onChangeView: () => {},
     });
     // Only the 305 room and no views/commands match "305"
     expect(actions.length).toBe(1);

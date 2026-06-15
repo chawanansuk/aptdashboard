@@ -129,7 +129,7 @@ export default function CommandPalette({
 
   const actions = useMemo<PaletteAction[]>(() => {
     if (!open) return [];
-    const base = buildActions({ rooms, roles, commands, query, onSelectRoom, onChangeView, vehicles });
+    const base = buildActions({ rooms, roles, commands, query, vehicles });
     // When the user hasn't typed yet, surface recent selections at the top.
     // Skip recents that no longer resolve (e.g. room deleted) so we don't
     // confuse the user with dead links.

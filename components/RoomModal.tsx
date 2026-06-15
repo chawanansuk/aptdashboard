@@ -9,7 +9,7 @@ import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
 import { sumCompletedCosts } from "@/lib/taskCost";
-import { formatBaht as formatTaskBaht, formatBaht as fmtBahtFromMoney } from "@/lib/money";
+import { formatBaht } from "@/lib/money";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
 import RoomImageGallery from "./RoomImageGallery";
@@ -92,13 +92,6 @@ function daysUntilContract(contractEnd: string): number | null {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-// Input-field formatter: digits only, no "฿" suffix (the input has its
-// own visual prefix). Delegates to lib/money so the parse rules match
-// every other money field in the app.
-function formatBaht(s: string): string {
-  return fmtBahtFromMoney(s, { suffix: "" });
 }
 
 /** Modal clamps to ±7 days then shows the raw date — beyond a week
@@ -286,7 +279,7 @@ export default function RoomModal({
 
   /* ----- Derived header facts ----- */
   const daysLeft = daysUntilContract(contractEnd);
-  const priceDisplay = formatBaht(price);
+  const priceDisplay = formatBaht(price, { suffix: "" });
   const completedCostsTotal = useMemo(
     () => sumCompletedCosts(room.pastTasks),
     [room.pastTasks]
@@ -349,7 +342,7 @@ export default function RoomModal({
               {canSeeCost && completedCostsTotal > 0 && (
                 <span className="ac-room-modal-chip ac-room-modal-chip-muted">
                   <span className="ac-room-modal-chip-icon">฿</span>
-                  รวมที่ใช้จ่าย {formatTaskBaht(completedCostsTotal)}
+                  รวมที่ใช้จ่าย {formatBaht(completedCostsTotal, { suffix: "" })}
                 </span>
               )}
             </div>
@@ -741,7 +734,7 @@ export default function RoomModal({
                                 )}
                                 {canSeeCost && typeof t.cost === "number" && t.cost > 0 && (
                                   <span className="ac-room-history-cost">
-                                    · {formatTaskBaht(t.cost)}
+                                    · {formatBaht(t.cost, { suffix: "" })}
                                   </span>
                                 )}
                               </div>

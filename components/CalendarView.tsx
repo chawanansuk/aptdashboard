@@ -78,10 +78,10 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
     return new Date(n.getFullYear(), n.getMonth(), n.getDate());
   });
 
-  const today = useMemo(() => {
+  const today = (() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), n.getDate());
-  }, []);
+  })();
 
   // group tasks by dmy key (filtered by activeBuilding)
   const tasksByDay = useMemo(() => {

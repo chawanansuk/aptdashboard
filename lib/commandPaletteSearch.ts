@@ -231,13 +231,11 @@ export function buildActions(params: {
   roles: Role[] | undefined;
   commands: CommandDef[];
   query: string;
-  onSelectRoom: (r: RoomView) => void;
-  onChangeView: (v: Route) => void;
   /** Optional vehicle list — when present, plate/model are searchable
    *  alongside room fields. The UI fetches this lazily on palette open. */
   vehicles?: VehicleHit[];
 }): PaletteAction[] {
-  const { rooms, roles, commands, query, onSelectRoom, onChangeView, vehicles = [] } = params;
+  const { rooms, roles, commands, query, vehicles = [] } = params;
 
   const roomHits = searchRooms(rooms, query, 8, vehicles);
   const viewHits = searchViews(roles, query);
@@ -304,9 +302,7 @@ export function buildActions(params: {
     a.label.localeCompare(b.label)
   );
 
-  // Return a flat list — UI separates groups by groupOrder
-  // We attach the runners via a separate Map (kept here for testability)
-  // But for simplicity callers reconstruct by id.
-  void onSelectRoom; void onChangeView;
+  // Return a flat list — UI separates groups by groupOrder.
+  // Runners are attached by the caller, looking up by action id.
   return actions;
 }

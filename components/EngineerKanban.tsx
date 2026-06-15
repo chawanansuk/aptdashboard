@@ -132,7 +132,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
   // Task selected for the detail drawer (Task 33). Null when no drawer.
   const [drawerTask, setDrawerTask] = useState<SheetRow | null>(null);
 
-  const todayStr = useMemo(() => todayThai(), []);
+  const todayStr = todayThai();
 
   // Filter: engineer-side tasks + active building + location kind
   const filtered = useMemo(() => {
