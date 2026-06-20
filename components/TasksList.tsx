@@ -14,6 +14,7 @@ import { TASK_TYPES } from "@/lib/taskConstants";
 import { TASK_TYPE_COLOR } from "@/lib/constants";
 import { taskKey as taskKeyOf } from "@/lib/taskKey";
 import { publishBusEvent } from "@/lib/realtimeBus";
+import { publishTurnoverStepDone } from "@/lib/turnoverNotifications";
 import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
 // Lazy — drags in zod + react-hook-form (~300KB). Page.tsx warms the
@@ -114,6 +115,7 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
           status: newStatus,
         });
         onOptimisticStatus?.(t, newStatus);
+        publishTurnoverStepDone(t, newStatus);
       }
       clearBulk();
       onChanged?.();
@@ -189,6 +191,7 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
         status: newStatus,
       });
       onOptimisticStatus?.(t, newStatus);
+      publishTurnoverStepDone(t, newStatus);
       onChanged?.();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Network error");

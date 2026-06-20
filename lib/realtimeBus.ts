@@ -18,9 +18,24 @@
 
 const CHANNEL_NAME = "aptdash:bus:v1";
 
+export type TurnoverStep = "inspect" | "moveout-clean" | "repair" | "after-repair-clean" | "qc";
+
 export type BusEvent =
   | { kind: "data-changed"; source: "task" | "room" | "equipment" | "facility"; ts: number }
-  | { kind: "session-changed"; ts: number };
+  | { kind: "session-changed"; ts: number }
+  /**
+   * Engineer just finished a turnover-pipeline task on this room. Drives
+   * cross-unit toasts ("ห้อง 101 ตรวจห้องเสร็จ") and lets sales know when
+   * QC closes so they can flip the room back to "ว่าง". Detected from the
+   * task's note prefix — see lib/moveoutTasks.detectTurnoverStep.
+   */
+  | { kind: "turnover-step-done"; building: string; room: string; step: TurnoverStep; ts: number }
+  /**
+   * Sales just put a room into "แจ้งย้ายออก" and the auto-prep pair
+   * (inspect + clean) was created. Lets engineers see incoming work
+   * without polling. Fires once per moveout, not per task.
+   */
+  | { kind: "turnover-started"; building: string; room: string; ts: number };
 
 type Listener = (e: BusEvent) => void;
 

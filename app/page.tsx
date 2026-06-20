@@ -75,7 +75,8 @@ import {
 } from "@/components/skeletons/ViewSkeletons";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { toast } from "@/lib/toast";
-import { publishBusEvent } from "@/lib/realtimeBus";
+import { publishBusEvent, subscribeBus } from "@/lib/realtimeBus";
+import { formatTurnoverToast, isTurnoverEventRelevant } from "@/lib/turnoverNotifications";
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
@@ -320,6 +321,22 @@ export default function Home() {
     invalidateFacilityCache();
     refresh();
   });
+
+  // ---- Cross-unit turnover notifications: engineer→sales when a
+  // turnover task closes; sales→engineer when a moveout auto-prep fires.
+  // Toast only when the event is relevant to this user's role
+  // (turnoverNotifications.isTurnoverEventRelevant); silent otherwise.
+  useEffect(() => {
+    if (roles.length === 0) return;
+    return subscribeBus((e) => {
+      if (!isTurnoverEventRelevant(e, roles)) return;
+      const t = formatTurnoverToast(e);
+      if (!t) return;
+      const opts = t.body ? { description: t.body } : undefined;
+      if (t.tone === "success") toast.success(t.title, opts);
+      else toast.info(t.title, opts);
+    });
+  }, [roles]);
 
   // ---- Keyboard shortcuts ----
   useEffect(() => {

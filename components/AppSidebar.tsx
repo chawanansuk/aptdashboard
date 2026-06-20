@@ -14,7 +14,7 @@ interface Props {
   isOpen: boolean;
   activeView: SidebarView;
   onChangeView: (v: SidebarView) => void;
-  counts: { total: number; today: number; overdue?: number } & Partial<Record<RoomStatus, number>>;
+  counts: { total: number; today: number; overdue?: number; engTurnover?: number } & Partial<Record<RoomStatus, number>>;
   /** Optional asset alert counts — render badges on "อะไหล่" + "บำรุงรักษา"
    *  nav items when value > 0. */
   assetAlerts?: { lowStockParts: number; overdueEquipment: number };
@@ -88,7 +88,17 @@ function buildGroups(
     todayItems.push({ key: "leads", label: "ผู้สนใจเช่า", icon: icon("tenants") });
   }
   if (has("engineerkanban")) {
-    todayItems.push({ key: "engineerkanban", label: "กระดานงานช่าง", icon: icon("maintenance") });
+    todayItems.push({
+      key: "engineerkanban",
+      label: "กระดานงานช่าง",
+      icon: icon("maintenance"),
+      // Surface incoming turnover work so engineers see sales handoffs
+      // without polling the board. Hidden when 0 to keep the rail quiet.
+      ...((counts.engTurnover ?? 0) > 0 && {
+        badge: counts.engTurnover,
+        badgeClass: "ac-badge-orange",
+      }),
+    });
   }
   const todayGroup: NavGroup = { label: "วันนี้", items: todayItems };
 

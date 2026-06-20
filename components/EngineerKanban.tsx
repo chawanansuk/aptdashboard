@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
 import { useSession } from "next-auth/react";
 import { applyAutoRoomStatus } from "@/lib/applyAutoRoomStatus";
+import { publishTurnoverStepDone } from "@/lib/turnoverNotifications";
 import { parseThaiDate } from "@/lib/dateUtils";
 import {
   TASK_STATUS,
@@ -208,6 +209,8 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       onChanged?.();
+      // Cross-unit handoff: tell sales when a turnover-tagged task closes.
+      publishTurnoverStepDone(t, newStatus);
       // Post-task side effect: auto room status update (or hint toast)
       // when the transition is unambiguous (cleaning done → ready, etc.)
       if (rooms) {

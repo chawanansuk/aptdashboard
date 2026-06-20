@@ -13,11 +13,18 @@
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_KEYS, isClosedStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { detectTurnoverStep } from "@/lib/moveoutTasks";
 
 export type SidebarCounts = {
   total: number;
   today: number;
   overdue: number;
+  /**
+   * Open turnover-tagged engineer tasks. Drives a badge on the
+   * "กระดานงานช่าง" entry so an engineer who hasn't opened the kanban
+   * yet still sees that sales pushed new turnover work their way.
+   */
+  engTurnover: number;
 } & Partial<Record<RoomStatus, number>>;
 
 export function computeSidebarCounts(
@@ -36,10 +43,12 @@ export function computeSidebarCounts(
     ? tasks
     : tasks.filter((t) => t.building === activeBuilding);
   let overdue = 0;
+  let engTurnover = 0;
   for (const t of tasksScope) {
     if (isClosedStatus(t.status)) continue;
     const d = parseThaiDate(t.date);
     if (d && d.getTime() < todayMs) overdue++;
+    if (detectTurnoverStep(t)) engTurnover++;
   }
-  return { ...c, total: scope.length, overdue } as SidebarCounts;
+  return { ...c, total: scope.length, overdue, engTurnover } as SidebarCounts;
 }

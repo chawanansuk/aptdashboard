@@ -16,6 +16,7 @@
 import type { SheetRow, Lead } from "@/types";
 import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
+import { publishTurnoverStarted } from "@/lib/turnoverNotifications";
 import {
   findLeadByPhone,
   nextStageOnViewingClosed,
@@ -144,6 +145,7 @@ export async function autoCreateMoveoutPrep(
   if (created.length > 0) {
     toast.success(`สร้างงานเตรียมห้องอัตโนมัติ: ${created.join(" + ")}`);
     publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+    publishTurnoverStarted(building, room);
     onCreated?.();
   }
 }
