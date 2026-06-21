@@ -423,7 +423,12 @@ export default function RoomModal({
                   image-URL column. Renders nothing when there are none. */}
               <RoomImageGallery images={room.images} label={`${room.building} ${room.room}`} />
 
-              {!canEdit && (
+              {!canEdit && canEditStatus && (
+                <div className="ac-banner ac-banner-info ac-room-readonly-banner">
+                  แก้ไขสถานะห้อง + หมายเหตุได้ · ข้อมูลผู้เช่า/สัญญา/ราคา เฉพาะ <strong>management</strong>
+                </div>
+              )}
+              {!canEdit && !canEditStatus && (
                 <div className="ac-banner ac-banner-info ac-room-readonly-banner">
                   ดูข้อมูลอย่างเดียว · เฉพาะ <strong>management</strong> แก้ไขข้อมูลห้องได้
                 </div>
