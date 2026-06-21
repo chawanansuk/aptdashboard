@@ -221,7 +221,10 @@ describe("searchViews — permission filtering", () => {
     expect(labels).toContain("calendar");
     expect(labels).not.toContain("income");
     expect(labels).not.toContain("maintenance");
-    expect(labels).not.toContain("qc");
+    // qc / repair / inactive opened up to sales — engineers don't use
+    // the app in practice, so sales has to progress those room states.
+    expect(labels).toContain("qc");
+    expect(labels).toContain("repair");
   });
 
   it("engineer sees maintenance + qc, NOT income or tenants", () => {
