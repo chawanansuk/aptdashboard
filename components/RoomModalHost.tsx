@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import type { RoomView, SheetRow } from "@/types";
 import RoomModal from "@/components/RoomModal";
 import RoomJourneyPanel from "@/components/RoomJourneyPanel";
 import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { autoCreateMoveoutPrep } from "@/lib/dashboardActions";
+import { canEditTenant } from "@/lib/permissions";
 import { roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import type { JourneyAction } from "@/lib/roomJourney";
 import { executeJourneyAction } from "@/lib/journeyActions";
@@ -70,6 +72,9 @@ export default function RoomModalHost({
   onConfirmBooking, bookmarks,
 }: Props) {
   const [saving, setSaving] = useState(false);
+  const { data: session } = useSession();
+  const canEditTenantPii = canEditTenant(session?.user?.roles);
+
   const [editStatus, setEditStatus] = useState("");
   const [editTenant, setEditTenant] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -98,33 +103,47 @@ export default function RoomModalHost({
     if (!room) return;
     setSaving(true);
     try {
+      // Pick the action that matches what the user is actually allowed to
+      // write. Management gets updateRoomData (free-form, incl. tenant +
+      // contract + price). Sales gets updateRoomStatus (status + note only;
+      // the route strips PII fields server-side as a defense-in-depth even
+      // if we forgot here). Same writer in Apps Script; the action choice
+      // just gates which permission the route enforces.
+      const body: Record<string, unknown> = canEditTenantPii
+        ? {
+            action: "updateRoomData",
+            building: room.building, room: room.room,
+            status: editStatus, tenant: editTenant, phone: editPhone,
+            contractEnd: editContractEnd, note: editNote, price: editPrice,
+          }
+        : {
+            action: "updateRoomStatus",
+            building: room.building, room: room.room,
+            status: editStatus, note: editNote,
+          };
       const res = await fetch("/api/sheet/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Free-form room edit (status + tenant identity + contract + price).
-          // Management-only at the route (tenant.edit); the Save button + status
-          // select are already gated to canEditTenant in RoomModal. (security split)
-          action: "updateRoomData",
-          building: room.building, room: room.room,
-          status: editStatus, tenant: editTenant, phone: editPhone,
-          contractEnd: editContractEnd, note: editNote, price: editPrice,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
-      console.log("[write] updateRoomData response", res.status, data);
+      console.log("[write]", body.action, "response", res.status, data);
       if (data.ok) {
         toast.success("บันทึกแล้ว — รีเฟรชข้อมูล");
         publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
         // Optimistic local update — shows the change immediately even if the
-        // canonical CSV publish behind /api/sheet/rooms hasn't refreshed yet
-        optimisticUpdateRoom(room.building, room.room, {
-          status: editStatus,
-          tenant: editTenant,
-          phone: editPhone,
-          contractEnd: editContractEnd,
-          price: editPrice,
-        });
+        // canonical CSV publish behind /api/sheet/rooms hasn't refreshed yet.
+        // For sales we only patch what the server actually wrote (status+note)
+        // so empty PII state fields don't blank the local row.
+        optimisticUpdateRoom(room.building, room.room, canEditTenantPii
+          ? {
+              status: editStatus,
+              tenant: editTenant,
+              phone: editPhone,
+              contractEnd: editContractEnd,
+              price: editPrice,
+            }
+          : { status: editStatus });
         // Bridge sales → engineer: when a room flips into "แจ้งย้ายออก"
         // for the first time, auto-create the prep tasks engineers need
         // (inspection + post-tenant clean). Skip when one already exists.

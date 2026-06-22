@@ -1,6 +1,7 @@
 import type { SheetRow } from "@/types";
 import { isClosedStatus } from "@/lib/constants";
 import { getBangkokNow } from "@/lib/dateUtils";
+import type { TurnoverStep } from "@/lib/realtimeBus";
 
 /**
  * Move-out auto-prep — bridge between sales and engineer modes.
@@ -111,6 +112,28 @@ export function findOpenPrepTask(
     return t;
   }
   return undefined;
+}
+
+/**
+ * Classify a task into a turnover-pipeline step by matching its note
+ * prefix. Returns null when the task isn't part of the turnover flow
+ * (regular ad-hoc cleans, ซ่อม without the turnover marker, sales tasks,
+ * etc.) so the caller can skip the cross-unit notification.
+ *
+ * Note-prefix matched (not full equality) so users editing detail after
+ * the dash don't break detection — same convention as roomJourney.
+ */
+export function detectTurnoverStep(task: SheetRow): TurnoverStep | null {
+  const note = (task.note || "").trim();
+  if (!note) return null;
+  // Order matters when prefixes share a head (both cleans start with
+  // "ทำสะอาด..."); the more-specific "หลังซ่อม" check comes first.
+  if (note.startsWith(AFTER_REPAIR_CLEAN_NOTE.split(" —")[0])) return "after-repair-clean";
+  if (note.startsWith(MOVEOUT_CLEAN_NOTE.split(" —")[0])) return "moveout-clean";
+  if (note.startsWith(MOVEOUT_INSPECT_NOTE.split(" —")[0])) return "inspect";
+  if (note.startsWith(TURNOVER_REPAIR_NOTE.split(" —")[0])) return "repair";
+  if (note.startsWith(QC_CHECKLIST_NOTE.split(" —")[0])) return "qc";
+  return null;
 }
 
 /** Today as dd/MM/yyyy — matches sheet format used elsewhere. Bangkok

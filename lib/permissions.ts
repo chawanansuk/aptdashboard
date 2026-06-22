@@ -75,10 +75,13 @@ export const ROUTE_ALLOW: Record<Route, Role[]> = {
   // requirement: tenant identity fields are admin-only.
   tenants:     ["management"],
   salespipeline: ["sales", "management"],
-  // engineer-side
-  qc:          ["engineer", "management"],
-  repair:      ["engineer", "management"],
-  inactive:    ["engineer", "management"],
+  // engineer-side rooms — sales also gets read+status-edit access here.
+  // Engineers in practice don't use the app, so sales has to progress
+  // rooms through qc/repair/inactive themselves; without route access
+  // they couldn't see which rooms are even in those states.
+  qc:          ["sales", "engineer", "management"],
+  repair:      ["sales", "engineer", "management"],
+  inactive:    ["sales", "engineer", "management"],
   maintenance: ["engineer", "management"],
   facilities:  ["engineer", "management"],
   engineerkanban: ["engineer", "management"],

@@ -42,9 +42,15 @@ describe("permissions: canAccess", () => {
     // tenants route restricted to management only (PII protection — 2026-05)
     expect(canAccess(["sales"], "tenants")).toBe(false);
     expect(canAccess(["sales"], "calendar")).toBe(true);
-    expect(canAccess(["sales"], "qc")).toBe(false);
-    expect(canAccess(["sales"], "repair")).toBe(false);
+    // Engineer-side rooms opened up to sales — engineers don't use the
+    // app in practice, so sales has to progress qc/repair/inactive too.
+    expect(canAccess(["sales"], "qc")).toBe(true);
+    expect(canAccess(["sales"], "repair")).toBe(true);
+    expect(canAccess(["sales"], "inactive")).toBe(true);
+    // Asset/inventory routes stay engineer-side (sales doesn't manage stock).
     expect(canAccess(["sales"], "maintenance")).toBe(false);
+    expect(canAccess(["sales"], "parts")).toBe(false);
+    expect(canAccess(["sales"], "engineerkanban")).toBe(false);
     expect(canAccess(["sales"], "income")).toBe(false);
   });
 

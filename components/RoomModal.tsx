@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS, TASK_TYPE_COLOR } from "@/lib/constants";
-import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask, canAddCleanTask } from "@/lib/permissions";
+import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask, canAddCleanTask, canPerform } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
@@ -139,6 +139,12 @@ export default function RoomModal({
   // not grant write capability. Cost display uses EFFECTIVE roles so
   // management can preview the engineer experience (no ฿ leakage).
   const canEdit = canEditTenant(session?.user?.roles);
+  // Status + note are editable for sales too (room.editStatus). PII
+  // fields (tenant/phone/contract/price) stay behind canEdit. Without
+  // this split the status dropdown was disabled for sales, blocking
+  // them from progressing rooms through engineer-side states (qc /
+  // repair / inactive) when engineers don't use the app.
+  const canEditStatus = canPerform(session?.user?.roles, "room.editStatus");
   // Booking is a sales activity — gate the "ยืนยันการจอง" button by
   // sales-task permission (sales + management), NOT canEdit (which is
   // management-only room-field editing). The backend allows sales to do
@@ -263,7 +269,7 @@ export default function RoomModal({
         attemptClose();
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        if (canEdit && tab === "info") attemptSave();
+        if ((canEdit || canEditStatus) && tab === "info") attemptSave();
       } else if ((e.key === "ArrowLeft" || e.key === "k" || e.key === "K") && !isTypingTarget(e.target)) {
         // K mirrors the vim navigation muscle memory ("k = up = previous").
         if (onPrevRoom) { e.preventDefault(); attemptPrev(); }
@@ -274,7 +280,7 @@ export default function RoomModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saving, canEdit, tab, hasErrors, price, phone, contractEnd, isDirty, onPrevRoom, onNextRoom]);
+  }, [saving, canEdit, canEditStatus, tab, hasErrors, price, phone, contractEnd, isDirty, onPrevRoom, onNextRoom]);
 
   /* ----- Derived header facts ----- */
   const daysLeft = daysUntilContract(contractEnd);
@@ -417,7 +423,12 @@ export default function RoomModal({
                   image-URL column. Renders nothing when there are none. */}
               <RoomImageGallery images={room.images} label={`${room.building} ${room.room}`} />
 
-              {!canEdit && (
+              {!canEdit && canEditStatus && (
+                <div className="ac-banner ac-banner-info ac-room-readonly-banner">
+                  แก้ไขสถานะห้อง + หมายเหตุได้ · ข้อมูลผู้เช่า/สัญญา/ราคา เฉพาะ <strong>management</strong>
+                </div>
+              )}
+              {!canEdit && !canEditStatus && (
                 <div className="ac-banner ac-banner-info ac-room-readonly-banner">
                   ดูข้อมูลอย่างเดียว · เฉพาะ <strong>management</strong> แก้ไขข้อมูลห้องได้
                 </div>
@@ -642,7 +653,7 @@ export default function RoomModal({
                     id="ac-room-status"
                     value={status}
                     onChange={(e) => onChange({ status: e.target.value })}
-                    disabled={!canEdit}
+                    disabled={!canEditStatus}
                   >
                     <option value="">- เลือก -</option>
                     {RAW_STATUS_OPTIONS.map((s) => (<option key={s} value={s}>{s}</option>))}
@@ -664,7 +675,7 @@ export default function RoomModal({
                     value={note}
                     onChange={(e) => onChange({ note: e.target.value })}
                     placeholder="บันทึกเพิ่มเติม..."
-                    readOnly={!canEdit}
+                    readOnly={!canEditStatus}
                   />
                 </div>
               </div>
@@ -777,7 +788,7 @@ export default function RoomModal({
         </div>
 
         <footer className="ac-modal-foot ac-modal-foot-sticky">
-          {canEdit && tab === "info" && (
+          {(canEdit || canEditStatus) && tab === "info" && (
             <span className="ac-modal-foot-hint" aria-hidden>
               <kbd>⌘</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
             </span>
@@ -793,7 +804,7 @@ export default function RoomModal({
           <button className="ac-btn ac-btn-ghost" onClick={attemptClose} disabled={saving}>
             ยกเลิก
           </button>
-          {canEdit && tab === "info" && (
+          {(canEdit || canEditStatus) && tab === "info" && (
             <button
               className="ac-btn ac-btn-primary"
               onClick={attemptSave}
