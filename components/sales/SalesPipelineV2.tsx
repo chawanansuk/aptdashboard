@@ -4,11 +4,10 @@ import { useMemo, useRef, useState } from "react";
 import type { RoomView, SheetRow, RoomStatus } from "@/types";
 import { usePersistedString } from "@/lib/usePersistedString";
 import {
-  scopeRooms, buildAppointments, buildKpis, buildOccupancyByBuilding,
+  scopeRooms, buildAppointments, buildKpis,
   buildAppointmentsTrend,
 } from "@/lib/salesData";
 import KpiRow from "./KpiRow";
-import OccupancyStrip from "./OccupancyStrip";
 import RoomBoard, { type ViewMode } from "./RoomBoard";
 import AppointmentsRail from "./AppointmentsRail";
 import RoomDetailDrawer from "./RoomDetailDrawer";
@@ -24,8 +23,9 @@ interface Props {
   onQuickAddLead: () => void;
   /** Jump to a sidebar status view (KPI cards). */
   onChangeView?: (v: RoomStatus) => void;
-  /** Filter to a building (syncs the topbar tab). Used by the occupancy
-   *  strip — clicking a building card here moves the shared filter. */
+  /** Filter to a building (syncs the topbar tab). Reserved — the parent
+   *  still passes it; currently unused since the occupancy strip (its only
+   *  consumer) was removed. Kept so the parent's prop pass stays valid. */
   onChangeBuilding?: (b: string) => void;
   /** "อัปเดต …" timestamp for the subtitle. */
   lastUpdated?: string;
@@ -45,7 +45,7 @@ const isViewMode = (v: string): v is ViewMode => v === "card" || v === "grid";
  * edit/equipment functionality is lost.
  */
 export default function SalesPipelineV2({
-  rooms, tasks, activeBuilding, onSelectRoom, onChangeView, onChangeBuilding, lastUpdated, refresh,
+  rooms, tasks, activeBuilding, onSelectRoom, onChangeView, lastUpdated, refresh,
 }: Props) {
   const [viewModeRaw, setViewMode] = usePersistedString("salesViewMode", "card", isViewMode);
   const viewMode: ViewMode = isViewMode(viewModeRaw) ? viewModeRaw : "card";
@@ -72,14 +72,6 @@ export default function SalesPipelineV2({
   const apptTrend = useMemo(() => buildAppointmentsTrend(tasks, activeBuilding), [tasks, activeBuilding]);
   // Occupancy strip always lists every building (so a user can switch
   // away from the current filter), so it reads from the full room list.
-  const occupancy = useMemo(() => buildOccupancyByBuilding(rooms), [rooms]);
-  const selectedBuilding = activeBuilding === "ทั้งหมด" ? null : activeBuilding;
-
-  function toggleBuilding(b: string) {
-    // Clicking the already-active building clears the filter.
-    onChangeBuilding?.(b === activeBuilding ? "ทั้งหมด" : b);
-  }
-
   function selectByRoom(building: string, room: string) {
     const r = rooms.find((x) => x.building === building && x.room === room);
     if (r) setSelected(r);
@@ -112,16 +104,6 @@ export default function SalesPipelineV2({
         onMoveout={onChangeView ? () => onChangeView("moveout") : undefined}
         onAppointments={() => railRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
       />
-
-      {/* Occupancy strip — per-building, click to filter (only when the
-          parent wired onChangeBuilding; harmless no-op otherwise). */}
-      {onChangeBuilding && (
-        <OccupancyStrip
-          buildings={occupancy}
-          selected={selectedBuilding}
-          onSelect={toggleBuilding}
-        />
-      )}
 
       {/* Sections 3 + 4 — board + appointments rail */}
       <div className={styles.split}>
