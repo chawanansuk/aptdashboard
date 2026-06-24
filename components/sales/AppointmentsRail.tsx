@@ -39,10 +39,10 @@ const AppointmentsRail = forwardRef<HTMLDivElement, Props>(
         ) : (
           <div className={styles.railScroll}>
             {days.map((d) => (
-              <div key={d.key} className={styles.railDay}>
+              <div key={d.key} className={styles.railDay} data-tone={d.tone}>
                 <div className={styles.railDayHead}>
                   <span className={styles.railDayLabel}>{d.label}</span>
-                  <span className={styles.railDayCount}>{d.items.length} นัด</span>
+                  <span className={styles.railDayCount}>{d.items.length}</span>
                 </div>
                 {d.items.map((a, i) => {
                   const kind = apptKindFromType(a.task.type);
@@ -50,28 +50,43 @@ const AppointmentsRail = forwardRef<HTMLDivElement, Props>(
                   const akVars = km
                     ? ({ "--ak-base": km.base, "--ak-tint": km.tint } as React.CSSProperties)
                     : undefined;
+                  const tel = a.task.phone?.replace(/[^0-9+]/g, "");
                   return (
-                    <button
+                    <div
                       key={`${a.task.date}|${a.task.building}|${a.task.room}|${i}`}
                       className={styles.appt}
                       style={akVars}
-                      onClick={() => onSelectRoom?.(a.task.building, a.task.room)}
                     >
-                      <span className={styles.apptMain}>
+                      <button
+                        className={styles.apptMain}
+                        onClick={() => onSelectRoom?.(a.task.building, a.task.room)}
+                        title={`เปิดห้อง ${a.task.building} ${a.task.room}`}
+                      >
                         <span className={styles.apptTopline}>
+                          {km && <span className={styles.apptDot} aria-hidden />}
+                          <span className={styles.apptCust}>
+                            {a.task.customer || "—"}
+                          </span>
+                        </span>
+                        <span className={styles.apptSub}>
                           {km && <span className={styles.apptTag}>{km.label}</span>}
                           <span className={styles.apptRoom}>
                             {a.task.building} · <span className={styles.mono}>{a.task.room}</span>
                           </span>
                         </span>
-                        {a.task.customer && <span className={styles.apptCust}>{a.task.customer}</span>}
-                        {a.task.phone && (
-                          <span className={styles.apptPhone}>
-                            <Icon name="phone" size={12} />{a.task.phone}
-                          </span>
-                        )}
-                      </span>
-                    </button>
+                      </button>
+                      {tel && (
+                        <a
+                          className={styles.apptCall}
+                          href={`tel:${tel}`}
+                          title={`โทร ${a.task.phone}`}
+                          aria-label={`โทรหา ${a.task.customer || a.task.phone}`}
+                        >
+                          <Icon name="phone" size={15} />
+                          <span className={`${styles.apptCallNum} ${styles.mono}`}>{a.task.phone}</span>
+                        </a>
+                      )}
+                    </div>
                   );
                 })}
               </div>

@@ -144,6 +144,10 @@ export interface ApptDayGroup {
   key: string;
   /** Thai label: วันนี้ / พรุ่งนี้ / เสาร์ 7 มิ.ย. */
   label: string;
+  /** Temporal bucket for styling — today/tomorrow get accent emphasis,
+   *  everything further out is a calm "upcoming". Derived from the day
+   *  diff so the UI never has to string-match the Thai label. */
+  tone: "today" | "tomorrow" | "upcoming";
   items: Appointment[];
 }
 
@@ -153,14 +157,28 @@ function dayKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
-/** Human day label relative to `now`: วันนี้ / พรุ่งนี้ / เสาร์ 7 มิ.ย. */
-export function dayLabel(d: Date, now: Date = getBangkokNow()): string {
+/** Whole-day diff between `d` and `now` (calendar days, sign preserved). */
+function dayDiff(d: Date, now: Date): number {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const diff = Math.round((that.getTime() - today.getTime()) / 86_400_000);
+  return Math.round((that.getTime() - today.getTime()) / 86_400_000);
+}
+
+/** Human day label relative to `now`: วันนี้ / พรุ่งนี้ / เสาร์ 7 มิ.ย. */
+export function dayLabel(d: Date, now: Date = getBangkokNow()): string {
+  const diff = dayDiff(d, now);
   if (diff === 0) return "วันนี้";
   if (diff === 1) return "พรุ่งนี้";
+  const that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   return `${THAI_DOW[that.getDay()]} ${that.getDate()} ${THAI_MONTHS[that.getMonth()]}`;
+}
+
+/** Temporal tone for a day group — drives accent emphasis in the rail. */
+function dayTone(d: Date, now: Date): ApptDayGroup["tone"] {
+  const diff = dayDiff(d, now);
+  if (diff === 0) return "today";
+  if (diff === 1) return "tomorrow";
+  return "upcoming";
 }
 
 /** Group already-sorted appointments by calendar day, preserving order. */
@@ -174,7 +192,7 @@ export function groupAppointmentsByDay(
     const k = dayKey(a.date);
     let g = index.get(k);
     if (!g) {
-      g = { key: k, label: dayLabel(a.date, now), items: [] };
+      g = { key: k, label: dayLabel(a.date, now), tone: dayTone(a.date, now), items: [] };
       index.set(k, g);
       out.push(g);
     }
