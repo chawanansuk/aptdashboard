@@ -1345,14 +1345,21 @@ html.dark .ac-fs-stat.is-active {
 .ac-rc-movein {
   display: inline-block;
   margin-top: 2px;
-  font-size: 9px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   line-height: 1.1;
-  color: #E9D5FF;
-  background: color-mix(in srgb, #A855F7 30%, transparent);
+  /* Light theme: dark-purple text on a pale purple chip. The previous
+     single rule used a pale-lavender text (#E9D5FF) tuned for the dark
+     card — on the light pending card (#FAF5FF) it was near-invisible. */
+  color: #7E22CE;
+  background: color-mix(in srgb, #A855F7 16%, transparent);
   padding: 1px 5px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
+}
+html.dark .ac-rc-movein {
+  color: #E9D5FF;
+  background: color-mix(in srgb, #A855F7 30%, transparent);
 }
 .ac-rg-compact .ac-rc-movein { display: none; }
 /* "ต้องซ่อมอะไร" hint for รอเข้าซ่อม rooms — amber pill under the status
