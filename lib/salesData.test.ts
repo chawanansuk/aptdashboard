@@ -81,6 +81,16 @@ describe("dayLabel + groupAppointmentsByDay", () => {
     expect(groups).toHaveLength(2);
     expect(groups[0].items).toHaveLength(2);
   });
+
+  it("tags each day group with a temporal tone for styling", () => {
+    // NOW = 5 Jun 2026 → 5th = today, 6th = tomorrow, 8th = upcoming.
+    const appts = buildAppointments(
+      [mkTask({ date: "05/06/2026" }), mkTask({ date: "06/06/2026" }), mkTask({ date: "08/06/2026" })],
+      "ทั้งหมด", NOW,
+    );
+    const groups = groupAppointmentsByDay(appts, NOW);
+    expect(groups.map((g) => g.tone)).toEqual(["today", "tomorrow", "upcoming"]);
+  });
 });
 
 describe("groupByBuildingFloor", () => {

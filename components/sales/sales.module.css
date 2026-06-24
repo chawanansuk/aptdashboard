@@ -556,58 +556,107 @@
 .railHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .railTitle { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
 .railCount { font-size: 12px; color: var(--text-2); font-family: var(--font-num); }
-.railScroll { display: flex; flex-direction: column; gap: 16px; max-height: 70vh; overflow-y: auto; }
-.railDay { display: flex; flex-direction: column; gap: 8px; }
-.railDayHead {
-  display: flex; align-items: baseline; gap: 8px;
-  position: sticky; top: 0;
-  background: var(--surface);
-  padding-bottom: 2px;
+.railScroll { display: flex; flex-direction: column; gap: 14px; max-height: 70vh; overflow-y: auto; }
+
+/* A day group carries a left accent bar tinted by how soon it is, so the
+ * eye can triage วันนี้ / พรุ่งนี้ / later without reading every header. */
+.railDay {
+  display: flex; flex-direction: column; gap: 6px;
+  padding-left: 10px;
+  border-left: 3px solid var(--rail-tone, var(--border-strong));
 }
-.railDayLabel { font-size: 12.5px; font-weight: 600; color: var(--primary-2); }
-.railDayCount { font-size: 11px; color: var(--text-3); }
+.railDay[data-tone="today"]    { --rail-tone: #FB7185; }
+.railDay[data-tone="tomorrow"] { --rail-tone: var(--amber); }
+.railDay[data-tone="upcoming"] { --rail-tone: var(--primary-2); }
+
+.railDayHead {
+  display: flex; align-items: center; gap: 8px;
+  position: sticky; top: 0; z-index: 1;
+  /* Frosted so cards scrolling under the header stay legible. */
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  backdrop-filter: blur(6px);
+  padding: 3px 0 5px;
+}
+.railDayLabel { font-size: 13px; font-weight: 600; color: var(--rail-tone, var(--primary-2)); }
+.railDay[data-tone="today"] .railDayLabel { font-weight: 700; }
+.railDayCount {
+  font-size: 11px; font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border-radius: 999px;
+  min-width: 18px; padding: 1px 6px;
+  text-align: center;
+  font-family: var(--font-num);
+}
+.railDay[data-tone="today"] .railDayCount {
+  color: #FB7185;
+  background: rgba(251, 113, 133, .12);
+}
+
+/* Card = a room button (left, grows) + a call link (right). Splitting the
+ * call action out means tapping the phone dials directly instead of
+ * opening the drawer first. */
 .appt {
   display: flex;
-  gap: 10px;
+  align-items: stretch;
+  gap: 8px;
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: 11px;
-  padding: 10px;
-  text-align: left;
-  width: 100%;
+  overflow: hidden;
   transition: background 140ms ease, border-color 140ms ease;
+}
+.appt:hover { border-color: var(--border-strong); }
+
+.apptMain {
+  display: flex; flex-direction: column; gap: 3px;
+  min-width: 0; flex: 1;
+  background: none; border: none;
+  text-align: left;
+  padding: 9px 4px 9px 11px;
   cursor: pointer;
 }
-.appt:hover { background: var(--hover); border-color: var(--border-strong); }
-.appt:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
-.apptTime {
-  font-family: var(--font-num);
-  font-size: 12px;
-  color: var(--text-2);
+.apptMain:hover { background: var(--hover); }
+.apptMain:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; border-radius: 8px; }
+
+/* Row 1 — customer name is what sales scans for, so it leads. */
+.apptTopline { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.apptDot {
   flex: none;
-  width: 38px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ak-base, var(--text-3));
+  box-shadow: 0 0 0 3px var(--ak-tint, transparent);
 }
-.apptMain { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
-.apptTopline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.apptCust {
+  font-size: 14.5px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Row 2 — type tag + room, quieter supporting context. */
+.apptSub { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding-left: 14px; }
 .apptTag {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--ak-base);
-  background: var(--ak-tint);
-  border-radius: 999px;
-  padding: 2px 7px;
+  font-size: 10.5px; font-weight: 600;
+  color: var(--ak-base); background: var(--ak-tint);
+  border-radius: 5px;
+  padding: 1px 6px;
 }
-.apptRoom { font-size: 12.5px; color: var(--text); font-weight: 500; }
-.apptRoom .mono { font-family: var(--font-num); }
-.apptCust { font-size: 12px; color: var(--text-2); }
-.apptPhone {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
+.apptRoom { font-size: 12px; color: var(--text-2); }
+.apptRoom .mono { font-family: var(--font-num); color: var(--text); }
+
+.apptCall {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px; flex: none;
+  width: 84px;
+  padding: 6px 8px;
   color: var(--primary-2);
-  font-family: var(--font-num);
+  background: var(--primary-tint);
+  border-left: 1px solid var(--border);
+  transition: background 140ms ease;
 }
+.apptCall:hover { background: var(--hover); }
+.apptCall:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.apptCallNum { font-size: 10.5px; color: var(--primary-2); line-height: 1.1; text-align: center; }
 
 /* ====================================================================
  * Room detail drawer
@@ -914,6 +963,11 @@
 @media (pointer: coarse) {
   .drawerBtn { min-height: 44px; }
   .drawerClose { width: 44px; height: 44px; }
+  /* Appointment card actions — both the room button and the call link
+   * must clear the 44px tap floor on phones (this rail is sales' main
+   * phone surface). */
+  .apptMain { min-height: 44px; }
+  .apptCall { min-height: 44px; min-width: 56px; }
 }
 
 /* ====================================================================
