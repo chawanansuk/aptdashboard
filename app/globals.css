@@ -1189,17 +1189,32 @@ html.dark .ac-cmdk-btn-kbd {
 .ac-bld-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 20px 2px 10px;
-  padding-bottom: 7px;
+  gap: 9px;
+  margin: 22px 4px 10px;
+  padding-bottom: 8px;
   border-bottom: 2px solid #E2E8F0;
 }
-.ac-bld-head:first-child { margin-top: 2px; }
-.ac-bld-name { font-size: 16px; font-weight: 800; color: #0F172A; letter-spacing: .2px; }
+.ac-bld-head:first-child { margin-top: 4px; }
+.ac-bld-name {
+  position: relative;
+  padding-left: 12px;
+  font-size: 16px; font-weight: 800; letter-spacing: .2px;
+  color: #0F172A;
+}
+/* Accent bar marks this as a building-level header (vs the floor headers). */
+.ac-bld-name::before {
+  content: ""; position: absolute; left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 4px; height: 16px; border-radius: 2px;
+  background: #4D8DF6;
+}
 .ac-bld-count {
   font-size: 12px; font-weight: 600; color: #64748B;
   background: #F1F5F9; border-radius: 999px; padding: 2px 9px;
 }
+html.dark .ac-bld-head { border-bottom-color: #334155; }
+html.dark .ac-bld-name { color: #F8FAFC; }
+html.dark .ac-bld-count { color: #94A3B8; background: #1E293B; }
 
 /* FLOOR SECTION */
 .ac-fs {
