@@ -632,6 +632,17 @@ html, body {
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  /* Lock whole-page horizontal scroll — phone users were able to swipe
+   * the entire app sideways and reveal the bare page background to the
+   * right of the content. The kanban, tab strips, and other intentional
+   * horizontal scrollers use their own inner overflow-x:auto and are
+   * unaffected by clipping the root.
+   * `clip` is preferred over `hidden` because it doesn't establish a
+   * scroll container — sticky descendants keep sticking to their
+   * intended ancestor. Safari < 16 ignores `clip` and falls back to
+   * the `hidden` line above (iOS 15.4 supports `hidden` fine). */
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 button { font-family: inherit; cursor: pointer; border: none; background: none; padding: 0; color: inherit; }
