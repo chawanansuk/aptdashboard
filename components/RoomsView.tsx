@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Role } from "@/auth";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
@@ -8,6 +8,7 @@ import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
 import { roomKey as makeRoomKey } from "@/lib/taskKey";
+import { buildingSortIndex } from "@/lib/salesData";
 import { useRoomDensity, ROOM_DENSITY_VALUES, type RoomDensity } from "@/lib/useRoomDensity";
 import { canViewTenant } from "@/lib/permissions";
 import RoomQuickActions from "./RoomQuickActions";
@@ -146,19 +147,37 @@ function RoomsView({
     }
   }
 
+  // When more than one building is in view (the "ทั้งหมด" tab), room
+  // numbers repeat across buildings (KL 202 vs มั่งมี 202) so a pure
+  // floor grouping lumps unrelated rooms together. Detect that and
+  // group building → floor, with a building header per group. A single
+  // selected building keeps the flat floor-only layout (building label
+  // would be redundant).
+  const multiBuilding = useMemo(
+    () => new Set(visibleRooms.map((r) => r.building)).size > 1,
+    [visibleRooms],
+  );
+
   const floorGroups = useMemo(() => {
-    const map = new Map<string, RoomView[]>();
+    const map = new Map<string, { building: string; floor: string; list: RoomView[] }>();
     visibleRooms.forEach((r) => {
-      const k = r.floor || "-";
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(r);
+      const building = r.building || "—";
+      const floor = r.floor || "-";
+      const k = `${building}|${floor}`;
+      if (!map.has(k)) map.set(k, { building, floor, list: [] });
+      map.get(k)!.list.push(r);
     });
-    return Array.from(map.entries())
-      .map(([floor, list]) => ({
-        floor,
-        list: list.sort((a, b) => a.room.localeCompare(b.room, undefined, { numeric: true })),
+    return Array.from(map.values())
+      .map((g) => ({
+        ...g,
+        list: g.list.sort((a, b) => a.room.localeCompare(b.room, undefined, { numeric: true })),
       }))
-      .sort((a, b) => (a.floor || "").localeCompare(b.floor || "", undefined, { numeric: true }));
+      // Building order first (sales preference), then floor ascending. When
+      // only one building is present this collapses to a plain floor sort.
+      .sort((a, b) =>
+        buildingSortIndex(a.building) - buildingSortIndex(b.building) ||
+        a.building.localeCompare(b.building) ||
+        (a.floor || "").localeCompare(b.floor || "", undefined, { numeric: true }));
   }, [visibleRooms]);
 
   // Default tab stop = first card in render order (floor-sorted).
@@ -230,11 +249,25 @@ function RoomsView({
       </section>
 
       <div ref={gridRef}>
-      {floorGroups.map((g) => {
+      {floorGroups.map((g, idx) => {
         const counts: Record<RoomStatus, number> = { occupied: 0, ready: 0, pending: 0, moveout: 0, qc: 0, repair: 0, inactive: 0 };
         g.list.forEach((r) => counts[r.status]++);
+        // Building divider — render once before the first floor section of
+        // each building, only when multiple buildings are in view.
+        const showBuildingHeader =
+          multiBuilding && (idx === 0 || floorGroups[idx - 1].building !== g.building);
+        const buildingRoomCount = multiBuilding
+          ? floorGroups.filter((x) => x.building === g.building).reduce((n, x) => n + x.list.length, 0)
+          : 0;
         return (
-          <section key={g.floor} className="ac-fs">
+          <Fragment key={`${g.building}|${g.floor}`}>
+          {showBuildingHeader && (
+            <header className="ac-bld-head">
+              <span className="ac-bld-name">{g.building}</span>
+              <span className="ac-bld-count">{buildingRoomCount} ห้อง</span>
+            </header>
+          )}
+          <section className="ac-fs">
             <header className="ac-fs-head">
               <div className="ac-fs-title">ชั้น {g.floor}</div>
               <div className="ac-fs-stats">
@@ -420,6 +453,7 @@ function RoomsView({
               })}
             </div>
           </section>
+          </Fragment>
         );
       })}
       </div>
