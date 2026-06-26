@@ -1,0 +1,66 @@
+# CodeRabbit config — runs on every PR once the GitHub App is installed.
+# Tuned for this codebase: Next.js 15 + Apps Script proxy, Thai-language UI,
+# strict TS, vitest, mobile-heavy users.
+#
+# Docs: https://docs.coderabbit.ai/getting-started/configure-coderabbit
+language: "th-TH"          # respond in Thai so the reviews are skimmable for the team
+early_access: false
+reviews:
+  profile: "chill"          # less noisy than "assertive"; surface real issues, skip nits
+  request_changes_workflow: false
+  high_level_summary: true  # one-paragraph PR summary at the top
+  poem: false               # turn off the ASCII-art poem CodeRabbit adds by default
+  review_status: true
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false           # skip drafts — most of our drafts are WIP and noisy
+    base_branches:
+      - main
+  path_filters:
+    # Don't review generated / vendored / large lock files
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!package-lock.json"
+    - "!pnpm-lock.yaml"
+    - "!**/__snapshots__/**"
+    - "!.claude/skills/**"
+  path_instructions:
+    - path: "app/api/**/*.ts"
+      instructions: |
+        These are Next.js route handlers. ALWAYS check:
+        - auth() is called before any sensitive read/write.
+        - canPerform() / canAccess() gates match the action's intent.
+        - PII fields (tenant, phone, contractEnd, price) aren't returned to roles
+          that lack canViewTenant.
+        - The route handles errors with a structured { ok: false, error }
+          response — never let an unhandled throw reach the client.
+    - path: "apps-script/Code.gs"
+      instructions: |
+        Apps Script backend. ALWAYS check:
+        - Every write action is wrapped in withWriteLock_(function() { … }).
+        - Every mutation calls logAudit_ with the actor email + a meaningful
+          action label.
+        - Cache invalidation: any writer touching rooms/tasks/parts/leads/etc.
+          calls the matching clearXCache_().
+        - Dates parsed/written use Asia/Bangkok explicitly.
+    - path: "components/**/*.tsx"
+      instructions: |
+        React UI in a mobile-heavy Thai dashboard. Check:
+        - Interactive elements have a coarse-pointer 44px tap target (see
+          .claude/skills/aptdashboard-mobile/SKILL.md).
+        - Any color: hex used inline has a matching html.dark override or
+          uses a CSS var that already adapts.
+        - useEffect deps include all read closures (especially `roles`,
+          `session`, `tasks`, `rooms`).
+        - Thai text isn't bumped under line-height 1.3 (upper/lower marks
+          would clip).
+    - path: "lib/**/*.ts"
+      instructions: |
+        Pure helpers — these are the test boundary. Check:
+        - Date helpers default to getBangkokNow() rather than `new Date()`.
+        - Pure functions don't reach for window/document/fetch.
+        - If you change the signature, the matching .test.ts is updated.
+chat:
+  auto_reply: true
+</content>

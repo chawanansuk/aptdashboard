@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "mcpServers": {
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com",
+      "description": "Vercel's official MCP — read deploys, logs, env, analytics for any project this account owns. First use in a session opens an OAuth window to vercel.com; subsequent sessions reuse the token. Swap to https://mcp.vercel.com/<org>/<project> if you want to scope to this project only."
+    }
+  }
+}
