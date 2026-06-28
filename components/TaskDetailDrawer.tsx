@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SheetRow } from "@/types";
+import { parseRepairLog } from "@/lib/repairLog";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { parseTaskLocation } from "@/lib/taskLocation";
 import { computeSla, slaBadgeLabel } from "@/lib/sla";
@@ -39,6 +40,9 @@ interface Props {
   /** Open the shared edit modal for this task. When omitted, the
    *  "แก้ไข" button is hidden (e.g. a read-only consumer). */
   onEdit?: (t: SheetRow) => void;
+  /** Append a "what was fixed" line to a ซ่อม task's note. When omitted
+   *  the repair-log capture box is hidden (non-engineer consumers). */
+  onLogRepair?: (t: SheetRow, resolution: string) => void | Promise<void>;
   busy?: boolean;
 }
 
@@ -57,10 +61,14 @@ function statusLabel(status: string): { label: string; tone: "ok" | "warn" | "in
   return { label: t || "รอเริ่ม", tone: "muted" };
 }
 
-export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, busy }: Props) {
+export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogRepair, busy }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const open = !!task;
   useFocusTrap(open, ref);
+
+  // Repair-log capture (ซ่อม tasks only). Local input; submit appends a
+  // timestamped line to the note via onLogRepair, then clears.
+  const [repairText, setRepairText] = useState("");
 
   // Time tracking (Task 35) — gated by role; sales doesn't track hours
   const { data: session } = useSession();
@@ -85,6 +93,11 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, busy }
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Clear the repair input whenever a different task opens, so text typed
+  // for one room doesn't bleed into the next.
+  const taskIdent = task ? taskKey(task) : null;
+  useEffect(() => { setRepairText(""); }, [taskIdent]);
+
   if (!task) return null;
 
   const loc = parseTaskLocation(task);
@@ -93,6 +106,11 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, busy }
   const stat = statusLabel(task.status);
   const cat = categorizeStatus(task.status);
   const age = ageLabel(task.date);
+
+  // Repair log only applies to ซ่อม tasks. `problem` is the original
+  // issue text; `entries` are the timestamped "what was fixed" lines.
+  const isRepair = task.type === "ซ่อม";
+  const repair = isRepair ? parseRepairLog(task.note) : null;
 
   // Action visibility — same rules as inline KanbanCard buttons,
   // centralised here so changing one doesn't desync the other.
@@ -169,9 +187,53 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, busy }
               </>
             )}
 
-            <dt>หมายเหตุ</dt>
-            <dd className="ac-task-drawer-note">{task.note?.trim() || "—"}</dd>
+            <dt>{isRepair ? "อาการ/ปัญหา" : "หมายเหตุ"}</dt>
+            <dd className="ac-task-drawer-note">
+              {(repair ? repair.problem : task.note?.trim()) || "—"}
+            </dd>
           </dl>
+
+          {/* Repair log — "ห้องนี้ซ่อมอะไรไปบ้าง". History of fixes plus an
+              optional box to add a new one. Engineer-facing (onLogRepair). */}
+          {isRepair && (
+            <section className="ac-repair-log" aria-label="บันทึกการซ่อม">
+              <header className="ac-repair-log-head">🔧 บันทึกการซ่อม</header>
+              {repair && repair.entries.length > 0 ? (
+                <ul className="ac-repair-log-list">
+                  {repair.entries.map((e, i) => (
+                    <li key={i} className="ac-repair-log-item">
+                      <span className="ac-repair-log-date">{e.date}</span>
+                      <span className="ac-repair-log-text">{e.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="ac-repair-log-empty">ยังไม่มีบันทึกการซ่อม</p>
+              )}
+
+              {onLogRepair && (
+                <div className="ac-repair-log-add">
+                  <textarea
+                    className="ac-repair-log-input"
+                    rows={2}
+                    placeholder="ซ่อมอะไรไป? เช่น เติมน้ำยา ล้างคอยล์"
+                    value={repairText}
+                    onChange={(e) => setRepairText(e.target.value)}
+                    disabled={busy}
+                  />
+                  <button
+                    type="button"
+                    className="ac-btn ac-btn-primary ac-btn-sm"
+                    disabled={busy || !repairText.trim()}
+                    onClick={async () => {
+                      await onLogRepair(task, repairText);
+                      setRepairText("");
+                    }}
+                  >+ บันทึก</button>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Time tracker (Task 35) — engineer/management only */}
           {canTrackTime && (
