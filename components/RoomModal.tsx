@@ -8,6 +8,7 @@ import { canEditTenant, canViewTenant, canViewFinancials, canAddSalesTask, canAd
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
+import { parseRepairLog } from "@/lib/repairLog";
 import { sumCompletedCosts } from "@/lib/taskCost";
 import { formatBaht } from "@/lib/money";
 import { useFocusTrap } from "@/lib/useFocusTrap";
@@ -756,6 +757,22 @@ export default function RoomModal({
                               {t.customer && (
                                 <div className="ac-room-history-line2">{t.customer}</div>
                               )}
+                              {t.type === "ซ่อม" && (() => {
+                                const r = parseRepairLog(t.note);
+                                if (!r.problem && r.entries.length === 0) return null;
+                                return (
+                                  <div className="ac-room-history-repair">
+                                    {r.problem && (
+                                      <div className="ac-room-history-problem">{r.problem}</div>
+                                    )}
+                                    {r.entries.map((e, j) => (
+                                      <div key={j} className="ac-room-history-fix">
+                                        🔧 <span className="ac-room-history-fix-date">{e.date}</span> {e.text}
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
                             <span className={`ac-room-history-status ${isDone ? "is-done" : ""} ${isCancel ? "is-cancelled" : ""}`}>
                               {s || "—"}

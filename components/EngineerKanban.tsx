@@ -18,6 +18,8 @@ import {
 } from "@/lib/taskLocation";
 import TaskDetailDrawer from "./TaskDetailDrawer";
 import { taskKey } from "@/lib/taskKey";
+import { appendRepairLog } from "@/lib/repairLog";
+import { publishBusEvent } from "@/lib/realtimeBus";
 import { MOVEOUT_PREP_KINDS, findOpenPrepTask } from "@/lib/moveoutTasks";
 
 interface Props {
@@ -220,6 +222,40 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
       }
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "เปลี่ยนสถานะไม่สำเร็จ");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  /**
+   * Append a "what was fixed" line to a ซ่อม task's note (lean repair log —
+   * no schema change, see lib/repairLog). Patches the open drawer's task
+   * optimistically so the new entry shows immediately, then refreshes.
+   */
+  async function logRepair(t: SheetRow, resolution: string) {
+    const newNote = appendRepairLog(t.note || "", resolution);
+    if (newNote === (t.note || "")) return; // blank resolution — no-op
+    const k = taskKey(t);
+    setBusyKey(k);
+    setErr(null);
+    try {
+      const res = await fetch("/api/sheet/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updateTask",
+          match: { date: t.date, type: t.type, building: t.building, room: t.room },
+          note: newNote,
+        }),
+      });
+      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+      if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+      // Keep the drawer in sync without waiting for the refetch round-trip.
+      setDrawerTask((prev) => (prev && taskKey(prev) === k ? { ...prev, note: newNote } : prev));
+      onChanged?.();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "บันทึกการซ่อมไม่สำเร็จ");
     } finally {
       setBusyKey(null);
     }
@@ -534,6 +570,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
           setDrawerTask(null);
           onEditTask(t);
         })}
+        onLogRepair={logRepair}
       />
     </section>
   );
