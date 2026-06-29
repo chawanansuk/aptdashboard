@@ -85,7 +85,7 @@ interface Props {
   onTogglePin?: () => void;
 }
 
-type TabKey = "info" | "equipment" | "vehicles";
+type TabKey = "info" | "equipment" | "vehicles" | "repair";
 type FieldKey = "price" | "phone" | "contractEnd";
 type Errors = Partial<Record<FieldKey, string>>;
 
@@ -422,6 +422,14 @@ export default function RoomModal({
             className={`ac-modal-tab ${tab === "vehicles" ? "is-active" : ""}`}
             onClick={() => setTab("vehicles")}
           >ยานพาหนะ</button>
+          {onQuickRepair && (
+            <button
+              role="tab"
+              aria-selected={tab === "repair"}
+              className={`ac-modal-tab ${tab === "repair" ? "is-active" : ""}`}
+              onClick={() => setTab("repair")}
+            >🔧 บันทึกซ่อม</button>
+          )}
         </nav>
 
         <div className="ac-modal-body">
@@ -723,38 +731,6 @@ export default function RoomModal({
                 </div>
               )}
 
-              {/* Quick repair log — file an already-done ซ่อม for this
-                  room (works on occupied rooms that have no open job).
-                  Engineer/management only (onQuickRepair gated upstream). */}
-              {onQuickRepair && (
-                <div className="ac-form-section ac-room-repair">
-                  <div className="ac-form-section-label">🔧 บันทึกการซ่อม</div>
-                  <div className="ac-room-repair-row">
-                    <textarea
-                      className="ac-room-repair-input"
-                      rows={2}
-                      placeholder="ซ่อมอะไรไป? เช่น ก๊อกอ่างล้างหน้า / เปลี่ยนสายน้ำดีฝักบัว / ลอกท่อน้ำทิ้ง"
-                      value={repairText}
-                      onChange={(e) => setRepairText(e.target.value)}
-                      disabled={repairing}
-                    />
-                    <button
-                      type="button"
-                      className="ac-btn ac-btn-primary"
-                      disabled={repairing || !repairText.trim()}
-                      onClick={async () => {
-                        await onQuickRepair(repairText);
-                        setRepairText("");
-                      }}
-                    >
-                      {repairing && <span className="ac-btn-spinner" aria-hidden />}
-                      {repairing ? "กำลังบันทึก…" : "+ บันทึก"}
-                    </button>
-                  </div>
-                  <span className="ac-field-hint">บันทึกเป็นงานซ่อมสถานะ “เสร็จ” ลงวันที่วันนี้ — ดูได้ในประวัติงานด้านล่าง</span>
-                </div>
-              )}
-
               {/* Past tasks — collapsible */}
               {room.pastTasks.length > 0 && (
                 <div className="ac-form-section">
@@ -840,6 +816,33 @@ export default function RoomModal({
             <Suspense fallback={<RoomEquipmentSkeleton />}>
               <RoomVehiclesTab building={room.building} room={room.room} />
             </Suspense>
+          )}
+
+          {tab === "repair" && onQuickRepair && (
+            <div className="ac-room-repair">
+              <div className="ac-form-section-label">🔧 บันทึกการซ่อม</div>
+              <textarea
+                className="ac-room-repair-input ac-room-repair-input-block"
+                rows={3}
+                placeholder="ซ่อมอะไรไป? เช่น ก๊อกอ่างล้างหน้า / เปลี่ยนสายน้ำดีฝักบัว / ลอกท่อน้ำทิ้ง"
+                value={repairText}
+                onChange={(e) => setRepairText(e.target.value)}
+                disabled={repairing}
+              />
+              <button
+                type="button"
+                className="ac-btn ac-btn-primary ac-room-repair-submit"
+                disabled={repairing || !repairText.trim()}
+                onClick={async () => {
+                  await onQuickRepair(repairText);
+                  setRepairText("");
+                }}
+              >
+                {repairing && <span className="ac-btn-spinner" aria-hidden />}
+                {repairing ? "กำลังบันทึก…" : "+ บันทึกการซ่อม"}
+              </button>
+              <span className="ac-field-hint">บันทึกเป็นงานซ่อมสถานะ “เสร็จ” ลงวันที่วันนี้ — ดูได้ในแท็บ “ข้อมูล” › ประวัติงาน</span>
+            </div>
           )}
         </div>
 
