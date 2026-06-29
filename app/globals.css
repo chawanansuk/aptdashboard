@@ -5124,11 +5124,10 @@ html.dark .ac-modal-foot-hint kbd {
 }
 html.dark .ac-field-hint { color: #64748B; }
 
-/* Quick repair-log box in RoomModal — textarea + submit on one row. */
-.ac-room-repair-row { display: flex; gap: 8px; align-items: flex-end; }
+/* Repair-log tab in RoomModal — block textarea + full-width submit. */
+.ac-room-repair { padding: 4px 2px; }
+.ac-room-repair .ac-form-section-label { margin-bottom: 8px; }
 .ac-room-repair-input {
-  flex: 1;
-  min-width: 0;
   resize: vertical;
   padding: 8px 10px;
   font: inherit;
@@ -5139,9 +5138,10 @@ html.dark .ac-field-hint { color: #64748B; }
   border: 1px solid #CBD5E1;
   border-radius: 8px;
 }
+.ac-room-repair-input-block { display: block; width: 100%; }
 .ac-room-repair-input::placeholder { color: #94A3B8; }
 .ac-room-repair-input:focus-visible { outline: 2px solid #7C3AED; outline-offset: -1px; }
-.ac-room-repair-row .ac-btn { flex: none; white-space: nowrap; }
+.ac-room-repair-submit { margin-top: 10px; width: 100%; justify-content: center; }
 html.dark .ac-room-repair-input {
   color: #F1F5F9;
   background: #0F172A;
@@ -5149,7 +5149,7 @@ html.dark .ac-room-repair-input {
 }
 @media (pointer: coarse) {
   .ac-room-repair-input { min-height: 44px; }
-  .ac-room-repair-row .ac-btn { min-height: 44px; }
+  .ac-room-repair-submit { min-height: 44px; }
 }
 
 /* Spinner inside primary submit button */
