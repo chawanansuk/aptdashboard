@@ -56,6 +56,10 @@ export const AddTaskSchema = z.object({
   customer: OptText(120),
   phone: OptText(40),
   note: OptText(500),
+  /** Optional initial status — lets a caller file an already-done task
+   *  (e.g. logging a repair that's already finished as "เสร็จ"). Apps
+   *  Script defaults to 'pending' when omitted. */
+  status: OptText(40),
   /** Optional THB amount; integer is fine, decimals tolerated. */
   cost: z.number().nonnegative().optional(),
 }).strip();

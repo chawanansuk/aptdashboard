@@ -8,7 +8,8 @@ import RoomJourneyPanel from "@/components/RoomJourneyPanel";
 import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { autoCreateMoveoutPrep } from "@/lib/dashboardActions";
-import { canEditTenant } from "@/lib/permissions";
+import { canEditTenant, canAddEngTask } from "@/lib/permissions";
+import { todayThaiDate } from "@/lib/moveoutTasks";
 import { roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import type { JourneyAction } from "@/lib/roomJourney";
 import { executeJourneyAction } from "@/lib/journeyActions";
@@ -72,8 +73,48 @@ export default function RoomModalHost({
   onConfirmBooking, bookmarks,
 }: Props) {
   const [saving, setSaving] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const { data: session } = useSession();
   const canEditTenantPii = canEditTenant(session?.user?.roles);
+  const canLogRepair = canAddEngTask(session?.user?.roles);
+
+  /**
+   * Quick repair log — file an already-done ซ่อม task for THIS room
+   * (any status, occupied included) so the work shows in the room's
+   * ประวัติงาน without hunting for it on the engineer board. One write:
+   * status "เสร็จ" up front, which also sidesteps addTask's open-dup
+   * guard so two repairs the same day each get their own row.
+   */
+  async function quickRepair(resolution: string) {
+    if (!room) return;
+    const note = resolution.trim();
+    if (!note) return;
+    setRepairing(true);
+    try {
+      const res = await fetch("/api/sheet/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "addTask",
+          date: todayThaiDate(),
+          type: "ซ่อม",
+          building: room.building,
+          room: room.room,
+          note,
+          status: "เสร็จ",
+        }),
+      });
+      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+      if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      toast.success("บันทึกการซ่อมแล้ว");
+      publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+      refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? `บันทึกการซ่อมไม่สำเร็จ: ${e.message}` : "Network error");
+    } finally {
+      setRepairing(false);
+    }
+  }
 
   const [editStatus, setEditStatus] = useState("");
   const [editTenant, setEditTenant] = useState("");
@@ -231,6 +272,8 @@ export default function RoomModalHost({
       }}
       onClose={onClose}
       onSave={handleSave}
+      onQuickRepair={canLogRepair ? quickRepair : undefined}
+      repairing={repairing}
       onAddTaskHere={() => onAddTaskHere(room.building, room.room)}
       onMoveoutInspect={() => onMoveoutInspect(room.building, room.room)}
       onMoveoutClean={() => onMoveoutClean(room.building, room.room)}
