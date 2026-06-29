@@ -35,6 +35,11 @@ interface Props {
   }>) => void;
   onClose: () => void;
   onSave: () => void;
+  /** Quick repair log — file an already-done ซ่อม task for this room.
+   *  Hidden when omitted (e.g. a role that can't add engineer tasks). */
+  onQuickRepair?: (resolution: string) => void | Promise<void>;
+  /** True while a quickRepair write is in flight. */
+  repairing?: boolean;
   onAddTaskHere: () => void;
   /** Mode-specific initial tab ("info" or "equipment"). Defaults to "info". */
   defaultTab?: "info" | "equipment" | "vehicles";
@@ -128,7 +133,7 @@ function validate(values: { price: string; phone: string; contractEnd: string })
 
 export default function RoomModal({
   room, saving, status, tenant, phone, contractEnd, note, price,
-  onChange, onClose, onSave, onAddTaskHere, defaultTab,
+  onChange, onClose, onSave, onQuickRepair, repairing, onAddTaskHere, defaultTab,
   journeySlot,
   onMoveoutInspect, onMoveoutClean,
   onMoveinClean, onMoveinSchedule, onConfirmBooking,
@@ -164,6 +169,7 @@ export default function RoomModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(true, dialogRef);
   const [showHistory, setShowHistory] = useState(false);
+  const [repairText, setRepairText] = useState("");
 
   // Validation state — same UX as the redesigned add modals (PR #31)
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -175,6 +181,7 @@ export default function RoomModal({
     setTouched(new Set());
     setTab(defaultTab || "info");
     setShowHistory(false);
+    setRepairText("");
   }, [room.building, room.room, defaultTab]);
 
   // Unsaved-changes guard (#9). Snapshot the form values at the moment
@@ -713,6 +720,38 @@ export default function RoomModal({
                       );
                     })}
                   </ul>
+                </div>
+              )}
+
+              {/* Quick repair log — file an already-done ซ่อม for this
+                  room (works on occupied rooms that have no open job).
+                  Engineer/management only (onQuickRepair gated upstream). */}
+              {onQuickRepair && (
+                <div className="ac-form-section ac-room-repair">
+                  <div className="ac-form-section-label">🔧 บันทึกการซ่อม</div>
+                  <div className="ac-room-repair-row">
+                    <textarea
+                      className="ac-room-repair-input"
+                      rows={2}
+                      placeholder="ซ่อมอะไรไป? เช่น ก๊อกอ่างล้างหน้า / เปลี่ยนสายน้ำดีฝักบัว / ลอกท่อน้ำทิ้ง"
+                      value={repairText}
+                      onChange={(e) => setRepairText(e.target.value)}
+                      disabled={repairing}
+                    />
+                    <button
+                      type="button"
+                      className="ac-btn ac-btn-primary"
+                      disabled={repairing || !repairText.trim()}
+                      onClick={async () => {
+                        await onQuickRepair(repairText);
+                        setRepairText("");
+                      }}
+                    >
+                      {repairing && <span className="ac-btn-spinner" aria-hidden />}
+                      {repairing ? "กำลังบันทึก…" : "+ บันทึก"}
+                    </button>
+                  </div>
+                  <span className="ac-field-hint">บันทึกเป็นงานซ่อมสถานะ “เสร็จ” ลงวันที่วันนี้ — ดูได้ในประวัติงานด้านล่าง</span>
                 </div>
               )}
 

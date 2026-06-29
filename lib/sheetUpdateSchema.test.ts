@@ -33,6 +33,22 @@ describe("SheetUpdateBodySchema — discriminated union", () => {
       expect(r.success).toBe(true);
     });
 
+    it("accepts an optional initial status (e.g. file an already-done repair)", () => {
+      const r = parse({
+        action: "addTask",
+        date: "10/06/2026",
+        type: "ซ่อม",
+        building: "Kl",
+        room: "101",
+        note: "ก๊อกอ่างล้างหน้า / ลอกท่อน้ำทิ้ง",
+        status: "เสร็จ",
+      });
+      expect(r.success).toBe(true);
+      if (r.success && r.data.action === "addTask") {
+        expect(r.data.status).toBe("เสร็จ");
+      }
+    });
+
     it("rejects missing date with a Thai-friendly message", () => {
       const r = parse({ action: "addTask", type: "ซ่อม", building: "Kl", room: "101" });
       expect(r.success).toBe(false);

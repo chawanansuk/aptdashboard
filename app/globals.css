@@ -5124,6 +5124,34 @@ html.dark .ac-modal-foot-hint kbd {
 }
 html.dark .ac-field-hint { color: #64748B; }
 
+/* Quick repair-log box in RoomModal — textarea + submit on one row. */
+.ac-room-repair-row { display: flex; gap: 8px; align-items: flex-end; }
+.ac-room-repair-input {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #0F172A;
+  background: #fff;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+}
+.ac-room-repair-input::placeholder { color: #94A3B8; }
+.ac-room-repair-input:focus-visible { outline: 2px solid #7C3AED; outline-offset: -1px; }
+.ac-room-repair-row .ac-btn { flex: none; white-space: nowrap; }
+html.dark .ac-room-repair-input {
+  color: #F1F5F9;
+  background: #0F172A;
+  border-color: #334155;
+}
+@media (pointer: coarse) {
+  .ac-room-repair-input { min-height: 44px; }
+  .ac-room-repair-row .ac-btn { min-height: 44px; }
+}
+
 /* Spinner inside primary submit button */
 .ac-btn-spinner {
   display: inline-block;
