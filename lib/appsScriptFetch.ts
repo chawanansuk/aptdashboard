@@ -113,7 +113,14 @@ async function runCall<T>(
   // body keys can include a stale `action` field (e.g. from /api/room-equipment
   // forwarding the client's `action: "add"` while we want to upstream
   // `action: "addEquipment"`). Putting `action` LAST guarantees it overrides.
-  const payload = JSON.stringify({ ...body, action });
+  //
+  // `secret` authenticates us to the Apps Script web app (its doPost
+  // checks Script Property SHARED_SECRET when set — the URL alone used
+  // to be full write access). Server-only env var; never NEXT_PUBLIC.
+  // Placed after the body spread so a malicious client payload can't
+  // override it, and omitted entirely when unset (pre-rollout compat).
+  const secret = process.env.APPS_SCRIPT_SECRET;
+  const payload = JSON.stringify({ ...body, ...(secret ? { secret } : {}), action });
 
   let lastErr: Error | null = null;
 
