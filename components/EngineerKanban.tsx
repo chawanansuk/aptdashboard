@@ -655,7 +655,7 @@ function KanbanColumn({
       </div>
       <div className="ac-kanban-col-body">
         {tasks.length === 0 ? (
-          <div className="ac-kanban-col-empty">—</div>
+          <div className="ac-kanban-col-empty">ยังไม่มีงานในคอลัมน์นี้</div>
         ) : (
           tasks.map((t) => (
             <KanbanCard

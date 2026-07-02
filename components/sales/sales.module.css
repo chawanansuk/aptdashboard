@@ -968,6 +968,9 @@
    * phone surface). */
   .apptMain { min-height: 44px; }
   .apptCall { min-height: 44px; min-width: 56px; }
+  /* Room-status cards on the sales board — primary tap target for sales
+   * walking units; keep above the 44px floor even in dense wrapping. */
+  .roomCard { min-height: 44px; }
 }
 
 /* ====================================================================

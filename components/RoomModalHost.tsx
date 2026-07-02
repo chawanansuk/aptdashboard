@@ -10,6 +10,8 @@ import { publishBusEvent } from "@/lib/realtimeBus";
 import { autoCreateMoveoutPrep } from "@/lib/dashboardActions";
 import { canEditTenant, canAddEngTask } from "@/lib/permissions";
 import { todayThaiDate } from "@/lib/moveoutTasks";
+import { appendRepairLog } from "@/lib/repairLog";
+import { isClosedStatus } from "@/lib/constants";
 import { roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import type { JourneyAction } from "@/lib/roomJourney";
 import { executeJourneyAction } from "@/lib/journeyActions";
@@ -81,9 +83,16 @@ export default function RoomModalHost({
   /**
    * Quick repair log — file an already-done ซ่อม task for THIS room
    * (any status, occupied included) so the work shows in the room's
-   * ประวัติงาน without hunting for it on the engineer board. One write:
-   * status "เสร็จ" up front, which also sidesteps addTask's open-dup
-   * guard so two repairs the same day each get their own row.
+   * ประวัติงาน without hunting for it on the engineer board.
+   *
+   * Normal path is one write (addTask with status "เสร็จ" — closed rows
+   * don't block each other, so several repairs a day each get a row).
+   * BUT addTask_'s dedup guard skips the append when an OPEN ซ่อม task
+   * for this room exists dated today — and still returns ok:true with
+   * `skipped: 'duplicate-open'`. Treating that as success silently lost
+   * the entry. In that case we append the resolution onto the OPEN
+   * task's note instead (same repairLog format the drawer uses), which
+   * is also the semantically right home for it.
    */
   async function quickRepair(resolution: string) {
     if (!room) return;
@@ -91,12 +100,13 @@ export default function RoomModalHost({
     if (!note) return;
     setRepairing(true);
     try {
+      const today = todayThaiDate();
       const res = await fetch("/api/sheet/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "addTask",
-          date: todayThaiDate(),
+          date: today,
           type: "ซ่อม",
           building: room.building,
           room: room.room,
@@ -106,7 +116,34 @@ export default function RoomModalHost({
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      toast.success("บันทึกการซ่อมแล้ว");
+
+      if (data.skipped === "duplicate-open") {
+        // An open ซ่อม task for this room today blocked the append.
+        // Attach the log to that task instead of dropping it.
+        const blocker = tasks.find((t) =>
+          t.type === "ซ่อม" && t.building === room.building &&
+          t.room === room.room && t.date === today && !isClosedStatus(t.status),
+        );
+        if (!blocker) {
+          // Local task list doesn't have the blocker (stale) — surface
+          // the truth rather than a false success.
+          throw new Error("ห้องนี้มีงานซ่อมค้างอยู่วันนี้ — เปิดงานนั้นในกระดานช่างแล้วบันทึกที่งานโดยตรง");
+        }
+        const upRes = await fetch("/api/sheet/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "updateTask",
+            match: { date: blocker.date, type: blocker.type, building: blocker.building, room: blocker.room },
+            note: appendRepairLog(blocker.note || "", note),
+          }),
+        });
+        const upData = await upRes.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+        if (!upData.ok) throw new Error(upData.error || `HTTP ${upRes.status}`);
+        toast.success("ต่อท้ายบันทึกในงานซ่อมที่เปิดอยู่ของห้องนี้แล้ว");
+      } else {
+        toast.success("บันทึกการซ่อมแล้ว");
+      }
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
       refresh();
     } catch (e) {
