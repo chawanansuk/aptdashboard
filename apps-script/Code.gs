@@ -381,8 +381,16 @@ function doPost(e) {
     // git history, error messages) an attacker had full write access.
     // Set Script Property SHARED_SECRET (and the matching
     // APPS_SCRIPT_SECRET env var on Vercel) to close that. Backward
-    // compatible: while the property is unset, no check happens — deploy
-    // this first, then set both sides in either order.
+    // compatible: while the property is unset, no check happens.
+    //
+    // ORDER MATTERS for zero downtime — do Vercel FIRST:
+    //   1. Set APPS_SCRIPT_SECRET on Vercel + redeploy. Now the frontend
+    //      sends `secret`, and this gate still ignores it (property unset).
+    //   2. THEN set this SHARED_SECRET property. Frontend is already
+    //      sending it, so the check passes with no interruption.
+    // Reverse order breaks every write in the window between setting this
+    // property and Vercel redeploying (frontend not sending secret yet →
+    // unauthorized). Rollback = delete this property (gate turns off).
     // (Header auth isn't an option: Apps Script doesn't expose request
     // headers to doPost, so the secret rides in the JSON body.)
     const expectedSecret = PropertiesService.getScriptProperties().getProperty('SHARED_SECRET');
