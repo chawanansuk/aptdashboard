@@ -331,12 +331,64 @@ function withWriteLock_(fn) {
   }
 }
 
+/* ========== AUDITED WRITE (v3.18.0) ==========
+ * Half the mutations never called logAudit_, leaving the audit sheet
+ * blind to task/part/lead/vehicle/timer changes. Rather than editing 18
+ * writer bodies, wrap them once at the dispatch: lock → write → log.
+ * Writers that already log rich diffs internally (updateRoomStatus_,
+ * deleteTask_, addRequisition_, recurring) keep their own calls and do
+ * NOT go through this wrapper (avoids double rows). */
+function loggedWrite_(action, entity, entityId, body, fn) {
+  return withWriteLock_(function () {
+    const result = fn(body);
+    // Skip no-op writes (e.g. addTask's duplicate-open skip) so the
+    // trail records what actually changed, not what was attempted.
+    if (result && result.skipped) return result;
+    logAudit_(action, entity, entityId, auditDetails_(body), body.creator);
+    return result;
+  });
+}
+
+/** Compact, secret-free JSON of the payload for the audit details cell. */
+function auditDetails_(body) {
+  try {
+    const clone = {};
+    for (var k in body) {
+      if (k === 'action' || k === 'creator' || k === 'secret') continue;
+      clone[k] = body[k];
+    }
+    const s = JSON.stringify(clone);
+    return s.length > 300 ? s.slice(0, 297) + '...' : s;
+  } catch (e) { return ''; }
+}
+
+/** Task identity for the audit log — updateTask carries it in `match`. */
+function taskAuditId_(b) {
+  const m = b.match || b;
+  return [m.date, m.type, m.building, m.room].join('|');
+}
+
 /* ========== WEB APP ENTRY ========== */
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) throw new Error('no body');
     const body = JSON.parse(e.postData.contents);
     if (!body || !body.action) throw new Error('missing action');
+
+    // ---- Shared-secret gate (v3.18.0) ----
+    // The Next.js routes enforce all per-role permissions, but this web
+    // app URL itself used to accept ANY caller — if the URL leaks (logs,
+    // git history, error messages) an attacker had full write access.
+    // Set Script Property SHARED_SECRET (and the matching
+    // APPS_SCRIPT_SECRET env var on Vercel) to close that. Backward
+    // compatible: while the property is unset, no check happens — deploy
+    // this first, then set both sides in either order.
+    // (Header auth isn't an option: Apps Script doesn't expose request
+    // headers to doPost, so the secret rides in the JSON body.)
+    const expectedSecret = PropertiesService.getScriptProperties().getProperty('SHARED_SECRET');
+    if (expectedSecret && body.secret !== expectedSecret) {
+      return err_('unauthorized');
+    }
 
     switch (body.action) {
       // ----- reads (no lock) -----
@@ -347,9 +399,9 @@ function doPost(e) {
       case 'getFacilities':    return ok_({ result: { rows: getAllFacilitiesCached_() } });
       case 'debugFindTask':    return ok_({ row: findTaskRow_(body) });
       // ----- writes (ScriptLock 5s timeout) -----
-      case 'addTask':          return ok_(withWriteLock_(function () { return addTask_(body); }));
-      case 'updateTask':       return ok_(withWriteLock_(function () { return updateTask_(body); }));
-      case 'updateTaskStatus': return ok_(withWriteLock_(function () { return updateTaskStatus_(body); }));
+      case 'addTask':          return ok_(loggedWrite_('addTask', 'task', taskAuditId_(body), body, addTask_));
+      case 'updateTask':       return ok_(loggedWrite_('updateTask', 'task', taskAuditId_(body), body, updateTask_));
+      case 'updateTaskStatus': return ok_(loggedWrite_('updateTaskStatus', 'task', taskAuditId_(body), body, updateTaskStatus_));
       case 'deleteTask':       return ok_(withWriteLock_(function () { return deleteTask_(body); }));
       // Three room-write actions share one writer (updateRoomStatus_ writes
       // only the fields present in body); the per-action field/permission
@@ -360,31 +412,31 @@ function doPost(e) {
       case 'updateRoomStatus': return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
       case 'updateRoomData':   return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
       case 'bookRoom':         return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
-      case 'addEquipment':     return ok_(withWriteLock_(function () { return addEquipment_(body); }));
-      case 'updateEquipment':  return ok_(withWriteLock_(function () { return updateEquipment_(body); }));
-      case 'addFacility':      return ok_(withWriteLock_(function () { return addFacility_(body); }));
-      case 'updateFacility':   return ok_(withWriteLock_(function () { return updateFacility_(body); }));
+      case 'addEquipment':     return ok_(loggedWrite_('addEquipment', 'equipment', body.id || (body.building + '|' + body.room), body, addEquipment_));
+      case 'updateEquipment':  return ok_(loggedWrite_('updateEquipment', 'equipment', body.id || (body.building + '|' + body.room), body, updateEquipment_));
+      case 'addFacility':      return ok_(loggedWrite_('addFacility', 'facility', body.id || body.building || '', body, addFacility_));
+      case 'updateFacility':   return ok_(loggedWrite_('updateFacility', 'facility', body.id || body.building || '', body, updateFacility_));
       // v3.11.0 — Parts/Inventory (Task 37)
       case 'getParts':         return ok_({ result: { rows: getAllPartsCached_() } });
-      case 'addPart':          return ok_(withWriteLock_(function () { return addPart_(body); }));
-      case 'updatePart':       return ok_(withWriteLock_(function () { return updatePart_(body); }));
-      case 'adjustStockPart':  return ok_(withWriteLock_(function () { return adjustStockPart_(body); }));
+      case 'addPart':          return ok_(loggedWrite_('addPart', 'part', body.id || body.name || '', body, addPart_));
+      case 'updatePart':       return ok_(loggedWrite_('updatePart', 'part', body.id || body.name || '', body, updatePart_));
+      case 'adjustStockPart':  return ok_(loggedWrite_('adjustStockPart', 'part', body.id || body.partId || '', body, adjustStockPart_));
       // v3.12.0 — Time tracking (Task 35). Reads not cached — fresh
       // state needed so a parallel tab sees "running" within seconds.
       case 'getTimeLogs':      return ok_({ result: getTimeLogs_(body) });
       case 'getActiveTimer':   return ok_({ result: getActiveTimer_(body) });
-      case 'startTimer':       return ok_(withWriteLock_(function () { return startTimer_(body); }));
-      case 'stopTimer':        return ok_(withWriteLock_(function () { return stopTimer_(body); }));
+      case 'startTimer':       return ok_(loggedWrite_('startTimer', 'timer', (body.user || '') + '|' + (body.taskKey || ''), body, startTimer_));
+      case 'stopTimer':        return ok_(loggedWrite_('stopTimer', 'timer', body.id || ((body.user || '') + '|' + (body.taskKey || '')), body, stopTimer_));
       // v3.13.0 — Vehicles per room
       case 'getVehicles':      return ok_({ result: { rows: getAllVehiclesCached_() } });
-      case 'addVehicle':       return ok_(withWriteLock_(function () { return addVehicle_(body); }));
-      case 'updateVehicle':    return ok_(withWriteLock_(function () { return updateVehicle_(body); }));
-      case 'deleteVehicle':    return ok_(withWriteLock_(function () { return deleteVehicle_(body); }));
+      case 'addVehicle':       return ok_(loggedWrite_('addVehicle', 'vehicle', body.id || body.plate || '', body, addVehicle_));
+      case 'updateVehicle':    return ok_(loggedWrite_('updateVehicle', 'vehicle', body.id || body.plate || '', body, updateVehicle_));
+      case 'deleteVehicle':    return ok_(loggedWrite_('deleteVehicle', 'vehicle', body.id || body.plate || '', body, deleteVehicle_));
       // v3.15.0 — Lead CRM (Task 26)
       case 'getLeads':         return ok_({ result: { rows: getAllLeadsCached_() } });
-      case 'addLead':          return ok_(withWriteLock_(function () { return addLead_(body); }));
-      case 'updateLead':       return ok_(withWriteLock_(function () { return updateLead_(body); }));
-      case 'deleteLead':       return ok_(withWriteLock_(function () { return deleteLead_(body); }));
+      case 'addLead':          return ok_(loggedWrite_('addLead', 'lead', body.id || body.phone || body.name || '', body, addLead_));
+      case 'updateLead':       return ok_(loggedWrite_('updateLead', 'lead', body.id || '', body, updateLead_));
+      case 'deleteLead':       return ok_(loggedWrite_('deleteLead', 'lead', body.id || '', body, deleteLead_));
       // v3.16.0 — Parts requisitions
       case 'getRequisitions':  return ok_({ result: { rows: getAllRequisitions_(body) } });
       case 'addRequisition':   return ok_(withWriteLock_(function () { return addRequisition_(body); }));
@@ -1388,7 +1440,11 @@ function stopTimer_(b) {
   if (!target) throw new Error('ไม่พบ timer ที่กำลังจับเวลา');
   if (target.endedAt) throw new Error('timer นี้หยุดไปแล้ว');
 
-  const startMs = new Date(target.startedAt.replace(' ', 'T')).getTime();
+  // Parse in Bangkok explicitly — `new Date("yyyy-MM-ddTHH:mm:ss")` uses
+  // the script host's TZ, so a non-Bangkok host would skew the duration
+  // by the TZ offset (payroll-relevant). startedAt is always written by
+  // startTimer_ in this exact format.
+  const startMs = Utilities.parseDate(target.startedAt, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss').getTime();
   const nowDate = new Date();
   const endStr = Utilities.formatDate(nowDate, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
   const durMin = Math.max(0, Math.round((nowDate.getTime() - startMs) / 60000));
