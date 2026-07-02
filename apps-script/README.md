@@ -163,3 +163,38 @@ function keepAlive() {
 หลังตั้งแล้ว 5 นาที ดู **Executions** — ควรเห็น `keepAlive` รันเป็น series เวลา ~5 นาทีต่อครั้ง
 
 ถ้าระบบ cold start ผ่าน trigger นี้ (ไม่ใช่ user เปิดเว็บ) → user ครั้งแรกของวันจะได้ cache hit ทันที
+
+---
+
+## Daily backup (v3.19.0)
+
+สำเนา Sheet ทั้งไฟล์ทุกคืน → โฟลเดอร์ `aptdashboard-backups` ใน Drive
+เก็บย้อนหลัง 30 วัน เกินนั้นย้ายลงถังขยะอัตโนมัติ (ถังขยะเก็บต่ออีก 30 วัน)
+
+### ตั้งครั้งเดียว
+
+1. Redeploy `Code.gs` เวอร์ชันที่มี `dailyBackup`
+2. ใน Apps Script editor เลือกฟังก์ชัน `dailyBackup` → กด **Run** 1 ครั้ง
+   (Google จะขอสิทธิ์ Drive — กด Allow; รอบนี้ได้ backup ไฟล์แรกเลย)
+3. **Triggers** (รูปนาฬิกา) → **Add Trigger**:
+   - Function: `dailyBackup`
+   - Event source: `Time-driven`
+   - Type: `Day timer`
+   - Time of day: `2am – 3am`
+4. Save
+
+### Restore
+
+เปิดโฟลเดอร์ `aptdashboard-backups` → เปิดไฟล์ `backup-YYYY-MM-DD — ...`
+ของวันที่ต้องการ → copy แถว (หรือทั้งแท็บ) กลับไปวางในไฟล์จริง
+
+### แนะนำเพิ่ม (กัน account หาย)
+
+Backup อยู่ใน Google account เดียวกับไฟล์จริง — ถ้า account มีปัญหา
+backup หายด้วย ป้องกันโดยคลิกขวาโฟลเดอร์ `aptdashboard-backups` →
+Share → ใส่ Google account สำรอง (Viewer พอ) ครั้งเดียวจบ
+
+### ถ้า trigger พังเงียบๆ?
+
+Google ส่งอีเมล "Summary of failures" ให้ owner อัตโนมัติ — ถ้าเห็นเมลนี้
+ให้เปิด Executions ดูสาเหตุ (ส่วนใหญ่คือ Drive เต็มหรือสิทธิ์หลุด)
