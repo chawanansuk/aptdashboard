@@ -2336,3 +2336,48 @@ function copyTemplateToToday() {
   task.getRange(task.getLastRow()+1, 1, data.length, 8).setValues(data);
   SpreadsheetApp.getActive().toast('คัดลอก ' + data.length + ' รายการแล้ว ✅', 'หอพัก', 5);
 }
+
+/* ========== DAILY BACKUP (v3.19.0) ==========
+ * The whole business lives in this one spreadsheet and there was no
+ * backup at all — a bad bulk edit, broken formula, or accidental sheet
+ * delete meant permanent data loss. A nightly time-driven trigger calls
+ * dailyBackup(): full-file copy into a Drive folder, keep 30 days,
+ * trash older copies (Drive trash keeps them another 30 as a bonus).
+ *
+ * Setup (once): run dailyBackup manually from the editor to grant the
+ * Drive permission, then add a time-driven trigger (see README).
+ * Restore: open the dated copy in aptdashboard-backups, copy the rows
+ * (or whole sheet tabs) back into the live spreadsheet.
+ */
+var BACKUP_FOLDER_NAME = 'aptdashboard-backups';
+var BACKUP_RETENTION_DAYS = 30;
+
+function dailyBackup() {
+  const ss = SpreadsheetApp.getActive();
+  const folder = getOrCreateBackupFolder_();
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
+  const name = 'backup-' + stamp + ' — ' + ss.getName();
+  // Idempotent: trigger retries / a manual run the same day won't pile
+  // up duplicate copies.
+  if (folder.getFilesByName(name).hasNext()) return;
+  DriveApp.getFileById(ss.getId()).makeCopy(name, folder);
+  cleanupOldBackups_(folder);
+}
+
+function getOrCreateBackupFolder_() {
+  const it = DriveApp.getFoldersByName(BACKUP_FOLDER_NAME);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(BACKUP_FOLDER_NAME);
+}
+
+function cleanupOldBackups_(folder) {
+  const cutoff = Date.now() - BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const f = files.next();
+    // Only touch files this job created (backup-YYYY-MM-DD prefix) so a
+    // stray manual file in the folder is never deleted.
+    if (f.getName().indexOf('backup-') === 0 && f.getDateCreated().getTime() < cutoff) {
+      f.setTrashed(true); // trash, not hard delete — extra 30-day net
+    }
+  }
+}
