@@ -5256,6 +5256,56 @@ html.dark .ac-room-repair-input {
   .ac-room-repair-submit { min-height: 44px; }
 }
 
+/* Parts picker inside the repair tab — [select][qty][✕] rows. */
+.ac-repair-parts { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.ac-repair-parts-row { display: flex; gap: 6px; width: 100%; align-items: center; }
+.ac-repair-parts-row select {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #0F172A;
+  background: #fff;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+}
+.ac-repair-parts-row input {
+  flex: none;
+  width: 76px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #0F172A;
+  background: #fff;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+}
+.ac-repair-parts-remove { flex: none; }
+html.dark .ac-repair-parts-row select,
+html.dark .ac-repair-parts-row input {
+  color: #F1F5F9;
+  background: #0F172A;
+  border-color: #334155;
+}
+
+/* "อะไหล่ที่เคยเบิกให้ห้องนี้" list */
+.ac-repair-parts-used { margin-top: 18px; }
+.ac-repair-parts-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ac-repair-parts-list li { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; }
+.ac-repair-parts-name { color: #0F172A; min-width: 0; }
+.ac-repair-parts-qty { color: #7C3AED; font-weight: 700; flex: none; }
+.ac-repair-parts-meta { color: #94A3B8; font-size: 11px; flex: none; margin-left: auto; }
+html.dark .ac-repair-parts-name { color: #E2E8F0; }
+html.dark .ac-repair-parts-qty { color: #C4B5FD; }
+html.dark .ac-repair-parts-meta { color: #64748B; }
+
+@media (pointer: coarse) {
+  .ac-repair-parts-row select,
+  .ac-repair-parts-row input { min-height: 44px; }
+  .ac-repair-parts-remove { min-width: 44px; min-height: 44px; }
+}
+
 /* Spinner inside primary submit button */
 .ac-btn-spinner {
   display: inline-block;
