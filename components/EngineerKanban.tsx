@@ -5,7 +5,7 @@ import type { SheetRow, RoomView } from "@/types";
 import { useSession } from "next-auth/react";
 import { applyAutoRoomStatus } from "@/lib/applyAutoRoomStatus";
 import { publishTurnoverStepDone } from "@/lib/turnoverNotifications";
-import { parseThaiDate } from "@/lib/dateUtils";
+import { parseThaiDate, isTaskDatedToday } from "@/lib/dateUtils";
 import {
   TASK_STATUS,
   categorizeStatus,
@@ -103,8 +103,12 @@ export function groupTasksForKanban(
                                      // tasks list view if anyone needs them
     if (c === "done") {
       // Only show today's completions — older "wins" would crowd out
-      // the working columns
-      if (t.date === todayStr) buckets.done.push(t);
+      // the working columns. Parse-based compare: the sheet returns ISO
+      // yyyy-MM-dd for Date-typed cells, dd/MM/yyyy for text cells; a
+      // raw string equality misses one of the two (audit round 3).
+      const d = parseThaiDate(t.date);
+      const todayD = parseThaiDate(todayStr);
+      if (d && todayD && isTaskDatedToday(t.date, todayD)) buckets.done.push(t);
       continue;
     }
     if (c === "in_progress") { buckets.in_progress.push(t); continue; }

@@ -109,7 +109,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user }) {
-      // On first sign-in, `user` is set; populate roles from allowlist.
+      // Populate/refresh roles from the allowlist on EVERY call — not just
+      // first sign-in. Previously a user removed from ALLOWED_USERS kept
+      // the roles baked into their JWT for the remaining token life (up to
+      // 30 days — revocation gap). The allowlist is the live source of
+      // truth: removed/downgraded users lose access on their next request
+      // after the env change deploys.
       const emailFromUser = user?.email ? user.email.toLowerCase() : null;
       const emailFromToken = token.email ? String(token.email).toLowerCase() : null;
       const email = emailFromUser || emailFromToken;
@@ -118,6 +123,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (roles && roles.length) {
           token.roles = roles;
           token.role = roles[0]; // primary role (backward compat)
+        } else {
+          // No longer allowlisted — strip roles so every canPerform /
+          // canAccess gate fails closed. (signIn already blocks fresh
+          // logins; this closes the existing-session path.)
+          token.roles = [];
+          token.role = undefined;
         }
       }
       return token;

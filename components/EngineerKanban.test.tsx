@@ -76,6 +76,13 @@ describe("groupTasksForKanban", () => {
     expect(out.done.length).toBe(1);
   });
 
+  it("เสร็จ dated today in ISO form (Date-typed sheet cell) → still done column", () => {
+    // fmtDate_ in Code.gs returns yyyy-MM-dd when the cell is a real
+    // Date; the old raw string compare (t.date === todayStr) missed it.
+    const out = groupTasksForKanban([task({ status: "เสร็จ", date: "2026-05-19" })], today);
+    expect(out.done.length).toBe(1);
+  });
+
   it("เสร็จ on OLD date → not shown (would crowd the column)", () => {
     const out = groupTasksForKanban([task({ status: "เสร็จ", date: "01/05/2026" })], today);
     expect(out.done.length).toBe(0);

@@ -50,7 +50,7 @@ const EditTaskModal = lazy(() => import("@/components/EditTaskModal"));
 import { buildNotifications } from "@/lib/notifications";
 import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
-import { parseThaiDate } from "@/lib/dateUtils";
+import { parseThaiDate, isTaskDatedToday } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { VIEW_LABEL, VIEW_TO_TASK_TYPE, isClosedStatus } from "@/lib/constants";
 import { hasOpenPrepTask } from "@/lib/moveoutTasks";
@@ -502,9 +502,6 @@ export default function Home() {
   const greetingStats = useMemo<GreetingStats>(() => {
     const allBuildings = activeBuilding === "ทั้งหมด";
     const d = new Date();
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const todayStr = `${dd}/${mm}/${d.getFullYear()}`;
     const thisMonth = d.getMonth();
     const thisYear  = d.getFullYear();
 
@@ -533,8 +530,9 @@ export default function Home() {
     const occupancyRate = total > 0 ? occupied / total : 0;
 
     // Today's task count (any non-done/non-cancelled task dated today).
+    // Parse-based — ISO-dated cells never matched the raw string compare.
     const tasksToday = (tasks || []).filter((t) =>
-      t.date === todayStr
+      isTaskDatedToday(t.date)
       && !isClosedStatus(t.status)
       && (allBuildings || t.building === activeBuilding)
     ).length;

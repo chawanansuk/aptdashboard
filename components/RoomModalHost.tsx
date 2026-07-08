@@ -10,6 +10,7 @@ import { publishBusEvent } from "@/lib/realtimeBus";
 import { autoCreateMoveoutPrep } from "@/lib/dashboardActions";
 import { canEditTenant, canAddEngTask } from "@/lib/permissions";
 import { todayThaiDate } from "@/lib/moveoutTasks";
+import { isTaskDatedToday } from "@/lib/dateUtils";
 import { appendRepairLog } from "@/lib/repairLog";
 import { isClosedStatus } from "@/lib/constants";
 import { roomBookmarkKey } from "@/lib/useRoomBookmarks";
@@ -120,9 +121,13 @@ export default function RoomModalHost({
       if (data.skipped === "duplicate-open") {
         // An open ซ่อม task for this room today blocked the append.
         // Attach the log to that task instead of dropping it.
+        // Date match must be format-agnostic: we SENT dd/MM/yyyy but the
+        // sheet echoes ISO yyyy-MM-dd when the cell got coerced to a real
+        // Date — a raw `t.date === today` compare never matched those, so
+        // the fallback threw instead of appending (audit round 3).
         const blocker = tasks.find((t) =>
           t.type === "ซ่อม" && t.building === room.building &&
-          t.room === room.room && t.date === today && !isClosedStatus(t.status),
+          t.room === room.room && isTaskDatedToday(t.date) && !isClosedStatus(t.status),
         );
         if (!blocker) {
           // Local task list doesn't have the blocker (stale) — surface

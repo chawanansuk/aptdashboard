@@ -39,7 +39,11 @@ export const dynamic = "force-dynamic";
  */
 
 async function fetchRooms(): Promise<RoomRow[]> {
-  const url = process.env.NEXT_PUBLIC_SHEET_ROOMS_CSV_URL;
+  // Prefer the server-only name; NEXT_PUBLIC_* fallback kept for existing
+  // deployments. The publish-to-web CSV carries tenant PII, so the env
+  // must never actually be NEXT_PUBLIC-exposed in client code — rename
+  // the Vercel var to SHEET_ROOMS_CSV_URL when convenient (.env.example).
+  const url = process.env.SHEET_ROOMS_CSV_URL || process.env.NEXT_PUBLIC_SHEET_ROOMS_CSV_URL;
   if (!url) throw new Error("ยังไม่ได้ตั้งค่า NEXT_PUBLIC_SHEET_ROOMS_CSV_URL");
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

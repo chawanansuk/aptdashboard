@@ -339,14 +339,17 @@ function withWriteLock_(fn) {
  * deleteTask_, addRequisition_, recurring) keep their own calls and do
  * NOT go through this wrapper (avoids double rows). */
 function loggedWrite_(action, entity, entityId, body, fn) {
-  return withWriteLock_(function () {
-    const result = fn(body);
-    // Skip no-op writes (e.g. addTask's duplicate-open skip) so the
-    // trail records what actually changed, not what was attempted.
-    if (result && result.skipped) return result;
-    logAudit_(action, entity, entityId, auditDetails_(body), body.creator);
-    return result;
-  });
+  // The write runs inside the lock; the audit append runs AFTER release.
+  // Logging inside the lock extended every critical section by a sheet
+  // append (and the first-ever call by an insertSheet+format), raising
+  // tryLock(5000) "busy" timeouts under concurrent writers. An audit
+  // appendRow doesn't need the business-write lock.
+  const result = withWriteLock_(function () { return fn(body); });
+  // Skip no-op writes (e.g. addTask's duplicate-open skip) so the
+  // trail records what actually changed, not what was attempted.
+  if (result && result.skipped) return result;
+  logAudit_(action, entity, entityId, auditDetails_(body), body.creator);
+  return result;
 }
 
 /** Compact, secret-free JSON of the payload for the audit details cell. */
@@ -2373,8 +2376,22 @@ function dailyBackup() {
 }
 
 function getOrCreateBackupFolder_() {
-  const it = DriveApp.getFoldersByName(BACKUP_FOLDER_NAME);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(BACKUP_FOLDER_NAME);
+  // Pin the folder by ID in Script Properties instead of resolving by
+  // name each run: getFoldersByName spans ALL of Drive including folders
+  // OTHER accounts shared with us — a shared folder named
+  // "aptdashboard-backups" would silently receive full-PII spreadsheet
+  // copies. An ID minted by createFolder is ours for good.
+  const props = PropertiesService.getScriptProperties();
+  const savedId = props.getProperty('BACKUP_FOLDER_ID');
+  if (savedId) {
+    try {
+      const f = DriveApp.getFolderById(savedId);
+      if (!f.isTrashed()) return f;
+    } catch (e) { /* deleted or inaccessible — recreate below */ }
+  }
+  const folder = DriveApp.createFolder(BACKUP_FOLDER_NAME);
+  props.setProperty('BACKUP_FOLDER_ID', folder.getId());
+  return folder;
 }
 
 function cleanupOldBackups_(folder) {
