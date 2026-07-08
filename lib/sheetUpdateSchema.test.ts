@@ -98,6 +98,46 @@ describe("SheetUpdateBodySchema — discriminated union", () => {
     });
   });
 
+  describe("updateTask — dual identity forms", () => {
+    it("accepts the nested match form (repair-log drawer)", () => {
+      const r = parse({
+        action: "updateTask",
+        match: { date: "10/06/2026", type: "ซ่อม", building: "Kl", room: "101" },
+        note: "แอร์ไม่เย็น\n🔧 [08/07] เติมน้ำยา",
+      });
+      expect(r.success).toBe(true);
+    });
+
+    it("accepts the flat matchDate form (EditTaskModal) — used to 400", () => {
+      const r = parse({
+        action: "updateTask",
+        matchDate: "08/07/2026",
+        matchType: "อื่นๆ",
+        matchBuilding: "มั่งมี",
+        matchRoom: "206",
+        note: "Checklist สภาพห้องก่อนปล่อยขาย — ตรวจตามฟอร์ม QC 6 หมวด",
+      });
+      expect(r.success).toBe(true);
+    });
+
+    it("rejects when NEITHER identity form is present", () => {
+      const r = parse({ action: "updateTask", note: "ไม่มีตัวชี้แถว" });
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        expect(formatSheetUpdateError(r.error)).toMatch(/match/);
+      }
+    });
+
+    it("rejects an incomplete flat form (missing matchRoom)", () => {
+      const r = parse({
+        action: "updateTask",
+        matchDate: "08/07/2026", matchType: "ซ่อม", matchBuilding: "Kl",
+        note: "x",
+      });
+      expect(r.success).toBe(false);
+    });
+  });
+
   describe("updateTaskStatus", () => {
     it("accepts the 4-tuple + status (legacy shape)", () => {
       const r = parse({

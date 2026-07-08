@@ -67,9 +67,15 @@ export const AddTaskSchema = z.object({
 /**
  * updateTask: replace fields on an existing row.
  *
- * The client supplies the 4-tuple as a `match` object plus any subset
- * of the editable fields. Apps Script enforces "row must exist" so we
- * don't need to here.
+ * Row identity comes in TWO shapes, both live in the codebase:
+ *   - nested  `match: {date,type,building,room}` (EngineerKanban repair log)
+ *   - flat    `matchDate/matchType/matchBuilding/matchRoom` (EditTaskModal —
+ *     mirrors what Apps Script's updateTask_ actually reads)
+ * The original schema accepted ONLY the nested form, which 400'd every
+ * EditTaskModal save ("match: expected object, received undefined"),
+ * while the nested form it did accept was never translated to the flat
+ * names Apps Script reads. Accept both here; the route normalizes to the
+ * flat names before forwarding (see route.ts) so either caller works.
  */
 export const UpdateTaskSchema = z.object({
   action: z.literal("updateTask"),
@@ -78,7 +84,11 @@ export const UpdateTaskSchema = z.object({
     type: TaskTypeEnum,
     building: Building,
     room: Room,
-  }).strip(),
+  }).strip().optional(),
+  matchDate: OptText(40),
+  matchType: TaskTypeEnum.optional(),
+  matchBuilding: OptBuilding,
+  matchRoom: OptRoom,
   // The "what to change" half — at least one field should be present;
   // we keep it loose so the client can also blank a note by sending "".
   date: OptText(40),
@@ -90,7 +100,12 @@ export const UpdateTaskSchema = z.object({
   note: OptText(500),
   status: OptText(40),
   cost: z.number().nonnegative().optional(),
-}).strip();
+}).strip().refine(
+  (b) =>
+    b.match !== undefined ||
+    (b.matchDate && b.matchType && b.matchBuilding && b.matchRoom),
+  { message: "updateTask: ต้องส่ง match หรือ matchDate+matchType+matchBuilding+matchRoom ครบ" },
+);
 
 /**
  * updateTaskStatus: light variant — same 4-tuple at the top level
