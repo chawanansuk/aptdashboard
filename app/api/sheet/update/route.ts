@@ -132,6 +132,34 @@ export async function POST(req: Request) {
   void actionField;
   const payload: Record<string, unknown> = { ...rest, creator: email };
 
+  // 4b. Bridge the nested `match` identity object to the FLAT names Apps
+  //     Script actually reads — updateTask_ looks at b.matchDate/matchType/
+  //     matchBuilding/matchRoom, and deleteTask_'s findAllTaskRows_ looks
+  //     at b.date/type/building/room. Nothing upstream ever translated
+  //     the nested form, so nested-match callers (repair-log drawer,
+  //     TasksList delete) silently hit "task not found" while flat-form
+  //     callers (EditTaskModal) were rejected by the old schema. The
+  //     schema now accepts both; this makes both actually WORK.
+  const match = (payload.match ?? null) as
+    | { date: string; type: string; building: string; room: string }
+    | null;
+  if (match) {
+    if (action === "updateTask") {
+      payload.matchDate = match.date;
+      payload.matchType = match.type;
+      payload.matchBuilding = match.building;
+      payload.matchRoom = match.room;
+    } else if (action === "deleteTask") {
+      // deleteTask has no separate "new values" — the 4-tuple IS the
+      // identity, so map straight onto the top-level keys it matches by.
+      payload.date = match.date;
+      payload.type = match.type;
+      payload.building = match.building;
+      payload.room = match.room;
+    }
+    delete payload.match;
+  }
+
   // 5. Forward to Apps Script (retry + timeout via shared client)
   try {
     const data = await appsScriptCall(action, payload);
