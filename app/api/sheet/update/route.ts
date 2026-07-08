@@ -11,6 +11,23 @@ import {
 } from "@/lib/sheetUpdateSchema";
 
 export const runtime = "nodejs";
+// Apps Script can take >15s on a cold start while holding the write
+// lock; give the function room so our upstream timeout (below) fires
+// before the platform kills the route mid-write.
+export const maxDuration = 60;
+
+/**
+ * Write actions that are SAFE to retry after a timeout/abort: they SET
+ * state on an existing row, so replaying one converges to the same
+ * result. Appends (addTask etc.) stay non-retryable — replaying those
+ * duplicates rows (the bug class fixed in the dup-append guard).
+ * This is what un-flakes bulk status updates: a cold-start 15s+ write
+ * used to surface as "This operation was aborted (HTTP 502)".
+ */
+const IDEMPOTENT_WRITE_ACTIONS = new Set([
+  "updateTask", "updateTaskStatus",
+  "updateRoomStatus", "updateRoomData", "bookRoom", "releaseRoom",
+]);
 
 const SALES_TYPES = new Set(["ย้ายเข้า", "ย้ายออก", "ชมห้อง"]);
 const CLEAN_TYPES = new Set(["ทำสะอาด"]);
@@ -164,9 +181,14 @@ export async function POST(req: Request) {
     delete payload.match;
   }
 
-  // 5. Forward to Apps Script (retry + timeout via shared client)
+  // 5. Forward to Apps Script (retry + timeout via shared client).
+  //    Set-style writes get a longer window + retries (safe to replay);
+  //    appends keep the strict single-shot 15s (no dup risk).
   try {
-    const data = await appsScriptCall(action, payload);
+    const data = await appsScriptCall(action, payload, {
+      idempotent: IDEMPOTENT_WRITE_ACTIONS.has(action),
+      timeoutMs: IDEMPOTENT_WRITE_ACTIONS.has(action) ? 20_000 : undefined,
+    });
     // Successful write → invalidate function-local dashboard cache so the
     // next /api/dashboard call refetches fresh data
     if (data && data.ok !== false) {
