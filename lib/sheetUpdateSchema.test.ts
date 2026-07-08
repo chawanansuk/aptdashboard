@@ -49,6 +49,21 @@ describe("SheetUpdateBodySchema — discriminated union", () => {
       }
     });
 
+    it("releaseRoom: accepts building+room and STRIPS any smuggled tenant fields", () => {
+      const r = parse({
+        action: "releaseRoom",
+        building: "Kl",
+        room: "101",
+        // A malicious/buggy client trying to piggyback PII writes:
+        tenant: "hacker", phone: "000", contractEnd: "01/01/2030",
+      });
+      expect(r.success).toBe(true);
+      if (r.success && r.data.action === "releaseRoom") {
+        expect((r.data as Record<string, unknown>).tenant).toBeUndefined();
+        expect((r.data as Record<string, unknown>).phone).toBeUndefined();
+      }
+    });
+
     it("rejects missing date with a Thai-friendly message", () => {
       const r = parse({ action: "addTask", type: "ซ่อม", building: "Kl", room: "101" });
       expect(r.success).toBe(false);

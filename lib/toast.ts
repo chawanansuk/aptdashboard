@@ -19,11 +19,19 @@ import { toast as sonner } from "sonner";
  * need those later, re-export from here.
  */
 
+/** One-tap action button rendered inside the toast (sonner passthrough). */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export const toast = {
-  success(message: string, opts?: { description?: string }) {
+  success(message: string, opts?: { description?: string; action?: ToastAction }) {
     return sonner.success(message, {
       description: opts?.description,
-      duration: 3_000,
+      // An actionable toast needs time to be tapped before auto-dismiss.
+      duration: opts?.action ? 8_000 : 3_000,
+      action: opts?.action,
     });
   },
 
@@ -37,10 +45,11 @@ export const toast = {
     });
   },
 
-  info(message: string, opts?: { description?: string }) {
+  info(message: string, opts?: { description?: string; action?: ToastAction }) {
     return sonner.info(message, {
       description: opts?.description,
-      duration: 4_000,
+      duration: opts?.action ? 8_000 : 4_000,
+      action: opts?.action,
     });
   },
 

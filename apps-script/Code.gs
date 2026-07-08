@@ -423,6 +423,20 @@ function doPost(e) {
       case 'updateRoomStatus': return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
       case 'updateRoomData':   return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
       case 'bookRoom':         return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
+      // releaseRoom (v3.19.0): ปล่อยขาย — status → ว่าง AND blank the old
+      // tenant identity. Sales can't send PII through updateRoomStatus
+      // (the Next.js route strips it — by design), so the blanking is
+      // FORCED here server-side from a fixed template: this action can
+      // only ERASE tenant fields, never write attacker-chosen values,
+      // which keeps the #252 security split intact.
+      case 'releaseRoom':      return ok_(withWriteLock_(function () {
+        return updateRoomStatus_({
+          building: body.building, room: body.room,
+          status: body.status || 'ว่าง',
+          tenant: '', phone: '', contractEnd: '',
+          note: body.note, creator: body.creator,
+        });
+      }));
       case 'addEquipment':     return ok_(loggedWrite_('addEquipment', 'equipment', body.id || (body.building + '|' + body.room), body, addEquipment_));
       case 'updateEquipment':  return ok_(loggedWrite_('updateEquipment', 'equipment', body.id || (body.building + '|' + body.room), body, updateEquipment_));
       case 'addFacility':      return ok_(loggedWrite_('addFacility', 'facility', body.id || body.building || '', body, addFacility_));

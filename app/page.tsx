@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, lazy, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, lazy, Suspense } from "react";
+import { quickSetRoomStatus } from "@/lib/journeyActions";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
@@ -326,13 +327,47 @@ export default function Home() {
   // turnover task closes; sales→engineer when a moveout auto-prep fires.
   // Toast only when the event is relevant to this user's role
   // (turnoverNotifications.isTurnoverEventRelevant); silent otherwise.
+  //
+  // Live refs so the subscriber (deps: [roles] only) reads CURRENT data
+  // when a toast button is tapped, not the closure from subscribe time.
+  const roomsRef = useRef(rooms);
+  roomsRef.current = rooms;
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const optimisticUpdateRoomRef = useRef(optimisticUpdateRoom);
+  optimisticUpdateRoomRef.current = optimisticUpdateRoom;
+
   useEffect(() => {
     if (roles.length === 0) return;
     return subscribeBus((e) => {
       if (!isTurnoverEventRelevant(e, roles)) return;
       const t = formatTurnoverToast(e);
       if (!t) return;
-      const opts = t.body ? { description: t.body } : undefined;
+      // QC passed → offer ปล่อยขาย right on the toast, so sales closes the
+      // turnover loop in one tap instead of navigating to the room modal.
+      // Receivers of this event are sales/management — both hold
+      // room.editStatus, so no extra permission gate needed here.
+      let action: { label: string; onClick: () => void } | undefined;
+      if (e.kind === "turnover-step-done" && e.step === "qc") {
+        const room = roomsRef.current.find(
+          (r) => r.building === e.building && r.room === e.room,
+        );
+        if (room) {
+          action = {
+            label: "ปล่อยขายเลย",
+            onClick: () => {
+              void quickSetRoomStatus(
+                room, "ว่าง",
+                { refresh: refreshRef.current, optimisticUpdateRoom: optimisticUpdateRoomRef.current },
+                { clearTenant: true },
+              ).catch((err) =>
+                toast.error(err instanceof Error ? `ปล่อยขายไม่สำเร็จ: ${err.message}` : "ปล่อยขายไม่สำเร็จ"),
+              );
+            },
+          };
+        }
+      }
+      const opts = (t.body || action) ? { description: t.body, action } : undefined;
       if (t.tone === "success") toast.success(t.title, opts);
       else toast.info(t.title, opts);
     });
