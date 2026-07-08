@@ -76,6 +76,44 @@ export function buildAppointments(
 }
 
 /**
+ * เลยนัด — sales appointments dated BEFORE today whose task is still
+ * open. buildAppointments deliberately shows future-only, which meant a
+ * missed viewing/move-in silently vanished from the rail: nobody calls
+ * the customer back. Capped at `maxDays` back so ancient unclosed rows
+ * don't crowd the panel. Sorted most-overdue first.
+ */
+export interface OverdueAppointment extends Appointment {
+  daysOverdue: number;
+}
+
+export function buildOverdueAppointments(
+  tasks: SheetRow[],
+  activeBuilding: string,
+  now: Date = getBangkokNow(),
+  maxDays: number = 14,
+): OverdueAppointment[] {
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const cutoffMs = startOfToday.getTime() - maxDays * 86_400_000;
+  const out: OverdueAppointment[] = [];
+  for (const t of tasks || []) {
+    if (activeBuilding !== "ทั้งหมด" && t.building !== activeBuilding) continue;
+    if (!SALES_TASK_TYPES.has(t.type)) continue;
+    if (isClosedStatus(t.status)) continue;
+    const d = parseThaiDate(t.date);
+    if (!d) continue;
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    if (day >= startOfToday.getTime() || day < cutoffMs) continue;
+    out.push({
+      task: t,
+      date: d,
+      daysOverdue: Math.round((startOfToday.getTime() - day) / 86_400_000),
+    });
+  }
+  out.sort((a, b) => b.daysOverdue - a.daysOverdue);
+  return out;
+}
+
+/**
  * Count appointments within [from, from+days] inclusive of the last day.
  */
 export function countAppointmentsWithinDays(
@@ -289,61 +327,6 @@ export function buildBuildingGrids(rooms: RoomView[]): BuildingGridModel[] {
   });
 }
 
-/* ====================================================================
- * Occupancy per building (for the OccupancyStrip)
- * ==================================================================== */
-
-export interface BuildingOccupancy {
-  building: string;
-  total: number;
-  /** Count per sales status. */
-  counts: Record<SalesStatus, number>;
-  /** Rooms not available for sale = total − available. */
-  occupied: number;
-  /** Available ("ว่าง") rooms. */
-  vacant: number;
-  /** Occupancy rate = occupied / total, 0–100 (rounded). */
-  occupiedPct: number;
-}
-
-/**
- * Per-building occupancy summary, ordered by the sales building
- * preference. "occupied" here means "not available for sale"
- * (total − available) so a fully-let building reads 100%; the
- * segmented bar still breaks it down by the four statuses.
- */
-export function buildOccupancyByBuilding(rooms: RoomView[]): BuildingOccupancy[] {
-  const byBuilding = new Map<string, Record<SalesStatus, number>>();
-  for (const r of rooms) {
-    const b = r.building || "(ไม่ระบุตึก)";
-    if (!byBuilding.has(b)) {
-      byBuilding.set(b, { available: 0, pending: 0, occupied: 0, moveout: 0 });
-    }
-    byBuilding.get(b)![toSalesStatus(r.status)]++;
-  }
-
-  const out: BuildingOccupancy[] = [];
-  for (const [building, counts] of byBuilding) {
-    const total = counts.available + counts.pending + counts.occupied + counts.moveout;
-    const vacant = counts.available;
-    const occupied = total - vacant;
-    out.push({
-      building,
-      total,
-      counts,
-      occupied,
-      vacant,
-      occupiedPct: total > 0 ? Math.round((occupied / total) * 100) : 0,
-    });
-  }
-  out.sort((a, b) => {
-    const ia = buildingSortIndex(a.building);
-    const ib = buildingSortIndex(b.building);
-    if (ia !== ib) return ia - ib;
-    return a.building.localeCompare(b.building);
-  });
-  return out;
-}
 
 /* ====================================================================
  * KPI counts

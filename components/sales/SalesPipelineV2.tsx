@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import type { RoomView, SheetRow, RoomStatus } from "@/types";
 import { usePersistedString } from "@/lib/usePersistedString";
 import {
-  scopeRooms, buildAppointments, buildKpis,
+  scopeRooms, buildAppointments, buildKpis, buildOverdueAppointments,
   buildAppointmentsTrend,
 } from "@/lib/salesData";
 import KpiRow from "./KpiRow";
@@ -65,6 +65,8 @@ export default function SalesPipelineV2({
 
   const scopedRooms = useMemo(() => scopeRooms(rooms, activeBuilding), [rooms, activeBuilding]);
   const appointments = useMemo(() => buildAppointments(tasks, activeBuilding), [tasks, activeBuilding]);
+  // เลยนัด — open sales tasks that slipped past their date (last 14 days).
+  const overdueAppts = useMemo(() => buildOverdueAppointments(tasks, activeBuilding), [tasks, activeBuilding]);
   const kpis = useMemo(() => buildKpis(scopedRooms, appointments), [scopedRooms, appointments]);
   // Real backwards-looking trend for the appointments KPI only — room
   // status counts need daily snapshots we don't have, so those three
@@ -116,6 +118,7 @@ export default function SalesPipelineV2({
         <AppointmentsRail
           ref={railRef}
           appointments={appointments}
+          overdue={overdueAppts}
           onSelectRoom={selectByRoom}
         />
       </div>

@@ -565,9 +565,34 @@
   padding-left: 10px;
   border-left: 3px solid var(--rail-tone, var(--border-strong));
 }
+.railDay[data-tone="overdue"]  { --rail-tone: #F43F5E; }
 .railDay[data-tone="today"]    { --rail-tone: #FB7185; }
 .railDay[data-tone="tomorrow"] { --rail-tone: var(--amber); }
 .railDay[data-tone="upcoming"] { --rail-tone: var(--primary-2); }
+
+/* เลยนัด group screams a little louder than วันนี้ — filled count pill
+ * and a tinted panel behind the whole group. */
+.railDay[data-tone="overdue"] {
+  background: rgba(244, 63, 94, .07);
+  border-radius: 10px;
+  padding-top: 4px;
+  padding-bottom: 6px;
+  padding-right: 6px;
+}
+.railDay[data-tone="overdue"] .railDayCount {
+  color: #fff;
+  background: #F43F5E;
+}
+.apptOverdueChip {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  color: #FDA4AF;
+  background: rgba(244, 63, 94, .18);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
 
 .railDayHead {
   display: flex; align-items: center; gap: 8px;
