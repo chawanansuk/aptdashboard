@@ -1,5 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { parseThaiDate, parseSheetDate } from "./dateUtils";
+import { parseThaiDate, parseSheetDate, isTaskDatedToday } from "./dateUtils";
+
+describe("isTaskDatedToday — format-agnostic same-day check", () => {
+  const NOW = new Date(2026, 4, 19); // 19 May 2026
+
+  it("matches dd/MM/yyyy", () => {
+    expect(isTaskDatedToday("19/05/2026", NOW)).toBe(true);
+    expect(isTaskDatedToday("18/05/2026", NOW)).toBe(false);
+  });
+
+  it("matches ISO yyyy-MM-dd (Date-typed sheet cells via fmtDate_)", () => {
+    expect(isTaskDatedToday("2026-05-19", NOW)).toBe(true);
+    expect(isTaskDatedToday("2026-05-20", NOW)).toBe(false);
+  });
+
+  it("unparseable / empty → false", () => {
+    expect(isTaskDatedToday("", NOW)).toBe(false);
+    expect(isTaskDatedToday("not-a-date", NOW)).toBe(false);
+  });
+});
 
 describe("parseThaiDate", () => {
   it("parses DD/MM/YYYY", () => {

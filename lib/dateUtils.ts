@@ -106,6 +106,18 @@ export function isToday(date: Date): boolean {
   return isSameDay(date, now);
 }
 
+/**
+ * Is a task's date string "today" (Bangkok)? Format-agnostic — the sheet
+ * returns dd/MM/yyyy for text cells but ISO yyyy-MM-dd when the cell was
+ * coerced to a real Date (fmtDate_ in Code.gs). Raw string compares like
+ * `t.date === todayStr` silently miss whichever format they weren't
+ * written for — a bug class that has bitten three separate call sites.
+ */
+export function isTaskDatedToday(dateStr: string, now: Date = getBangkokNow()): boolean {
+  const d = parseThaiDate(dateStr);
+  return d ? isSameDay(d, now) : false;
+}
+
 export function isThisWeek(date: Date): boolean {
   const now = getBangkokNow();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // จันทร์
