@@ -4,7 +4,7 @@ import {
   scopeRooms, buildAppointments, countAppointmentsWithinDays,
   groupAppointmentsByDay, dayLabel, groupByBuildingFloor, buildBuildingGrids,
   buildKpis, applyBoardFilter, distinctFloors, formatDateShort,
-  buildOccupancyByBuilding, buildAppointmentsTrend,
+  buildAppointmentsTrend, buildOverdueAppointments,
 } from "./salesData";
 
 function mkRoom(p: Partial<RoomView>): RoomView {
@@ -55,6 +55,40 @@ describe("buildAppointments", () => {
   it("respects the active building scope", () => {
     const mixed = [mkTask({ date: "10/06/2026", building: "Kl" }), mkTask({ date: "10/06/2026", building: "มั่งมี" })];
     expect(buildAppointments(mixed, "มั่งมี", NOW)).toHaveLength(1);
+  });
+});
+
+describe("buildOverdueAppointments", () => {
+  // NOW = 5 Jun 2026
+  it("keeps only past-dated OPEN sales tasks, most-overdue first", () => {
+    const tasks = [
+      mkTask({ date: "03/06/2026", type: "ชมห้อง" }),                 // 2 วัน → in
+      mkTask({ date: "01/06/2026", type: "ย้ายเข้า" }),               // 4 วัน → in
+      mkTask({ date: "04/06/2026", type: "ชมห้อง", status: "เสร็จ" }), // closed → out
+      mkTask({ date: "05/06/2026", type: "ชมห้อง" }),                 // today → out (ไม่ใช่เลยนัด)
+      mkTask({ date: "03/06/2026", type: "ซ่อม" }),                   // not sales → out
+    ];
+    const out = buildOverdueAppointments(tasks, "ทั้งหมด", NOW);
+    expect(out.map((o) => o.daysOverdue)).toEqual([4, 2]);
+    expect(out[0].task.type).toBe("ย้ายเข้า");
+  });
+
+  it("caps how far back it looks (default 14 days)", () => {
+    const tasks = [
+      mkTask({ date: "01/05/2026", type: "ชมห้อง" }), // 35 วัน — เก่าเกิน → out
+      mkTask({ date: "25/05/2026", type: "ชมห้อง" }), // 11 วัน → in
+    ];
+    const out = buildOverdueAppointments(tasks, "ทั้งหมด", NOW);
+    expect(out).toHaveLength(1);
+    expect(out[0].daysOverdue).toBe(11);
+  });
+
+  it("respects the building scope", () => {
+    const tasks = [
+      mkTask({ date: "03/06/2026", building: "Kl" }),
+      mkTask({ date: "03/06/2026", building: "มั่งมี" }),
+    ];
+    expect(buildOverdueAppointments(tasks, "มั่งมี", NOW)).toHaveLength(1);
   });
 });
 
@@ -128,46 +162,6 @@ describe("buildBuildingGrids", () => {
     expect(kl.occupiedPct).toBe(50); // 2 of 4 occupied
     expect(kl.vacant).toBe(1);       // 1 ready
     expect(kl.floors.map((f) => f.floor)).toEqual(["2", "1"]);
-  });
-});
-
-describe("buildOccupancyByBuilding", () => {
-  it("counts each status, derives occupied = total − available, and %", () => {
-    const rooms = [
-      mkRoom({ building: "Kl", status: "ready" }),     // available
-      mkRoom({ building: "Kl", status: "ready" }),     // available
-      mkRoom({ building: "Kl", status: "occupied" }),
-      mkRoom({ building: "Kl", status: "pending" }),
-      mkRoom({ building: "Kl", status: "moveout" }),
-    ];
-    const [kl] = buildOccupancyByBuilding(rooms);
-    expect(kl.total).toBe(5);
-    expect(kl.counts).toEqual({ available: 2, pending: 1, occupied: 1, moveout: 1 });
-    expect(kl.vacant).toBe(2);
-    expect(kl.occupied).toBe(3);           // total − available
-    expect(kl.occupiedPct).toBe(60);       // 3/5
-  });
-
-  it("orders buildings by sales preference", () => {
-    const rooms = [
-      mkRoom({ building: "มีทอง", status: "ready" }),
-      mkRoom({ building: "Kl", status: "ready" }),
-    ];
-    expect(buildOccupancyByBuilding(rooms).map((b) => b.building)).toEqual(["Kl", "มีทอง"]);
-  });
-
-  it("a fully-let building reads 100% with zero vacancy", () => {
-    const rooms = [
-      mkRoom({ building: "Kl", status: "occupied" }),
-      mkRoom({ building: "Kl", status: "moveout" }),
-    ];
-    const [kl] = buildOccupancyByBuilding(rooms);
-    expect(kl.occupiedPct).toBe(100);
-    expect(kl.vacant).toBe(0);
-  });
-
-  it("returns an empty array for no rooms", () => {
-    expect(buildOccupancyByBuilding([])).toEqual([]);
   });
 });
 
