@@ -70,22 +70,33 @@ export async function quickSetRoomStatus(
   deps: JourneyDeps,
   opts: { clearTenant?: boolean } = {},
 ): Promise<void> {
-  const res = await fetch("/api/sheet/update", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "updateRoomStatus",
-      building: room.building, room: room.room,
-      status: rawStatus,
-      // Preserve current values — a quick status hop must not blank
-      // tenant data. Release (→ว่าง) explicitly clears the old tenant.
-      tenant: opts.clearTenant ? "" : room.tenant,
-      phone: opts.clearTenant ? "" : room.phone,
-      contractEnd: opts.clearTenant ? "" : room.contractEnd,
-      price: room.price,
-    }),
-  });
-  const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+  // Two server actions, both gated to room.editStatus:
+  //   - updateRoomStatus: status(+note) ONLY. The route strips any tenant
+  //     fields (security split #252) — the old code here sent them and
+  //     believed they went through; they never did. A plain status hop
+  //     leaves tenant data untouched server-side, which is what we want.
+  //   - releaseRoom (ปล่อยขาย): Apps Script force-blanks the old tenant
+  //     identity server-side from a fixed template. Without it, releasing
+  //     a room LOOKED clean (optimistic patch) but the previous tenant's
+  //     name/phone stayed in the sheet.
+  const payload = opts.clearTenant
+    ? { action: "releaseRoom", building: room.building, room: room.room, status: rawStatus }
+    : { action: "updateRoomStatus", building: room.building, room: room.room, status: rawStatus };
+  const post = (body: Record<string, unknown>) =>
+    fetch("/api/sheet/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  let res = await post(payload);
+  let data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+  if (!data.ok && opts.clearTenant && /unknown action/i.test(String(data.error || ""))) {
+    // Backend not redeployed with releaseRoom yet — degrade to the plain
+    // status write so ปล่อยขาย still flips the room (tenant blanking will
+    // work after the next Apps Script redeploy).
+    res = await post({ action: "updateRoomStatus", building: room.building, room: room.room, status: rawStatus });
+    data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+  }
   if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
   toast.success(`อัปเดตสถานะห้อง → ${rawStatus}`);
   publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });

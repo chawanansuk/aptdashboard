@@ -185,6 +185,21 @@ export const BookRoomSchema = UpdateRoomStatusSchema.extend({
 });
 
 /**
+ * releaseRoom: ปล่อยขาย — flips the room back to ว่าง AND blanks the old
+ * tenant identity. Deliberately carries NO tenant fields: Apps Script
+ * forces the blanking server-side from a fixed template, so a sales
+ * caller can erase but never fabricate PII (keeps the security split).
+ */
+export const ReleaseRoomSchema = z.object({
+  action: z.literal("releaseRoom"),
+  building: Building,
+  room: Room,
+  /** Optional status override; Apps Script defaults to "ว่าง". */
+  status: z.string().min(1).max(40).optional(),
+  note: OptText(500),
+}).strip();
+
+/**
  * debugFindTask: read-only diagnostic. Same 4-tuple shape; Apps Script
  * returns the matched row (or null) so the engineer can confirm what
  * the sheet thinks exists. No data is mutated.
@@ -210,6 +225,7 @@ export const SheetUpdateBodySchema = z.discriminatedUnion("action", [
   UpdateRoomStatusSchema,
   UpdateRoomDataSchema,
   BookRoomSchema,
+  ReleaseRoomSchema,
   DebugFindTaskSchema,
 ]);
 

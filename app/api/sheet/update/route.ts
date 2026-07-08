@@ -29,6 +29,10 @@ function actionToPermission(action: SheetUpdateBody["action"]): Action | null {
     //   updateRoomData   → free-form room edit incl. contract (management only)
     case "updateRoomStatus": return "room.editStatus";
     case "bookRoom":         return "room.editStatus";
+    //   releaseRoom      → ปล่อยขาย: status→ว่าง + server-side tenant blank
+    //                      (schema carries no PII; Apps Script forces the
+    //                      blanking — sales can erase, never fabricate)
+    case "releaseRoom":      return "room.editStatus";
     case "updateRoomData":   return "tenant.edit";
     case "debugFindTask":    return "task.edit";
   }
