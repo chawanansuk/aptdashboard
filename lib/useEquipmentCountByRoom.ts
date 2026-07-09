@@ -25,12 +25,16 @@ export interface EquipmentCountMap {
   loading: boolean;
 }
 
-export function useEquipmentCountByRoom(): EquipmentCountMap {
+export function useEquipmentCountByRoom(enabled: boolean = true): EquipmentCountMap {
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    // Deferred start: the page passes enabled=false until the critical
+    // dashboard data (rooms+tasks) lands, so this secondary fetch doesn't
+    // compete with it for the first (possibly cold) Apps Script slot.
+    if (!enabled) return;
     let cancelled = false;
     setLoading(true);
     cachedFetchJson<{ rows: RoomEquipment[] }>("/api/maintenance-plan")
@@ -51,7 +55,7 @@ export function useEquipmentCountByRoom(): EquipmentCountMap {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [tick]);
+  }, [enabled, tick]);
 
   return {
     get: (building, room) => counts.get(roomKey(building, room)) ?? 0,

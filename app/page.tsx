@@ -102,8 +102,13 @@ export default function Home() {
   // Vehicle counts per room — used to render 🏍 N badge on RoomCard.
   // Independent fetch from rooms/tasks since vehicles have different
   // refresh cadence (Task 30 follow-up).
-  const vehicleCounts = useVehicleCountByRoom();
-  const equipmentCounts = useEquipmentCountByRoom();
+  //
+  // Deferred until the critical dashboard data lands (!isInitial): on a
+  // cold backend these secondary fetches used to race rooms+tasks for
+  // the first Apps Script slot and push first paint out by seconds.
+  // Badges pop in a beat later instead — invisible on a warm backend.
+  const vehicleCounts = useVehicleCountByRoom(!isInitial);
+  const equipmentCounts = useEquipmentCountByRoom(!isInitial);
 
   // ---- UI state ----
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -136,7 +141,11 @@ export default function Home() {
 
   // Asset alert counts — only fetch when user has engineer-side access.
   // Skips parts+maintenance API calls for sales role entirely.
-  const assetAlerts = useAssetAlertCounts(canAccess(roles, "parts") || canAccess(roles, "maintenance"));
+  // Also deferred behind the critical dashboard load (same reasoning as
+  // the vehicle/equipment count hooks above).
+  const assetAlerts = useAssetAlertCounts(
+    !isInitial && (canAccess(roles, "parts") || canAccess(roles, "maintenance")),
+  );
 
   // Header notification dropdown — derived from live data. Role filtering
   // happens inside buildNotifications so the bell badge matches the
