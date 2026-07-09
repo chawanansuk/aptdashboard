@@ -95,7 +95,10 @@ export default function RoomModalHost({
    * task's note instead (same repairLog format the drawer uses), which
    * is also the semantically right home for it.
    */
-  async function quickRepair(resolution: string) {
+  async function quickRepair(
+    resolution: string,
+    parts?: { partId: string; quantity: number }[],
+  ) {
     if (!room) return;
     const note = resolution.trim();
     if (!note) return;
@@ -149,6 +152,40 @@ export default function RoomModalHost({
       } else {
         toast.success("บันทึกการซ่อมแล้ว");
       }
+
+      // Parts used — file requisitions AGAINST THIS ROOM (the backend
+      // has carried building/room since v3.16; this is the first UI
+      // that connects a repair to stock). The repair itself is already
+      // saved, so requisition failures degrade to a warning, never a
+      // rollback. Serial — Apps Script writes are lock-serialized anyway.
+      const lines = (parts || []).filter((p) => p.partId && p.quantity > 0);
+      if (lines.length > 0) {
+        let okCount = 0;
+        for (const line of lines) {
+          try {
+            const rq = await fetch("/api/part-requisitions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "add",
+                partId: line.partId,
+                quantity: line.quantity,
+                building: room.building,
+                room: room.room,
+                note: `งานซ่อม: ${note.slice(0, 80)}`,
+              }),
+            });
+            const rqData = await rq.json().catch(() => ({ ok: false }));
+            if (rqData.ok) okCount++;
+          } catch { /* counted below */ }
+        }
+        if (okCount === lines.length) {
+          toast.success(`เบิกอะไหล่แล้ว ${okCount} รายการ`);
+        } else {
+          toast.error(`เบิกอะไหล่สำเร็จ ${okCount}/${lines.length} รายการ — เช็คหน้าอะไหล่`);
+        }
+      }
+
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
       refresh();
     } catch (e) {

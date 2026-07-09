@@ -9,6 +9,7 @@ import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
 import { parseRepairLog } from "@/lib/repairLog";
+import { RepairPartsPicker, RoomPartsUsed, type RepairPartLine } from "./RoomRepairParts";
 import { sumCompletedCosts } from "@/lib/taskCost";
 import { formatBaht } from "@/lib/money";
 import { useFocusTrap } from "@/lib/useFocusTrap";
@@ -37,7 +38,7 @@ interface Props {
   onSave: () => void;
   /** Quick repair log — file an already-done ซ่อม task for this room.
    *  Hidden when omitted (e.g. a role that can't add engineer tasks). */
-  onQuickRepair?: (resolution: string) => void | Promise<void>;
+  onQuickRepair?: (resolution: string, parts?: { partId: string; quantity: number }[]) => void | Promise<void>;
   /** True while a quickRepair write is in flight. */
   repairing?: boolean;
   onAddTaskHere: () => void;
@@ -170,6 +171,7 @@ export default function RoomModal({
   useFocusTrap(true, dialogRef);
   const [showHistory, setShowHistory] = useState(false);
   const [repairText, setRepairText] = useState("");
+  const [repairParts, setRepairParts] = useState<RepairPartLine[]>([]);
 
   // Validation state — same UX as the redesigned add modals (PR #31)
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -182,6 +184,7 @@ export default function RoomModal({
     setTab(defaultTab || "info");
     setShowHistory(false);
     setRepairText("");
+    setRepairParts([]);
   }, [room.building, room.room, defaultTab]);
 
   // Unsaved-changes guard (#9). Snapshot the form values at the moment
@@ -829,19 +832,27 @@ export default function RoomModal({
                 onChange={(e) => setRepairText(e.target.value)}
                 disabled={repairing}
               />
+              <RepairPartsPicker
+                lines={repairParts}
+                onChange={setRepairParts}
+                disabled={repairing}
+              />
               <button
                 type="button"
                 className="ac-btn ac-btn-primary ac-room-repair-submit"
                 disabled={repairing || !repairText.trim()}
                 onClick={async () => {
-                  await onQuickRepair(repairText);
+                  const parts = repairParts.filter((l) => l.partId && l.quantity > 0);
+                  await onQuickRepair(repairText, parts);
                   setRepairText("");
+                  setRepairParts([]);
                 }}
               >
                 {repairing && <span className="ac-btn-spinner" aria-hidden />}
                 {repairing ? "กำลังบันทึก…" : "+ บันทึกการซ่อม"}
               </button>
               <span className="ac-field-hint">บันทึกเป็นงานซ่อมสถานะ “เสร็จ” ลงวันที่วันนี้ — ดูได้ในแท็บ “ข้อมูล” › ประวัติงาน</span>
+              <RoomPartsUsed building={room.building} room={room.room} />
             </div>
           )}
         </div>
