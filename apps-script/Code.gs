@@ -127,7 +127,7 @@ const TASK_COL = {
 
 /* ========== CACHE (NEW v3.4.0) ========== */
 const TASKS_CACHE_KEY = 'tasksCache_v1';
-const TASKS_CACHE_TTL_SEC = 180; // 3 นาที — v3.11.0: ขยายจาก 60s ลด cold-start hits
+const TASKS_CACHE_TTL_SEC = 240; // v3.20: 180→240s (เดิม v3.11 ขยายจาก 60) — writers bust ทันทีอยู่แล้ว
 
 function getTasksCached_() {
   const cache = CacheService.getScriptCache();
@@ -150,7 +150,7 @@ function clearTasksCache_() {
 
 /* ========== ROOMS CACHE (NEW v3.4.3) ========== */
 const ROOMS_CACHE_KEY = 'roomsCache_v1';
-const ROOMS_CACHE_TTL_SEC = 60;
+const ROOMS_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
 function getRoomsCached_() {
   const cache = CacheService.getScriptCache();
@@ -174,7 +174,7 @@ const EQUIPMENT_CACHE_KEY = 'equipmentCache_v2';
 // 3 นาที — v3.11.0 ขยายจาก 60s. Vercel ฝั่งใหม่ serve stale-on-error อยู่
 // แล้ว และ writes (addEquipment/updateEquipment) เรียก clearEquipmentCache_
 // ทันที จึงไม่มีปัญหา consistency
-const EQUIPMENT_CACHE_TTL_SEC = 180;
+const EQUIPMENT_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
 function getAllEquipmentCached_() {
   const cache = CacheService.getScriptCache();
@@ -195,7 +195,7 @@ function clearEquipmentCache_() {
 
 /* ========== FACILITY CACHE (NEW v3.8.0) ========== */
 const FACILITY_CACHE_KEY = 'facilityCache_v1';
-const FACILITY_CACHE_TTL_SEC = 60;
+const FACILITY_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
 function getAllFacilitiesCached_() {
   const cache = CacheService.getScriptCache();
@@ -216,7 +216,7 @@ function clearFacilityCache_() {
 
 /* ========== PART (INVENTORY) CACHE (NEW v3.11.0) ========== */
 const PART_CACHE_KEY = 'partCache_v1';
-const PART_CACHE_TTL_SEC = 60;
+const PART_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
 function getAllPartsCached_() {
   const cache = CacheService.getScriptCache();
@@ -237,7 +237,7 @@ function clearPartCache_() {
 
 /* ========== VEHICLE CACHE (NEW v3.13.0) ========== */
 const VEHICLE_CACHE_KEY = 'vehicleCache_v1';
-const VEHICLE_CACHE_TTL_SEC = 60;
+const VEHICLE_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
 function getAllVehiclesCached_() {
   const cache = CacheService.getScriptCache();
@@ -258,7 +258,7 @@ function clearVehicleCache_() {
 
 /* ========== LEAD CACHE (NEW v3.15.0) ========== */
 const LEAD_CACHE_KEY = 'leadCache_v1';
-const LEAD_CACHE_TTL_SEC = 60;
+const LEAD_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
 function getAllLeadsCached_() {
   const cache = CacheService.getScriptCache();

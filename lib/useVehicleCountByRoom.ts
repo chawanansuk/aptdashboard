@@ -31,12 +31,16 @@ export interface VehicleCountMap {
   loading: boolean;
 }
 
-export function useVehicleCountByRoom(): VehicleCountMap {
+export function useVehicleCountByRoom(enabled: boolean = true): VehicleCountMap {
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    // Deferred start: the page passes enabled=false until the critical
+    // dashboard data (rooms+tasks) lands, so this secondary fetch doesn't
+    // compete with it for the first (possibly cold) Apps Script slot.
+    if (!enabled) return;
     let cancelled = false;
     setLoading(true);
     fetch("/api/vehicles", { cache: "no-store" })
@@ -59,7 +63,7 @@ export function useVehicleCountByRoom(): VehicleCountMap {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [tick]);
+  }, [enabled, tick]);
 
   return {
     get: (building, room) => counts.get(roomKey(building, room)) ?? 0,
