@@ -142,6 +142,7 @@ export default function RoomModalHost({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "updateTask",
+            id: blocker.id || undefined, // v3.21
             match: { date: blocker.date, type: blocker.type, building: blocker.building, room: blocker.room },
             note: appendRepairLog(blocker.note || "", note),
           }),

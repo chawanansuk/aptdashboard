@@ -123,6 +123,7 @@ const TASK_COL = {
   CUSTOMER: 5, PHONE: 6, NOTE: 7, STATUS: 8,
   CREATOR: 9, CREATED_AT: 10,
   COST: 11, // v3.10.0
+  ID: 12,   // v3.21 — stable UUID identity; composite key kept as fallback
 };
 
 /* ========== CACHE (NEW v3.4.0) ========== */
@@ -491,11 +492,12 @@ function getTasks_() {
   // v3.10.0: read up to col K (11). Use lastCol to stay backward-compat
   // when the sheet hasn't been expanded yet (existing rows < 11 cols).
   const lastCol = Math.max(sh.getLastColumn(), 10);
-  const cols = Math.min(lastCol, 11);
+  const cols = Math.min(lastCol, 12); // v3.21: + id column
   const values = sh.getRange(2, 1, lastRow - 1, cols).getValues();
   return values
     .map(function (r) {
       const costRaw = cols >= 11 ? r[10] : '';
+      const idRaw = cols >= 12 ? norm(r[11]) : '';
       const costNum = parseFloat(costRaw);
       return {
         date:      fmtDate_(r[0]),
@@ -509,6 +511,7 @@ function getTasks_() {
         creator:   norm(r[8]),
         createdAt: norm(r[9]),
         cost:      isFinite(costNum) && costNum > 0 ? costNum : 0,
+        id:        idRaw, // v3.21 — '' for rows predating the backfill
       };
     })
     .filter(function (r) { return r.date && r.type && r.building; });
@@ -523,6 +526,51 @@ function ensureTaskCostColumn_(sh) {
   const lastCol = sh.getLastColumn();
   if (lastCol >= 11) return;
   sh.getRange(1, 11).setValue('ค่าใช้จ่าย').setFontWeight('bold');
+}
+
+/* ========== TASK IDs (v3.21) ==========
+ * The composite key (date|type|building|room) is NOT unique — two quick
+ * repairs on the same room the same day collide, so edit hits the first
+ * match and delete removes both. Every task row now carries a UUID; the
+ * writers look it up first and fall back to the composite key for rows
+ * that predate the backfill (or old clients that don't send id yet). */
+function ensureTaskIdColumn_(sh) {
+  const lastCol = sh.getLastColumn();
+  if (lastCol >= TASK_COL.ID) return;
+  sh.getRange(1, TASK_COL.ID).setValue('id').setFontWeight('bold');
+}
+
+/** 1-based row whose ID column matches, or -1. */
+function findTaskRowById_(id) {
+  if (!id) return -1;
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
+  if (!sh || sh.getLastColumn() < TASK_COL.ID) return -1;
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return -1;
+  const ids = sh.getRange(2, TASK_COL.ID, lastRow - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(id)) return i + 2;
+  }
+  return -1;
+}
+
+/** One-time backfill: run manually from the editor after deploying
+ *  v3.21 — stamps a UUID on every existing task row that lacks one. */
+function backfillTaskIds() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
+  if (!sh) throw new Error('sheet "งาน" not found');
+  ensureTaskIdColumn_(sh);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+  const range = sh.getRange(2, TASK_COL.ID, lastRow - 1, 1);
+  const vals = range.getValues();
+  let filled = 0;
+  for (let i = 0; i < vals.length; i++) {
+    if (!norm(vals[i][0])) { vals[i][0] = Utilities.getUuid(); filled++; }
+  }
+  if (filled > 0) range.setValues(vals);
+  clearTasksCache_();
+  SpreadsheetApp.getActive().toast('เติม id ให้งานเก่า ' + filled + ' แถวแล้ว ✅', 'หอพัก', 5);
 }
 
 /* ========== ROOMS READ (NEW v3.4.3) ========== */
@@ -625,6 +673,7 @@ function addTask_(b) {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   if (!sh) throw new Error('sheet "งาน" not found');
   ensureTaskCostColumn_(sh); // v3.10.0
+  ensureTaskIdColumn_(sh);   // v3.21
 
   // Idempotency guard — server-side mirror of the client's hasOpenPrepTask
   // check. The client check can race (two staff clicking near-simultaneously,
@@ -664,9 +713,11 @@ function addTask_(b) {
     Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm'),
     isFinite(costNum) && costNum > 0 ? costNum : '',
   ];
+  const newId = Utilities.getUuid(); // v3.21 — stable identity
+  row.push(newId);
   sh.appendRow(row);
   clearTasksCache_();
-  return { appended: true, row: sh.getLastRow() };
+  return { appended: true, row: sh.getLastRow(), id: newId };
 }
 
 /**
@@ -738,12 +789,18 @@ function dedupeTasksSheet_() {
 }
 
 function updateTask_(b) {
-  const row = findTaskRow_({
-    date: b.matchDate || b.date,
-    type: b.matchType || b.type,
-    building: b.matchBuilding || b.building,
-    room: b.matchRoom || b.room,
-  });
+  // v3.21: id pins the EXACT row; the composite key stays as fallback
+  // for pre-backfill rows / older clients. With twins sharing the key,
+  // only the id can tell them apart.
+  let row = findTaskRowById_(b.id);
+  if (row < 0) {
+    row = findTaskRow_({
+      date: b.matchDate || b.date,
+      type: b.matchType || b.type,
+      building: b.matchBuilding || b.building,
+      room: b.matchRoom || b.room,
+    });
+  }
   if (row < 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   if (b.date !== undefined)     sh.getRange(row, TASK_COL.DATE).setValue(b.date);
@@ -764,7 +821,10 @@ function updateTask_(b) {
 }
 
 function updateTaskStatus_(b) {
-  const rows = findAllTaskRows_(b);
+  // v3.21: with an id, flip ONLY that row. Composite fallback keeps the
+  // old flip-every-duplicate behaviour for pre-backfill rows.
+  const idRow = findTaskRowById_(b.id);
+  const rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
   if (rows.length === 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   const status = b.status || 'เสร็จ';
@@ -778,7 +838,9 @@ function updateTaskStatus_(b) {
 }
 
 function deleteTask_(b) {
-  const rows = findAllTaskRows_(b);
+  // v3.21: with an id, delete ONLY that row (composite fallback below).
+  const idRow = findTaskRowById_(b.id);
+  const rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
   if (rows.length === 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   // Delete every duplicate row sharing this key, not just the first

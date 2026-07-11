@@ -208,6 +208,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "updateTaskStatus",
+          id: t.id || undefined, // v3.21 — pin the exact row when known
           date: t.date, building: t.building, room: t.room, type: t.type,
           status: newStatus,
         }),
@@ -248,6 +249,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "updateTask",
+          id: t.id || undefined, // v3.21
           match: { date: t.date, type: t.type, building: t.building, room: t.room },
           note: newNote,
         }),
