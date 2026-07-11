@@ -661,7 +661,12 @@ export default function Home() {
           }),
         });
         const data = await res.json();
-        if (data.ok) okCount++; else failCount++;
+        // addTask's server-side dedup returns ok:true + skipped:'duplicate-open'
+        // when an open twin exists — count it with the client-side skips, not
+        // as "created", so the toast doesn't overreport (audit r5).
+        if (data.ok && data.skipped) skipCount++;
+        else if (data.ok) okCount++;
+        else failCount++;
       } catch { failCount++; }
     }
     setBulkSubmitting(false);

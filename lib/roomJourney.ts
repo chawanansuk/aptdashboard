@@ -190,6 +190,22 @@ export function deriveJourney(room: RoomView): JourneyState {
     // Walk the pipeline backwards-safe: each stage requires the previous
     // one done. QC done → release. (Skip-repair path: inspect done with
     // no repair created → user explicitly chooses repair or skip.)
+    //
+    // Guard (audit r5): an OPEN repair outranks the QC branches — a room
+    // with a passed/open QC but an unfinished repair must NOT show
+    // "พร้อมปล่อยขาย" (releasing mid-repair hands a broken room to the
+    // next tenant), nor hide the repair behind the checklist.
+    if (repair.open) {
+      return {
+        stage: "repairing",
+        step: [3, TURNOVER_TOTAL],
+        title: "อยู่ระหว่างซ่อม",
+        subtitle: qc.done
+          ? "QC ผ่านแล้ว แต่ยังมีงานซ่อมค้าง — ปิดงานซ่อมก่อนปล่อยขาย"
+          : "ช่างกำลังซ่อมตามผลตรวจ — ติดตามในกระดานงานช่าง",
+        actions: [],
+      };
+    }
     if (qc.done) {
       return {
         stage: "release-ready",
@@ -230,15 +246,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         ],
       };
     }
-    if (repair.open) {
-      return {
-        stage: "repairing",
-        step: [3, TURNOVER_TOTAL],
-        title: "อยู่ระหว่างซ่อม",
-        subtitle: "ช่างกำลังซ่อมตามผลตรวจ — ติดตามในกระดานงานช่าง",
-        actions: [],
-      };
-    }
+    // (repair.open handled up top — it outranks the QC branches.)
     if (cleanAfter.done && !qc.open && !qc.done) {
       // Skip-repair path completed its clean — straight to QC.
       return {

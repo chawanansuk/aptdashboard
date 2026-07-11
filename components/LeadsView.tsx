@@ -354,6 +354,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
         initialStage={addStage}
         onClose={() => setAddOpen(false)}
         onSaved={() => { bustView(LEADS_CACHE_KEY); load(); }}
+        existingLeads={rows || []}
       />
       <AddLeadModal
         open={!!editTarget}

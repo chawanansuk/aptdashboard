@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
+import { parseThaiDate } from "@/lib/dateUtils";
 import { isClosedStatus, isDoneStatus, isCancelledStatus, isNotInterestedStatus, TASK_TYPE_COLOR } from "@/lib/constants";
 import { roomKey } from "@/lib/taskKey";
 import { usePersistedString } from "@/lib/usePersistedString";
@@ -80,8 +81,14 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
     const m = new Map<string, SheetRow[]>();
     const filtered = activeBuilding === "ทั้งหมด" ? tasks : tasks.filter((t) => t.building === activeBuilding);
     for (const t of filtered) {
-      const key = t.date;
-      if (!key) continue;
+      // Normalize through the parser: the sheet returns dd/MM/yyyy for
+      // text cells but ISO yyyy-MM-dd for Date-typed cells (fmtDate_).
+      // Keying on the raw string made every ISO-dated task vanish from
+      // the grid, week strip, and legend (audit r5 — same bug class as
+      // the kanban/greeting fix in round 3).
+      const d = parseThaiDate(t.date);
+      if (!d) continue;
+      const key = dmyKey(d);
       if (!m.has(key)) m.set(key, []);
       m.get(key)!.push(t);
     }
