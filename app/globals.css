@@ -9835,3 +9835,296 @@ html.dark * { scrollbar-color: rgba(148, 163, 184, .28) transparent; }
 *::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, .55); background-clip: content-box; }
 html.dark *::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, .28); background-clip: content-box; }
 html.dark *::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, .45); background-clip: content-box; }
+
+/* ====================================================================
+ * GLASS + MOTION v2 — visual layer only (no layout / logic changes).
+ *
+ * Everything here OVERRIDES earlier rules via cascade order — keep this
+ * section LAST in the file. Design intent:
+ *
+ *   Ambient — a soft three-hue aurora wash behind the app. The role
+ *   accent (sales sky / engineer teal / mgmt indigo) stays the hero;
+ *   violet + cyan are a fixed supporting cast so every role's palette
+ *   lands harmonious.
+ *
+ *   Glass — heavier frosted treatment on fixed chrome (header, bottom
+ *   nav, sidebar) and floating panels (modal, ⌘K, popover). Deliberately
+ *   NOT on in-grid cards: backdrop-filter on hundreds of scrolling
+ *   cards janks low-end phones, so cards get gradient + hover-lift
+ *   instead.
+ *
+ *   Motion — spring hover-lift on cards, sheen sweep on primary
+ *   actions, fade-up view entrances. All of it is neutralized by the
+ *   global prefers-reduced-motion rule earlier in this file.
+ * ==================================================================== */
+
+:root {
+  /* Frosted surface for floating panels (modal / ⌘K / popover). Only
+   * applied inside @supports backdrop-filter — solid tokens otherwise. */
+  --glass-panel: rgba(255, 255, 255, .78);
+  --glass-blur: 22px;
+  --aurora-violet: #7C3AED;
+  --aurora-cyan: #06B6D4;
+  /* 1px top light-edge that makes a glass surface read as glass. */
+  --edge-light: inset 0 1px 0 rgba(255, 255, 255, .55);
+}
+html.dark {
+  --glass-panel: rgba(23, 32, 51, .78);
+  --edge-light: inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+
+/* ----- 1) Ambient aurora --------------------------------------------
+ * Static (no animation) + fixed-attachment so it never repaints on
+ * scroll. Percentages are low on purpose — the wash must never compete
+ * with status colors on the room grid. */
+.ac-app {
+  background:
+    radial-gradient(900px 500px at 88% -10%,
+      color-mix(in srgb, var(--aurora-violet) 7%, transparent), transparent 65%),
+    radial-gradient(1100px 480px at 10% -6%,
+      color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 70%),
+    radial-gradient(900px 620px at 50% 115%,
+      color-mix(in srgb, var(--aurora-cyan) 6%, transparent), transparent 70%),
+    #F0F2F5;
+  background-attachment: fixed;
+}
+html.dark .ac-app {
+  background:
+    radial-gradient(900px 500px at 88% -10%,
+      color-mix(in srgb, var(--aurora-violet) 13%, transparent), transparent 65%),
+    radial-gradient(1100px 480px at 10% -6%,
+      color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%),
+    radial-gradient(900px 620px at 50% 115%,
+      color-mix(in srgb, var(--aurora-cyan) 9%, transparent), transparent 70%),
+    #0B1120;
+  background-attachment: fixed;
+}
+
+/* ----- 2) Header — deeper glass + role-accent underglow ------------- */
+.ac-nav {
+  background: rgba(255, 255, 255, .68);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid rgba(15, 23, 42, .06);
+  box-shadow:
+    var(--edge-light),
+    0 12px 32px -18px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+html.dark .ac-nav {
+  background: rgba(15, 23, 42, .62);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+  border-bottom-color: rgba(148, 163, 184, .12);
+  box-shadow:
+    var(--edge-light),
+    0 12px 32px -16px color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+/* Brand mark follows the role accent, with a soft matching glow. */
+.ac-logo-icon {
+  background: linear-gradient(135deg,
+    var(--color-accent),
+    color-mix(in srgb, var(--color-accent) 55%, var(--aurora-violet)));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+.ac-logo-text { color: var(--color-accent); }
+/* Active header tab: accent→violet gradient pill (both themes — the
+ * html.dark .ac-tab color rule outranks .ac-tab.is-active by
+ * specificity, so the dark pair is required, not decorative). */
+.ac-tab.is-active,
+html.dark .ac-tab.is-active {
+  background: linear-gradient(135deg,
+    var(--color-accent),
+    color-mix(in srgb, var(--color-accent) 62%, var(--aurora-violet)));
+  color: #fff;
+}
+/* Role-colored ring on the avatar — quiet "who am I" signal. */
+.ac-avatar,
+html.dark .ac-avatar {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 38%, transparent);
+}
+
+/* ----- 3) Sidebar — glass rail + slide-hover ------------------------ */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .ac-side {
+    background: rgba(255, 255, 255, .62);
+    -webkit-backdrop-filter: saturate(160%) blur(16px);
+    backdrop-filter: saturate(160%) blur(16px);
+  }
+  html.dark .ac-side {
+    background: rgba(23, 32, 51, .66);
+    -webkit-backdrop-filter: saturate(160%) blur(16px);
+    backdrop-filter: saturate(160%) blur(16px);
+  }
+}
+.ac-side-backdrop {
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.ac-side-item {
+  transition: background .15s, color .15s, transform .18s var(--ease);
+}
+.ac-side-item:hover { transform: translateX(2px); }
+.ac-side-item.is-active,
+html.dark .ac-side-item.is-active {
+  box-shadow: 0 2px 12px -4px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+
+/* ----- 4) Bottom nav — active pill + accent-gradient "+" ------------ */
+.ac-bottom-nav {
+  background: rgba(255, 255, 255, .72);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+}
+html.dark .ac-bottom-nav {
+  background: rgba(11, 17, 32, .7);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+}
+.ac-bottom-nav-tab.is-active {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+html.dark .ac-bottom-nav-tab.is-active {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+/* The raised "+" follows the role accent instead of fixed blue. */
+.ac-bottom-nav-tab.is-primary,
+html.dark .ac-bottom-nav-tab.is-primary {
+  background: linear-gradient(135deg,
+    var(--color-accent),
+    color-mix(in srgb, var(--color-accent) 55%, var(--aurora-violet)));
+  box-shadow:
+    var(--edge-light),
+    0 4px 16px color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.ac-bottom-nav-tab.is-primary:hover,
+html.dark .ac-bottom-nav-tab.is-primary:hover {
+  background: linear-gradient(135deg,
+    var(--color-accent),
+    color-mix(in srgb, var(--color-accent) 55%, var(--aurora-violet)));
+  filter: brightness(1.08);
+}
+
+/* ----- 5) Cards — sheen surface + spring hover-lift ------------------ */
+.ac-sc {
+  background: var(--card-grad), #fff;
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease);
+}
+html.dark .ac-sc { background: var(--card-grad), #1E293B; }
+.ac-sc:hover,
+html.dark .ac-sc:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-lift);
+}
+.ac-si { transition: transform .25s var(--ease-spring); }
+.ac-sc:hover .ac-si { transform: scale(1.1) rotate(-4deg); }
+.ac-sc-num { font-variant-numeric: tabular-nums; }
+/* Stat numbers pick up a whisper of the accent at the baseline. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .ac-sc-num,
+  .ac-kanban-kpi-value {
+    background-image: linear-gradient(180deg,
+      var(--color-text) 45%,
+      color-mix(in srgb, var(--color-text) 55%, var(--color-accent)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+.ac-kanban-card {
+  transition: opacity 120ms ease, transform .18s var(--ease),
+              box-shadow .18s var(--ease), border-color .18s var(--ease);
+}
+.ac-kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-lift);
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+}
+
+/* ----- 6) Primary actions — sheen sweep on hover --------------------
+ * A skewed light bar crosses the button once per hover. transform-only
+ * (compositor), pointer-events: none, clipped by the button. */
+.ac-btn-primary,
+.ac-summary-fab {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ac-btn-primary::after,
+.ac-summary-fab::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: -60%;
+  width: 55%;
+  background: linear-gradient(105deg,
+    transparent, rgba(255, 255, 255, .38), transparent);
+  transform: skewX(-20deg) translateX(0);
+  transition: transform .55s var(--ease);
+  pointer-events: none;
+}
+.ac-btn-primary:hover:not(:disabled)::after,
+.ac-summary-fab:hover::after {
+  transform: skewX(-20deg) translateX(320%);
+}
+
+/* Filter chips: gradient active pill + tiny lift. (Dark pair required —
+ * html.dark .ac-chip outranks .ac-chip.is-active by specificity.) */
+.ac-chip { transition: all .15s, transform .18s var(--ease); }
+.ac-chip:hover { transform: translateY(-1px); }
+.ac-chip.is-active,
+html.dark .ac-chip.is-active {
+  background: linear-gradient(135deg,
+    var(--color-accent),
+    color-mix(in srgb, var(--color-accent) 62%, var(--aurora-violet)));
+  color: #fff;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+.ac-search:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+/* ----- 7) Floating panels — real glass -------------------------------
+ * Guarded: browsers without backdrop-filter keep the earlier solid
+ * surfaces (translucency without blur would be unreadable). */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .ac-modal,
+  .ac-cmdk,
+  .ac-quick-popover {
+    background: var(--card-grad), var(--glass-panel);
+    -webkit-backdrop-filter: saturate(170%) blur(var(--glass-blur));
+    backdrop-filter: saturate(170%) blur(var(--glass-blur));
+    border: 1px solid rgba(255, 255, 255, .5);
+    box-shadow: var(--edge-light), var(--shadow-xl);
+  }
+  html.dark .ac-modal,
+  html.dark .ac-cmdk,
+  html.dark .ac-quick-popover {
+    background: var(--card-grad), var(--glass-panel);
+    border-color: rgba(148, 163, 184, .16);
+  }
+  /* Modal footer sits ON the glass — tint it instead of a solid slab. */
+  .ac-modal-foot,
+  html.dark .ac-modal-foot {
+    background: color-mix(in srgb, var(--color-surface-2) 55%, transparent);
+  }
+  .ac-cmdk-backdrop {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+}
+
+/* ----- 8) View entrance — content fades up on tab switch -------------
+ * These containers unmount/remount when the user switches views, so the
+ * animation replays naturally per switch. backwards-fill holds items
+ * invisible during their stagger delay. Killed by reduced-motion. */
+@keyframes ac-view-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.ac-sg,
+.ac-overview-cards,
+.ac-kanban { animation: ac-view-in .28s var(--ease) backwards; }
+.ac-fb,
+.ac-legend { animation: ac-view-in .28s var(--ease) 40ms backwards; }
+.ac-fs,
+.ac-tasks { animation: ac-view-in .28s var(--ease) 70ms backwards; }
