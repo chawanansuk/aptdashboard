@@ -125,8 +125,18 @@ function validate(values: { price: string; phone: string; contractEnd: string })
     }
   }
   if (values.contractEnd) {
-    if (!/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(values.contractEnd.trim())) {
+    const trimmed = values.contractEnd.trim();
+    if (!/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(trimmed)) {
       e.contractEnd = "รูปแบบวันที่ไม่ถูกต้อง (dd/MM/yyyy)";
+    } else {
+      // Thai staff habitually type พ.ศ. (2569 = ค.ศ. 2026). parseThaiDate
+      // rejects years > 2200 → the date silently became null and every
+      // expiry alert for the room vanished with no warning (audit r5).
+      // Catch it at input time with a converting hint.
+      const year = parseInt(trimmed.split(/[\/\-.]/)[2], 10);
+      if (year >= 2400 && year <= 2700) {
+        e.contractEnd = `ปีเป็น พ.ศ.? กรุณาใช้ ค.ศ. (${year} → ${year - 543})`;
+      }
     }
   }
   return e;

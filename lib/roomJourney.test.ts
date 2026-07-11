@@ -148,6 +148,26 @@ describe("deriveJourney — turnover pipeline (moveout → ready)", () => {
     expect(j.actions.map((a) => a.id)).toEqual(["releaseRoom"]);
   });
 
+  it("qc done but a repair still OPEN → repairing, NOT release-ready (audit r5)", () => {
+    // Releasing mid-repair would hand a broken room to the next tenant.
+    const j = deriveJourney(mkRoom({
+      status: "moveout",
+      pastTasks: [cleanBefore("เสร็จ"), inspect("เสร็จ"), qc("เสร็จ")],
+      todayTasks: [repair("กำลังทำ")],
+    }));
+    expect(j.stage).toBe("repairing");
+    expect(j.actions).toEqual([]); // no release action offered
+  });
+
+  it("qc open AND repair open → the open repair wins (not hidden behind QC)", () => {
+    const j = deriveJourney(mkRoom({
+      status: "moveout",
+      pastTasks: [cleanBefore("เสร็จ"), inspect("เสร็จ")],
+      todayTasks: [repair("กำลังทำ"), qc("")],
+    }));
+    expect(j.stage).toBe("repairing");
+  });
+
   it("works the same when the sheet status drifted to qc/repair mid-pipeline", () => {
     const j = deriveJourney(mkRoom({
       status: "repair",

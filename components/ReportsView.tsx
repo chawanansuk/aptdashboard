@@ -11,6 +11,7 @@ import {
 import type { RoomView, SheetRow } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
+import { exportCsv } from "@/lib/csvExport";
 import { toast } from "@/lib/toast";
 
 interface Props {
@@ -77,7 +78,10 @@ export default function ReportsView({ rooms, tasks }: Props) {
   // ---- KPI computations ----
   const kpis = useMemo(() => {
     const done = filtered.filter((t) => isDoneStatus(t.status));
-    const totalCost = filtered.reduce((sum, t) => sum + (t.cost || 0), 0);
+    // Exclude cancelled tasks — a cancelled job's quoted cost was never
+    // spent, counting it inflates the window total (audit r5).
+    const totalCost = filtered.reduce(
+      (sum, t) => sum + (isCancelledStatus(t.status) ? 0 : (t.cost || 0)), 0);
     // Days-to-done = ปัจจุบันเราไม่มี completedAt; approximate ว่า task ที่
     // เสร็จคือเสร็จในวันเดียวกับ date — เลยเทียบจำนวนงานทั้งหมด/เสร็จเป็น
     // proxy ของ "completion rate"
@@ -125,7 +129,12 @@ export default function ReportsView({ rooms, tasks }: Props) {
       counts.set(dmy(d), 0);
     }
     for (const t of filtered) {
-      const key = t.date;
+      // Normalize via the parser — raw ISO-dated rows (Date-typed sheet
+      // cells) never matched the dd/MM/yyyy seed keys, silently missing
+      // from the per-day chart (audit r5).
+      const d = parseThaiDate(t.date);
+      if (!d) continue;
+      const key = dmy(d);
       if (counts.has(key)) counts.set(key, (counts.get(key) || 0) + 1);
     }
     return Array.from(counts.entries()).map(([date, count]) => ({ date, count }));
@@ -135,31 +144,28 @@ export default function ReportsView({ rooms, tasks }: Props) {
   // papaparse (~45KB) is only needed the moment the user clicks Export,
   // so it's dynamically imported here instead of at module load — keeps
   // it out of the Reports view chunk that loads just to *view* charts.
-  async function exportCSV() {
-    const { default: Papa } = await import("papaparse");
-    const rows = filtered.map((t) => ({
-      วันที่: t.date,
-      ประเภท: t.type,
-      ตึก: t.building,
-      ห้อง: t.room,
-      ลูกค้า: t.customer || "",
-      เบอร์: t.phone || "",
-      สถานะ: t.status || "",
-      หมายเหตุ: t.note || "",
-      ค่าใช้จ่าย: t.cost || 0,
-    }));
-    const csv = Papa.unparse(rows);
-    // BOM ทำให้ Excel TH อ่านได้
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `aptcloud-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success(`Export ${rows.length} แถวสำเร็จ`);
+  function exportCSV() {
+    // Route through lib/csvExport — the ONLY exporter with the CSV
+    // formula-injection guard (= + - @ prefixes) and RFC-4180 quoting.
+    // The previous Papa.unparse path let a note like "=SUM(...)" execute
+    // when the file opened in Excel/Sheets (audit r5). Also drops the
+    // on-demand papaparse download entirely.
+    exportCsv(
+      `aptcloud-tasks-${new Date().toISOString().slice(0, 10)}.csv`,
+      filtered,
+      [
+        { header: "วันที่", value: (t) => t.date },
+        { header: "ประเภท", value: (t) => t.type },
+        { header: "ตึก", value: (t) => t.building },
+        { header: "ห้อง", value: (t) => t.room },
+        { header: "ลูกค้า", value: (t) => t.customer || "" },
+        { header: "เบอร์", value: (t) => t.phone || "" },
+        { header: "สถานะ", value: (t) => t.status || "" },
+        { header: "หมายเหตุ", value: (t) => t.note || "" },
+        { header: "ค่าใช้จ่าย", value: (t) => String(t.cost || 0) },
+      ],
+    );
+    toast.success(`Export ${filtered.length} แถวสำเร็จ`);
   }
 
   function exportPDF() {

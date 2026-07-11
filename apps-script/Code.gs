@@ -2093,7 +2093,19 @@ function runRecurringCheck_(b) {
     // and the task wasn't yet cleared). Otherwise repeated runs pile
     // identical rows that #178's "close all matching" can mask but
     // never untangle.
+    //
+    // Audit r5: STILL advance this template's dates on a dedup skip.
+    // Previously the skip ran before the bump, so a template colliding
+    // with another (same type+room, e.g. two ทำสะอาด templates on room
+    // 101) never advanced nextRunDate — it stayed "due" and was skipped
+    // on EVERY run, forever. Treat the existing task as this cycle's
+    // occurrence and move on to the next cycle.
     if (findTaskRow_({ date: taskDateStr, type: type, building: building, room: room }) >= 0) {
+      const dupNext = new Date(today.getTime() + interval * 24 * 60 * 60 * 1000);
+      recurringSh.getRange(i + 2, 7).setValue(todayStr); // lastRunDate
+      recurringSh.getRange(i + 2, 8).setValue(
+        Utilities.formatDate(dupNext, 'Asia/Bangkok', 'yyyy-MM-dd')); // nextRunDate
+      logAudit_('run', 'recurring', id, name + ' — task วันนี้มีอยู่แล้ว (ข้ามแต่เลื่อนรอบถัดไป)', user);
       skipped++;
       continue;
     }

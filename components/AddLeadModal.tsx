@@ -6,6 +6,7 @@ import {
   type Lead, type LeadStage, type LeadSource,
 } from "@/types";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { findLeadByPhone } from "@/lib/leadLink";
 
 interface Props {
   open: boolean;
@@ -18,9 +19,13 @@ interface Props {
    *  "ทำสัญญา"/"ปิดดีล". Caller is expected to open AddTaskModal
    *  pre-filled from this Lead's contact info. */
   onCreateMoveinTask?: (lead: Lead) => void;
+  /** Current leads — enables the duplicate-phone warning on add. The
+   *  auto-link path deduped by phone since day one, but manual adds
+   *  never did (audit r5): two ops could file the same prospect twice. */
+  existingLeads?: Lead[];
 }
 
-export default function AddLeadModal({ open, initial, initialStage, onClose, onSaved, onCreateMoveinTask }: Props) {
+export default function AddLeadModal({ open, initial, initialStage, onClose, onSaved, onCreateMoveinTask, existingLeads }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(open, ref);
   const isEdit = !!initial;
@@ -61,6 +66,17 @@ export default function AddLeadModal({ open, initial, initialStage, onClose, onS
     setErr(null);
     const trimmedName = name.trim();
     if (!trimmedName) { setErr("กรอกชื่อลูกค้า"); return; }
+    // Duplicate-phone guard (add only; editing keeps its own number).
+    // Warn + confirm instead of hard-block: shared/house numbers exist.
+    if (!isEdit && existingLeads && phone.trim()) {
+      const dup = findLeadByPhone(existingLeads, phone);
+      if (dup) {
+        const ok = window.confirm(
+          `เบอร์นี้มี Lead อยู่แล้ว: "${dup.name}" (สถานะ ${dup.stage})\n\nต้องการเพิ่มซ้ำอีกรายการหรือไม่?`,
+        );
+        if (!ok) return;
+      }
+    }
     setSubmitting(true);
     try {
       const body = isEdit
