@@ -161,6 +161,7 @@ export default function RoomModalHost({
       const lines = (parts || []).filter((p) => p.partId && p.quantity > 0);
       if (lines.length > 0) {
         let okCount = 0;
+        let clampedCount = 0;
         for (const line of lines) {
           try {
             const rq = await fetch("/api/part-requisitions", {
@@ -176,11 +177,19 @@ export default function RoomModalHost({
               }),
             });
             const rqData = await rq.json().catch(() => ({ ok: false }));
-            if (rqData.ok) okCount++;
+            if (rqData.ok) {
+              okCount++;
+              // Apps Script clamps the withdrawal at remaining stock and
+              // flags it — surface that instead of a silent "success"
+              // that pretends the full quantity came out.
+              if (rqData.clamped) clampedCount++;
+            }
           } catch { /* counted below */ }
         }
-        if (okCount === lines.length) {
+        if (okCount === lines.length && clampedCount === 0) {
           toast.success(`เบิกอะไหล่แล้ว ${okCount} รายการ`);
+        } else if (okCount === lines.length) {
+          toast.info(`เบิกแล้ว ${okCount} รายการ — ${clampedCount} รายการสต็อกไม่พอ เบิกได้เท่าที่เหลือ (เช็คหน้าอะไหล่)`);
         } else {
           toast.error(`เบิกอะไหล่สำเร็จ ${okCount}/${lines.length} รายการ — เช็คหน้าอะไหล่`);
         }

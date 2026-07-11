@@ -37,6 +37,12 @@ interface CallOptions {
   /** Reads can safely retry on any error; writes only on network-level. */
   idempotent?: boolean;
   timeoutMs?: number;
+  /** Cap on RETRIES (attempts = maxRetries + 1). Callers running inside a
+   *  platform execution limit must budget: attempts × timeoutMs + delays
+   *  has to fit under their maxDuration, or the platform kills the
+   *  function mid-retry and the client sees a bare 504 instead of our
+   *  JSON envelope. Default: the full ladder (3 retries). */
+  maxRetries?: number;
 }
 
 /**
@@ -45,7 +51,13 @@ interface CallOptions {
  * instance after cache expiry — only the first hits Apps Script. The
  * rest await the same promise.
  *
- * Only safe for idempotent calls. Writes never dedup (each must commit).
+ * Only opted into by callers passing idempotent:true. Originally that
+ * meant reads only; since the write-timeout fix, the route also marks
+ * the six SET-style write actions idempotent (updateTask, updateTaskStatus,
+ * updateRoomStatus, updateRoomData, bookRoom, releaseRoom) — collapsing two
+ * identical concurrent set-writes is benign because they converge to the
+ * same row state. APPEND actions (addTask, addLead, …) must NEVER be
+ * marked idempotent: dedup or retry would silently drop/duplicate a commit.
  * Keys auto-purge on settle. Lives at module scope, so it's per-Vercel-
  * function-instance, which is exactly the right scope.
  */
@@ -124,7 +136,8 @@ async function runCall<T>(
 
   let lastErr: Error | null = null;
 
-  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+  const maxAttempts = 1 + Math.min(opts.maxRetries ?? RETRY_DELAYS_MS.length, RETRY_DELAYS_MS.length);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
