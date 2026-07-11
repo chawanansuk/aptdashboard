@@ -185,9 +185,14 @@ export async function POST(req: Request) {
   //    Set-style writes get a longer window + retries (safe to replay);
   //    appends keep the strict single-shot 15s (no dup risk).
   try {
+    const idem = IDEMPOTENT_WRITE_ACTIONS.has(action);
     const data = await appsScriptCall(action, payload, {
-      idempotent: IDEMPOTENT_WRITE_ACTIONS.has(action),
-      timeoutMs: IDEMPOTENT_WRITE_ACTIONS.has(action) ? 20_000 : undefined,
+      idempotent: idem,
+      timeoutMs: idem ? 20_000 : undefined,
+      // Budget: attempts × 20s + delays must fit under maxDuration=60 or
+      // the platform kills us mid-retry and the client gets a bare 504.
+      // 2 attempts × 20s + 0.3s ≈ 40s ✓ (full 4-attempt ladder was ~82s ✗).
+      maxRetries: idem ? 1 : undefined,
     });
     // Successful write → invalidate function-local dashboard cache so the
     // next /api/dashboard call refetches fresh data
