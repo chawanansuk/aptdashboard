@@ -111,6 +111,7 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
       for (const t of selected) {
         await postUpdate({
           action: "updateTaskStatus",
+          id: t.id || undefined, // v3.21 — pin the exact row when known
           date: t.date, building: t.building, room: t.room, type: t.type,
           status: newStatus,
         });
@@ -137,6 +138,7 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
       for (const t of selected) {
         await postUpdate({
           action: "deleteTask",
+          id: t.id || undefined, // v3.21 — delete ONLY this row when known
           match: { date: t.date, building: t.building, room: t.room, type: t.type },
         });
       }
@@ -187,6 +189,7 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
     try {
       await postUpdate({
         action: "updateTaskStatus",
+        id: t.id || undefined, // v3.21
         date: t.date, building: t.building, room: t.room, type: t.type,
         status: newStatus,
       });

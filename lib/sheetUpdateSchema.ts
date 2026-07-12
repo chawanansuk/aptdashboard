@@ -79,6 +79,9 @@ export const AddTaskSchema = z.object({
  */
 export const UpdateTaskSchema = z.object({
   action: z.literal("updateTask"),
+  /** v3.21 — stable row id; pins the exact row (twins share the
+   *  composite key). Either id OR one of the match forms must be sent. */
+  id: z.string().max(60).optional(),
   match: z.object({
     date: TaskDate,
     type: TaskTypeEnum,
@@ -102,9 +105,10 @@ export const UpdateTaskSchema = z.object({
   cost: z.number().nonnegative().optional(),
 }).strip().refine(
   (b) =>
+    b.id !== undefined ||
     b.match !== undefined ||
     (b.matchDate && b.matchType && b.matchBuilding && b.matchRoom),
-  { message: "updateTask: ต้องส่ง match หรือ matchDate+matchType+matchBuilding+matchRoom ครบ" },
+  { message: "updateTask: ต้องส่ง id, match หรือ matchDate+matchType+matchBuilding+matchRoom ครบ" },
 );
 
 /**
@@ -115,6 +119,9 @@ export const UpdateTaskSchema = z.object({
  */
 export const UpdateTaskStatusSchema = z.object({
   action: z.literal("updateTaskStatus"),
+  /** v3.21 — when present, Apps Script flips ONLY this row instead of
+   *  every duplicate sharing the composite key. */
+  id: z.string().max(60).optional(),
   date: TaskDate,
   type: TaskTypeEnum,
   building: Building,
@@ -130,6 +137,8 @@ export const UpdateTaskStatusSchema = z.object({
  */
 export const DeleteTaskSchema = z.object({
   action: z.literal("deleteTask"),
+  /** v3.21 — deletes ONLY this row when present. */
+  id: z.string().max(60).optional(),
   match: z.object({
     date: TaskDate,
     type: TaskTypeEnum,
@@ -141,8 +150,8 @@ export const DeleteTaskSchema = z.object({
   building: OptBuilding,
   room: OptRoom,
 }).strip().refine(
-  (b) => b.match !== undefined || (b.date && b.type && b.building && b.room),
-  { message: "deleteTask: ต้องส่ง match หรือ date+type+building+room ครบ" },
+  (b) => b.id !== undefined || b.match !== undefined || (b.date && b.type && b.building && b.room),
+  { message: "deleteTask: ต้องส่ง id, match หรือ date+type+building+room ครบ" },
 );
 
 /**

@@ -114,6 +114,12 @@ describe("SheetUpdateBodySchema — discriminated union", () => {
   });
 
   describe("updateTask — dual identity forms", () => {
+    it("accepts id ALONE as the row identity (v3.21)", () => {
+      const r = parse({ action: "updateTask", id: "uuid-123", note: "แก้ note" });
+      expect(r.success).toBe(true);
+    });
+
+
     it("accepts the nested match form (repair-log drawer)", () => {
       const r = parse({
         action: "updateTask",
@@ -180,6 +186,12 @@ describe("SheetUpdateBodySchema — discriminated union", () => {
   });
 
   describe("deleteTask", () => {
+    it("accepts id ALONE (v3.21 — deletes only that row)", () => {
+      const r = parse({ action: "deleteTask", id: "uuid-123" });
+      expect(r.success).toBe(true);
+    });
+
+
     it("accepts the `match` object form", () => {
       const r = parse({
         action: "deleteTask",

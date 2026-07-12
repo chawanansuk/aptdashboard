@@ -76,6 +76,7 @@ export default function EditTaskModal({ task, onClose, onSaved }: Props) {
           // silently failed every edit with "task not found" because
           // b.matchDate was undefined.
           action: "updateTask",
+          id: task.id || undefined, // v3.21 — pin the exact row when known
           matchDate: task.date,
           matchType: task.type,
           matchBuilding: task.building,

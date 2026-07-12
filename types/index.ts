@@ -1,5 +1,9 @@
 // ===== TASKS sheet (ชีต "งาน") =====
 export interface SheetRow {
+  /** v3.21 — stable UUID identity from the sheet's id column. Empty
+   *  string for rows predating the backfill; writers fall back to the
+   *  composite key (date|type|building|room) when absent. */
+  id?: string;
   date: string;
   type: string;
   building: string;
