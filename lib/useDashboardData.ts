@@ -274,7 +274,15 @@ export function mergeRoomsAndTasks(
     let status: RoomStatus = normalizeRoomStatus(baseRaw);
 
     // override by upcoming tasks
-    const hasMoveOut = upcomingTasks.some((t) => t.type === "ย้ายออก");
+    // ย้ายออก checks ALL open notices, not just upcoming ones: the
+    // turnover pipeline runs for days after the move-out date, and with
+    // the upcoming-only check the room snapped back to "มีผู้เช่า" the
+    // morning after — mid-pipeline, journey panel gone ("ระบบรวน").
+    // An open notice keeps the room in moveout until it's closed
+    // (release does that automatically) or the sheet status changes.
+    const hasMoveOut = all.some(
+      (t) => t.type === "ย้ายออก" && !isClosedStatus(t.status),
+    );
     const hasView = upcomingTasks.some((t) => t.type === "ชมห้อง");
     const hasMoveIn = upcomingTasks.some((t) => t.type === "ย้ายเข้า");
     const hasCleanPending = upcomingTasks.some(

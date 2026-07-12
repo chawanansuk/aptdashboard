@@ -65,20 +65,20 @@ describe("deriveJourney — turnover pipeline (moveout → ready)", () => {
     const j = deriveJourney(mkRoom({ status: "moveout" }));
     expect(j.stage).toBe("moveout-start");
     expect(j.step).toEqual([1, 5]);
-    expect(j.actions.map((a) => a.id)).toEqual(["createCleanBefore"]);
+    expect(j.actions.map((a) => a.id)).toEqual(["createCleanBefore", "releaseNow"]);
   });
 
-  it("clean-before open → waiting on cleaner (no actions)", () => {
+  it("clean-before open → inline close button + shortcut (sales runs the app)", () => {
     const j = deriveJourney(mkRoom({ status: "moveout", todayTasks: [cleanBefore("")] }));
     expect(j.stage).toBe("cleaning-before");
-    expect(j.actions).toEqual([]);
+    expect(j.actions.map((a) => a.id)).toEqual(["doneCleanBefore", "releaseNow"]);
   });
 
   it("clean-before done → offer create-inspect", () => {
     const j = deriveJourney(mkRoom({ status: "moveout", pastTasks: [cleanBefore("เสร็จ")] }));
     expect(j.stage).toBe("await-inspect");
     expect(j.step).toEqual([2, 5]);
-    expect(j.actions.map((a) => a.id)).toEqual(["createInspect"]);
+    expect(j.actions.map((a) => a.id)).toEqual(["createInspect", "releaseNow"]);
   });
 
   it("inspect open → waiting on inspector (deposit-refund stage)", () => {
@@ -97,7 +97,7 @@ describe("deriveJourney — turnover pipeline (moveout → ready)", () => {
       pastTasks: [cleanBefore("เสร็จ"), inspect("เสร็จ")],
     }));
     expect(j.stage).toBe("inspect-done");
-    expect(j.actions.map((a) => a.id)).toEqual(["createRepair", "skipRepair"]);
+    expect(j.actions.map((a) => a.id)).toEqual(["createRepair", "skipRepair", "releaseNow"]);
   });
 
   it("repair open → repairing, no actions", () => {
@@ -116,7 +116,7 @@ describe("deriveJourney — turnover pipeline (moveout → ready)", () => {
       pastTasks: [cleanBefore("เสร็จ"), inspect("เสร็จ"), repair("เสร็จ")],
     }));
     expect(j.stage).toBe("cleaning-after");
-    expect(j.actions.map((a) => a.id)).toEqual(["createCleanAfter"]);
+    expect(j.actions.map((a) => a.id)).toEqual(["createCleanAfter", "releaseNow"]);
   });
 
   it("clean-after done → offer QC checklist", () => {
@@ -125,17 +125,17 @@ describe("deriveJourney — turnover pipeline (moveout → ready)", () => {
       pastTasks: [cleanBefore("เสร็จ"), inspect("เสร็จ"), repair("เสร็จ"), cleanAfter("เสร็จ")],
     }));
     expect(j.stage).toBe("qc-checklist");
-    expect(j.actions.map((a) => a.id)).toEqual(["createQcChecklist"]);
+    expect(j.actions.map((a) => a.id)).toEqual(["createQcChecklist", "releaseNow"]);
   });
 
-  it("qc open → checklist in progress, no actions", () => {
+  it("qc open → inline close button + shortcut", () => {
     const j = deriveJourney(mkRoom({
       status: "moveout",
       pastTasks: [cleanBefore("เสร็จ"), inspect("เสร็จ")],
       todayTasks: [qc("")],
     }));
     expect(j.stage).toBe("qc-checklist");
-    expect(j.actions).toEqual([]);
+    expect(j.actions.map((a) => a.id)).toEqual(["doneQc", "releaseNow"]);
   });
 
   it("qc done → release-ready with the single release action", () => {
@@ -156,7 +156,9 @@ describe("deriveJourney — turnover pipeline (moveout → ready)", () => {
       todayTasks: [repair("กำลังทำ")],
     }));
     expect(j.stage).toBe("repairing");
-    expect(j.actions).toEqual([]); // no release action offered
+    // No one-tap "releaseRoom" — only close-repair, or the explicit
+    // confirm-guarded shortcut.
+    expect(j.actions.map((a) => a.id)).toEqual(["doneRepair", "releaseNow"]);
   });
 
   it("qc open AND repair open → the open repair wins (not hidden behind QC)", () => {
@@ -183,7 +185,7 @@ describe("deriveJourney — turnover pipeline (moveout → ready)", () => {
       pastTasks: [cleanBefore("ยกเลิก")],
     }));
     expect(j.stage).toBe("moveout-start");
-    expect(j.actions.map((a) => a.id)).toEqual(["createCleanBefore"]);
+    expect(j.actions.map((a) => a.id)).toEqual(["createCleanBefore", "releaseNow"]);
   });
 
   it("note suffix edits don't break marker matching (startsWith key)", () => {
@@ -204,6 +206,47 @@ describe("deriveJourney — turnover pipeline (moveout → ready)", () => {
     // someone fast-tracked) — the important part is it didn't read as
     // "await-inspect" via the wrong marker.
     expect(j.stage).not.toBe("await-inspect");
+  });
+});
+
+describe("deriveJourney — cycle scoping (stale markers from a previous turnover)", () => {
+  it("a DONE QC from last tenancy must not fast-forward a fresh moveout", () => {
+    // Previous cycle (May): full chain done. New cycle (June): fresh
+    // clean-before open. Without scoping, qc.done wins → release-ready.
+    const j = deriveJourney(mkRoom({
+      status: "moveout",
+      pastTasks: [
+        { ...cleanBefore("เสร็จ"), date: "01/05/2026" },
+        { ...inspect("เสร็จ"), date: "02/05/2026" },
+        { ...qc("เสร็จ"), date: "03/05/2026" },
+      ],
+      todayTasks: [{ ...cleanBefore(""), date: "10/06/2026" }],
+    }));
+    expect(j.stage).toBe("cleaning-before");
+  });
+
+  it("a stale OPEN marker from last tenancy must not wedge the new cycle", () => {
+    // Old inspect was never closed; new cycle's clean is done → the
+    // panel must offer create-inspect, not sit in "inspecting".
+    const j = deriveJourney(mkRoom({
+      status: "moveout",
+      pastTasks: [
+        { ...inspect(""), date: "01/04/2026" },
+        { ...cleanBefore("เสร็จ"), date: "10/06/2026" },
+      ],
+    }));
+    expect(j.stage).toBe("await-inspect");
+  });
+
+  it("markers dated the same day as the cycle anchor still count", () => {
+    const j = deriveJourney(mkRoom({
+      status: "moveout",
+      pastTasks: [
+        { ...cleanBefore("เสร็จ"), date: "10/06/2026" },
+        { ...inspect("เสร็จ"), date: "10/06/2026" },
+      ],
+    }));
+    expect(j.stage).toBe("inspect-done");
   });
 });
 

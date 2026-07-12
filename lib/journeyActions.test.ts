@@ -130,6 +130,57 @@ describe("executeJourneyAction — dup guard", () => {
     expect(retry).toMatchObject({ action: "updateRoomStatus", status: "ว่าง" });
   });
 
+  it("doneCleanBefore closes the open marker via updateTaskStatus → เสร็จ", async () => {
+    const refresh = vi.fn();
+    const room = mkRoom({
+      todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE, status: "กำลังทำ" })],
+    });
+    await executeJourneyAction("doneCleanBefore", room, { refresh });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(body).toMatchObject({
+      action: "updateTaskStatus", type: "ทำสะอาด",
+      building: "Kl", room: "101", status: "เสร็จ",
+    });
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("done* with nothing open POSTs nothing (stale panel) but still refreshes", async () => {
+    const refresh = vi.fn();
+    await executeJourneyAction("doneInspect", mkRoom(), { refresh });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("releaseNow cancels open prep, closes the moveout notice, then releases", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const refresh = vi.fn();
+    const room = mkRoom({
+      todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE })],
+      upcomingTasks: [mkTask({ type: "ย้ายออก", date: "15/06/2026" })],
+    });
+    await executeJourneyAction("releaseNow", room, { refresh });
+    const bodies = fetchMock.mock.calls.map(
+      (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)),
+    );
+    // open clean marker → ยกเลิก (skipped work, not done)
+    expect(bodies.filter((b) => b.action === "updateTaskStatus" && b.status === "ยกเลิก")).toHaveLength(1);
+    // the ย้ายออก notice → เสร็จ (the move-out factually happened)
+    expect(bodies.filter(
+      (b) => b.action === "updateTaskStatus" && b.type === "ย้ายออก" && b.status === "เสร็จ",
+    )).toHaveLength(1);
+    // finally the release itself, tenant blanked server-side
+    expect(bodies[bodies.length - 1]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
+  });
+
+  it("releaseNow aborts with no network call when the confirm is declined", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const refresh = vi.fn();
+    const room = mkRoom({ todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE })] });
+    expect(await executeJourneyAction("releaseNow", room, { refresh })).toBe("done");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("confirmMoveIn is a plain status hop — no tenant fields in the write", async () => {
     // Tenant preservation happens server-side by OMISSION (the writer
     // only touches fields present in the body); the route strips any
