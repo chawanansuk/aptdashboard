@@ -18,6 +18,7 @@
 
 import type { RoomView, SheetRow } from "@/types";
 import { isClosedStatus, isDoneStatus } from "@/lib/constants";
+import { parseThaiDate } from "@/lib/dateUtils";
 import {
   MOVEOUT_CLEAN_TYPE, MOVEOUT_CLEAN_NOTE,
   MOVEOUT_INSPECT_TYPE, MOVEOUT_INSPECT_NOTE,
@@ -60,11 +61,29 @@ export interface JourneyAction {
     | "skipRepair"        // ไม่มีซ่อม → ข้ามไป QC
     | "createCleanAfter"  // สร้างงานทำสะอาดหลังซ่อม
     | "createQcChecklist" // สร้างงาน Checklist QC
+    // Close-step actions — sales operates the app for the whole team
+    // (ทิศ B), so every waiting stage is closeable inline instead of
+    // requiring a hop to the engineer kanban:
+    | "doneCleanBefore"   // ปิดงานทำสะอาดก่อนตรวจ
+    | "doneInspect"       // ปิดงานตรวจห้อง+คืนประกัน
+    | "doneRepair"        // ปิดงานซ่อมตามผลตรวจ
+    | "doneCleanAfter"    // ปิดงานทำสะอาดหลังซ่อม
+    | "doneQc"            // ปิดงาน Checklist QC
+    | "releaseNow"        // ทางลัด: ยกเลิกงานค้าง + ปล่อยขายทันที
     | "releaseRoom";      // → ว่าง (ปล่อยขาย)
   label: string;
   /** Visual weight — primary = the expected next step. */
   variant: "primary" | "secondary";
 }
+
+/** ทางลัดปล่อยขาย — offered as a secondary escape hatch on every
+ *  turnover stage (the user asked for moveout → ว่าง in one press).
+ *  The executor confirms + cancels open prep tasks before releasing. */
+const RELEASE_NOW: JourneyAction = {
+  id: "releaseNow",
+  label: "⚡ ปล่อยขายเลย (ข้ามขั้นตอนที่เหลือ)",
+  variant: "secondary",
+};
 
 export interface JourneyState {
   stage: JourneyStage;
@@ -124,13 +143,75 @@ function openViewing(tasks: SheetRow[]): SheetRow | undefined {
 }
 
 /* ====================================================================
+ * Cycle scoping — a room turns over many times across its life, and the
+ * sheet keeps every task forever. Without scoping, a DONE QC checklist
+ * from the previous tenancy makes a freshly-moveout room jump straight
+ * to "พร้อมปล่อยขาย", and a stale OPEN clean from months ago wedges the
+ * panel in a waiting stage — both reported as "ระบบรวน / กดไม่ได้".
+ *
+ * Every cycle starts with the clean-before task (the journey button and
+ * the moveout auto-prep both file it), so the NEWEST clean-before dates
+ * the current cycle. Marker tasks dated before it belong to a previous
+ * turnover and are ignored; non-marker tasks pass through untouched.
+ * ==================================================================== */
+
+/** The five turnover marker specs the pipeline is derived from.
+ *  Exported for journeyActions' release sweep. */
+export const TURNOVER_MARKER_SPECS: ReadonlyArray<{ type: string; note: string }> = [
+  { type: MOVEOUT_CLEAN_TYPE, note: MOVEOUT_CLEAN_NOTE },
+  { type: MOVEOUT_INSPECT_TYPE, note: MOVEOUT_INSPECT_NOTE },
+  { type: TURNOVER_REPAIR_TYPE, note: TURNOVER_REPAIR_NOTE },
+  { type: AFTER_REPAIR_CLEAN_TYPE, note: AFTER_REPAIR_CLEAN_NOTE },
+  { type: QC_CHECKLIST_TYPE, note: QC_CHECKLIST_NOTE },
+];
+
+function isMarkerTask(t: SheetRow, spec: { type: string; note: string }): boolean {
+  return t.type === spec.type && (t.note || "").trim().startsWith(markerKey(spec.note));
+}
+
+/** Task date as a start-of-day timestamp; null when unparseable. */
+function taskDayTime(t: SheetRow): number | null {
+  const d = parseThaiDate(t.date);
+  if (!d) return null;
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/**
+ * All of the room's tasks with previous-cycle turnover markers removed.
+ * Used by deriveJourney AND journeyActions' dup guard — they must agree,
+ * or a stale open marker blocks the create the panel is offering.
+ */
+export function journeyScopedTasks(room: RoomView): SheetRow[] {
+  const tasks = allTasks(room);
+  // Anchor: newest clean-before (any status — even a cancelled one still
+  // dates the cycle start).
+  let anchor: number | null = null;
+  for (const t of tasks) {
+    if (!isMarkerTask(t, TURNOVER_MARKER_SPECS[0])) continue;
+    const ts = taskDayTime(t);
+    if (ts !== null && (anchor === null || ts > anchor)) anchor = ts;
+  }
+  if (anchor === null) return tasks;
+  const cutoff = anchor;
+  return tasks.filter((t) => {
+    if (!TURNOVER_MARKER_SPECS.some((s) => isMarkerTask(t, s))) return true;
+    const ts = taskDayTime(t);
+    // Unparseable dates keep the old (unscoped) behavior — safer than
+    // silently dropping a live task over a junk date cell.
+    return ts === null || ts >= cutoff;
+  });
+}
+
+/* ====================================================================
  * The state machine
  * ==================================================================== */
 
 const TURNOVER_TOTAL = 5; // clean-before → inspect → repair → clean-after → QC
 
 export function deriveJourney(room: RoomView): JourneyState {
-  const tasks = allTasks(room);
+  // Scoped: previous-cycle turnover markers removed (see journeyScopedTasks).
+  const tasks = journeyScopedTasks(room);
 
   // ---- Selling side — driven by room status directly ----
   if (room.status === "ready") {
@@ -202,8 +283,11 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "อยู่ระหว่างซ่อม",
         subtitle: qc.done
           ? "QC ผ่านแล้ว แต่ยังมีงานซ่อมค้าง — ปิดงานซ่อมก่อนปล่อยขาย"
-          : "ช่างกำลังซ่อมตามผลตรวจ — ติดตามในกระดานงานช่าง",
-        actions: [],
+          : "ซ่อมเสร็จแล้วกดปิดงานได้ที่นี่ หรือติดตามในกระดานงานช่าง",
+        actions: [
+          { id: "doneRepair", label: "✓ ซ่อมเสร็จแล้ว — ปิดงาน", variant: "primary" },
+          RELEASE_NOW,
+        ],
       };
     }
     if (qc.done) {
@@ -222,8 +306,11 @@ export function deriveJourney(room: RoomView): JourneyState {
         stage: "qc-checklist",
         step: [5, TURNOVER_TOTAL],
         title: "Checklist สภาพห้องก่อนปล่อยขาย",
-        subtitle: "ตรวจตามฟอร์ม QC 6 หมวด — ปิดงานเมื่อผ่านครบ",
-        actions: [],
+        subtitle: "ตรวจตามฟอร์ม QC 6 หมวด — ผ่านครบแล้วกดปิดงานที่นี่ได้เลย",
+        actions: [
+          { id: "doneQc", label: "✓ QC ผ่านแล้ว — ปิดงาน", variant: "primary" },
+          RELEASE_NOW,
+        ],
       };
     }
     if (cleanAfter.open) {
@@ -231,8 +318,11 @@ export function deriveJourney(room: RoomView): JourneyState {
         stage: "cleaning-after",
         step: [4, TURNOVER_TOTAL],
         title: "ทำสะอาดหลังซ่อม",
-        subtitle: "รอแม่บ้าน/ช่างปิดงานทำสะอาด",
-        actions: [],
+        subtitle: "เสร็จแล้วกดปิดงานได้ที่นี่ หรือติดตามในกระดานงานช่าง",
+        actions: [
+          { id: "doneCleanAfter", label: "✓ ทำสะอาดเสร็จแล้ว — ปิดงาน", variant: "primary" },
+          RELEASE_NOW,
+        ],
       };
     }
     if (repair.done && !cleanAfter.done) {
@@ -243,6 +333,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         subtitle: "สร้างงานทำสะอาดรอบสุดท้ายก่อน QC",
         actions: [
           { id: "createCleanAfter", label: "🧹 สร้างงานทำสะอาดหลังซ่อม", variant: "primary" },
+          RELEASE_NOW,
         ],
       };
     }
@@ -256,6 +347,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         subtitle: "สร้างงาน Checklist เพื่อให้ช่างตรวจตามฟอร์ม",
         actions: [
           { id: "createQcChecklist", label: "✅ สร้างงาน Checklist QC", variant: "primary" },
+          RELEASE_NOW,
         ],
       };
     }
@@ -268,6 +360,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         actions: [
           { id: "createRepair", label: "🔧 มีซ่อม — สร้างงานซ่อม", variant: "primary" },
           { id: "skipRepair", label: "✅ ไม่มีซ่อม — ไป QC เลย", variant: "secondary" },
+          RELEASE_NOW,
         ],
       };
     }
@@ -276,8 +369,11 @@ export function deriveJourney(room: RoomView): JourneyState {
         stage: "inspecting",
         step: [2, TURNOVER_TOTAL],
         title: "รอตรวจห้อง · คืนเงินประกัน",
-        subtitle: "ช่างตรวจสภาพห้องก่อนคืนมัดจำผู้เช่าเดิม",
-        actions: [],
+        subtitle: "ตรวจเสร็จแล้วกดปิดงานได้ที่นี่ หรือติดตามในกระดานงานช่าง",
+        actions: [
+          { id: "doneInspect", label: "✓ ตรวจห้องเสร็จแล้ว — ปิดงาน", variant: "primary" },
+          RELEASE_NOW,
+        ],
       };
     }
     if (cleanBefore.done) {
@@ -288,6 +384,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         subtitle: "สร้างงานตรวจห้องเพื่อเช็คสภาพ + คืนเงินประกัน",
         actions: [
           { id: "createInspect", label: "📋 สร้างงานตรวจห้อง + คืนประกัน", variant: "primary" },
+          RELEASE_NOW,
         ],
       };
     }
@@ -296,8 +393,11 @@ export function deriveJourney(room: RoomView): JourneyState {
         stage: "cleaning-before",
         step: [1, TURNOVER_TOTAL],
         title: "กำลังทำความสะอาดก่อนตรวจ",
-        subtitle: "รอปิดงานทำสะอาด แล้วจึงนัดตรวจห้อง",
-        actions: [],
+        subtitle: "เสร็จแล้วกดปิดงานได้ที่นี่ หรือติดตามในกระดานงานช่าง",
+        actions: [
+          { id: "doneCleanBefore", label: "✓ ทำสะอาดเสร็จแล้ว — ปิดงาน", variant: "primary" },
+          RELEASE_NOW,
+        ],
       };
     }
     if (room.status === "moveout") {
@@ -305,9 +405,10 @@ export function deriveJourney(room: RoomView): JourneyState {
         stage: "moveout-start",
         step: [1, TURNOVER_TOTAL],
         title: "แจ้งย้ายออก — เริ่มเตรียมห้อง",
-        subtitle: "ขั้นแรก: ทำความสะอาดก่อนนัดตรวจ",
+        subtitle: "ขั้นแรก: ทำความสะอาดก่อนนัดตรวจ — หรือใช้ทางลัดปล่อยขายทันที",
         actions: [
           { id: "createCleanBefore", label: "🧹 สร้างงานทำสะอาดก่อนตรวจ", variant: "primary" },
+          RELEASE_NOW,
         ],
       };
     }
