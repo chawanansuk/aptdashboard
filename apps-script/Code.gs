@@ -554,22 +554,44 @@ function findTaskRowById_(id) {
   return -1;
 }
 
-/** One-time backfill: run manually from the editor after deploying
- *  v3.21 — stamps a UUID on every existing task row that lacks one. */
-function backfillTaskIds() {
+/** Backfill core — stamps a UUID on every task row that lacks one.
+ *  Returns how many were filled. Callers handle locking/flagging. */
+function backfillTaskIdsCore_() {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
-  if (!sh) throw new Error('sheet "งาน" not found');
+  if (!sh) return 0;
   ensureTaskIdColumn_(sh);
   const lastRow = sh.getLastRow();
-  if (lastRow < 2) return;
+  if (lastRow < 2) return 0;
   const range = sh.getRange(2, TASK_COL.ID, lastRow - 1, 1);
   const vals = range.getValues();
   let filled = 0;
   for (let i = 0; i < vals.length; i++) {
     if (!norm(vals[i][0])) { vals[i][0] = Utilities.getUuid(); filled++; }
   }
-  if (filled > 0) range.setValues(vals);
-  clearTasksCache_();
+  if (filled > 0) { range.setValues(vals); clearTasksCache_(); }
+  return filled;
+}
+
+/**
+ * AUTO backfill — zero manual steps. Runs once (script-property flag)
+ * on the first task write after this version deploys; every write after
+ * that costs a single property read. Callers are already inside
+ * withWriteLock_, so no extra locking here. Rows created before the
+ * flag flips are still safe: every reader/writer falls back to the
+ * composite key when a row has no id.
+ */
+function autoBackfillTaskIds_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('TASK_ID_BACKFILL_DONE')) return;
+  backfillTaskIdsCore_();
+  props.setProperty('TASK_ID_BACKFILL_DONE', '1');
+}
+
+/** Optional manual variant (editor → Run) — same core, plus a toast.
+ *  Not required anymore; kept for ops visibility. */
+function backfillTaskIds() {
+  const filled = backfillTaskIdsCore_();
+  PropertiesService.getScriptProperties().setProperty('TASK_ID_BACKFILL_DONE', '1');
   SpreadsheetApp.getActive().toast('เติม id ให้งานเก่า ' + filled + ' แถวแล้ว ✅', 'หอพัก', 5);
 }
 
@@ -674,6 +696,7 @@ function addTask_(b) {
   if (!sh) throw new Error('sheet "งาน" not found');
   ensureTaskCostColumn_(sh); // v3.10.0
   ensureTaskIdColumn_(sh);   // v3.21
+  autoBackfillTaskIds_();    // v3.21 — one-time, then a no-op property read
 
   // Idempotency guard — server-side mirror of the client's hasOpenPrepTask
   // check. The client check can race (two staff clicking near-simultaneously,
@@ -792,6 +815,7 @@ function updateTask_(b) {
   // v3.21: id pins the EXACT row; the composite key stays as fallback
   // for pre-backfill rows / older clients. With twins sharing the key,
   // only the id can tell them apart.
+  autoBackfillTaskIds_();
   let row = findTaskRowById_(b.id);
   if (row < 0) {
     row = findTaskRow_({
@@ -823,6 +847,7 @@ function updateTask_(b) {
 function updateTaskStatus_(b) {
   // v3.21: with an id, flip ONLY that row. Composite fallback keeps the
   // old flip-every-duplicate behaviour for pre-backfill rows.
+  autoBackfillTaskIds_();
   const idRow = findTaskRowById_(b.id);
   const rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
   if (rows.length === 0) throw new Error('task not found');
@@ -839,6 +864,7 @@ function updateTaskStatus_(b) {
 
 function deleteTask_(b) {
   // v3.21: with an id, delete ONLY that row (composite fallback below).
+  autoBackfillTaskIds_();
   const idRow = findTaskRowById_(b.id);
   const rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
   if (rows.length === 0) throw new Error('task not found');
