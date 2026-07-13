@@ -4,6 +4,7 @@ import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
 import { invalidateTasksCache } from "@/lib/dashboardCache";
+import { redisDel, REDIS_TASKS_KEY } from "@/lib/redisCache";
 import type { RecurringTemplate } from "@/types";
 
 export const runtime = "nodejs";
@@ -101,7 +102,11 @@ export async function POST(req: Request) {
     // "run" also appends brand-new task rows to the งาน sheet; bust the
     // dashboard tasks slot too or the created tasks don't surface on the
     // dashboard / Today / Kanban until the 90s fresh-TTL expires.
-    if (action === "run") invalidateTasksCache();
+    if (action === "run") {
+      invalidateTasksCache();
+      // Bust the shared L2 too — "run" appended task rows in the sheet.
+      void redisDel(REDIS_TASKS_KEY);
+    }
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
