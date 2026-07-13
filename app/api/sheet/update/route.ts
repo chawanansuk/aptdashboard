@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import type { Role } from "@/auth";
 import { canPerform, type Action } from "@/lib/permissions";
 import { invalidateDashboardCache } from "@/lib/dashboardCache";
+import { redisDel, REDIS_ROOMS_KEY, REDIS_TASKS_KEY } from "@/lib/redisCache";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import {
   SheetUpdateBodySchema,
@@ -195,9 +196,12 @@ export async function POST(req: Request) {
       maxRetries: idem ? 1 : undefined,
     });
     // Successful write → invalidate function-local dashboard cache so the
-    // next /api/dashboard call refetches fresh data
+    // next /api/dashboard call refetches fresh data. Also bust the shared
+    // Redis L2 (fire-and-forget) — without it, OTHER warm instances would
+    // keep hydrating the just-outdated data from Redis until its TTL.
     if (data && data.ok !== false) {
       invalidateDashboardCache();
+      void redisDel(REDIS_ROOMS_KEY, REDIS_TASKS_KEY);
     }
     return NextResponse.json(data);
   } catch (err) {

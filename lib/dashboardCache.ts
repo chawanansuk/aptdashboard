@@ -109,8 +109,11 @@ const tasksSlot = new SwrSlot<SheetRow[]>();
 export function getRoomsCacheState(now?: number): CacheLookup<RoomRow[]> {
   return roomsSlot.get(now);
 }
-export function setRoomsCache(rooms: RoomRow[]): void {
-  roomsSlot.set(rooms);
+/** `at` (optional) backdates the entry — used when hydrating from the
+ *  shared Redis L2 so freshness reflects the ORIGIN fetch time, not the
+ *  hydration time. Omit for direct origin fetches. */
+export function setRoomsCache(rooms: RoomRow[], at?: number): void {
+  roomsSlot.set(rooms, at);
 }
 export function invalidateRoomsCache(): void {
   roomsSlot.invalidate();
@@ -129,8 +132,9 @@ export function peekEmergencyRoomsCache(now?: number): RoomRow[] | null {
 export function getTasksCacheState(now?: number): CacheLookup<SheetRow[]> {
   return tasksSlot.get(now);
 }
-export function setTasksCache(tasks: SheetRow[]): void {
-  tasksSlot.set(tasks);
+/** `at` (optional) — see setRoomsCache. */
+export function setTasksCache(tasks: SheetRow[], at?: number): void {
+  tasksSlot.set(tasks, at);
 }
 export function invalidateTasksCache(): void {
   tasksSlot.invalidate();

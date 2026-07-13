@@ -10,6 +10,10 @@ import {
 import { canViewTenant } from "@/lib/permissions";
 import type { RoomRow } from "@/types";
 import { makeEtag, timing } from "@/lib/apiTiming";
+import {
+  redisGetJson, redisSetJson, isCachedSlice,
+  REDIS_ROOMS_KEY, REDIS_SLICE_TTL_SEC, type CachedSlice,
+} from "@/lib/redisCache";
 
 /**
  * Strip tenant PII fields when the requester isn't allowed to read them.
@@ -58,6 +62,8 @@ function scheduleRevalidate(): void {
     try {
       const rooms = await fetchRooms();
       setRoomsCache(rooms);
+      // Share with every other instance (L2) — fire-and-forget.
+      void redisSetJson(REDIS_ROOMS_KEY, { at: Date.now(), rows: rooms }, REDIS_SLICE_TTL_SEC);
       console.info("[dashboard/rooms] revalidate ok", { ms: Date.now() - start });
     } catch (e) {
       console.warn("[dashboard/rooms] revalidate failed (keeping prev cache)", e);
@@ -108,7 +114,17 @@ export async function GET(req: Request) {
   const canTenant = canViewTenant(session.user.roles);
   const project = (rows: RoomRow[]): RoomRow[] => (canTenant ? rows : stripTenantPii(rows));
 
-  const c = getRoomsCacheState();
+  // L1 miss (cold start / cross-instance invalidation) → try the shared
+  // Redis L2 before the origin CSV. Seeded with the origin timestamp so
+  // the normal fresh/stale machinery applies (see tasks route).
+  let c = getRoomsCacheState();
+  if (c.state === "missing") {
+    const l2 = await redisGetJson<CachedSlice<RoomRow>>(REDIS_ROOMS_KEY);
+    if (isCachedSlice<RoomRow>(l2)) {
+      setRoomsCache(l2.rows, l2.at);
+      c = getRoomsCacheState();
+    }
+  }
 
   if (c.state === "fresh" && c.data) {
     const out = project(c.data);
@@ -148,6 +164,7 @@ export async function GET(req: Request) {
   try {
     const rooms = await fetchRooms();
     setRoomsCache(rooms);
+    void redisSetJson(REDIS_ROOMS_KEY, { at: Date.now(), rows: rooms }, REDIS_SLICE_TTL_SEC);
     const out = project(rooms);
     const fetchMs = Date.now() - fetchStart;
     const totalMs = Date.now() - handlerStart;

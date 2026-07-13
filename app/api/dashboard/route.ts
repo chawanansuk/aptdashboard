@@ -11,6 +11,31 @@ import {
 import { appsScriptCall } from "@/lib/appsScriptFetch";
 import { canViewTenant } from "@/lib/permissions";
 import type { RoomRow, SheetRow } from "@/types";
+import { setRoomsCache, setTasksCache } from "@/lib/dashboardCache";
+import {
+  redisGetJson, redisSetJson, isCachedSlice,
+  REDIS_ROOMS_KEY, REDIS_TASKS_KEY, REDIS_SLICE_TTL_SEC, type CachedSlice,
+} from "@/lib/redisCache";
+
+/** Push a successful origin fetch into the shared L2 (fire-and-forget). */
+function persistToRedis(rooms: RoomRow[], tasks: SheetRow[]): void {
+  const at = Date.now();
+  void redisSetJson(REDIS_ROOMS_KEY, { at, rows: rooms }, REDIS_SLICE_TTL_SEC);
+  void redisSetJson(REDIS_TASKS_KEY, { at, rows: tasks }, REDIS_SLICE_TTL_SEC);
+}
+
+/** On an L1 miss, hydrate both slots from the shared L2 (see the split
+ *  routes for the same pattern). Returns true when anything was seeded. */
+async function hydrateFromRedis(): Promise<boolean> {
+  const [r2, t2] = await Promise.all([
+    redisGetJson<CachedSlice<RoomRow>>(REDIS_ROOMS_KEY),
+    redisGetJson<CachedSlice<SheetRow>>(REDIS_TASKS_KEY),
+  ]);
+  let seeded = false;
+  if (isCachedSlice<RoomRow>(r2)) { setRoomsCache(r2.rows, r2.at); seeded = true; }
+  if (isCachedSlice<SheetRow>(t2)) { setTasksCache(t2.rows, t2.at); seeded = true; }
+  return seeded;
+}
 
 /** Strip tenant PII (see app/api/dashboard/rooms/route.ts for details). */
 function stripTenantPii(rows: RoomRow[]): RoomRow[] {
@@ -137,6 +162,7 @@ function scheduleRevalidate(): void {
       const out = await fetchAllUpstream();
       if (out.errors.length === 0) {
         setDashboardCache(out.rooms, out.tasks);
+        persistToRedis(out.rooms, out.tasks);
         console.info("[dashboard] revalidate ok", {
           totalMs: Date.now() - start,
           timings: out.timings,
@@ -165,7 +191,11 @@ export async function GET() {
   const canTenant = canViewTenant(session.user.roles);
   const projectRooms = (rs: RoomRow[]) => (canTenant ? rs : stripTenantPii(rs));
 
-  const cacheLookup = getDashboardCacheState();
+  let cacheLookup = getDashboardCacheState();
+  if (cacheLookup.state === "missing") {
+    // L1 miss → try the shared Redis L2 before blocking on upstream.
+    if (await hydrateFromRedis()) cacheLookup = getDashboardCacheState();
+  }
 
   // ----- fresh: return immediately, no upstream call -----
   if (cacheLookup.state === "fresh" && cacheLookup.data) {
@@ -229,6 +259,7 @@ export async function GET() {
   const fetchOut = await fetchAllUpstream();
   if (fetchOut.errors.length === 0) {
     setDashboardCache(fetchOut.rooms, fetchOut.tasks);
+    persistToRedis(fetchOut.rooms, fetchOut.tasks);
   }
   const totalMs = Date.now() - handlerStart;
   console.info("[dashboard] cache miss", {

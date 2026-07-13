@@ -11,6 +11,10 @@ import {
 import type { SheetRow } from "@/types";
 import { canViewTaskCustomer } from "@/lib/permissions";
 import { makeEtag, timing } from "@/lib/apiTiming";
+import {
+  redisGetJson, redisSetJson, isCachedSlice,
+  REDIS_TASKS_KEY, REDIS_SLICE_TTL_SEC, type CachedSlice,
+} from "@/lib/redisCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,6 +54,9 @@ function scheduleRevalidate(): void {
     try {
       const tasks = await fetchTasks();
       setTasksCache(tasks);
+      // Share with every other instance (L2). Fire-and-forget: a Redis
+      // hiccup must not fail the revalidation that already succeeded.
+      void redisSetJson(REDIS_TASKS_KEY, { at: Date.now(), rows: tasks }, REDIS_SLICE_TTL_SEC);
       console.info("[dashboard/tasks] revalidate ok", { ms: Date.now() - start });
     } catch (e) {
       console.warn("[dashboard/tasks] revalidate failed (keeping prev cache)", e);
@@ -106,8 +113,19 @@ export async function GET(req: Request) {
     canSeeCustomer ? rows : rows.map((t) => ({ ...t, customer: "", phone: "" }));
 
   // -------- Cache lookup --------
+  // L1 = this instance's memory. On an L1 miss (cold start / other
+  // instance's write invalidated us), try the shared Redis L2 before
+  // paying the slow Apps Script fetch. The entry is seeded with its
+  // ORIGIN timestamp so the normal fresh/stale machinery applies.
   const cacheStart = Date.now();
-  const c = getTasksCacheState();
+  let c = getTasksCacheState();
+  if (c.state === "missing") {
+    const l2 = await redisGetJson<CachedSlice<SheetRow>>(REDIS_TASKS_KEY);
+    if (isCachedSlice<SheetRow>(l2)) {
+      setTasksCache(l2.rows, l2.at);
+      c = getTasksCacheState();
+    }
+  }
   const cacheMs = Date.now() - cacheStart;
 
   // ---- Fresh hit ----
@@ -155,6 +173,7 @@ export async function GET(req: Request) {
 
     const parseStart = Date.now();
     setTasksCache(tasks); // cache the FULL rows; project only the response
+    void redisSetJson(REDIS_TASKS_KEY, { at: Date.now(), rows: tasks }, REDIS_SLICE_TTL_SEC);
     const out = project(tasks);
     const parseMs = Date.now() - parseStart;
 
