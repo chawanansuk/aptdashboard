@@ -210,15 +210,37 @@ async function closeMarkerTasks(
     if (posted.has(k)) continue;
     posted.add(k);
     const id = (t as SheetRow & { id?: string }).id;
-    await postSheetUpdate({
-      action: "updateTaskStatus",
-      ...(id ? { id } : {}),
-      date: t.date, type: t.type,
-      building: room.building, room: room.room,
-      status,
-    });
+    try {
+      await postSheetUpdate({
+        action: "updateTaskStatus",
+        ...(id ? { id } : {}),
+        date: t.date, type: t.type,
+        building: room.building, room: room.room,
+        status,
+      });
+    } catch (e) {
+      // "task not found" = the row is already gone server-side (deleted
+      // elsewhere / stale panel) — that IS the goal state of a close, so
+      // skip and continue instead of aborting the whole action on it.
+      // Anything else (network, permission) is a real failure — rethrow.
+      if (!isTaskNotFound(e)) throw e;
+    }
   }
   return open.length;
+}
+
+/** Apps Script's updateTaskStatus_/deleteTask_ throw literally
+ *  'task not found' when no row matches. */
+function isTaskNotFound(e: unknown): boolean {
+  return e instanceof Error && /task not found/i.test(e.message);
+}
+
+/** Honest partial-failure notice after a release whose sweep couldn't
+ *  close everything — the room IS released; leftovers are mop-up work. */
+function warnSweepLeftovers(failed: number): void {
+  toast.info(`ปล่อยขายแล้ว แต่ยกเลิกงานค้างไม่สำเร็จ ${failed} รายการ`, {
+    description: "ปิด/ยกเลิกงานที่เหลือได้จากหน้ารายการงานหรือกระดานงานช่าง",
+  });
 }
 
 /**
@@ -229,10 +251,19 @@ async function closeMarkerTasks(
  *     leaving it open keeps the room pinned in "แจ้งย้ายออก")
  * Returns how many tasks were closed.
  */
-async function sweepTurnoverTasks(room: RoomView): Promise<number> {
+async function sweepTurnoverTasks(room: RoomView): Promise<{ closed: number; failed: number }> {
   let closed = 0;
+  let failed = 0;
   for (const spec of TURNOVER_MARKER_SPECS) {
-    closed += await closeMarkerTasks(room, spec, "ยกเลิก");
+    try {
+      closed += await closeMarkerTasks(room, spec, "ยกเลิก");
+    } catch (e) {
+      // The user's intent is the RELEASE — a cancel that fails must not
+      // abort it (the panel's close buttons can mop up leftovers later).
+      // Count it so the caller can surface an honest warning.
+      console.warn("[journey] sweep: cancel failed", spec.type, e);
+      failed++;
+    }
   }
   const posted = new Set<string>();
   for (const t of journeyScopedTasks(room)) {
@@ -241,16 +272,22 @@ async function sweepTurnoverTasks(room: RoomView): Promise<number> {
     if (posted.has(k)) continue;
     posted.add(k);
     const id = (t as SheetRow & { id?: string }).id;
-    await postSheetUpdate({
-      action: "updateTaskStatus",
-      ...(id ? { id } : {}),
-      date: t.date, type: t.type,
-      building: room.building, room: room.room,
-      status: "เสร็จ",
-    });
-    closed++;
+    try {
+      await postSheetUpdate({
+        action: "updateTaskStatus",
+        ...(id ? { id } : {}),
+        date: t.date, type: t.type,
+        building: room.building, room: room.room,
+        status: "เสร็จ",
+      });
+      closed++;
+    } catch (e) {
+      if (isTaskNotFound(e)) continue; // already gone — goal state
+      console.warn("[journey] sweep: notice close failed", e);
+      failed++;
+    }
   }
-  return closed;
+  return { closed, failed };
 }
 
 export type JourneyExecResult = "done" | "delegate";
@@ -277,13 +314,15 @@ export async function executeJourneyAction(
       // Same sales→engineer bridge as the save flow: file the prep clean.
       void autoCreateMoveoutPrep(deps.tasks ?? [], room.building, room.room, deps.refresh);
       return "done";
-    case "releaseRoom":
+    case "releaseRoom": {
       // Sweep first — normally nothing is open at release-ready, but a
       // stale marker left behind would flip the freshly-ว่าง room back
       // to "qc" via the pending-clean status override.
-      await sweepTurnoverTasks(room);
+      const sweep = await sweepTurnoverTasks(room);
       await quickSetRoomStatus(room, "ว่าง", deps, { clearTenant: true });
+      if (sweep.failed > 0) warnSweepLeftovers(sweep.failed);
       return "done";
+    }
     case "releaseNow": {
       // ทางลัด: moveout → ว่าง in one press, skipping the remaining
       // pipeline. Destructive-ish (cancels open prep work), so confirm.
@@ -298,8 +337,9 @@ export async function executeJourneyAction(
           "ยืนยันหรือไม่?",
         );
       if (!ok) return "done";
-      await sweepTurnoverTasks(room);
+      const sweep = await sweepTurnoverTasks(room);
       await quickSetRoomStatus(room, "ว่าง", deps, { clearTenant: true });
+      if (sweep.failed > 0) warnSweepLeftovers(sweep.failed);
       return "done";
     }
     default: {
