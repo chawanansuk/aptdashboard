@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { EXPECTED_BACKEND_VERSION, isBackendOutdated } from "@/lib/backendVersion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,11 @@ export const dynamic = "force-dynamic";
 interface HealthOK {
   ok: true;
   version: string;
+  /** The version this frontend was built to talk to. */
+  expectedVersion: string;
+  /** True when the deployed backend is older than expectedVersion — the
+   *  operator pasted new Code.gs but hasn't run "New version" yet. */
+  outdated: boolean;
   message: string;
   latencyMs: number;
 }
@@ -108,9 +114,12 @@ export async function GET(): Promise<NextResponse<HealthOK | HealthFail | { erro
     return NextResponse.json(body);
   }
 
+  const version = parsed.version || "unknown";
   const body: HealthOK = {
     ok: true,
-    version: parsed.version || "unknown",
+    version,
+    expectedVersion: EXPECTED_BACKEND_VERSION,
+    outdated: isBackendOutdated(version),
     message: parsed.message || "",
     latencyMs,
   };

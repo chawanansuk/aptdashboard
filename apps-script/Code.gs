@@ -479,8 +479,18 @@ function doPost(e) {
   }
 }
 
+/**
+ * Bump BACKEND_VERSION on every deploy that changes behaviour. The
+ * Health banner (app/api/sheet/health) surfaces it, so a mismatch
+ * against the code you just pasted is the ONLY reliable signal that a
+ * "Manage deployments → New version" actually took effect. It sat at
+ * '3.10.0' for eleven feature versions, which is exactly why past
+ * redeploys were impossible to verify from the app.
+ */
+var BACKEND_VERSION = '3.21.0';
+
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: '3.10.0' });
+  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
 }
 
 /* ========== TASK READ ========== */

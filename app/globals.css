@@ -3853,6 +3853,18 @@ html.dark .ac-health-banner {
   color: #FDE68A;
   border-bottom-color: #B45309;
 }
+/* Outdated-backend notice — calmer blue than the amber error state:
+ * the system works, it just needs a redeploy to be fully current. */
+.ac-health-banner-warn {
+  background: #DBEAFE;
+  color: #1E3A8A;
+  border-bottom-color: #93C5FD;
+}
+html.dark .ac-health-banner-warn {
+  background: #1E3A8A;
+  color: #DBEAFE;
+  border-bottom-color: #3B82F6;
+}
 .ac-health-banner-main {
   display: flex;
   align-items: center;
