@@ -145,6 +145,33 @@ describe("executeJourneyAction — dup guard", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("doneCleanBefore closes EVERY id-bearing twin (one POST per id)", async () => {
+    // v3.21: an id pins ONE row, so two same-day twins with distinct ids
+    // need two POSTs — collapsing by date|type (the pre-id behavior)
+    // would close only one twin and wedge the journey panel.
+    const refresh = vi.fn();
+    const twinA = { ...mkTask({ note: MOVEOUT_CLEAN_NOTE }), id: "uuid-a" };
+    const twinB = { ...mkTask({ note: MOVEOUT_CLEAN_NOTE }), id: "uuid-b" };
+    const room = mkRoom({ todayTasks: [twinA, twinB] });
+    await executeJourneyAction("doneCleanBefore", room, { refresh });
+    const bodies = fetchMock.mock.calls.map(
+      (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)),
+    );
+    expect(bodies.filter((b) => b.action === "updateTaskStatus")).toHaveLength(2);
+    expect(bodies.map((b) => b.id).sort()).toEqual(["uuid-a", "uuid-b"]);
+  });
+
+  it("done* patches each closed task optimistically when the host provides it", async () => {
+    const refresh = vi.fn();
+    const optimisticUpdateTask = vi.fn();
+    const room = mkRoom({ todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE })] });
+    await executeJourneyAction("doneCleanBefore", room, { refresh, optimisticUpdateTask });
+    expect(optimisticUpdateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ building: "Kl", room: "101", type: "ทำสะอาด" }),
+      "เสร็จ",
+    );
+  });
+
   it("done* with nothing open POSTs nothing (stale panel) but still refreshes", async () => {
     const refresh = vi.fn();
     await executeJourneyAction("doneInspect", mkRoom(), { refresh });

@@ -773,11 +773,26 @@ function dedupeTasksSheet_() {
   const lastRow = sh.getLastRow();
   if (lastRow < 3) return { scanned: 0, deleted: 0, mergedKeys: 0 };
 
-  const data = sh.getRange(2, 1, lastRow - 1, 8).getValues();
+  // Read through the id column (v3.21) when present — the survivor
+  // choice must prefer the id-bearing twin, or dedupe would delete the
+  // row a client's stored UUID points at (findTaskRowById_ then misses
+  // and silently falls back to the ambiguous composite key, and the
+  // id-less survivor stays id-less because the one-time auto-backfill
+  // flag is already set).
+  const width = Math.min(sh.getLastColumn(), TASK_COL.ID);
+  const data = sh.getRange(2, 1, lastRow - 1, width).getValues();
   const info = function (r) {
     return String(r[4] || '').length + String(r[5] || '').length + String(r[6] || '').length;
   };
-  const groups = {}; // key → { keepRowAbs, keepInfo, dupRowsAbs[] }
+  const hasId = function (r) {
+    return width >= TASK_COL.ID && !!norm(r[TASK_COL.ID - 1]);
+  };
+  // Rank: id beats no-id; within the same id-ness, richer info wins.
+  const beats = function (a, b) { // does row a beat row b?
+    if (hasId(a) !== hasId(b)) return hasId(a);
+    return info(a) > info(b);
+  };
+  const groups = {}; // key → { keepRowAbs, keepRow, dupRowsAbs[] }
   for (let i = 0; i < data.length; i++) {
     const r = data[i];
     const rowAbs = i + 2; // sheet row (1-based, header at 1)
@@ -785,13 +800,12 @@ function dedupeTasksSheet_() {
     if (!key || key === '|||') continue;
     const g = groups[key];
     if (!g) {
-      groups[key] = { keepRowAbs: rowAbs, keepInfo: info(r), dupRowsAbs: [] };
+      groups[key] = { keepRowAbs: rowAbs, keepRow: r, dupRowsAbs: [] };
     } else {
-      const rinfo = info(r);
-      if (rinfo > g.keepInfo) {
+      if (beats(r, g.keepRow)) {
         g.dupRowsAbs.push(g.keepRowAbs);
         g.keepRowAbs = rowAbs;
-        g.keepInfo = rinfo;
+        g.keepRow = r;
       } else {
         g.dupRowsAbs.push(rowAbs);
       }

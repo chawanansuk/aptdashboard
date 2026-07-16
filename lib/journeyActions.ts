@@ -84,6 +84,17 @@ export interface JourneyDeps {
   ) => void;
   /** Live tasks list — dup guard for the moveout auto-prep bridge. */
   tasks?: SheetRow[];
+  /**
+   * Optimistic local task-status patch (useDashboardData). Without it a
+   * refresh() that lands on a warm instance with still-fresh cache
+   * refetches the just-closed task as OPEN and the panel bounces back to
+   * the pre-close stage; with it the close sticks locally until the
+   * server agrees. Optional — hosts without it just rely on refresh.
+   */
+  optimisticUpdateTask?: (
+    task: Pick<SheetRow, "date" | "building" | "room" | "type">,
+    status: string,
+  ) => void;
 }
 
 export async function quickSetRoomStatus(
@@ -196,6 +207,7 @@ async function closeMarkerTasks(
   room: RoomView,
   spec: { type: string; note: string },
   status: string,
+  deps?: JourneyDeps,
 ): Promise<number> {
   const key = markerKey(spec.note);
   const open = journeyScopedTasks(room).filter(
@@ -206,10 +218,14 @@ async function closeMarkerTasks(
   );
   const posted = new Set<string>();
   for (const t of open) {
-    const k = `${t.date}|${t.type}`;
+    const id = (t as SheetRow & { id?: string }).id;
+    // Dedup key: with an id, v3.21 flips ONLY that row — so twin rows
+    // that share the composite key must each get their own POST. The
+    // date|type collapse applies only to id-less rows, where the
+    // backend's composite match flips every twin in one call anyway.
+    const k = id ? `id:${id}` : `${t.date}|${t.type}`;
     if (posted.has(k)) continue;
     posted.add(k);
-    const id = (t as SheetRow & { id?: string }).id;
     try {
       await postSheetUpdate({
         action: "updateTaskStatus",
@@ -218,12 +234,14 @@ async function closeMarkerTasks(
         building: room.building, room: room.room,
         status,
       });
+      deps?.optimisticUpdateTask?.(t, status);
     } catch (e) {
       // "task not found" = the row is already gone server-side (deleted
       // elsewhere / stale panel) — that IS the goal state of a close, so
       // skip and continue instead of aborting the whole action on it.
       // Anything else (network, permission) is a real failure — rethrow.
       if (!isTaskNotFound(e)) throw e;
+      deps?.optimisticUpdateTask?.(t, status);
     }
   }
   return open.length;
@@ -251,12 +269,15 @@ function warnSweepLeftovers(failed: number): void {
  *     leaving it open keeps the room pinned in "แจ้งย้ายออก")
  * Returns how many tasks were closed.
  */
-async function sweepTurnoverTasks(room: RoomView): Promise<{ closed: number; failed: number }> {
+async function sweepTurnoverTasks(
+  room: RoomView,
+  deps?: JourneyDeps,
+): Promise<{ closed: number; failed: number }> {
   let closed = 0;
   let failed = 0;
   for (const spec of TURNOVER_MARKER_SPECS) {
     try {
-      closed += await closeMarkerTasks(room, spec, "ยกเลิก");
+      closed += await closeMarkerTasks(room, spec, "ยกเลิก", deps);
     } catch (e) {
       // The user's intent is the RELEASE — a cancel that fails must not
       // abort it (the panel's close buttons can mop up leftovers later).
@@ -268,10 +289,12 @@ async function sweepTurnoverTasks(room: RoomView): Promise<{ closed: number; fai
   const posted = new Set<string>();
   for (const t of journeyScopedTasks(room)) {
     if (t.type !== "ย้ายออก" || isClosedStatus(t.status)) continue;
-    const k = `${t.date}|${t.type}`;
+    const id = (t as SheetRow & { id?: string }).id;
+    // Same id-aware dedup as closeMarkerTasks: an id pins one row, so
+    // twins each need their own POST; id-less rows collapse by key.
+    const k = id ? `id:${id}` : `${t.date}|${t.type}`;
     if (posted.has(k)) continue;
     posted.add(k);
-    const id = (t as SheetRow & { id?: string }).id;
     try {
       await postSheetUpdate({
         action: "updateTaskStatus",
@@ -280,9 +303,13 @@ async function sweepTurnoverTasks(room: RoomView): Promise<{ closed: number; fai
         building: room.building, room: room.room,
         status: "เสร็จ",
       });
+      deps?.optimisticUpdateTask?.(t, "เสร็จ");
       closed++;
     } catch (e) {
-      if (isTaskNotFound(e)) continue; // already gone — goal state
+      if (isTaskNotFound(e)) {
+        deps?.optimisticUpdateTask?.(t, "เสร็จ");
+        continue; // already gone — goal state
+      }
       console.warn("[journey] sweep: notice close failed", e);
       failed++;
     }
@@ -318,7 +345,7 @@ export async function executeJourneyAction(
       // Sweep first — normally nothing is open at release-ready, but a
       // stale marker left behind would flip the freshly-ว่าง room back
       // to "qc" via the pending-clean status override.
-      const sweep = await sweepTurnoverTasks(room);
+      const sweep = await sweepTurnoverTasks(room, deps);
       await quickSetRoomStatus(room, "ว่าง", deps, { clearTenant: true });
       if (sweep.failed > 0) warnSweepLeftovers(sweep.failed);
       return "done";
@@ -337,7 +364,7 @@ export async function executeJourneyAction(
           "ยืนยันหรือไม่?",
         );
       if (!ok) return "done";
-      const sweep = await sweepTurnoverTasks(room);
+      const sweep = await sweepTurnoverTasks(room, deps);
       await quickSetRoomStatus(room, "ว่าง", deps, { clearTenant: true });
       if (sweep.failed > 0) warnSweepLeftovers(sweep.failed);
       return "done";
@@ -346,7 +373,7 @@ export async function executeJourneyAction(
       // ---- "ปิดงาน" buttons: mark this step's open task(s) done ----
       const doneSpec = journeyDoneSpec(id);
       if (doneSpec) {
-        const n = await closeMarkerTasks(room, doneSpec, "เสร็จ");
+        const n = await closeMarkerTasks(room, doneSpec, "เสร็จ", deps);
         if (n === 0) {
           // Stale panel (task already closed elsewhere) — refresh fixes it.
           toast.info(`ไม่พบงาน${doneSpec.label}ที่ค้างอยู่ — รีเฟรชข้อมูลให้แล้ว`);

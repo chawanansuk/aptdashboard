@@ -274,15 +274,22 @@ export function mergeRoomsAndTasks(
     let status: RoomStatus = normalizeRoomStatus(baseRaw);
 
     // override by upcoming tasks
-    // ย้ายออก checks ALL open notices, not just upcoming ones: the
-    // turnover pipeline runs for days after the move-out date, and with
-    // the upcoming-only check the room snapped back to "มีผู้เช่า" the
-    // morning after — mid-pipeline, journey panel gone ("ระบบรวน").
-    // An open notice keeps the room in moveout until it's closed
-    // (release does that automatically) or the sheet status changes.
-    const hasMoveOut = all.some(
-      (t) => t.type === "ย้ายออก" && !isClosedStatus(t.status),
-    );
+    // ย้ายออก checks open notices dated up to 30 days back, not just
+    // upcoming ones: the turnover pipeline runs for days after the
+    // move-out date, and with the upcoming-only check the room snapped
+    // back to "มีผู้เช่า" the morning after — mid-pipeline, journey
+    // panel gone ("ระบบรวน"). Release closes the notice automatically.
+    // The 30-day floor is the escape hatch for ABANDONED notices
+    // (tenant renewed but nobody cancelled the task): without it a
+    // forgotten open notice pins the room in "แจ้งย้ายออก" forever.
+    // Past the window the room reverts to occupied and the stale task
+    // still surfaces in the overdue list for cleanup.
+    const moveoutFloor = today.getTime() - 30 * 24 * 60 * 60 * 1000;
+    const hasMoveOut = all.some((t) => {
+      if (t.type !== "ย้ายออก" || isClosedStatus(t.status)) return false;
+      const d = parseDateDMY(t.date);
+      return d ? startOfDay(d).getTime() >= moveoutFloor : false;
+    });
     const hasView = upcomingTasks.some((t) => t.type === "ชมห้อง");
     const hasMoveIn = upcomingTasks.some((t) => t.type === "ย้ายเข้า");
     const hasCleanPending = upcomingTasks.some(

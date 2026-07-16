@@ -10140,3 +10140,13 @@ html.dark .ac-chip.is-active {
 .ac-legend { animation: ac-view-in .28s var(--ease) 40ms backwards; }
 .ac-fs,
 .ac-tasks { animation: ac-view-in .28s var(--ease) 70ms backwards; }
+/* Containers with position:sticky DESCENDANTS must not animate
+ * transform — a transformed ancestor becomes their containing block and
+ * un-sticks them while the animation runs (mobile .ac-tasks-head,
+ * kanban column headers). Same timing, opacity only. */
+@keyframes ac-view-in-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ac-tasks,
+.ac-kanban { animation-name: ac-view-in-fade; }

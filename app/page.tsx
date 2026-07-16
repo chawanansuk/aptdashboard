@@ -1365,6 +1365,7 @@ export default function Home() {
           onNavigate={setSelectedRoom}
           optimisticUpdateRoom={optimisticUpdateRoom}
           refresh={refresh}
+          optimisticUpdateTask={optimisticUpdateTask}
           onAddTaskHere={openAddTaskForRoom}
           onMoveoutInspect={openMoveoutInspection}
           onMoveoutClean={openMoveoutCleaning}
