@@ -20,3 +20,4 @@ tsconfig.tsbuildinfo
 /blob-report/
 /playwright/.cache/
 .vercel
+e2e/.ui-review/
