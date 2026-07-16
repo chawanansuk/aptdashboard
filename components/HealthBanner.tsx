@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
 type Health =
-  | { ok: true; version: string; message: string; latencyMs: number }
+  | { ok: true; version: string; expectedVersion: string; outdated: boolean; message: string; latencyMs: number }
   | { ok: false; error: string; message: string; statusCode?: number; responsePreview?: string; latencyMs?: number };
 
 /**
@@ -40,7 +40,32 @@ export default function HealthBanner() {
     return () => { cancelled = true; };
   }, [authStatus]);
 
-  if (!health || health.ok || dismissed) return null;
+  if (!health || dismissed) return null;
+
+  // Backend reachable but running OLDER code than this frontend expects —
+  // the operator pasted new Code.gs but hasn't run "New version" yet.
+  // A distinct, actionable notice (not the red error styling) so the
+  // "did my redeploy take?" question is answered on-screen.
+  if (health.ok) {
+    if (!health.outdated) return null;
+    return (
+      <div className="ac-health-banner ac-health-banner-warn" role="status">
+        <div className="ac-health-banner-main">
+          <strong>⬆ Apps Script ยังเป็นเวอร์ชันเก่า</strong>
+          <span className="ac-health-banner-msg">
+            backend ที่รันอยู่คือ v{health.version} แต่โค้ดล่าสุดคือ v{health.expectedVersion} —
+            วางโค้ดใหม่แล้ว Deploy → Manage deployments → ✏️ → New version (URL เดิม ไม่เปลี่ยน)
+          </span>
+          <button
+            type="button"
+            className="ac-health-banner-close"
+            onClick={() => setDismissed(true)}
+            aria-label="ปิด"
+          >✕</button>
+        </div>
+      </div>
+    );
+  }
 
   const errorLabel: Record<string, string> = {
     missing_env: "Vercel env หาย",
