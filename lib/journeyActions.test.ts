@@ -145,6 +145,33 @@ describe("executeJourneyAction — dup guard", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("doneCleanBefore closes EVERY id-bearing twin (one POST per id)", async () => {
+    // v3.21: an id pins ONE row, so two same-day twins with distinct ids
+    // need two POSTs — collapsing by date|type (the pre-id behavior)
+    // would close only one twin and wedge the journey panel.
+    const refresh = vi.fn();
+    const twinA = { ...mkTask({ note: MOVEOUT_CLEAN_NOTE }), id: "uuid-a" };
+    const twinB = { ...mkTask({ note: MOVEOUT_CLEAN_NOTE }), id: "uuid-b" };
+    const room = mkRoom({ todayTasks: [twinA, twinB] });
+    await executeJourneyAction("doneCleanBefore", room, { refresh });
+    const bodies = fetchMock.mock.calls.map(
+      (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)),
+    );
+    expect(bodies.filter((b) => b.action === "updateTaskStatus")).toHaveLength(2);
+    expect(bodies.map((b) => b.id).sort()).toEqual(["uuid-a", "uuid-b"]);
+  });
+
+  it("done* patches each closed task optimistically when the host provides it", async () => {
+    const refresh = vi.fn();
+    const optimisticUpdateTask = vi.fn();
+    const room = mkRoom({ todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE })] });
+    await executeJourneyAction("doneCleanBefore", room, { refresh, optimisticUpdateTask });
+    expect(optimisticUpdateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ building: "Kl", room: "101", type: "ทำสะอาด" }),
+      "เสร็จ",
+    );
+  });
+
   it("done* with nothing open POSTs nothing (stale panel) but still refreshes", async () => {
     const refresh = vi.fn();
     await executeJourneyAction("doneInspect", mkRoom(), { refresh });
@@ -171,6 +198,46 @@ describe("executeJourneyAction — dup guard", () => {
     )).toHaveLength(1);
     // finally the release itself, tenant blanked server-side
     expect(bodies[bodies.length - 1]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
+  });
+
+  it("releaseNow still releases when a stale marker is already gone server-side", async () => {
+    // The sweep hits 'task not found' (someone deleted the task; stale
+    // panel). That IS the goal state of a cancel — the release must
+    // proceed instead of aborting mid-sweep.
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => ({ ok: false, error: "task not found" }),
+    } as Response); // cancel of the clean marker → row already gone
+    const refresh = vi.fn();
+    const room = mkRoom({ todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE })] });
+    await executeJourneyAction("releaseNow", room, { refresh });
+    const bodies = fetchMock.mock.calls.map(
+      (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)),
+    );
+    expect(bodies[bodies.length - 1]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
+  });
+
+  it("releaseNow still releases when a cancel fails for a REAL reason (counted, warned)", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      json: async () => ({ ok: false, error: "quota exceeded" }),
+    } as Response); // cancel fails hard — sweep records it and moves on
+    const refresh = vi.fn();
+    const room = mkRoom({ todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE })] });
+    await executeJourneyAction("releaseNow", room, { refresh });
+    const bodies = fetchMock.mock.calls.map(
+      (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)),
+    );
+    // The user's intent (release) still happened…
+    expect(bodies[bodies.length - 1]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
+    // …and the partial failure is surfaced honestly.
+    const { toast } = await import("@/lib/toast");
+    expect(toast.info).toHaveBeenCalledWith(
+      expect.stringContaining("ไม่สำเร็จ 1 รายการ"),
+      expect.anything(),
+    );
   });
 
   it("releaseNow aborts with no network call when the confirm is declined", async () => {

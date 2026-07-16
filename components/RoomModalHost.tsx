@@ -58,6 +58,12 @@ interface Props {
   ) => void;
   /** Refetch after writes. */
   refresh: () => void;
+  /** Optimistic local task-status patch — journey closes stick locally
+   *  instead of bouncing back open when a lagging cache refetches. */
+  optimisticUpdateTask?: (
+    task: Pick<SheetRow, "date" | "building" | "room" | "type">,
+    status: string,
+  ) => void;
   /** Workflow buttons — wired to the AddTask modal pre-fill at the page. */
   onAddTaskHere: (building: string, room: string) => void;
   onMoveoutInspect: (building: string, room: string) => void;
@@ -71,7 +77,7 @@ interface Props {
 
 export default function RoomModalHost({
   room, rooms, visibleRooms, tasks, defaultTab,
-  onClose, onNavigate, optimisticUpdateRoom, refresh,
+  onClose, onNavigate, optimisticUpdateRoom, refresh, optimisticUpdateTask,
   onAddTaskHere, onMoveoutInspect, onMoveoutClean, onMoveinClean, onMoveinSchedule,
   onConfirmBooking, bookmarks,
 }: Props) {
@@ -305,6 +311,7 @@ export default function RoomModalHost({
       const result = await executeJourneyAction(id, room, {
         refresh,
         optimisticUpdateRoom,
+        optimisticUpdateTask,
         tasks,
       });
       if (result === "delegate") {
