@@ -74,7 +74,11 @@ const ALLOWED = parseAllowed(process.env.ALLOWED_USERS || "");
  * Roles are then derived from that allowlist exactly like a real login.
  */
 const E2E_ENABLED =
-  process.env.E2E_TEST_MODE === "1" && process.env.VERCEL_ENV !== "production";
+  // NEVER on Vercel — previously only production was excluded, which
+  // left preview/branch deployments one env-var away from a
+  // password-less login as any allowlisted email. E2E runs locally/CI
+  // where VERCEL is unset.
+  process.env.E2E_TEST_MODE === "1" && !process.env.VERCEL;
 
 const providers: NextAuthConfig["providers"] = [Google];
 if (E2E_ENABLED) {

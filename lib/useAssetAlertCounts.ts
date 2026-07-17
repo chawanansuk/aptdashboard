@@ -85,7 +85,11 @@ export function useAssetAlertCounts(enabled: boolean): AssetAlertCounts {
     // it first or cachedFetchJson would hand back the pre-write copy.
     const offBus = subscribeBus((evt) => {
       if (evt.kind !== "data-changed") return;
-      if (evt.source !== "equipment") return;
+      // Any data change refreshes the badges — no writer actually
+      // publishes source:"equipment" (the old filter made this branch
+      // dead code), and task writes DO move stock anyway (quick-repair
+      // files requisitions that decrement parts). Two small cached
+      // fetches per cross-tab write is cheap; correctness first.
       bustCachedFetch(PARTS_URL);
       bustCachedFetch(PLAN_URL);
       setTick((t) => t + 1);

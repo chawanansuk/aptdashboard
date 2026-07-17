@@ -214,11 +214,47 @@ export function applyOptimisticTaskStatus(
   });
 }
 
+/** Element-wise identity compare — cheap because task-row objects keep
+ *  their identity across renders unless that row actually changed. */
+function sameTaskList(a: SheetRow[], b: SheetRow[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/** Is the freshly-built view equivalent to the previous one? Used to
+ *  RETURN THE PREVIOUS OBJECT so React.memo'd room cards skip
+ *  re-rendering the ~296 rooms an optimistic single-room write didn't
+ *  touch. Scalars + bucket contents; buckets by element identity. */
+function sameRoomView(a: RoomView, b: RoomView): boolean {
+  return (
+    a.status === b.status &&
+    a.rawStatus === b.rawStatus &&
+    a.tenant === b.tenant &&
+    a.phone === b.phone &&
+    a.contractEnd === b.contractEnd &&
+    a.price === b.price &&
+    a.floor === b.floor &&
+    a.images === b.images &&
+    a.today === b.today &&
+    a.needsCleaning === b.needsCleaning &&
+    sameTaskList(a.todayTasks, b.todayTasks) &&
+    sameTaskList(a.upcomingTasks, b.upcomingTasks) &&
+    sameTaskList(a.pastTasks, b.pastTasks)
+  );
+}
+
 export function mergeRoomsAndTasks(
   rooms: RoomRow[],
-  tasks: SheetRow[]
+  tasks: SheetRow[],
+  /** Previous merge result — pass to preserve object identity for
+   *  unchanged rooms (perf r7). Omit in tests for pure behavior. */
+  prev?: RoomView[],
 ): RoomView[] {
   const today = startOfDay(new Date());
+  const prevByKey = prev && prev.length
+    ? new Map(prev.map((v) => [roomKey(v.building, v.room), v]))
+    : null;
 
   // index tasks by building+room
   const tasksByRoom = new Map<string, SheetRow[]>();
@@ -228,35 +264,40 @@ export function mergeRoomsAndTasks(
     tasksByRoom.get(k)!.push(t);
   }
 
+  // Parse every task's date ONCE (perf r7) — the buckets + sort below
+  // used to call the regex parser up to 6× per task per room; with the
+  // task list in the hundreds this dominated the merge cost.
+  const dayTime = new Map<SheetRow, number | null>();
+  for (const t of tasks) {
+    const d = parseDateDMY(t.date);
+    dayTime.set(t, d ? startOfDay(d).getTime() : null);
+  }
+  const timeOf = (t: SheetRow) => dayTime.get(t) ?? null;
+
   return rooms.map<RoomView>((r) => {
     const k = roomKey(r.building, r.room);
     const all = tasksByRoom.get(k) || [];
 
     // r.today flag: task dated today AND not closed (done OR cancelled).
-    // Parse the date (parseDateDMY handles both dd/MM/yyyy and the ISO
-    // yyyy-MM-dd that Apps Script emits for Date cells) rather than a raw
-    // string match — a literal `t.date === todayKey` missed ISO-dated tasks,
-    // so their red "งานวันนี้" badge never showed.
+    // Parse-based (parseDateDMY handles both dd/MM/yyyy and the ISO
+    // yyyy-MM-dd that Apps Script emits for Date cells) — a literal
+    // `t.date === todayKey` missed ISO-dated tasks, so their red
+    // "งานวันนี้" badge never showed.
     const todayTasks = all.filter((t) => {
       if (isClosedStatus(t.status)) return false;
-      const d = parseDateDMY(t.date);
-      return d ? startOfDay(d).getTime() === today.getTime() : false;
+      const ts = timeOf(t);
+      return ts !== null && ts === today.getTime();
     });
     const upcomingTasks = all.filter((t) => {
       if (isClosedStatus(t.status)) return false;
-      const d = parseDateDMY(t.date);
-      return d && startOfDay(d).getTime() >= today.getTime();
+      const ts = timeOf(t);
+      return ts !== null && ts >= today.getTime();
     });
     const pastTasks = all.filter((t) => {
       if (isClosedStatus(t.status)) return true;
-      const d = parseDateDMY(t.date);
-      return d ? startOfDay(d).getTime() < today.getTime() : false;
-    }).sort((a, b) => {
-      // newest first by parsed date, fallback to string compare
-      const da = parseDateDMY(a.date)?.getTime() ?? 0;
-      const db = parseDateDMY(b.date)?.getTime() ?? 0;
-      return db - da;
-    });
+      const ts = timeOf(t);
+      return ts !== null && ts < today.getTime();
+    }).sort((a, b) => (timeOf(b) ?? 0) - (timeOf(a) ?? 0)); // newest first
 
     // base status from rooms sheet — normalize through the canonical
     // alias map (lib/roomStatus.ts). Unknown values fall back to
@@ -287,8 +328,8 @@ export function mergeRoomsAndTasks(
     const moveoutFloor = today.getTime() - 30 * 24 * 60 * 60 * 1000;
     const hasMoveOut = all.some((t) => {
       if (t.type !== "ย้ายออก" || isClosedStatus(t.status)) return false;
-      const d = parseDateDMY(t.date);
-      return d ? startOfDay(d).getTime() >= moveoutFloor : false;
+      const ts = timeOf(t);
+      return ts !== null && ts >= moveoutFloor;
     });
     const hasView = upcomingTasks.some((t) => t.type === "ชมห้อง");
     const hasMoveIn = upcomingTasks.some((t) => t.type === "ย้ายเข้า");
@@ -308,7 +349,7 @@ export function mergeRoomsAndTasks(
     // clean isn't forgotten. Redundant when the headline is already qc.
     const needsCleaning = hasCleanPending && status !== "qc";
 
-    return {
+    const view: RoomView = {
       building: r.building,
       room: r.room,
       floor: r.floor,
@@ -325,6 +366,11 @@ export function mergeRoomsAndTasks(
       upcomingTasks,
       pastTasks,
     };
+    if (prevByKey) {
+      const old = prevByKey.get(k);
+      if (old && sameRoomView(old, view)) return old;
+    }
+    return view;
   });
 }
 
@@ -603,7 +649,14 @@ export function useDashboardData(): DashboardState {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick]);
 
-  const merged = useMemo(() => mergeRoomsAndTasks(rooms, tasks), [rooms, tasks]);
+  // prev ref → unchanged rooms keep object identity across merges, so
+  // the memo'd RoomCard skips them (perf r7).
+  const prevMergedRef = useRef<RoomView[]>([]);
+  const merged = useMemo(() => {
+    const m = mergeRoomsAndTasks(rooms, tasks, prevMergedRef.current);
+    prevMergedRef.current = m;
+    return m;
+  }, [rooms, tasks]);
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 

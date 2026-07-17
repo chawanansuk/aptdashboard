@@ -405,6 +405,7 @@ function doPost(e) {
     switch (body.action) {
       // ----- reads (no lock) -----
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
+      case 'getRoomTasks':     return ok_({ result: getRoomTasks_(body) }); // v3.22 — full per-room history
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
       case 'getRoomEquipment': return ok_({ result: { rows: getRoomEquipment_(body.building, body.room) } });
       case 'getAllEquipment':  return ok_({ result: { rows: getAllEquipmentCached_() } });
@@ -487,13 +488,56 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.21.0';
+var BACKEND_VERSION = '3.22.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
 }
 
 /* ========== TASK READ ========== */
+/** How far back the dashboard task feed reaches (days). CLOSED tasks
+ *  older than this are omitted from getTasks_ — the sheet grows
+ *  forever, and without a window the payload (and every cache layer,
+ *  and the client merge loop) grows with it. OPEN tasks are always
+ *  returned regardless of age (an unfinished job must never vanish).
+ *  Full per-room history stays available via getRoomTasks_. */
+var TASK_FEED_WINDOW_DAYS = 120;
+
+/** Start-of-day timestamp for a task date cell (Date object, dd/MM/yyyy
+ *  text, or yyyy-MM-dd text). null when unparseable. */
+function taskDayTime_(v) {
+  if (v instanceof Date) {
+    return new Date(v.getFullYear(), v.getMonth(), v.getDate()).getTime();
+  }
+  const s = norm(v);
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]).getTime();
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+  return null;
+}
+
+/** Map one raw sheet row to the API task shape. */
+function taskRowToObj_(r, cols) {
+  const costRaw = cols >= 11 ? r[10] : '';
+  const idRaw = cols >= 12 ? norm(r[11]) : '';
+  const costNum = parseFloat(costRaw);
+  return {
+    date:      fmtDate_(r[0]),
+    type:      norm(r[1]),
+    building:  norm(r[2]),
+    room:      norm(r[3]),
+    customer:  norm(r[4]),
+    phone:     norm(r[5]),
+    note:      norm(r[6]),
+    status:    norm(r[7]),
+    creator:   norm(r[8]),
+    createdAt: norm(r[9]),
+    cost:      isFinite(costNum) && costNum > 0 ? costNum : 0,
+    id:        idRaw, // v3.21 — '' for rows predating the backfill
+  };
+}
+
 function getTasks_() {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   if (!sh) return [];
@@ -504,27 +548,51 @@ function getTasks_() {
   const lastCol = Math.max(sh.getLastColumn(), 10);
   const cols = Math.min(lastCol, 12); // v3.21: + id column
   const values = sh.getRange(2, 1, lastRow - 1, cols).getValues();
-  return values
-    .map(function (r) {
-      const costRaw = cols >= 11 ? r[10] : '';
-      const idRaw = cols >= 12 ? norm(r[11]) : '';
-      const costNum = parseFloat(costRaw);
-      return {
-        date:      fmtDate_(r[0]),
-        type:      norm(r[1]),
-        building:  norm(r[2]),
-        room:      norm(r[3]),
-        customer:  norm(r[4]),
-        phone:     norm(r[5]),
-        note:      norm(r[6]),
-        status:    norm(r[7]),
-        creator:   norm(r[8]),
-        createdAt: norm(r[9]),
-        cost:      isFinite(costNum) && costNum > 0 ? costNum : 0,
-        id:        idRaw, // v3.21 — '' for rows predating the backfill
-      };
-    })
-    .filter(function (r) { return r.date && r.type && r.building; });
+  // v3.22 window: keep every OPEN task + closed tasks from the last
+  // TASK_FEED_WINDOW_DAYS. Unparseable dates are kept (fail open).
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    - TASK_FEED_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const out = [];
+  for (let i = 0; i < values.length; i++) {
+    const r = values[i];
+    const status = norm(r[7]);
+    const isClosed = status === 'เสร็จ' || status === 'ยกเลิก' || status === 'done'
+      || status === 'ปิดแล้ว' || status === 'cancelled' || status === 'ไม่สนใจ';
+    if (isClosed) {
+      const ts = taskDayTime_(r[0]);
+      if (ts !== null && ts < cutoff) continue;
+    }
+    const obj = taskRowToObj_(r, cols);
+    if (obj.date && obj.type && obj.building) out.push(obj);
+  }
+  return out;
+}
+
+/**
+ * Full task history for ONE room — no date window. Powers the RoomModal
+ * ประวัติงาน list + completed-cost totals, which need older-than-window
+ * rows that getTasks_ no longer carries. Small payload (one room's rows),
+ * read-only, fetched lazily when the modal opens.
+ */
+function getRoomTasks_(b) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
+  if (!sh) return { rows: [] };
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { rows: [] };
+  const lastCol = Math.max(sh.getLastColumn(), 10);
+  const cols = Math.min(lastCol, 12);
+  const values = sh.getRange(2, 1, lastRow - 1, cols).getValues();
+  const qBld = norm(b.building);
+  const qRoom = norm(b.room);
+  const rows = [];
+  for (let i = 0; i < values.length; i++) {
+    const r = values[i];
+    if (norm(r[2]) !== qBld || norm(r[3]) !== qRoom) continue;
+    const obj = taskRowToObj_(r, cols);
+    if (obj.date && obj.type) rows.push(obj);
+  }
+  return { rows: rows };
 }
 
 /**
@@ -2423,12 +2491,41 @@ function onEdit(e) {
   if (!building || !roomNum) return;
   const roomSh = e.source.getSheetByName(SHEET_NAMES.ROOM);
   if (!roomSh) return;
-  const data = roomSh.getRange(2, 1, roomSh.getLastRow()-1, 4).getValues();
-  for (let i = 0; i < data.length; i++) {
-    if (norm(data[i][0]) === norm(building) && norm(data[i][2]) === norm(roomNum)) {
+  // Resolve columns BY HEADER like getRooms_/updateRoomStatus_ do —
+  // this block used to hardcode building=1/room=3/status=4, so a
+  // reordered room sheet made it read the wrong cells and write status
+  // into the wrong column (silent data corruption).
+  const lastRoomRow = roomSh.getLastRow();
+  if (lastRoomRow < 2) return;
+  const roomData = roomSh.getRange(1, 1, lastRoomRow, roomSh.getLastColumn()).getValues();
+  const headers = roomData[0].map(norm);
+  const findIdx = function (aliases) {
+    for (let a = 0; a < aliases.length; a++) {
+      const idx = headers.indexOf(aliases[a]);
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+  const iBld    = findIdx(['ตึก', 'อาคาร']);
+  const iRoom   = findIdx(['ห้อง', 'เลขห้อง']);
+  const iStatus = findIdx(['สถานะ']);
+  const iTenant = findIdx(['ผู้เช่า', 'ผู้เช่าปัจจุบัน', 'ชื่อผู้เช่า']);
+  const iPhone  = findIdx(['เบอร์', 'เบอร์ติดต่อ', 'เบอร์โทร']);
+  const iCntr   = findIdx(['สัญญา', 'วันสัญญาหมด', 'สัญญาหมด', 'วันหมดสัญญา']);
+  if (iBld < 0 || iRoom < 0 || iStatus < 0) return;
+  for (let i = 1; i < roomData.length; i++) {
+    if (norm(roomData[i][iBld]) === norm(building) && norm(roomData[i][iRoom]) === norm(roomNum)) {
       const newStatus = (type === 'ย้ายออก') ? 'ว่าง' : (type === 'ย้ายเข้า') ? 'มีผู้เช่า' : null;
       if (newStatus) {
-        roomSh.getRange(i+2, 4).setValue(newStatus);
+        roomSh.getRange(i + 1, iStatus + 1).setValue(newStatus);
+        // ย้ายออก → ว่าง must ALSO blank the old tenant identity, same
+        // as the app's releaseRoom template — otherwise the "available"
+        // room keeps showing the previous tenant's name/phone/contract.
+        if (type === 'ย้ายออก') {
+          if (iTenant >= 0) roomSh.getRange(i + 1, iTenant + 1).setValue('');
+          if (iPhone  >= 0) roomSh.getRange(i + 1, iPhone + 1).setValue('');
+          if (iCntr   >= 0) roomSh.getRange(i + 1, iCntr + 1).setValue('');
+        }
         clearTasksCache_();
         clearRoomsCache_();
         SpreadsheetApp.getActive().toast('ห้อง ' + building + ' ' + roomNum + ' → ' + newStatus, 'หอพัก', 5);

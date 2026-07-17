@@ -34,6 +34,30 @@ function todayParts() {
   };
 }
 
+describe("mergeRoomsAndTasks — identity preservation (perf r7)", () => {
+  it("returns the PREVIOUS RoomView object for rooms nothing touched", () => {
+    const rooms = [room(), room({ room: "102" })];
+    const { dmy } = todayParts();
+    const tasks = [task({ date: dmy })];
+    const first = mergeRoomsAndTasks(rooms, tasks);
+    // Same inputs re-merged with prev → same object identities out, so
+    // React.memo'd cards skip all unchanged rooms.
+    const second = mergeRoomsAndTasks(rooms, tasks, first);
+    expect(second[0]).toBe(first[0]);
+    expect(second[1]).toBe(first[1]);
+  });
+
+  it("returns a NEW object for the room whose data changed, old for the rest", () => {
+    const rooms = [room(), room({ room: "102" })];
+    const first = mergeRoomsAndTasks(rooms, [], undefined);
+    const patched = [{ ...rooms[0], status: "แจ้งย้ายออก" }, rooms[1]];
+    const second = mergeRoomsAndTasks(patched, [], first);
+    expect(second[0]).not.toBe(first[0]);
+    expect(second[0].status).toBe("moveout");
+    expect(second[1]).toBe(first[1]);
+  });
+});
+
 describe("mergeRoomsAndTasks — today bucket", () => {
   it("flags a task dated today in ISO format (yyyy-MM-dd) as today", () => {
     const { iso } = todayParts();
