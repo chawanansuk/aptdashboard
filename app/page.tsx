@@ -563,7 +563,15 @@ export default function Home() {
       else if (r.status === "occupied") {
         occupied++;
         monthlyIncome += parsePriceOr0(r.price);
-      } else if (r.status === "moveout") moveoutCount++;
+      } else if (r.status === "moveout") {
+        // A moveout room still has a paying tenant until it's released —
+        // count it in the greeting's rate/income so the hero numbers
+        // agree with OverviewCards' อัตราเช่า/รายได้เดือนนี้ (which use
+        // (occupied+moveout)); the two used to disagree on one screen
+        // (e.g. 31% in the greeting vs 44% on the card).
+        moveoutCount++;
+        monthlyIncome += parsePriceOr0(r.price);
+      }
       if (r.contractEnd) {
         const td = parseThaiDate(r.contractEnd);
         if (td && td.getMonth() === thisMonth && td.getFullYear() === thisYear) {
@@ -571,7 +579,7 @@ export default function Home() {
         }
       }
     }
-    const occupancyRate = total > 0 ? occupied / total : 0;
+    const occupancyRate = total > 0 ? (occupied + moveoutCount) / total : 0;
 
     // Today's task count (any non-done/non-cancelled task dated today).
     // Parse-based — ISO-dated cells never matched the raw string compare.

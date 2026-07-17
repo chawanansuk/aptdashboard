@@ -42,6 +42,11 @@ export const STATUS_FROM_ROOM: Record<string, RoomStatus> = {
   "รอตรวจ": "qc",
   "QC": "qc",
   "รอทำสะอาด": "qc",
+  // Full-word variants someone typing by hand naturally uses — the UI
+  // review harness surfaced "ทำความสะอาด" falling into the unknown
+  // bucket (→ inactive) instead of qc.
+  "ทำสะอาด": "qc",
+  "ทำความสะอาด": "qc",
   // inactive / reserved / ER (data-corruption outlier; mapped defensively
   // so the room still surfaces in the dashboard as "ไม่ได้ใช้งาน" rather
   // than disappearing into the unknown bucket).

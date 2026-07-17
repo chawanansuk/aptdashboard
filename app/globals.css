@@ -81,6 +81,11 @@
   --color-text-muted: #64748B;
   --color-text-faint: #94A3B8;
   --color-accent: #2563EB;
+  /* Danger/urgent — several kanban-moveout rules already consumed this
+   * token but it was never DEFINED, so those backgrounds/borders
+   * silently resolved to nothing (e.g. the moveout count pill rendered
+   * as faint grey text instead of a red badge). */
+  --color-danger: #DC2626;
 
   /* ----- Mode personality (PR-O) -----
    * Per-role accent color. Default is the management indigo. Set
@@ -159,6 +164,7 @@ html.dark {
   --color-text-muted: #94A3B8;
   --color-text-faint: #64748B;
   --color-accent: #3B82F6;
+  --color-danger: #EF4444;
 }
 
 /* ====================================================================
@@ -420,8 +426,11 @@ html.dark .ac-search {
 html.dark .ac-search input { color: #E5E7EB; }
 html.dark .ac-legend-item { color: #94A3B8; }
 html.dark .ac-rc-occupied {
-  background: #1E293B;
-  border-color: #334155;
+  /* Was #1E293B — identical to the dark floor-section background, so
+     the most common card on the grid disappeared. One step lighter +
+     a stronger border keeps it quiet but visible. */
+  background: #283548;
+  border-color: #47546C;
   border-top-color: #94A3B8;
 }
 html.dark .ac-rc-occupied .ac-rc-num { color: #E2E8F0; }
@@ -1360,7 +1369,9 @@ html.dark .ac-fs-stat.is-active {
 /* ROOM CARD — base (= comfy default for backward compat) */
 .ac-rc {
   position: relative;
-  width: 66px; height: 58px;
+  /* min-height (not height): the repair-hint / move-in pills add a
+     4th line on some cards — a fixed height clipped them mid-glyph. */
+  width: 66px; min-height: 58px;
   border-radius: 10px;
   border: 1.5px solid transparent;
   display: flex;
@@ -1510,7 +1521,7 @@ html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in
 .ac-rg-compact .ac-rc-badges { display: none; }
 
 /* Density variants — compact / comfy (default) / large */
-.ac-rg-compact .ac-rc { width: 44px; height: 36px; padding: 2px; gap: 0; }
+.ac-rg-compact .ac-rc { width: 44px; min-height: 36px; padding: 2px; gap: 0; }
 /* keep contain-intrinsic-size matched to the rendered size per density
    so the skipped-card scrollbar estimate stays accurate */
 .ac-rg-compact .ac-rc { contain-intrinsic-size: 44px 36px; }
@@ -1518,7 +1529,7 @@ html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in
 .ac-rg-compact .ac-rc-status { display: none; }
 .ac-rg-compact .ac-rc-today { top: 2px; right: 2px; width: 5px; height: 5px; }
 
-.ac-rg-large .ac-rc { width: 96px; height: 84px; padding: 6px; gap: 3px; }
+.ac-rg-large .ac-rc { width: 96px; min-height: 84px; padding: 6px; gap: 3px; }
 .ac-rg-large .ac-rc { contain-intrinsic-size: 96px 84px; }
 .ac-rg-large .ac-rc-num { font-size: 20px; }
 .ac-rg-large .ac-rc-status { font-size: 11px; }
@@ -1889,7 +1900,7 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   .ac-divider { display: none; }
   .ac-logo-text { display: none; }
   .ac-sg { grid-template-columns: repeat(2, 1fr); }
-  .ac-rc { width: 64px; height: 60px; padding: 6px; contain-intrinsic-size: 64px 60px; }
+  .ac-rc { width: 64px; min-height: 60px; padding: 6px; contain-intrinsic-size: 64px 60px; }
   .ac-rc-num { font-size: 16px; }
   .ac-rc-status { font-size: 10px; }
   .ac-search { min-width: 0; flex: 1; }
@@ -10150,3 +10161,15 @@ html.dark .ac-chip.is-active {
 }
 .ac-tasks,
 .ac-kanban { animation-name: ac-view-in-fade; }
+
+/* ----- 9) Dark-mode status-dot visibility ----------------------------
+ * The มีผู้เช่า dot is near-black (its color comes inline from
+ * STATUS_DOT), which vanishes on dark surfaces in the legend, sidebar
+ * and floor-header counters. A faint inner ring keeps every dot's
+ * silhouette visible regardless of its fill. */
+html.dark .ac-legend-dot,
+html.dark .ac-side-dot,
+html.dark .ac-fs-stat-dot {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
+  border-color: rgba(255, 255, 255, .16);
+}
