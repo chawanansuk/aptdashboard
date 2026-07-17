@@ -13,6 +13,7 @@ import { RepairPartsPicker, RoomPartsUsed, type RepairPartLine } from "./RoomRep
 import { sumCompletedCosts } from "@/lib/taskCost";
 import { formatBaht } from "@/lib/money";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { useRoomHistory, fullPastTasks } from "@/lib/useRoomHistory";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
 import RoomImageGallery from "./RoomImageGallery";
 
@@ -180,6 +181,12 @@ export default function RoomModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(true, dialogRef);
   const [showHistory, setShowHistory] = useState(false);
+  // v3.22: the dashboard feed is windowed (open + last 120 days) — fetch
+  // this room's FULL history lazily so ประวัติงาน + cost totals stay
+  // complete. Falls back to the feed buckets while loading / on an old
+  // backend (null → fullPastTasks returns room.pastTasks).
+  const serverHistory = useRoomHistory(room.building, room.room);
+  const pastTasks = fullPastTasks(room, serverHistory);
   const [repairText, setRepairText] = useState("");
   const [repairParts, setRepairParts] = useState<RepairPartLine[]>([]);
 
@@ -307,8 +314,8 @@ export default function RoomModal({
   const daysLeft = daysUntilContract(contractEnd);
   const priceDisplay = formatBaht(price, { suffix: "" });
   const completedCostsTotal = useMemo(
-    () => sumCompletedCosts(room.pastTasks),
-    [room.pastTasks]
+    () => sumCompletedCosts(pastTasks),
+    [pastTasks]
   );
 
   return (
@@ -360,9 +367,9 @@ export default function RoomModal({
               {room.status === "ready" && (
                 <span className="ac-room-modal-chip is-ready">ว่าง · พร้อมขาย</span>
               )}
-              {room.pastTasks.length > 0 && (
+              {pastTasks.length > 0 && (
                 <span className="ac-room-modal-chip ac-room-modal-chip-muted">
-                  ประวัติงาน {room.pastTasks.length} รายการ
+                  ประวัติงาน {pastTasks.length} รายการ
                 </span>
               )}
               {canSeeCost && completedCostsTotal > 0 && (
@@ -745,7 +752,7 @@ export default function RoomModal({
               )}
 
               {/* Past tasks — collapsible */}
-              {room.pastTasks.length > 0 && (
+              {pastTasks.length > 0 && (
                 <div className="ac-form-section">
                   <button
                     type="button"
@@ -754,11 +761,11 @@ export default function RoomModal({
                     aria-expanded={showHistory}
                   >
                     <span>{showHistory ? "▾" : "▸"}</span>
-                    <span>ประวัติงาน ({room.pastTasks.length})</span>
+                    <span>ประวัติงาน ({pastTasks.length})</span>
                   </button>
                   {showHistory && (
                     <ul className="ac-room-history-list">
-                      {room.pastTasks.map((t, i) => {
+                      {pastTasks.map((t, i) => {
                         const s = (t.status || "").trim();
                         const isDone = s === "เสร็จ" || s === "done" || s === "ปิดแล้ว";
                         const isCancel = s === "ยกเลิก" || s === "cancelled";
@@ -820,7 +827,7 @@ export default function RoomModal({
               <RoomEquipmentTab
                 building={room.building}
                 room={room.room}
-                pastTasks={room.pastTasks}
+                pastTasks={pastTasks}
               />
             </Suspense>
           )}

@@ -218,7 +218,9 @@ export default function CommandPalette({
   if (!open) return null;
 
   // Insert visual group separators in the rendered list
-  let lastGroup = -1;
+  // Sentinel below every real groupOrder (recents use -1) — starting at
+  // -1 suppressed the "ล่าสุด" header for the first recent item.
+  let lastGroup = Number.NEGATIVE_INFINITY;
 
   return (
     <div className="ac-cmdk-backdrop" onClick={onClose}>

@@ -56,6 +56,196 @@ function buildRoomTooltip(r: RoomView): string {
   return lines.join("\n");
 }
 
+/* ====================================================================
+ * RoomCard — one grid cell, memoized (perf r7).
+ *
+ * The grid holds ~300 cards and each render builds a multi-line tooltip
+ * + runs several regex date-parses. mergeRoomsAndTasks preserves object
+ * identity for unchanged rooms, so after an optimistic single-room
+ * write only that room's card re-renders; the other ~299 bail here.
+ *
+ * The comparator checks DATA props only — the callback props are
+ * closures that change identity every parent render but are behaviorally
+ * keyed by bulkMode (compared) and stable handlers, so skipping them is
+ * safe and is the whole point of the memo.
+ * ==================================================================== */
+interface RoomCardProps {
+  r: RoomView;
+  k: string;
+  checked: boolean;
+  bulkMode: boolean;
+  isFocusTarget: boolean;
+  canSeeTenant: boolean;
+  veh: number;
+  eq: number;
+  onFocusKey: (k: string) => void;
+  onActivate: (r: RoomView) => void;
+  onArrowNav: (el: HTMLElement, key: string) => void;
+  onOpenQuick: (e: React.MouseEvent, r: RoomView) => void;
+}
+
+const RoomCard = memo(function RoomCard({
+  r, k, checked, bulkMode, isFocusTarget, canSeeTenant, veh, eq,
+  onFocusKey, onActivate, onArrowNav, onOpenQuick,
+}: RoomCardProps) {
+  // Built once per (changed) card render — was built twice inline.
+  const tooltip = buildRoomTooltip(r);
+  return (
+    <div
+      data-room-key={k}
+      className={`ac-rc ac-rc-${r.status} ${bulkMode ? "is-bulk" : ""} ${checked ? "is-checked" : ""}`}
+      role="button"
+      // Roving tabindex — only the active cell is in the Tab order;
+      // Arrow keys move between cells (Problem #15).
+      tabIndex={isFocusTarget ? 0 : -1}
+      onFocus={() => onFocusKey(k)}
+      onClick={() => onActivate(r)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onActivate(r);
+        } else if (e.key.startsWith("Arrow")) {
+          e.preventDefault();
+          onArrowNav(e.currentTarget, e.key);
+        }
+      }}
+      // Rich tooltip — multi-line, shows status + latest task + relative
+      // time. Browser-native title accepts \n.
+      title={tooltip}
+      data-tooltip={tooltip}
+      // Accessible name — room numbers repeat across buildings so the
+      // SR / voice-control hint spells out the building too.
+      aria-label={
+        `ห้อง ${r.room} อาคาร ${r.building}` +
+        (r.floor ? ` ชั้น ${r.floor}` : "") +
+        ` สถานะ ${STATUS_LABEL[r.status]}`
+      }
+    >
+      {r.today && <span className="ac-rc-today" />}
+      {r.needsCleaning && (
+        <span
+          className="ac-rc-clean"
+          title="ต้องทำสะอาดก่อนลูกค้าเข้า"
+          aria-label="ต้องทำสะอาด"
+        >🧹</span>
+      )}
+      {(() => {
+        if (!canSeeTenant || r.status !== "occupied" || !r.contractEnd) return null;
+        const d = parseThaiDate(r.contractEnd);
+        if (!d) return null;
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const days = Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (days > 30 || days < -1) return null;
+        const tone = days < 0 ? "is-expired" : days <= 7 ? "is-soon" : "is-warn";
+        return (
+          <span
+            className={`ac-rc-contract ${tone}`}
+            title={
+              days < 0 ? `สัญญาหมดแล้ว ${Math.abs(days)} วัน`
+              : days === 0 ? "สัญญาหมดวันนี้"
+              : `สัญญาหมดในอีก ${days} วัน`
+            }
+            aria-label="สัญญาใกล้หมดหรือหมดแล้ว"
+          >⏰</span>
+        );
+      })()}
+      {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
+      <span className="ac-rc-num">{r.room}</span>
+      <span className="ac-rc-bldg" aria-hidden>{abbreviateBuilding(r.building)}</span>
+      <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
+      {/* "วันเข้า" hint for pending rooms — nearest upcoming ย้ายเข้า,
+          falls back to ชมห้อง if no move-in scheduled yet. */}
+      {r.status === "pending" && (() => {
+        const allUpcoming = [...(r.upcomingTasks || []), ...(r.todayTasks || [])];
+        let bestMovein: Date | null = null;
+        let bestView: Date | null = null;
+        for (const t of allUpcoming) {
+          const d = parseThaiDate(t.date);
+          if (!d) continue;
+          if (t.type === "ย้ายเข้า") {
+            if (!bestMovein || d.getTime() < bestMovein.getTime()) bestMovein = d;
+          } else if (t.type === "ชมห้อง") {
+            if (!bestView || d.getTime() < bestView.getTime()) bestView = d;
+          }
+        }
+        const target = bestMovein ?? bestView;
+        if (!target) return null;
+        const icon = bestMovein ? "📥" : "👀";
+        const label = bestMovein ? "วันเข้า" : "นัดชม";
+        const dd = String(target.getDate()).padStart(2, "0");
+        const mm = String(target.getMonth() + 1).padStart(2, "0");
+        return (
+          <span
+            className="ac-rc-movein"
+            title={`${label} ${dd}/${mm}/${target.getFullYear()}`}
+            aria-label={`${label} ${dd}/${mm}`}
+          >{icon} {dd}/{mm}</span>
+        );
+      })()}
+      {/* "ต้องซ่อมอะไร" hint for repair rooms. */}
+      {r.status === "repair" && (() => {
+        const all = [...(r.todayTasks || []), ...(r.upcomingTasks || []), ...(r.pastTasks || [])];
+        const repair = all.find((t) => t.type === "ซ่อม");
+        if (repair) {
+          const detail = (repair.note || "").trim() || "งานซ่อม";
+          return (
+            <span
+              className="ac-rc-repair-hint"
+              title={`ต้องซ่อม: ${detail}`}
+              aria-label={`ต้องซ่อม: ${detail}`}
+            >🔧 {detail}</span>
+          );
+        }
+        return (
+          <span
+            className="ac-rc-repair-hint is-empty"
+            title="ห้องนี้ถูกตั้งเป็น 'รอเข้าซ่อม' แต่ยังไม่มีใบงานซ่อม — สร้างงานซ่อมเพื่อบอกช่างว่าต้องซ่อมอะไร"
+            aria-label="ยังไม่มีใบงานซ่อม"
+          >🔧 ยังไม่มีใบงาน</span>
+        );
+      })()}
+      {(veh > 0 || eq > 0) && (
+        <span className="ac-rc-badges">
+          {veh > 0 && (
+            <span
+              className="ac-rc-veh"
+              title={`ยานพาหนะ ${veh} คัน`}
+              aria-label={`มียานพาหนะ ${veh} คัน`}
+            >🏍 {veh}</span>
+          )}
+          {eq > 0 && (
+            <span
+              className="ac-rc-eq"
+              title={`อุปกรณ์ ${eq} ชิ้น`}
+              aria-label={`มีอุปกรณ์ ${eq} ชิ้น`}
+            >🔧 {eq}</span>
+          )}
+        </span>
+      )}
+      {!bulkMode && (
+        <button
+          type="button"
+          className="ac-rc-more"
+          onClick={(e) => onOpenQuick(e, r)}
+          title="ตัวเลือกเพิ่มเติม"
+          aria-label={`Quick actions ${r.building} ${r.room}`}
+        >⋯</button>
+      )}
+    </div>
+  );
+}, (prev, next) =>
+  // Data props only — see block comment above.
+  prev.r === next.r &&
+  prev.k === next.k &&
+  prev.checked === next.checked &&
+  prev.bulkMode === next.bulkMode &&
+  prev.isFocusTarget === next.isFocusTarget &&
+  prev.canSeeTenant === next.canSeeTenant &&
+  prev.veh === next.veh &&
+  prev.eq === next.eq,
+);
+
 interface Props {
   visibleRooms: RoomView[];
   activeFilter: "all" | RoomStatus;
@@ -193,6 +383,15 @@ function RoomsView({
     if (!stillRendered) setFocusKey(null);
   }, [floorGroups, focusKey]);
 
+  /** Card activation — bulk-toggle in bulk mode, open modal otherwise.
+   *  Identity changes with bulkMode; the RoomCard comparator already
+   *  compares bulkMode, so cards re-render exactly when this changes
+   *  behavior. */
+  function activateRoom(r: RoomView) {
+    if (bulkMode) onToggleBulkRoom(r.building, r.room);
+    else onSelectRoom(r);
+  }
+
   function openQuick(e: React.MouseEvent, r: RoomView) {
     e.stopPropagation();
     const btn = e.currentTarget as HTMLElement;
@@ -292,163 +491,22 @@ function RoomsView({
             <div className={`ac-rg ac-rg-${density}`}>
               {g.list.map((r) => {
                 const k = makeRoomKey(r.building, r.room);
-                const checked = bulkSelected.has(k);
                 return (
-                  <div
+                  <RoomCard
                     key={k}
-                    data-room-key={k}
-                    className={`ac-rc ac-rc-${r.status} ${bulkMode ? "is-bulk" : ""} ${checked ? "is-checked" : ""}`}
-                    role="button"
-                    // Roving tabindex — only the active cell is in the Tab
-                    // order; Arrow keys move between cells (Problem #15).
-                    tabIndex={k === activeFocusKey ? 0 : -1}
-                    onFocus={() => setFocusKey(k)}
-                    onClick={() => bulkMode ? onToggleBulkRoom(r.building, r.room) : onSelectRoom(r)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        bulkMode ? onToggleBulkRoom(r.building, r.room) : onSelectRoom(r);
-                      } else if (e.key.startsWith("Arrow")) {
-                        e.preventDefault();
-                        moveFocus(e.currentTarget, e.key);
-                      }
-                    }}
-                    // Rich tooltip — multi-line, shows status + latest task
-                    // + relative time. Browser-native title accepts \n so
-                    // we don't need a custom popover for the basic info.
-                    title={buildRoomTooltip(r)}
-                    data-tooltip={buildRoomTooltip(r)}
-                    // Accessible name — Problem #3: room numbers repeat
-                    // across buildings so the SR / voice-control hint
-                    // has to spell out the building too.
-                    aria-label={
-                      `ห้อง ${r.room} อาคาร ${r.building}` +
-                      (r.floor ? ` ชั้น ${r.floor}` : "") +
-                      ` สถานะ ${STATUS_LABEL[r.status]}`
-                    }
-                  >
-                    {r.today && <span className="ac-rc-today" />}
-                    {r.needsCleaning && (
-                      <span
-                        className="ac-rc-clean"
-                        title="ต้องทำสะอาดก่อนลูกค้าเข้า"
-                        aria-label="ต้องทำสะอาด"
-                      >🧹</span>
-                    )}
-                    {(() => {
-                      if (!canSeeTenant || r.status !== "occupied" || !r.contractEnd) return null;
-                      const d = parseThaiDate(r.contractEnd);
-                      if (!d) return null;
-                      const now = new Date();
-                      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                      const days = Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                      if (days > 30 || days < -1) return null;
-                      const tone = days < 0 ? "is-expired" : days <= 7 ? "is-soon" : "is-warn";
-                      return (
-                        <span
-                          className={`ac-rc-contract ${tone}`}
-                          title={
-                            days < 0 ? `สัญญาหมดแล้ว ${Math.abs(days)} วัน`
-                            : days === 0 ? "สัญญาหมดวันนี้"
-                            : `สัญญาหมดในอีก ${days} วัน`
-                          }
-                          aria-label="สัญญาใกล้หมดหรือหมดแล้ว"
-                        >⏰</span>
-                      );
-                    })()}
-                    {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
-                    <span className="ac-rc-num">{r.room}</span>
-                    <span className="ac-rc-bldg" aria-hidden>{abbreviateBuilding(r.building)}</span>
-                    <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
-                    {/* "วันเข้า" hint for pending rooms — sales/management need
-                        to plan ahead (PR per user request 2026-05-23). Picks
-                        the nearest upcoming ย้ายเข้า task; falls back to
-                        ชมห้อง if no move-in scheduled yet. */}
-                    {r.status === "pending" && (() => {
-                      const allUpcoming = [...(r.upcomingTasks || []), ...(r.todayTasks || [])];
-                      let bestMovein: Date | null = null;
-                      let bestView: Date | null = null;
-                      for (const t of allUpcoming) {
-                        const d = parseThaiDate(t.date);
-                        if (!d) continue;
-                        if (t.type === "ย้ายเข้า") {
-                          if (!bestMovein || d.getTime() < bestMovein.getTime()) bestMovein = d;
-                        } else if (t.type === "ชมห้อง") {
-                          if (!bestView || d.getTime() < bestView.getTime()) bestView = d;
-                        }
-                      }
-                      const target = bestMovein ?? bestView;
-                      if (!target) return null;
-                      const icon = bestMovein ? "📥" : "👀";
-                      const label = bestMovein ? "วันเข้า" : "นัดชม";
-                      const dd = String(target.getDate()).padStart(2, "0");
-                      const mm = String(target.getMonth() + 1).padStart(2, "0");
-                      return (
-                        <span
-                          className="ac-rc-movein"
-                          title={`${label} ${dd}/${mm}/${target.getFullYear()}`}
-                          aria-label={`${label} ${dd}/${mm}`}
-                        >{icon} {dd}/{mm}</span>
-                      );
-                    })()}
-                    {/* "ต้องซ่อมอะไร" hint for repair rooms — a room flagged
-                        รอเข้าซ่อม is meaningless to the technician without the
-                        actual problem. Pull it from the room's ซ่อม task; if
-                        none exists, say so plainly (flagged but no job yet). */}
-                    {r.status === "repair" && (() => {
-                      const all = [...(r.todayTasks || []), ...(r.upcomingTasks || []), ...(r.pastTasks || [])];
-                      const repair = all.find((t) => t.type === "ซ่อม");
-                      if (repair) {
-                        const detail = (repair.note || "").trim() || "งานซ่อม";
-                        return (
-                          <span
-                            className="ac-rc-repair-hint"
-                            title={`ต้องซ่อม: ${detail}`}
-                            aria-label={`ต้องซ่อม: ${detail}`}
-                          >🔧 {detail}</span>
-                        );
-                      }
-                      return (
-                        <span
-                          className="ac-rc-repair-hint is-empty"
-                          title="ห้องนี้ถูกตั้งเป็น 'รอเข้าซ่อม' แต่ยังไม่มีใบงานซ่อม — สร้างงานซ่อมเพื่อบอกช่างว่าต้องซ่อมอะไร"
-                          aria-label="ยังไม่มีใบงานซ่อม"
-                        >🔧 ยังไม่มีใบงาน</span>
-                      );
-                    })()}
-                    {(() => {
-                      const veh = vehicleCountByRoom?.(r.building, r.room) ?? 0;
-                      const eq  = equipmentCountByRoom?.(r.building, r.room) ?? 0;
-                      if (veh === 0 && eq === 0) return null;
-                      return (
-                        <span className="ac-rc-badges">
-                          {veh > 0 && (
-                            <span
-                              className="ac-rc-veh"
-                              title={`ยานพาหนะ ${veh} คัน`}
-                              aria-label={`มียานพาหนะ ${veh} คัน`}
-                            >🏍 {veh}</span>
-                          )}
-                          {eq > 0 && (
-                            <span
-                              className="ac-rc-eq"
-                              title={`อุปกรณ์ ${eq} ชิ้น`}
-                              aria-label={`มีอุปกรณ์ ${eq} ชิ้น`}
-                            >🔧 {eq}</span>
-                          )}
-                        </span>
-                      );
-                    })()}
-                    {!bulkMode && (
-                      <button
-                        type="button"
-                        className="ac-rc-more"
-                        onClick={(e) => openQuick(e, r)}
-                        title="ตัวเลือกเพิ่มเติม"
-                        aria-label={`Quick actions ${r.building} ${r.room}`}
-                      >⋯</button>
-                    )}
-                  </div>
+                    r={r}
+                    k={k}
+                    checked={bulkSelected.has(k)}
+                    bulkMode={bulkMode}
+                    isFocusTarget={k === activeFocusKey}
+                    canSeeTenant={canSeeTenant}
+                    veh={vehicleCountByRoom?.(r.building, r.room) ?? 0}
+                    eq={equipmentCountByRoom?.(r.building, r.room) ?? 0}
+                    onFocusKey={setFocusKey}
+                    onActivate={activateRoom}
+                    onArrowNav={moveFocus}
+                    onOpenQuick={openQuick}
+                  />
                 );
               })}
             </div>
