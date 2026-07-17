@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback, lazy, Suspense } from "react";
-import { quickSetRoomStatus } from "@/lib/journeyActions";
+import { quickSetRoomStatus, executeJourneyAction } from "@/lib/journeyActions";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
@@ -771,6 +771,25 @@ export default function Home() {
   }
 
   /** Quick "แจ้งซ่อม" — pre-fill AddTaskModal with type=ซ่อม for the room. */
+  /**
+   * One-tap status hop from the room card's ⋯ popover (v3.23) — the
+   * "แก้สถานะยาก/หายาก" fix: no modal, no dropdown, no save button.
+   * Reuses the journey machinery so the semantics stay right:
+   *   ว่าง        → releaseNow (confirm + cancel open prep + blank tenant)
+   *   แจ้งย้ายออก → noticeMoveout (auto-files the prep clean)
+   *   others      → plain status write (tenant fields untouched)
+   */
+  async function handleQuickStatus(r: RoomView, rawStatus: string): Promise<void> {
+    const deps = { refresh, optimisticUpdateRoom, optimisticUpdateTask, tasks };
+    try {
+      if (rawStatus === "ว่าง") await executeJourneyAction("releaseNow", r, deps);
+      else if (rawStatus === "แจ้งย้ายออก") await executeJourneyAction("noticeMoveout", r, deps);
+      else await quickSetRoomStatus(r, rawStatus, deps);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "เปลี่ยนสถานะไม่สำเร็จ");
+    }
+  }
+
   function openRepairForRoom(r: { building: string; room: string }) {
     setTType("ซ่อม");
     setTBuilding(r.building);
@@ -1115,6 +1134,7 @@ export default function Home() {
               onSelectRoom={(r) => setSelectedRoom(r)}
               roles={roles}
               onRepairRoom={openRepairForRoom}
+              onQuickStatus={handleQuickStatus}
               vehicleCountByRoom={vehicleCounts.get}
               equipmentCountByRoom={equipmentCounts.get}
             />

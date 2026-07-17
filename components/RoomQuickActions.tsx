@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Role } from "@/auth";
 import type { RoomView } from "@/types";
 import { canAccess, canPerform } from "@/lib/permissions";
+import { RAW_STATUS_OPTIONS, STATUS_DOT } from "@/lib/constants";
+import { normalizeRoomStatus } from "@/lib/roomStatus";
 import { Icon, type IconName } from "@/lib/icons";
 
 interface Props {
@@ -16,6 +18,15 @@ interface Props {
   onShowHistory: (r: RoomView) => void;
   onShowTenant: (r: RoomView) => void;
   onChangeStatus: (r: RoomView) => void;
+  /**
+   * One-tap status hop (v3.23): ⋯ → เปลี่ยนสถานะ → tap the new status,
+   * done — no full modal, no scrolling to the dropdown, no save button.
+   * The handler (page-level) routes "ว่าง" through the release flow
+   * (confirm + cancel open prep + blank old tenant) and "แจ้งย้ายออก"
+   * through notice-moveout (files the prep clean automatically).
+   * Optional: without it the item falls back to opening the modal.
+   */
+  onQuickStatus?: (r: RoomView, rawStatus: string) => Promise<void>;
 }
 
 interface ActionDef {
@@ -28,8 +39,23 @@ interface ActionDef {
 export default function RoomQuickActions({
   room, anchor, roles, onClose,
   onOpenDetails, onRepair, onShowHistory, onShowTenant, onChangeStatus,
+  onQuickStatus,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  // Second stage: the inline status picker replaces the action list.
+  const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function pickStatus(raw: string) {
+    if (!onQuickStatus || busy) return;
+    setBusy(raw);
+    try {
+      await onQuickStatus(room, raw);
+      onClose();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   // Close on outside click + escape
   useEffect(() => {
@@ -89,7 +115,11 @@ export default function RoomQuickActions({
       key: "status",
       label: "เปลี่ยนสถานะ",
       icon: "edit",
-      onClick: () => { onChangeStatus(room); onClose(); },
+      // Inline picker when the quick handler is wired; modal otherwise.
+      onClick: () => {
+        if (onQuickStatus) setPicking(true);
+        else { onChangeStatus(room); onClose(); }
+      },
     });
   }
   actions.push({
@@ -116,7 +146,9 @@ export default function RoomQuickActions({
       aria-label={`Quick actions ${room.building} ${room.room}`}
     >
       <div className="ac-quick-popover-head">
-        <span className="ac-quick-popover-title">{room.building} {room.room}</span>
+        <span className="ac-quick-popover-title">
+          {picking ? `เปลี่ยนสถานะ · ${room.building} ${room.room}` : `${room.building} ${room.room}`}
+        </span>
         <button
           type="button"
           className="ac-quick-popover-close"
@@ -124,18 +156,57 @@ export default function RoomQuickActions({
           aria-label="ปิด"
         >✕</button>
       </div>
-      {actions.map((a) => (
-        <button
-          key={a.key}
-          type="button"
-          className="ac-quick-popover-item"
-          onClick={a.onClick}
-          role="menuitem"
-        >
-          <span className="ac-quick-popover-icon" aria-hidden><Icon name={a.icon} size={15} /></span>
-          <span className="ac-quick-popover-label">{a.label}</span>
-        </button>
-      ))}
+
+      {picking ? (
+        <>
+          {RAW_STATUS_OPTIONS.map((s) => {
+            const isCurrent = normalizeRoomStatus(s) === room.status;
+            return (
+              <button
+                key={s}
+                type="button"
+                className={`ac-quick-popover-item ${isCurrent ? "is-current" : ""}`}
+                onClick={() => void pickStatus(s)}
+                disabled={busy !== null || isCurrent}
+                role="menuitem"
+              >
+                <span
+                  className="ac-quick-popover-dot"
+                  style={{ background: STATUS_DOT[normalizeRoomStatus(s)] }}
+                  aria-hidden
+                />
+                <span className="ac-quick-popover-label">
+                  {busy === s ? "กำลังบันทึก…" : s}
+                  {isCurrent ? " · ปัจจุบัน" : ""}
+                </span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className="ac-quick-popover-item ac-quick-popover-back"
+            onClick={() => setPicking(false)}
+            disabled={busy !== null}
+            role="menuitem"
+          >
+            <span className="ac-quick-popover-icon" aria-hidden><Icon name="view" size={15} /></span>
+            <span className="ac-quick-popover-label">‹ กลับ / แก้แบบละเอียดในหน้าห้อง</span>
+          </button>
+        </>
+      ) : (
+        actions.map((a) => (
+          <button
+            key={a.key}
+            type="button"
+            className="ac-quick-popover-item"
+            onClick={a.onClick}
+            role="menuitem"
+          >
+            <span className="ac-quick-popover-icon" aria-hidden><Icon name={a.icon} size={15} /></span>
+            <span className="ac-quick-popover-label">{a.label}</span>
+          </button>
+        ))
+      )}
     </div>
   );
 }
