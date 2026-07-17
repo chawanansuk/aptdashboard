@@ -262,6 +262,8 @@ interface Props {
   roles: Role[] | undefined;
   /** Quick-action callbacks — passed through to RoomQuickActions popover. */
   onRepairRoom: (r: RoomView) => void;
+  /** One-tap status hop from the ⋯ popover (v3.23) — see RoomQuickActions. */
+  onQuickStatus?: (r: RoomView, rawStatus: string) => Promise<void>;
   /** Optional: vehicle count per room ("Building|Room" → count). When
    *  supplied, each card shows a `🏍 N` badge when N > 0. */
   vehicleCountByRoom?: (building: string, room: string) => number;
@@ -286,7 +288,7 @@ const DENSITY_TITLE: Record<RoomDensity, string> = {
 function RoomsView({
   visibleRooms, activeFilter, onChangeFilter,
   bulkMode, bulkSelected, onToggleBulkMode, onToggleBulkRoom, onSelectRoom,
-  roles, onRepairRoom, vehicleCountByRoom, equipmentCountByRoom,
+  roles, onRepairRoom, onQuickStatus, vehicleCountByRoom, equipmentCountByRoom,
 }: Props) {
   const { density, setDensity } = useRoomDensity();
   // Contract-expiring chip — only visible to roles that can see
@@ -527,6 +529,7 @@ function RoomsView({
           onShowHistory={onSelectRoom}
           onShowTenant={onSelectRoom}
           onChangeStatus={onSelectRoom}
+          onQuickStatus={onQuickStatus}
         />
       )}
     </>
