@@ -3342,6 +3342,20 @@ html.dark .ac-preset-del:hover { background: #7F1D1D; }
 .ac-bulk-actions { display: flex; gap: 6px; }
 .ac-bulk-actions .ac-btn-ghost { color: #CBD5E1; }
 .ac-bulk-actions .ac-btn-ghost:hover { background: #334155; color: #fff; }
+/* Bulk status picker (v3.23) — chips wrap so the six options fit the
+ * pill on desktop and stack cleanly in the mobile column. */
+.ac-bulk-status-row { flex-wrap: wrap; justify-content: center; }
+.ac-bulk-status-chip {
+  color: #E5E7EB !important;
+  background: #334155;
+  gap: 6px;
+}
+.ac-bulk-status-chip:hover:not(:disabled) { background: #475569; }
+.ac-bulk-status-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  flex-shrink: 0; display: inline-block;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.25);
+}
 
 @media (max-width: 480px) {
   .ac-bulk-bar {

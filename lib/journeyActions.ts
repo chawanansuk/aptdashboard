@@ -101,7 +101,10 @@ export async function quickSetRoomStatus(
   room: RoomView,
   rawStatus: string,
   deps: JourneyDeps,
-  opts: { clearTenant?: boolean } = {},
+  /** `silent` (bulk): skip the per-room toast / bus / refresh so the
+   *  caller can loop over many rooms and fire ONE toast + refresh at the
+   *  end. The optimistic patch still runs (each card must flip live). */
+  opts: { clearTenant?: boolean; silent?: boolean } = {},
 ): Promise<void> {
   // Two server actions, both gated to room.editStatus:
   //   - updateRoomStatus: status(+note) ONLY. The route strips any tenant
@@ -131,12 +134,14 @@ export async function quickSetRoomStatus(
     data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
   }
   if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  toast.success(`อัปเดตสถานะห้อง → ${rawStatus}`);
-  publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
+  // Optimistic patch always — every card must flip live, bulk or not.
   deps.optimisticUpdateRoom?.(room.building, room.room, {
     status: rawStatus,
     ...(opts.clearTenant ? { tenant: "", phone: "", contractEnd: "" } : {}),
   });
+  if (opts.silent) return; // bulk caller does the toast/bus/refresh once
+  toast.success(`อัปเดตสถานะห้อง → ${rawStatus}`);
+  publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
   deps.refresh();
 }
 
