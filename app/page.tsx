@@ -59,7 +59,7 @@ import {
   linkLeadOnViewingScheduled,
   bumpLeadOnViewingClosed,
 } from "@/lib/dashboardActions";
-import { canAccess } from "@/lib/permissions";
+import { canAccess, canPerform } from "@/lib/permissions";
 import type { QuickAction } from "@/components/QuickActionMenu";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
@@ -281,6 +281,7 @@ export default function Home() {
   const [bulkAddDate, setBulkAddDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [bulkAddNote, setBulkAddNote] = useState("");
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkStatusBusy, setBulkStatusBusy] = useState(false);
 
   // ---- Theme ----
   useEffect(() => {
@@ -640,6 +641,47 @@ export default function Home() {
     });
   }
   function exitBulk() { setBulkMode(false); setBulkSelected(new Set()); }
+
+  /**
+   * Bulk status change (v3.23) — mark every selected room at once. Reuses
+   * quickSetRoomStatus in `silent` mode so the loop fires ONE toast +
+   * refresh at the end instead of N. Confirms ONCE for the whole batch
+   * (the per-room releaseNow confirm would be unusable at scale). "ว่าง"
+   * carries clearTenant so each released room's old tenant is blanked
+   * server-side, same as the single-room ปล่อยขาย.
+   */
+  async function submitBulkStatus(rawStatus: string) {
+    const keys = Array.from(bulkSelected);
+    if (keys.length === 0) return;
+    const isRelease = rawStatus === "ว่าง";
+    const confirmMsg = isRelease
+      ? `ปล่อยขาย ${keys.length} ห้องที่เลือก\n\n` +
+        "จะเปลี่ยนเป็น \"ว่าง\" และล้างข้อมูลผู้เช่าเดิมของทุกห้อง\n\nยืนยันหรือไม่?"
+      : `เปลี่ยน ${keys.length} ห้องที่เลือกเป็น "${rawStatus}"\n\nยืนยันหรือไม่?`;
+    if (typeof window !== "undefined" && !window.confirm(confirmMsg)) return;
+
+    setBulkStatusBusy(true);
+    const deps = { refresh, optimisticUpdateRoom, optimisticUpdateTask, tasks };
+    let ok = 0, fail = 0;
+    for (const k of keys) {
+      const [building, room] = k.split("|");
+      const rv = rooms.find((r) => r.building === building && r.room === room);
+      if (!rv) { fail++; continue; }
+      try {
+        await quickSetRoomStatus(rv, rawStatus, deps, { clearTenant: isRelease, silent: true });
+        ok++;
+      } catch { fail++; }
+    }
+    setBulkStatusBusy(false);
+    publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
+    refresh();
+    if (fail === 0) {
+      toast.success(`เปลี่ยน ${ok} ห้อง → ${rawStatus}`);
+      exitBulk();
+    } else {
+      toast.error(`สำเร็จ ${ok} ห้อง, ล้มเหลว ${fail} ห้อง`);
+    }
+  }
 
   async function submitBulkAdd() {
     if (bulkSelected.size === 0) return;
@@ -1445,6 +1487,8 @@ export default function Home() {
           onClear={() => setBulkSelected(new Set())}
           onAdd={() => setBulkAddOpen(true)}
           onExit={exitBulk}
+          onSetStatus={canPerform(roles, "room.editStatus") ? submitBulkStatus : undefined}
+          statusBusy={bulkStatusBusy}
         />
       )}
 
