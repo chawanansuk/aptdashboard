@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback, lazy, Suspense } from "react";
 import { quickSetRoomStatus, executeJourneyAction } from "@/lib/journeyActions";
+import { resilientPost } from "@/lib/resilientWrite";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
@@ -700,17 +701,14 @@ export default function Home() {
         continue;
       }
       try {
-        const res = await fetch("/api/sheet/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "addTask",
-            date: bulkAddDate, type: bulkAddType,
-            building: item.building, room: item.room,
-            note: bulkAddNote,
-          }),
+        // Resilient (same safety as single add — addTask is server-deduped):
+        // a transient Sheets blip on item 7 of 20 no longer drops that room.
+        const { data } = await resilientPost("/api/sheet/update", {
+          action: "addTask",
+          date: bulkAddDate, type: bulkAddType,
+          building: item.building, room: item.room,
+          note: bulkAddNote,
         });
-        const data = await res.json();
         // addTask's server-side dedup returns ok:true + skipped:'duplicate-open'
         // when an open twin exists — count it with the client-side skips, not
         // as "created", so the toast doesn't overreport (audit r5).
@@ -962,12 +960,15 @@ export default function Home() {
 
   async function handleAddTask(values: import("@/lib/taskSchema").TaskFormValues) {
     setSavingTask(true);
+    let retryToast: string | number | undefined;
     try {
       const costNum = values.cost ? parseCostInput(values.cost) : 0;
-      const res = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // Resilient: addTask is server-deduped, so a re-send after a Sheets
+      // hiccup (cold start / transient 502 / network blip) can't create a
+      // duplicate — auto-retry instead of making staff retype the task.
+      const { res, data } = await resilientPost(
+        "/api/sheet/update",
+        {
           action: "addTask",
           date: values.date,
           type: values.type,
@@ -977,9 +978,16 @@ export default function Home() {
           phone: values.phone,
           note: values.note,
           ...(costNum > 0 ? { cost: costNum } : {}),
-        }),
-      });
-      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+        },
+        {
+          onRetry: (attempt, tot) => {
+            retryToast = toast.info(`เซิร์ฟเวอร์ตอบช้า — กำลังลองใหม่ (${attempt}/${tot})`, {
+              description: "ไม่ต้องกดซ้ำ ระบบส่งให้เองจนสำเร็จ",
+            });
+          },
+        },
+      );
+      if (retryToast !== undefined) toast.dismiss(retryToast);
       if (process.env.NODE_ENV === "development") {
         console.log("[write] addTask response", res.status, data);
       }
@@ -1010,8 +1018,12 @@ export default function Home() {
         toast.error(`เพิ่มงานไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}`);
       }
     } catch (e: unknown) {
+      if (retryToast !== undefined) toast.dismiss(retryToast);
       console.error("[write] addTask failed", e);
-      toast.error(e instanceof Error ? e.message : "Network error");
+      toast.error(
+        e instanceof Error ? `เพิ่มงานไม่สำเร็จ: ${e.message}` : "เพิ่มงานไม่สำเร็จ",
+        { description: "ลองใหม่หลายครั้งแล้วยังไม่ผ่าน — ข้อมูลในฟอร์มยังอยู่ กดบันทึกอีกครั้งได้เลย" },
+      );
     } finally { setSavingTask(false); }
   }
 
