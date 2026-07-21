@@ -1,6 +1,16 @@
 /**
- * Code.gs v3.20.0 — Dashboard หอพัก
+ * Code.gs v3.22.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
+ *
+ * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
+ *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.22.0:
+ *   - getTasks_ ส่งเฉพาะงานเปิด + งานปิดย้อนหลัง 120 วัน (payload ไม่โตไม่หยุด)
+ *   - getRoomTasks — ประวัติงานเต็มรายห้อง (โมดัลห้องดึงตอนเปิด)
+ *   - onEdit หาคอลัมน์จาก header + ล้างผู้เช่าเก่าตอนย้ายออก→ว่าง
+ * NEW v3.21.0:
+ *   - column id (col 12) — UUID ประจำงาน, auto-backfill ครั้งแรกที่เขียน
  * NEW v3.4.0:
  *   - CacheService 60s TTL สำหรับ getTasks (10x faster repeat reads)
  *   - column I=ผู้สร้าง, J=วันที่สร้าง บันทึกผู้กรอกงาน
