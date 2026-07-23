@@ -245,6 +245,12 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
                   {formatDuration(timer.totalMin)} ชม.
                 </span>
               </header>
+              {timer.runningHours >= 12 && (
+                <p className="ac-task-timer-stale" role="alert">
+                  ⚠ จับเวลาค้างมา {Math.floor(timer.runningHours)} ชม. — ถ้าลืมหยุด
+                  กด "หยุด" แล้วเวลาที่เกินจะถูกบันทึกด้วย (แก้ได้ในชีต บันทึกเวลา)
+                </p>
+              )}
               <div className="ac-task-timer-actions">
                 {timer.status === "idle" && (
                   <button

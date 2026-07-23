@@ -1300,6 +1300,7 @@ export default function Home() {
                   activeBuilding={activeBuilding}
                   rooms={rooms}
                   onChanged={refresh}
+                  onOptimisticStatus={optimisticUpdateTask}
                   onSelectRoom={(r) => setSelectedRoom(r)}
                   onAddTaskForRoom={openAddTaskForRoom}
                   onEditTask={(t) => setEditingTask(t)}

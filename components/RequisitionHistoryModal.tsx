@@ -94,7 +94,10 @@ export default function RequisitionHistoryModal({ open, part, onClose }: Props) 
             <div className="ac-req-history-empty">ยังไม่มีการเบิกอะไหล่ชิ้นนี้</div>
           ) : (
             <ul className="ac-req-history-list">
-              {rows.map((r) => (
+              {/* Newest first (audit r9 bug #2): the sheet appends rows
+                  oldest-first and the server echoes that order — sort
+                  here so the latest withdrawal tops the list. */}
+              {[...rows].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).map((r) => (
                 <li key={r.id} className="ac-req-history-item">
                   <div className="ac-req-history-row1">
                     <span className="ac-req-history-qty">×{r.quantity}</span>

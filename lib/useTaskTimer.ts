@@ -26,6 +26,10 @@ import type { ActiveTimer, TimeLog } from "@/types";
 export type TimerStatus = "idle" | "running" | "submitting";
 
 export interface UseTaskTimerResult {
+  /** Hours the ACTIVE timer has been running (0 when idle). Powers the
+   *  stale-timer warning — a forgotten start left overnight inflates
+   *  logged hours silently (audit r9 risk #3). */
+  runningHours: number;
   status: TimerStatus;
   /** Active timer (this task only), null when idle. */
   active: ActiveTimer | null;
@@ -155,15 +159,18 @@ export function useTaskTimer(taskKey: string | null): UseTaskTimerResult {
 
   // Compute total: closed logs + live running delta
   let totalMin = logs.reduce((s, l) => s + (l.durationMin || 0), 0);
+  let runningHours = 0;
   if (active && status === "running") {
     const startMs = parseSheetDate(active.startedAt);
     if (startMs) {
       totalMin += Math.max(0, Math.round((nowMs - startMs) / 60000));
+      runningHours = Math.max(0, (nowMs - startMs) / 3600000);
     }
   }
 
   return {
     status,
+    runningHours,
     active,
     logs,
     totalMin,
