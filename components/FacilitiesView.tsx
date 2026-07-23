@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { Facility, FacilityType, FacilityStatus } from "@/types";
+import { formatCommonArea } from "@/lib/taskLocation";
 import {
   FACILITY_TYPES, FACILITY_TYPE_ICON, FACILITY_STATUS_COLOR,
   MAINTENANCE_STATUS_COLOR, MAINTENANCE_STATUS_LABEL,
@@ -379,7 +380,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
                         )}
                         <button
                           className="ac-btn ac-btn-ghost ac-btn-sm"
-                          onClick={() => onScheduleService(f.building, "", taskNote)}
+                          onClick={() => onScheduleService(f.building, formatCommonArea(f.name ? `${f.type} ${f.name}` : f.type), taskNote)}
                           disabled={submitting}
                           title="สร้างงานบำรุงสาธารณูปโภคนี้"
                         >+ นัดบำรุง</button>

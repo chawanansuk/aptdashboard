@@ -50,9 +50,22 @@ export const COMMON_AREA_TYPES: readonly string[] = [
   "อื่นๆ",
 ] as const;
 
-/** True iff the task's location is a common area (not a tenant room). */
+/** Bare form — MaintLogView's log modal writes this when the user gave
+ *  no specific spot. Both forms mean "common area":
+ *    "ส่วนกลาง"          (no spot)
+ *    "ส่วนกลาง:ลิฟต์"    (with facility/spot) */
+export const COMMON_AREA_BARE = "ส่วนกลาง";
+
+/** True iff the task's location is a common area (not a tenant room).
+ *  Accepts BOTH encodings (audit r8: the two features each invented one
+ *  and couldn't see each other's tasks). */
 export function isCommonAreaTask(t: { room: string }): boolean {
-  return !!t.room && t.room.startsWith(COMMON_AREA_PREFIX);
+  return !!t.room && (t.room === COMMON_AREA_BARE || t.room.startsWith(COMMON_AREA_PREFIX));
+}
+
+/** The spot/facility part ("ลิฟต์"), or "" for the bare form / rooms. */
+export function commonAreaSpot(room: string): string {
+  return room.startsWith(COMMON_AREA_PREFIX) ? room.slice(COMMON_AREA_PREFIX.length) : "";
 }
 
 export type LocationKind = "room" | "common";
@@ -72,9 +85,10 @@ export interface ParsedLocation {
 export function parseTaskLocation(t: { room: string }): ParsedLocation {
   const raw = t.room || "";
   if (isCommonAreaTask({ room: raw })) {
+    const spot = commonAreaSpot(raw);
     return {
       kind: "common",
-      label: raw.slice(COMMON_AREA_PREFIX.length),
+      label: spot || COMMON_AREA_BARE,
       raw,
     };
   }

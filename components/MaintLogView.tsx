@@ -1,20 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Role } from "@/auth";
 import type { RoomView, SheetRow } from "@/types";
 import {
-  buildPeriods, buildMaintDigest, digestToMarkdown, shortDate,
+  buildPeriods, buildMaintDigest, digestToMarkdown, shortDate, groupLabel,
   COMMON_AREA_ROOM, MAINT_TYPES, type Period,
 } from "@/lib/maintLog";
 import { TASK_TYPE_COLOR } from "@/lib/constants";
-import { canViewFinancials, canPerform } from "@/lib/permissions";
+import { canViewFinancials, canAccess } from "@/lib/permissions";
 import { formatBaht } from "@/lib/money";
 import { parseCostInput } from "@/lib/taskCost";
 import { resilientPost } from "@/lib/resilientWrite";
 import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { todayThaiDate } from "@/lib/moveoutTasks";
+import { formatCommonArea } from "@/lib/taskLocation";
+import { useFocusTrap } from "@/lib/useFocusTrap";
+import { RepairPartsPicker, type RepairPartLine } from "@/components/RoomRepairParts";
+import { fileRequisitionLines } from "@/lib/partsRequisition";
 
 /**
  * บันทึกซ่อมบำรุง — the engineer section's week/month story:
@@ -41,7 +45,10 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
   const [logOpen, setLogOpen] = useState(false);
 
   const canCost = canViewFinancials(roles);
-  const canLog = canPerform(roles, "task.add.eng");
+  // Anyone who can OPEN this view can log work in it — gating on
+  // task.add.eng hid the button from sales, contradicting ทิศ B
+  // (sales operates the app for engineers). Audit r8 bug #1.
+  const canLog = canAccess(roles, "maintlog");
   const digest = useMemo(() => buildMaintDigest(tasks, period), [tasks, period]);
 
   function exportMd() {
@@ -60,9 +67,7 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
   const renderGroup = (g: ReturnType<typeof buildMaintDigest>["rooms"][number]) => (
     <div key={`${g.building}|${g.room}`} className="ac-mlog-room">
       <div className="ac-mlog-room-head">
-        <span className="ac-mlog-room-name">
-          {g.room === COMMON_AREA_ROOM ? `${g.building} · ส่วนกลาง` : `${g.building} ${g.room}`}
-        </span>
+        <span className="ac-mlog-room-name">{groupLabel(g)}</span>
         {canCost && g.cost > 0 && (
           <span className="ac-mlog-room-cost">{formatBaht(String(g.cost), { suffix: " ฿" })}</span>
         )}
@@ -212,7 +217,18 @@ function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
   const [note, setNote] = useState("");
   const [cost, setCost] = useState("");
   const [doneAlready, setDoneAlready] = useState(true);
+  const [parts, setParts] = useState<RepairPartLine[]>([]);
   const [saving, setSaving] = useState(false);
+  // A11y parity with every other modal: focus trap + Esc-to-close.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(true, dialogRef);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !saving) onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, saving]);
 
   const roomOptions = useMemo(
     () => rooms.filter((r) => r.building === building).map((r) => r.room),
@@ -223,8 +239,14 @@ function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
     const detail = note.trim();
     if (!detail) { toast.error("กรอกรายละเอียดงานก่อน"); return; }
     if (area === "room" && !room.trim()) { toast.error("เลือกห้องก่อน"); return; }
-    const finalRoom = area === "room" ? room.trim() : COMMON_AREA_ROOM;
-    const finalNote = area === "common" && spot.trim() ? `[${spot.trim()}] ${detail}` : detail;
+    // Unified encoding (audit r8 bug #2): common areas use the SAME
+    // "ส่วนกลาง:<spot>" form as AddTaskModal/kanban, so the board's
+    // ส่วนกลาง filter and this digest both see them. Bare "ส่วนกลาง"
+    // when no spot given. The spot lives in the room field, not the note.
+    const finalRoom = area === "room"
+      ? room.trim()
+      : (spot.trim() ? formatCommonArea(spot.trim()) : COMMON_AREA_ROOM);
+    const finalNote = detail;
     const costNum = cost ? parseCostInput(cost) : 0;
     const body = {
       action: "addTask",
@@ -251,6 +273,11 @@ function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
           ...(costNum > 0 ? { cost: costNum } : {}),
         });
       }
+      // Parts used — shared requisition flow (stock decremented +
+      // clamped withdrawals surfaced; failures warn, never roll back).
+      await fileRequisitionLines(parts, {
+        building, room: finalRoom, jobNote: finalNote,
+      });
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
       refresh();
       onClose();
@@ -265,7 +292,7 @@ function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
 
   return (
     <div className="ac-modal-backdrop" onClick={onClose}>
-      <div className="ac-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="ลงบันทึกงานซ่อมบำรุง">
+      <div ref={dialogRef} className="ac-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="ลงบันทึกงานซ่อมบำรุง">
         <header className="ac-modal-head">
           <div className="ac-modal-title">📝 ลงบันทึกงานซ่อมบำรุง</div>
           <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด">✕</button>
@@ -329,6 +356,10 @@ function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
               placeholder="เช่น เปลี่ยนหลอดไฟทางเดิน 2 หลอด / ล้างแอร์ / เติมน้ำยาถังดับเพลิง / ทาสีรั้ว"
             />
           </div>
+
+          {/* อะไหล่ที่ใช้ — same picker as the repair tab; hidden
+              automatically when the inventory isn't reachable. */}
+          <RepairPartsPicker lines={parts} onChange={setParts} disabled={saving} />
 
           <div className="ac-field">
             <label htmlFor="mlog-cost">ค่าใช้จ่าย (บาท ไม่บังคับ)</label>

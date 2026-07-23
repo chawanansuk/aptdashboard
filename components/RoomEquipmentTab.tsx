@@ -390,10 +390,11 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
             ประวัติซ่อม ({pastTasks.filter((t) => t.type === "ซ่อม").length})
           </summary>
           <ul className="ac-equipment-history-list">
+            {/* pastTasks are ALREADY newest-first (useRoomHistory /
+                feed buckets both sort desc) — the old .reverse() here
+                surfaced the oldest 20 and hid recent repairs (audit r8). */}
             {pastTasks
               .filter((t) => t.type === "ซ่อม")
-              .slice()
-              .reverse()
               .slice(0, 20)
               .map((t, i) => (
                 <li key={`${t.date}-${i}`}>

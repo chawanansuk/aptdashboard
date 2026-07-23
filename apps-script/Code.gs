@@ -1,10 +1,13 @@
 /**
- * Code.gs v3.22.0 — Dashboard หอพัก
+ * Code.gs v3.23.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
  *
+ * NEW v3.23.0:
+ *   - อะไหล่ column ราคา/หน่วย (col 11) — สต๊อกมีมูลค่า, addPart/updatePart รับ price
+ *   - ปิดงานเลยกำหนด → ประทับวันที่เป็นวันนี้ (โผล่ใน "เสร็จวันนี้" ของกระดาน)
  * NEW v3.22.0:
  *   - getTasks_ ส่งเฉพาะงานเปิด + งานปิดย้อนหลัง 120 วัน (payload ไม่โตไม่หยุด)
  *   - getRoomTasks — ประวัติงานเต็มรายห้อง (โมดัลห้องดึงตอนเปิด)
@@ -498,7 +501,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.22.0';
+var BACKEND_VERSION = '3.23.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -955,10 +958,27 @@ function updateTaskStatus_(b) {
   if (rows.length === 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   const status = b.status || 'เสร็จ';
+  // v3.23 (audit r8 bug #3): closing an OVERDUE task also moves its date
+  // to today. Without this the done row failed the kanban's
+  // "เสร็จวันนี้" date check and vanished from the board with no trace,
+  // and the daily done-KPI under-counted. Only past dates move — closing
+  // a future-dated task early keeps its scheduled date.
+  const isDoneWrite = status === 'เสร็จ' || status === 'done' || status === 'ปิดแล้ว';
+  const todayTs = (function () {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+  })();
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy');
   // Flip every duplicate sharing this key, not just the first — see
   // findAllTaskRows_. Prevents the "close → pops back open" bounce.
   for (let i = 0; i < rows.length; i++) {
     sh.getRange(rows[i], TASK_COL.STATUS).setValue(status);
+    if (isDoneWrite) {
+      const ts = taskDayTime_(sh.getRange(rows[i], TASK_COL.DATE).getValue());
+      if (ts !== null && ts < todayTs) {
+        sh.getRange(rows[i], TASK_COL.DATE).setValue(todayStr);
+      }
+    }
   }
   clearTasksCache_();
   return { updated: true, rows: rows, count: rows.length };
@@ -1345,12 +1365,22 @@ function getOrCreatePartSheet_() {
   return sh;
 }
 
+/** v3.23: column K (11) "ราคา/หน่วย" — per-unit price in THB, powering
+ *  stock valuation + parts-cost visibility. Same lazy-migration pattern
+ *  as the task cost/id columns: header appears on first write. */
+var PART_PRICE_COL = 11;
+function ensurePartPriceColumn_(sh) {
+  if (sh.getLastColumn() >= PART_PRICE_COL) return;
+  sh.getRange(1, PART_PRICE_COL).setValue('ราคา/หน่วย').setFontWeight('bold');
+}
+
 function getAllParts_() {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PART);
   if (!sh) return [];
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
-  const data = sh.getRange(2, 1, lastRow - 1, 10).getValues();
+  const cols = Math.min(Math.max(sh.getLastColumn(), 10), PART_PRICE_COL);
+  const data = sh.getRange(2, 1, lastRow - 1, cols).getValues();
   const rows = [];
   for (let i = 0; i < data.length; i++) {
     const r = data[i];
@@ -1358,6 +1388,7 @@ function getAllParts_() {
     if (!name) continue;
     const stockNum = parseFloat(r[3]);
     const threshNum = parseFloat(r[4]);
+    const priceNum = cols >= PART_PRICE_COL ? parseFloat(r[10]) : NaN;
     rows.push({
       id:        norm(r[0]),
       name:      name,
@@ -1369,6 +1400,7 @@ function getAllParts_() {
       creator:   norm(r[7]),
       createdAt: norm(r[8]),
       updatedAt: norm(r[9]),
+      price:     isFinite(priceNum) && priceNum > 0 ? priceNum : 0, // v3.23
     });
   }
   return rows;
@@ -1381,10 +1413,12 @@ function getAllParts_() {
 function addPart_(b) {
   if (!b.name) throw new Error('name required');
   const sh = getOrCreatePartSheet_();
+  ensurePartPriceColumn_(sh); // v3.23
   const id = Utilities.getUuid();
   const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
   const stockNum = parseFloat(b.stock);
   const threshNum = parseFloat(b.threshold);
+  const priceNum = parseFloat(b.price);
   sh.appendRow([
     id,
     b.name,
@@ -1396,6 +1430,7 @@ function addPart_(b) {
     b.creator || '',
     now,
     now,
+    isFinite(priceNum) && priceNum > 0 ? priceNum : '', // v3.23 ราคา/หน่วย
   ]);
   clearPartCache_();
   return { appended: true, id: id, row: sh.getLastRow() };
@@ -1431,6 +1466,11 @@ function updatePart_(b) {
   }
   if (b.unit      !== undefined) sh.getRange(found, 6).setValue(b.unit);
   if (b.note      !== undefined) sh.getRange(found, 7).setValue(b.note);
+  if (b.price     !== undefined) { // v3.23 ราคา/หน่วย
+    ensurePartPriceColumn_(sh);
+    const n = parseFloat(b.price);
+    sh.getRange(found, PART_PRICE_COL).setValue(isFinite(n) && n > 0 ? n : '');
+  }
   const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
   sh.getRange(found, 10).setValue(now);
   clearPartCache_();

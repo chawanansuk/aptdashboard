@@ -20,6 +20,7 @@ import TaskDetailDrawer from "./TaskDetailDrawer";
 import { taskKey } from "@/lib/taskKey";
 import { appendRepairLog } from "@/lib/repairLog";
 import { publishBusEvent } from "@/lib/realtimeBus";
+import { toast } from "@/lib/toast";
 import { MOVEOUT_PREP_KINDS, findOpenPrepTask } from "@/lib/moveoutTasks";
 
 interface Props {
@@ -54,7 +55,11 @@ interface Props {
  * belong on the Sales Pipeline view.
  */
 
-const ENG_TASK_TYPES = new Set(["ซ่อม", "ทำสะอาด"]);
+// อื่นๆ included (audit r8 bug #4): move-out inspections, QC checklists
+// and common-area misc work are all filed as อื่นๆ — excluding the type
+// meant the moveout panel's "ตรวจห้อง" prep never appeared as a board
+// card and inspections were invisible once created.
+const ENG_TASK_TYPES = new Set(["ซ่อม", "ทำสะอาด", "อื่นๆ"]);
 
 type ColumnKey = "pending" | "in_progress" | "blocked" | "done";
 
@@ -216,6 +221,15 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       onChanged?.();
+      // Mis-tap safety (audit r8): closing a card offers a one-tap undo
+      // right in the toast — before this, a wrong "เสร็จ" could only be
+      // reverted from the tasks list.
+      if (newStatus === "เสร็จ") {
+        const prevStatus = t.status || "";
+        toast.success(`ปิดงาน ${t.building} ${t.room} แล้ว ✓`, {
+          action: { label: "เลิกทำ", onClick: () => void moveTo({ ...t, status: newStatus }, prevStatus) },
+        });
+      }
       // Cross-unit handoff: tell sales when a turnover-tagged task closes.
       publishTurnoverStepDone(t, newStatus);
       // Post-task side effect: auto room status update (or hint toast)
@@ -711,7 +725,7 @@ function KanbanCard({
   onDragStart?: (key: string) => void;
   onDragEnd?: () => void;
 }) {
-  const typeIcon = task.type === "ซ่อม" ? "🔧" : task.type === "ทำสะอาด" ? "🧹" : "•";
+  const typeIcon = task.type === "ซ่อม" ? "🔧" : task.type === "ทำสะอาด" ? "🧹" : "📋";
   const age = ageLabel(task.date);
   const overdue = age.startsWith("เลย");
   const location = parseTaskLocation(task);

@@ -1,6 +1,8 @@
 import type { SheetRow } from "@/types";
 import { isCancelledStatus, isDoneStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { isCommonAreaTask, commonAreaSpot, COMMON_AREA_BARE } from "@/lib/taskLocation";
+import { MOVEOUT_INSPECT_NOTE, QC_CHECKLIST_NOTE } from "@/lib/moveoutTasks";
 
 /**
  * บันทึกซ่อมบำรุง — pure helpers for the MaintLogView.
@@ -20,8 +22,21 @@ import { parseThaiDate } from "@/lib/dateUtils";
 
 export const MAINT_TYPES = ["ซ่อม", "ทำสะอาด", "อื่นๆ"] as const;
 
-/** The room value the log modal writes for common-area work. */
-export const COMMON_AREA_ROOM = "ส่วนกลาง";
+/** The room value the log modal writes for common-area work (bare form;
+ *  re-exported from taskLocation so every feature shares ONE encoding —
+ *  audit r8 found two incompatible conventions). */
+export const COMMON_AREA_ROOM = COMMON_AREA_BARE;
+
+/** Turnover checklist items are type อื่นๆ but they're pipeline steps,
+ *  not maintenance — counting them inflated the digest (audit r8). */
+const TURNOVER_NOTE_KEYS = [
+  MOVEOUT_INSPECT_NOTE.split(" —")[0].trim(),
+  QC_CHECKLIST_NOTE.split(" —")[0].trim(),
+];
+function isTurnoverChecklist(t: SheetRow): boolean {
+  const note = (t.note || "").trim();
+  return TURNOVER_NOTE_KEYS.some((k) => note.startsWith(k));
+}
 
 export interface Period {
   key: string;
@@ -127,6 +142,7 @@ export function buildMaintDigest(tasks: SheetRow[], period: Period): MaintDigest
   for (const t of tasks) {
     if (!(MAINT_TYPES as readonly string[]).includes(t.type)) continue;
     if (isCancelledStatus(t.status)) continue;
+    if (isTurnoverChecklist(t)) continue;
     const d = parseThaiDate(t.date);
     if (!d) continue;
     const time = startOfDay(d).getTime();
@@ -157,13 +173,21 @@ export function buildMaintDigest(tasks: SheetRow[], period: Period): MaintDigest
     a.room.localeCompare(b.room, undefined, { numeric: true });
 
   return {
-    rooms: all.filter((g) => g.room !== COMMON_AREA_ROOM).sort(byName),
-    common: all.filter((g) => g.room === COMMON_AREA_ROOM).sort(byName),
+    rooms: all.filter((g) => !isCommonAreaTask({ room: g.room })).sort(byName),
+    common: all.filter((g) => isCommonAreaTask({ room: g.room })).sort(byName),
     countsByType: Array.from(counts.entries()),
     doneCount,
     openCount,
     totalCost,
   };
+}
+
+/** Display label for a group — spot-aware for common areas:
+ *  "มีทอง 204" · "มีทอง · ส่วนกลาง" · "มีทอง · ส่วนกลาง (ลิฟต์)". */
+export function groupLabel(g: { building: string; room: string }): string {
+  if (!isCommonAreaTask({ room: g.room })) return `${g.building} ${g.room}`;
+  const spot = commonAreaSpot(g.room);
+  return spot ? `${g.building} · ส่วนกลาง (${spot})` : `${g.building} · ส่วนกลาง`;
 }
 
 /** dd/MM for list rows (year is implied by the period). */
@@ -197,7 +221,7 @@ export function digestToMarkdown(
     lines.push(`## ${title}`);
     lines.push("");
     for (const g of groups) {
-      const head = g.room === COMMON_AREA_ROOM ? `${g.building} · ส่วนกลาง` : `${g.building} ${g.room}`;
+      const head = groupLabel(g);
       const cost = opts.includeCost && g.cost > 0 ? ` — ${g.cost.toLocaleString("th-TH")} บาท` : "";
       lines.push(`### ${head}${cost}`);
       for (const e of g.entries) {
