@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Part, RoomView } from "@/types";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { toast } from "@/lib/toast";
 
 /**
  * "เบิกอะไหล่" modal — captures who/when/where when an engineer
@@ -90,6 +91,18 @@ export default function RequisitionModal({ open, part, rooms, onClose, onSaved }
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      // Server clamps a withdrawal at remaining stock (another user may
+      // have drained it since our cached stock number). Surface that —
+      // the old silent success let staff walk off believing the full
+      // quantity came out while the log recorded less (audit r9 bug #1).
+      if (data.clamped) {
+        toast.info(
+          `สต๊อกไม่พอ — เบิกได้จริง ${data.actualQuantity ?? 0} ${part.unit} จากที่ขอ ${qty} ${part.unit}`,
+          { description: "ตัวเลขคงเหลือเพิ่งเปลี่ยน (มีคนเบิกก่อนหน้า) — เช็คหน้าอะไหล่" },
+        );
+      } else {
+        toast.success(`เบิก ${part.name} ×${qty} แล้ว`);
+      }
       onSaved?.();
       onClose();
     } catch (e) {

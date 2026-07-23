@@ -10318,3 +10318,20 @@ html.dark .ac-parts-value-banner {
 }
 .ac-parts-value { color: #15803D; font-weight: 600; }
 html.dark .ac-parts-value { color: #86EFAC; }
+
+/* Stale running-timer warning (audit r9) */
+.ac-task-timer-stale {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #92400E;
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+html.dark .ac-task-timer-stale {
+  color: #FDE68A;
+  background: #451A03;
+  border-color: #92400E;
+}

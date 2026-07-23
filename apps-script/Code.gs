@@ -1,10 +1,13 @@
 /**
- * Code.gs v3.23.0 — Dashboard หอพัก
+ * Code.gs v3.24.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
  *
+ * NEW v3.24.0:
+ *   - งานประจำ: เช็คว่าห้องยังมีจริงก่อนสร้างงาน (กันงานกำพร้า) + แถวใหม่ได้ UUID
+ *   - ประวัติเบิกอะไหล่: ล่าสุดขึ้นก่อน + จำกัดจำนวนแถว (กันโตไม่หยุด)
  * NEW v3.23.0:
  *   - อะไหล่ column ราคา/หน่วย (col 11) — สต๊อกมีมูลค่า, addPart/updatePart รับ price
  *   - ปิดงานเลยกำหนด → ประทับวันที่เป็นวันนี้ (โผล่ใน "เสร็จวันนี้" ของกระดาน)
@@ -501,7 +504,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.23.0';
+var BACKEND_VERSION = '3.24.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -2021,7 +2024,12 @@ function getAllRequisitions_(b) {
       createdAt: norm(r[9]),
     });
   }
-  return rows;
+  // v3.24: newest-first + capped like the audit log — the unfiltered
+  // path used to return every requisition ever recorded, a latent
+  // scaling cliff once an "all requisitions" screen exists.
+  rows.reverse();
+  const cap = partFilter ? 500 : 200;
+  return rows.length > cap ? rows.slice(0, cap) : rows;
 }
 
 /**
@@ -2293,8 +2301,36 @@ function runRecurringCheck_(b) {
   const data = recurringSh.getRange(2, 1, lastRow - 1, 12).getValues();
   const taskSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   if (!taskSh) throw new Error('sheet "งาน" not found');
+  ensureTaskCostColumn_(taskSh);
+  ensureTaskIdColumn_(taskSh); // v3.24 — recurring rows get UUIDs too
   const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
   const user = (b && b.user) || 'recurring';
+
+  // v3.24 (audit r9 risk #4): validate the template's target against the
+  // ROOM sheet. A room deleted/renumbered after the template was made
+  // used to silently spawn an orphan task every cycle — open forever,
+  // driving nothing. Common-area targets (ส่วนกลาง / ส่วนกลาง:จุด) are
+  // exempt: they're not rooms.
+  const roomSet = (function () {
+    const set = {};
+    const roomSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.ROOM);
+    if (!roomSh || roomSh.getLastRow() < 2) return set;
+    const rows = roomSh.getRange(2, 1, roomSh.getLastRow() - 1, 3).getValues();
+    const headers = roomSh.getRange(1, 1, 1, roomSh.getLastColumn()).getValues()[0].map(norm);
+    let iBld = headers.indexOf('ตึก'); if (iBld < 0) iBld = headers.indexOf('อาคาร'); if (iBld < 0) iBld = 0;
+    let iRoom = headers.indexOf('ห้อง'); if (iRoom < 0) iRoom = headers.indexOf('เลขห้อง'); if (iRoom < 0) iRoom = 2;
+    const full = roomSh.getRange(2, 1, roomSh.getLastRow() - 1, Math.max(iBld, iRoom) + 1).getValues();
+    for (let j = 0; j < full.length; j++) {
+      const bld = norm(full[j][iBld]);
+      const rm = norm(full[j][iRoom]);
+      if (bld && rm) set[bld + '|' + rm] = true;
+    }
+    void rows;
+    return set;
+  })();
+  const isCommonTarget = function (rm) {
+    return rm === 'ส่วนกลาง' || rm.indexOf('ส่วนกลาง:') === 0;
+  };
 
   let created = 0;
   let skipped = 0;
@@ -2339,12 +2375,24 @@ function runRecurringCheck_(b) {
       skipped++;
       continue;
     }
+    // Orphan-target guard (v3.24) — skip + advance + audit so a dead
+    // template self-flags in the audit log instead of spawning forever.
+    if (!isCommonTarget(room) && !roomSet[building + '|' + room]) {
+      const orphanNext = new Date(today.getTime() + interval * 24 * 60 * 60 * 1000);
+      recurringSh.getRange(i + 2, 7).setValue(todayStr);
+      recurringSh.getRange(i + 2, 8).setValue(
+        Utilities.formatDate(orphanNext, 'Asia/Bangkok', 'yyyy-MM-dd'));
+      logAudit_('run', 'recurring', id, name + ' — ห้อง ' + building + ' ' + room + ' ไม่พบในชีตห้อง (ข้าม)', user);
+      skipped++;
+      continue;
+    }
     const note = (norm(r[9]) || '') + (norm(r[9]) ? ' · ' : '') + 'จากงานประจำ: ' + name;
     // Task sheet cols: DATE, TYPE, BUILDING, ROOM, CUSTOMER, PHONE, NOTE,
-    // STATUS, CREATOR, CREATED_AT, COST
+    // STATUS, CREATOR, CREATED_AT, COST, ID (v3.24: UUID stamped here
+    // too — recurring-created rows used to miss the id column).
     taskSh.appendRow([
       taskDateStr, type, building, room, '', '', note,
-      'pending', user, createdAt, '',
+      'pending', user, createdAt, '', Utilities.getUuid(),
     ]);
     // Bump template dates
     const newNext = new Date(today.getTime() + interval * 24 * 60 * 60 * 1000);

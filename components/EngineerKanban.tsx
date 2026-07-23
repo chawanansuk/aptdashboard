@@ -29,6 +29,11 @@ interface Props {
   /** Live rooms — used by auto-room-status side effect after task done. */
   rooms?: RoomView[];
   onChanged?: () => void;
+  /** Optimistic local status patch (useDashboardData) — the card jumps
+   *  columns the instant a button is pressed instead of waiting a full
+   *  server round trip (r9: the board felt laggy vs the tasks list,
+   *  which has had this since day one). */
+  onOptimisticStatus?: (t: SheetRow, status: string) => void;
   /** Called when a card click should open the legacy task editor (optional). */
   onEditTask?: (t: SheetRow) => void;
   /** Opens the room editor when a moveout-panel row is clicked. */
@@ -143,7 +148,7 @@ export function ageLabel(taskDate: string, now: Date = new Date()): string {
   return `เลย ${Math.abs(diff)} วัน`;
 }
 
-export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged, onEditTask, onSelectRoom }: Props) {
+export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged, onOptimisticStatus, onEditTask, onSelectRoom }: Props) {
   const { data: session } = useSession();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -220,6 +225,8 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      // Card jumps columns NOW; the poll/refresh reconciles later.
+      onOptimisticStatus?.(t, newStatus);
       onChanged?.();
       // Mis-tap safety (audit r8): closing a card offers a one-tap undo
       // right in the toast — before this, a wrong "เสร็จ" could only be

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { parseThaiDate } from "@/lib/dateUtils";
 import type { Role } from "@/auth";
-import type { RoomView, SheetRow } from "@/types";
+import type { Part, Requisition, RoomView, SheetRow } from "@/types";
 import {
   buildPeriods, buildMaintDigest, digestToMarkdown, shortDate, groupLabel,
   COMMON_AREA_ROOM, MAINT_TYPES, type Period,
@@ -45,6 +46,47 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
   const [logOpen, setLogOpen] = useState(false);
 
   const canCost = canViewFinancials(roles);
+  // ค่าอะไหล่ที่เบิกในช่วง (r9) — requisitions × part price. Loaded once
+  // when the view opens; any failure (network / role without part.view)
+  // simply hides the stat.
+  const [reqRows, setReqRows] = useState<Requisition[] | null>(null);
+  const [partPrice, setPartPrice] = useState<Map<string, number> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [reqRes, partRes] = await Promise.all([
+          fetch("/api/part-requisitions", { cache: "no-store" }),
+          fetch("/api/parts", { cache: "no-store" }),
+        ]);
+        if (!reqRes.ok || !partRes.ok) return;
+        const reqData = await reqRes.json();
+        const partData = await partRes.json();
+        if (!alive) return;
+        setReqRows((reqData.rows || []) as Requisition[]);
+        const m = new Map<string, number>();
+        for (const p of (partData.rows || []) as Part[]) {
+          if (p.price && p.price > 0) m.set(p.id, p.price);
+        }
+        setPartPrice(m);
+      } catch { /* stat stays hidden */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const partsSpend = useMemo(() => {
+    if (!reqRows || !partPrice) return 0;
+    let sum = 0;
+    for (const r of reqRows) {
+      const d = parseThaiDate((r.createdAt || "").split(" ")[0]);
+      if (!d) continue;
+      const ts = d.setHours(0, 0, 0, 0);
+      if (ts < period.start || ts >= period.end) continue;
+      const price = partPrice.get(r.partId);
+      if (price) sum += price * (r.quantity || 0);
+    }
+    return sum;
+  }, [reqRows, partPrice, period]);
   // Anyone who can OPEN this view can log work in it — gating on
   // task.add.eng hid the button from sales, contradicting ทิศ B
   // (sales operates the app for engineers). Audit r8 bug #1.
@@ -150,6 +192,12 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
           <div className="ac-mlog-stat is-cost">
             <span className="ac-mlog-stat-num">{digest.totalCost.toLocaleString("th-TH")}</span>
             <span className="ac-mlog-stat-label">ค่าใช้จ่าย (บาท)</span>
+          </div>
+        )}
+        {canCost && partsSpend > 0 && (
+          <div className="ac-mlog-stat is-cost">
+            <span className="ac-mlog-stat-num">{partsSpend.toLocaleString("th-TH")}</span>
+            <span className="ac-mlog-stat-label">ค่าอะไหล่ที่เบิก (บาท)</span>
           </div>
         )}
       </div>

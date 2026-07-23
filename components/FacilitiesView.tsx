@@ -221,21 +221,23 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
 
   return (
     <div className="ac-facilities">
+      {/* Shared status tokens (audit r8 #10) — the tiles previously
+          hardcoded hex and drifted from FACILITY_STATUS_COLOR. */}
       <div className="ac-maintenance-summary">
-        <div className="ac-maint-stat" style={{ borderColor: "#16A34A" }}>
-          <div className="ac-maint-stat-num" style={{ color: "#16A34A" }}>{counts.working}</div>
+        <div className="ac-maint-stat" style={{ borderColor: FACILITY_STATUS_COLOR["ใช้งานได้"] }}>
+          <div className="ac-maint-stat-num" style={{ color: FACILITY_STATUS_COLOR["ใช้งานได้"] }}>{counts.working}</div>
           <div className="ac-maint-stat-label">ใช้งานได้</div>
         </div>
-        <div className="ac-maint-stat" style={{ borderColor: "#EAB308" }}>
-          <div className="ac-maint-stat-num" style={{ color: "#EAB308" }}>{counts.repair}</div>
+        <div className="ac-maint-stat" style={{ borderColor: FACILITY_STATUS_COLOR["ต้องซ่อม"] }}>
+          <div className="ac-maint-stat-num" style={{ color: FACILITY_STATUS_COLOR["ต้องซ่อม"] }}>{counts.repair}</div>
           <div className="ac-maint-stat-label">ต้อง/กำลังซ่อม</div>
         </div>
-        <div className="ac-maint-stat" style={{ borderColor: "#DC2626" }}>
-          <div className="ac-maint-stat-num" style={{ color: "#DC2626" }}>{counts.offline}</div>
+        <div className="ac-maint-stat" style={{ borderColor: FACILITY_STATUS_COLOR["ปิดใช้งาน"] }}>
+          <div className="ac-maint-stat-num" style={{ color: FACILITY_STATUS_COLOR["ปิดใช้งาน"] }}>{counts.offline}</div>
           <div className="ac-maint-stat-label">ปิดใช้งาน</div>
         </div>
-        <div className="ac-maint-stat" style={{ borderColor: "#94A3B8" }}>
-          <div className="ac-maint-stat-num" style={{ color: "#94A3B8" }}>{counts.total}</div>
+        <div className="ac-maint-stat" style={{ borderColor: "var(--color-text-faint)" }}>
+          <div className="ac-maint-stat-num" style={{ color: "var(--color-text-faint)" }}>{counts.total}</div>
           <div className="ac-maint-stat-label">รวม</div>
         </div>
       </div>
