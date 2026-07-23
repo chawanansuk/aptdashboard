@@ -41,6 +41,7 @@ const ROLE_LABEL: Record<Role, string> = {
 // machine name so non-engineers can read the matrix.
 const ROUTE_DESC: Record<Route, string> = {
   overview: "หน้าภาพรวม",
+  maintlog: "บันทึกซ่อมบำรุง (สรุปรายสัปดาห์/เดือน + งานส่วนกลาง)",
   today: "งานวันนี้",
   calendar: "ปฏิทินรายเดือน",
   ready: "ห้องพร้อมขาย",

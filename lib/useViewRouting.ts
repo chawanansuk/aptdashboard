@@ -30,13 +30,13 @@ import { toast } from "@/lib/toast";
 export type ActiveView =
   | "overview" | "today" | RoomStatus
   | "income" | "tenants" | "calendar" | "maintenance" | "facilities"
-  | "parts" | "vehicles" | "leads" | "recurring"
+  | "parts" | "vehicles" | "leads" | "recurring" | "maintlog"
   | "salespipeline" | "engineerkanban" | "reports";
 
 export const VALID_VIEWS: ActiveView[] = [
   "overview", "today", "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive",
   "income", "tenants", "calendar", "maintenance", "facilities", "parts", "vehicles", "leads", "recurring",
-  "salespipeline", "engineerkanban", "reports",
+  "maintlog", "salespipeline", "engineerkanban", "reports",
 ];
 
 export interface ViewRoutingOptions {
