@@ -79,6 +79,33 @@ describe("buildMaintDigest", () => {
   });
 });
 
+describe("buildMaintDigest — unified common-area + turnover exclusion (r8)", () => {
+  it("accepts BOTH common-area encodings and labels the spot", async () => {
+    const { groupLabel } = await import("./maintLog");
+    const tasks = [
+      mk({ room: COMMON_AREA_ROOM, note: "ทาสีรั้ว" }),               // bare form (log modal, no spot)
+      mk({ room: "ส่วนกลาง:ลิฟต์", type: "อื่นๆ", note: "หยอดจาระบี" }), // colon form (AddTaskModal)
+    ];
+    const d = buildMaintDigest(tasks, thisMonth);
+    expect(d.common).toHaveLength(2);
+    expect(d.rooms).toHaveLength(0);
+    const labels = d.common.map(groupLabel);
+    expect(labels).toContain("มีทอง · ส่วนกลาง");
+    expect(labels).toContain("มีทอง · ส่วนกลาง (ลิฟต์)");
+  });
+
+  it("excludes turnover checklist items (inspect/QC are pipeline, not maintenance)", () => {
+    const tasks = [
+      mk({ type: "อื่นๆ", note: "ตรวจห้องก่อนคืนมัดจำ — เช็คเฟอร์ฯ / อุปกรณ์" }),
+      mk({ type: "อื่นๆ", note: "Checklist สภาพห้องก่อนปล่อยขาย — ตรวจตามฟอร์ม QC 6 หมวด" }),
+      mk({ type: "อื่นๆ", note: "เปลี่ยนถ่านรีโมทแอร์" }), // real misc work stays
+    ];
+    const d = buildMaintDigest(tasks, thisMonth);
+    expect(d.doneCount).toBe(1);
+    expect(d.rooms[0].entries[0].task.note).toContain("รีโมท");
+  });
+});
+
 describe("digestToMarkdown", () => {
   const tasks = [
     mk({ note: "ก๊อกรั่ว", cost: 350 }),

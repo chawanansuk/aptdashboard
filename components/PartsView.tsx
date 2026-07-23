@@ -148,6 +148,20 @@ export default function PartsView({ rooms = [] }: Props) {
     [rows],
   );
 
+  // v3.23 stock valuation — priced rows only; the banner shows coverage
+  // so a partial number isn't mistaken for the whole inventory's value.
+  const { stockValue, pricedCount } = useMemo(() => {
+    let value = 0;
+    let priced = 0;
+    for (const p of rows || []) {
+      if (p.price && p.price > 0) {
+        priced++;
+        value += p.price * p.stock;
+      }
+    }
+    return { stockValue: value, pricedCount: priced };
+  }, [rows]);
+
   function handleExport() {
     if (filtered.length === 0) return;
     const today = new Date().toISOString().slice(0, 10);
@@ -161,6 +175,8 @@ export default function PartsView({ rooms = [] }: Props) {
         { header: "คงเหลือ",      value: (p: Part) => p.stock },
         { header: "หน่วย",        value: (p: Part) => p.unit },
         { header: "จุดสั่งซื้อ",   value: (p: Part) => p.threshold || "" },
+        { header: "ราคา/หน่วย",   value: (p: Part) => p.price || "" },
+        { header: "มูลค่า",       value: (p: Part) => (p.price ? p.price * p.stock : "") },
         { header: "ใกล้หมด",      value: (p: Part) => (isLowStock(p) ? "ใช่" : "") },
         { header: "หมายเหตุ",     value: (p: Part) => p.note },
         { header: "ผู้บันทึก",     value: (p: Part) => p.creator },
@@ -181,6 +197,13 @@ export default function PartsView({ rooms = [] }: Props) {
           {lowCount > 0 && (
             <div className="ac-parts-low-banner" role="status">
               ⚠ {lowCount} รายการ ใกล้หมด/ต้องสั่งซื้อ
+            </div>
+          )}
+          {stockValue > 0 && (
+            <div className="ac-parts-value-banner">
+              💰 มูลค่าสต๊อกรวม {stockValue.toLocaleString("th-TH")} บาท
+              {pricedCount < (rows?.length ?? 0) &&
+                ` (ตั้งราคาแล้ว ${pricedCount}/${rows?.length ?? 0} รายการ)`}
             </div>
           )}
         </div>
@@ -257,6 +280,8 @@ export default function PartsView({ rooms = [] }: Props) {
                 <th scope="col">หมวด</th>
                 <th scope="col" className="ac-parts-num">คงเหลือ</th>
                 <th scope="col" className="ac-parts-num">จุดสั่งซื้อ</th>
+                <th scope="col" className="ac-parts-num">ราคา/หน่วย</th>
+                <th scope="col" className="ac-parts-num">มูลค่า</th>
                 <th scope="col">อัปเดต</th>
                 {canWrite && <th scope="col">จัดการ</th>}
               </tr>
@@ -349,6 +374,14 @@ export default function PartsView({ rooms = [] }: Props) {
                       })()}
                     </td>
                     <td className="ac-parts-num">{p.threshold || "—"}</td>
+                    <td className="ac-parts-num">
+                      {p.price && p.price > 0 ? p.price.toLocaleString("th-TH") : "—"}
+                    </td>
+                    <td className="ac-parts-num ac-parts-value">
+                      {p.price && p.price > 0
+                        ? (p.price * p.stock).toLocaleString("th-TH")
+                        : "—"}
+                    </td>
                     <td>
                       <span className="ac-parts-time" title={p.updatedAt || p.createdAt}>
                         {(p.updatedAt || p.createdAt || "—").split(" ")[0]}

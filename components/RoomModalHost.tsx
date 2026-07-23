@@ -12,6 +12,7 @@ import { canEditTenant, canAddEngTask } from "@/lib/permissions";
 import { todayThaiDate } from "@/lib/moveoutTasks";
 import { isTaskDatedToday } from "@/lib/dateUtils";
 import { appendRepairLog } from "@/lib/repairLog";
+import { fileRequisitionLines } from "@/lib/partsRequisition";
 import { isClosedStatus } from "@/lib/constants";
 import { roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import type { JourneyAction } from "@/lib/roomJourney";
@@ -160,47 +161,12 @@ export default function RoomModalHost({
         toast.success("บันทึกการซ่อมแล้ว");
       }
 
-      // Parts used — file requisitions AGAINST THIS ROOM (the backend
-      // has carried building/room since v3.16; this is the first UI
-      // that connects a repair to stock). The repair itself is already
-      // saved, so requisition failures degrade to a warning, never a
-      // rollback. Serial — Apps Script writes are lock-serialized anyway.
-      const lines = (parts || []).filter((p) => p.partId && p.quantity > 0);
-      if (lines.length > 0) {
-        let okCount = 0;
-        let clampedCount = 0;
-        for (const line of lines) {
-          try {
-            const rq = await fetch("/api/part-requisitions", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "add",
-                partId: line.partId,
-                quantity: line.quantity,
-                building: room.building,
-                room: room.room,
-                note: `งานซ่อม: ${note.slice(0, 80)}`,
-              }),
-            });
-            const rqData = await rq.json().catch(() => ({ ok: false }));
-            if (rqData.ok) {
-              okCount++;
-              // Apps Script clamps the withdrawal at remaining stock and
-              // flags it — surface that instead of a silent "success"
-              // that pretends the full quantity came out.
-              if (rqData.clamped) clampedCount++;
-            }
-          } catch { /* counted below */ }
-        }
-        if (okCount === lines.length && clampedCount === 0) {
-          toast.success(`เบิกอะไหล่แล้ว ${okCount} รายการ`);
-        } else if (okCount === lines.length) {
-          toast.info(`เบิกแล้ว ${okCount} รายการ — ${clampedCount} รายการสต็อกไม่พอ เบิกได้เท่าที่เหลือ (เช็คหน้าอะไหล่)`);
-        } else {
-          toast.error(`เบิกอะไหล่สำเร็จ ${okCount}/${lines.length} รายการ — เช็คหน้าอะไหล่`);
-        }
-      }
+      // Parts used — shared requisition flow (lib/partsRequisition):
+      // repair already saved; failures warn, never roll back; clamped
+      // withdrawals surfaced honestly.
+      await fileRequisitionLines(parts, {
+        building: room.building, room: room.room, jobNote: note,
+      });
 
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
       refresh();

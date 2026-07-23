@@ -30,6 +30,7 @@ export default function AddPartModal({ open, initial, onClose, onSaved }: Props)
   const [stock, setStock] = useState<string>("0");
   const [threshold, setThreshold] = useState<string>("");
   const [unit, setUnit] = useState<string>("ชิ้น");
+  const [price, setPrice] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -42,6 +43,7 @@ export default function AddPartModal({ open, initial, onClose, onSaved }: Props)
     setStock(String(initial?.stock ?? 0));
     setThreshold(initial?.threshold ? String(initial.threshold) : "");
     setUnit(initial?.unit ?? "ชิ้น");
+    setPrice(initial?.price ? String(initial.price) : "");
     setNote(initial?.note ?? "");
     setErr(null);
   }, [open, initial]);
@@ -79,12 +81,20 @@ export default function AddPartModal({ open, initial, onClose, onSaved }: Props)
         return;
       }
     }
+    let priceNum = 0;
+    if (price.trim()) {
+      priceNum = Number(price.replace(/,/g, ""));
+      if (!Number.isFinite(priceNum) || priceNum < 0) {
+        setErr("ราคาต้องเป็นตัวเลข ≥ 0");
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
       const body = isEdit
-        ? { action: "update", id: initial!.id, name: trimmedName, category, stock: stockNum, threshold: threshNum, unit: unit.trim() || "ชิ้น", note: note.trim() }
-        : { action: "add",                       name: trimmedName, category, stock: stockNum, threshold: threshNum, unit: unit.trim() || "ชิ้น", note: note.trim() };
+        ? { action: "update", id: initial!.id, name: trimmedName, category, stock: stockNum, threshold: threshNum, unit: unit.trim() || "ชิ้น", price: priceNum, note: note.trim() }
+        : { action: "add",                       name: trimmedName, category, stock: stockNum, threshold: threshNum, unit: unit.trim() || "ชิ้น", price: priceNum, note: note.trim() };
       const res = await fetch("/api/parts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -194,6 +204,22 @@ export default function AddPartModal({ open, initial, onClose, onSaved }: Props)
                 placeholder="0 = ไม่เตือน"
               />
             </div>
+          </div>
+
+          <div className="ac-field">
+            <label htmlFor="ac-part-price">
+              ราคา/หน่วย (บาท) <span className="ac-field-hint-inline">(ไว้คำนวณมูลค่าสต๊อก)</span>
+            </label>
+            <input
+              id="ac-part-price"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="เช่น 120"
+            />
           </div>
 
           <div className="ac-field">

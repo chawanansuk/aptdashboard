@@ -10298,3 +10298,23 @@ html.dark .ac-mlog-donechk { color: #CBD5E1; }
 @media print {
   .ac-mlog-actions, .ac-mlog-periods { display: none !important; }
 }
+
+/* Parts stock-valuation banner (v3.23) */
+.ac-parts-value-banner {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #15803D;
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+html.dark .ac-parts-value-banner {
+  color: #86EFAC;
+  background: #052E16;
+  border-color: #14532D;
+}
+.ac-parts-value { color: #15803D; font-weight: 600; }
+html.dark .ac-parts-value { color: #86EFAC; }

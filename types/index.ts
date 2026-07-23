@@ -169,6 +169,9 @@ export interface Part {
   stock: number;
   threshold: number;       // reorder point; 0 = no alert
   unit: string;            // default "ชิ้น"
+  /** ราคา/หน่วย (THB, v3.23) — 0 = ยังไม่ตั้งราคา. Powers stock
+   *  valuation (stock × price) in PartsView. */
+  price?: number;
   note: string;
   creator: string;
   createdAt: string;
