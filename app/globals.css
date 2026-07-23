@@ -10335,3 +10335,63 @@ html.dark .ac-task-timer-stale {
   background: #451A03;
   border-color: #92400E;
 }
+
+/* ====================================================================
+ * ENGINEER MODE TIDY (r10) — research-driven pass:
+ *   - one primary info per card, larger; secondary quiet
+ *   - one urgency indicator (pill), not four
+ *   - compact KPI strip (numbers inline, no dead vertical space)
+ *   - friendlier empty columns; tighter moveout panel
+ * Keep last in file — overrides earlier kanban rules by cascade.
+ * ==================================================================== */
+
+/* KPI strip: number + label on ONE line — the old block form left a
+ * huge empty slab under a lone number. */
+.ac-kanban-kpi {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 16px;
+}
+.ac-kanban-kpi-value { font-size: 22px; }
+.ac-kanban-kpi-label { font-size: var(--text-sm); }
+
+/* Card: room number is the ONE primary fact — bump it; keep the rest
+ * quiet. Drag handle fades until hover. */
+.ac-kanban-card-title { font-size: 14px; }
+.ac-kanban-card-handle { opacity: .35; transition: opacity .15s; }
+.ac-kanban-card:hover .ac-kanban-card-handle { opacity: .8; }
+
+/* Single urgency pill (replaces ด่วน pill + red age + SLA row). */
+.ac-kanban-card-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ac-kanban-card-badge.is-overdue { background: #FEE2E2; color: #B91C1C; }
+html.dark .ac-kanban-card-badge.is-overdue { background: #7F1D1D; color: #FECACA; }
+.ac-kanban-card-badge.is-warn { background: #FEF3C7; color: #92400E; }
+html.dark .ac-kanban-card-badge.is-warn { background: #78350F; color: #FDE68A; }
+
+/* Empty column: light dashed drop-target look instead of a grey slab. */
+.ac-kanban-col-empty {
+  margin: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  opacity: .7;
+  font-size: var(--text-xs);
+}
+
+/* Moveout panel: tighter rows — it's a checklist, not a hero banner. */
+.ac-kanban-moveout { padding: var(--space-2) var(--space-3); }
+.ac-kanban-moveout-row { padding: 6px var(--space-2); }
+
+/* Card action buttons: honest touch targets in the field. */
+@media (pointer: coarse) {
+  .ac-kanban-btn { min-height: 44px; }
+  .ac-kanban-card-actions { gap: 8px; }
+}

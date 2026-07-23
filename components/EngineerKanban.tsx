@@ -734,7 +734,6 @@ function KanbanCard({
 }) {
   const typeIcon = task.type === "ซ่อม" ? "🔧" : task.type === "ทำสะอาด" ? "🧹" : "📋";
   const age = ageLabel(task.date);
-  const overdue = age.startsWith("เลย");
   const location = parseTaskLocation(task);
   const isCommon = location.kind === "common";
   // SLA state — drives the card's color cue (warn/overdue) + optional badge.
@@ -746,7 +745,6 @@ function KanbanCard({
   const slaBadge = slaBadgeLabel(sla);
   // Priority "ด่วน": SheetRow has no priority field, so we derive it from
   // the SLA — anything past its window is urgent. No schema change needed.
-  const urgent = sla.state === "overdue";
   const reporter = creatorLabel(task.creator);
   const note = task.note?.trim() || "—";
   const k = taskKey(task);
@@ -782,13 +780,19 @@ function KanbanCard({
           {isCommon ? location.label : `ห้อง ${task.room}`}
           <span className="ac-kanban-card-building"> · {task.building}</span>
         </span>
-        {urgent && <span className="ac-kanban-card-priority" title="เลยกำหนด — ด่วน">ด่วน</span>}
-        <span className={`ac-kanban-card-age ${overdue ? "is-overdue" : ""}`}>{age}</span>
+        {/* ONE urgency signal per card (UI r10 — the old card stacked a
+            ด่วน pill + red age + a full SLA row + red border for the
+            same fact): overdue → red pill, due-today → amber pill,
+            otherwise quiet muted age text. Detail stays in the tooltip
+            and the task drawer. */}
+        {sla.state === "overdue" ? (
+          <span className="ac-kanban-card-badge is-overdue" title={slaBadge || "เลยกำหนด"}>{age}</span>
+        ) : sla.state === "warn" ? (
+          <span className="ac-kanban-card-badge is-warn" title={slaBadge || "ครบกำหนดวันนี้"}>{age}</span>
+        ) : (
+          <span className="ac-kanban-card-age">{age}</span>
+        )}
       </header>
-
-      {slaBadge && (
-        <div className="ac-kanban-card-sla" role="status">⏰ {slaBadge}</div>
-      )}
 
       {/* Note row — always rendered for layout consistency. "—" when
           empty so cards stack uniformly across the column (Task 39). */}
@@ -808,12 +812,6 @@ function KanbanCard({
         {reporter && reporter !== "—" && (
           <span className="ac-kanban-card-reporter" title={task.creator || "ไม่ระบุผู้แจ้ง"}>
             👤 {reporter}
-          </span>
-        )}
-        {/* Task date — small, muted; only when a date is actually set */}
-        {task.date && (
-          <span className="ac-kanban-card-date" title={`วันที่กำหนด ${task.date}`}>
-            📅 {task.date}
           </span>
         )}
       </div>
