@@ -54,6 +54,7 @@ export type Route =
   | "ready" | "pending" | "occupied" | "moveout" | "tenants" | "salespipeline"
   // engineer-side jobs + assets
   | "qc" | "repair" | "inactive" | "maintenance" | "facilities" | "engineerkanban" | "parts" | "recurring"
+  | "maintlog"
   // shared operational
   | "vehicles"
   | "leads"
@@ -85,6 +86,9 @@ export const ROUTE_ALLOW: Record<Route, Role[]> = {
   maintenance: ["engineer", "management"],
   facilities:  ["engineer", "management"],
   engineerkanban: ["engineer", "management"],
+  // Maintenance log — sales included (ทิศ B: sales operates the app on
+  // engineers' behalf, so they both log work and read the digest).
+  maintlog:    ["sales", "engineer", "management"],
   parts:       ["engineer", "management"],
   recurring:   ["engineer", "management"],
   // vehicles: shared operational info (not PII); all authenticated

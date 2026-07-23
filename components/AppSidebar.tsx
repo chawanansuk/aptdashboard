@@ -8,7 +8,7 @@ import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { canAccess, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
 
-export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports" | "parts" | "vehicles" | "leads" | "recurring";
+export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports" | "parts" | "vehicles" | "leads" | "recurring" | "maintlog";
 
 interface Props {
   isOpen: boolean;
@@ -99,6 +99,9 @@ function buildGroups(
         badgeClass: "ac-badge-orange",
       }),
     });
+  }
+  if (has("maintlog")) {
+    todayItems.push({ key: "maintlog", label: "บันทึกซ่อมบำรุง", icon: icon("history") });
   }
   const todayGroup: NavGroup = { label: "วันนี้", items: todayItems };
 

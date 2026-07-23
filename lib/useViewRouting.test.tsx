@@ -56,7 +56,8 @@ describe("useViewRouting — basics", () => {
   it("VALID_VIEWS covers every ActiveView the sidebar can navigate to", () => {
     expect(VALID_VIEWS).toContain("salespipeline");
     expect(VALID_VIEWS).toContain("engineerkanban");
-    expect(VALID_VIEWS.length).toBe(21);
+    expect(VALID_VIEWS).toContain("maintlog");
+    expect(VALID_VIEWS.length).toBe(22);
   });
 });
 
