@@ -16,6 +16,7 @@
 import type { SheetRow, Lead } from "@/types";
 import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
+import { resilientPost } from "@/lib/resilientWrite";
 import { publishTurnoverStarted } from "@/lib/turnoverNotifications";
 import {
   findLeadByPhone,
@@ -124,19 +125,15 @@ export async function autoCreateMoveoutPrep(
   for (const kind of MOVEOUT_PREP_KINDS) {
     if (hasOpenPrepTask(tasks, building, room, kind.type)) continue;
     try {
-      const r = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "addTask",
-          date: todayThaiDate(),
-          type: kind.type,
-          building,
-          room,
-          note: kind.note,
-        }),
+      // addTask is server-deduped → safe to auto-retry on hiccups (r11).
+      const { data: j } = await resilientPost("/api/sheet/update", {
+        action: "addTask",
+        date: todayThaiDate(),
+        type: kind.type,
+        building,
+        room,
+        note: kind.note,
       });
-      const j = await r.json().catch(() => ({ ok: false }));
       if (j.ok) created.push(kind.label);
     } catch {
       /* ignore — silent best-effort */

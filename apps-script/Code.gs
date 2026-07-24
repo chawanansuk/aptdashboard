@@ -1,5 +1,5 @@
 /**
- * Code.gs v3.24.0 — Dashboard หอพัก
+ * Code.gs v3.24.1 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
@@ -146,45 +146,41 @@ const TASK_COL = {
 const TASKS_CACHE_KEY = 'tasksCache_v1';
 const TASKS_CACHE_TTL_SEC = 240; // v3.20: 180→240s (เดิม v3.11 ขยายจาก 60) — writers bust ทันทีอยู่แล้ว
 
-function getTasksCached_() {
+/**
+ * Shared cache plumbing (r11 dedup — was 7 near-identical getter/clearer
+ * pairs). getCached_: serve JSON from CacheService or produce fresh and
+ * best-effort cache it; a put failure (payload > ~100KB, e.g. the tasks
+ * feed on a big sheet) skips caching but still returns the fresh data.
+ */
+function getCached_(key, ttlSec, producer) {
   const cache = CacheService.getScriptCache();
-  const cached = cache.get(TASKS_CACHE_KEY);
+  const cached = cache.get(key);
   if (cached) {
     try { return JSON.parse(cached); } catch (e) { /* cache เสีย — fall through */ }
   }
-  const fresh = getTasks_();
+  const fresh = producer();
   try {
-    cache.put(TASKS_CACHE_KEY, JSON.stringify(fresh), TASKS_CACHE_TTL_SEC);
+    cache.put(key, JSON.stringify(fresh), ttlSec);
   } catch (e) {
-    // payload > 100KB — ไม่ cache แต่ยังคืนค่า
+    // payload ใหญ่เกิน cache — ไม่ cache แต่ยังคืนค่า
   }
   return fresh;
 }
-
-function clearTasksCache_() {
-  try { CacheService.getScriptCache().remove(TASKS_CACHE_KEY); } catch (e) {}
+function clearCache_(key) {
+  try { CacheService.getScriptCache().remove(key); } catch (e) {}
 }
+
+function getTasksCached_() { return getCached_(TASKS_CACHE_KEY, TASKS_CACHE_TTL_SEC, getTasks_); }
+
+function clearTasksCache_() { clearCache_(TASKS_CACHE_KEY); }
 
 /* ========== ROOMS CACHE (NEW v3.4.3) ========== */
 const ROOMS_CACHE_KEY = 'roomsCache_v1';
 const ROOMS_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
-function getRoomsCached_() {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get(ROOMS_CACHE_KEY);
-  if (cached) {
-    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
-  }
-  const fresh = getRooms_();
-  try {
-    cache.put(ROOMS_CACHE_KEY, JSON.stringify(fresh), ROOMS_CACHE_TTL_SEC);
-  } catch (e) {}
-  return fresh;
-}
+function getRoomsCached_() { return getCached_(ROOMS_CACHE_KEY, ROOMS_CACHE_TTL_SEC, getRooms_); }
 
-function clearRoomsCache_() {
-  try { CacheService.getScriptCache().remove(ROOMS_CACHE_KEY); } catch (e) {}
-}
+function clearRoomsCache_() { clearCache_(ROOMS_CACHE_KEY); }
 
 /* ========== EQUIPMENT CACHE (NEW v3.6.0) ========== */
 const EQUIPMENT_CACHE_KEY = 'equipmentCache_v2';
@@ -193,104 +189,41 @@ const EQUIPMENT_CACHE_KEY = 'equipmentCache_v2';
 // ทันที จึงไม่มีปัญหา consistency
 const EQUIPMENT_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
-function getAllEquipmentCached_() {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get(EQUIPMENT_CACHE_KEY);
-  if (cached) {
-    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
-  }
-  const fresh = getAllEquipment_();
-  try {
-    cache.put(EQUIPMENT_CACHE_KEY, JSON.stringify(fresh), EQUIPMENT_CACHE_TTL_SEC);
-  } catch (e) {}
-  return fresh;
-}
+function getAllEquipmentCached_() { return getCached_(EQUIPMENT_CACHE_KEY, EQUIPMENT_CACHE_TTL_SEC, getAllEquipment_); }
 
-function clearEquipmentCache_() {
-  try { CacheService.getScriptCache().remove(EQUIPMENT_CACHE_KEY); } catch (e) {}
-}
+function clearEquipmentCache_() { clearCache_(EQUIPMENT_CACHE_KEY); }
 
 /* ========== FACILITY CACHE (NEW v3.8.0) ========== */
 const FACILITY_CACHE_KEY = 'facilityCache_v1';
 const FACILITY_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
-function getAllFacilitiesCached_() {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get(FACILITY_CACHE_KEY);
-  if (cached) {
-    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
-  }
-  const fresh = getAllFacilities_();
-  try {
-    cache.put(FACILITY_CACHE_KEY, JSON.stringify(fresh), FACILITY_CACHE_TTL_SEC);
-  } catch (e) {}
-  return fresh;
-}
+function getAllFacilitiesCached_() { return getCached_(FACILITY_CACHE_KEY, FACILITY_CACHE_TTL_SEC, getAllFacilities_); }
 
-function clearFacilityCache_() {
-  try { CacheService.getScriptCache().remove(FACILITY_CACHE_KEY); } catch (e) {}
-}
+function clearFacilityCache_() { clearCache_(FACILITY_CACHE_KEY); }
 
 /* ========== PART (INVENTORY) CACHE (NEW v3.11.0) ========== */
 const PART_CACHE_KEY = 'partCache_v1';
 const PART_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
-function getAllPartsCached_() {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get(PART_CACHE_KEY);
-  if (cached) {
-    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
-  }
-  const fresh = getAllParts_();
-  try {
-    cache.put(PART_CACHE_KEY, JSON.stringify(fresh), PART_CACHE_TTL_SEC);
-  } catch (e) {}
-  return fresh;
-}
+function getAllPartsCached_() { return getCached_(PART_CACHE_KEY, PART_CACHE_TTL_SEC, getAllParts_); }
 
-function clearPartCache_() {
-  try { CacheService.getScriptCache().remove(PART_CACHE_KEY); } catch (e) {}
-}
+function clearPartCache_() { clearCache_(PART_CACHE_KEY); }
 
 /* ========== VEHICLE CACHE (NEW v3.13.0) ========== */
 const VEHICLE_CACHE_KEY = 'vehicleCache_v1';
 const VEHICLE_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
-function getAllVehiclesCached_() {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get(VEHICLE_CACHE_KEY);
-  if (cached) {
-    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
-  }
-  const fresh = getAllVehicles_();
-  try {
-    cache.put(VEHICLE_CACHE_KEY, JSON.stringify(fresh), VEHICLE_CACHE_TTL_SEC);
-  } catch (e) {}
-  return fresh;
-}
+function getAllVehiclesCached_() { return getCached_(VEHICLE_CACHE_KEY, VEHICLE_CACHE_TTL_SEC, getAllVehicles_); }
 
-function clearVehicleCache_() {
-  try { CacheService.getScriptCache().remove(VEHICLE_CACHE_KEY); } catch (e) {}
-}
+function clearVehicleCache_() { clearCache_(VEHICLE_CACHE_KEY); }
 
 /* ========== LEAD CACHE (NEW v3.15.0) ========== */
 const LEAD_CACHE_KEY = 'leadCache_v1';
 const LEAD_CACHE_TTL_SEC = 240; // v3.20: 60→240s — ทุก write สั่งล้าง cache อยู่แล้ว TTL ยาวจึงปลอดภัย และลด cold reads
 
-function getAllLeadsCached_() {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get(LEAD_CACHE_KEY);
-  if (cached) {
-    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
-  }
-  const fresh = getAllLeads_();
-  try { cache.put(LEAD_CACHE_KEY, JSON.stringify(fresh), LEAD_CACHE_TTL_SEC); } catch (e) {}
-  return fresh;
-}
+function getAllLeadsCached_() { return getCached_(LEAD_CACHE_KEY, LEAD_CACHE_TTL_SEC, getAllLeads_); }
 
-function clearLeadCache_() {
-  try { CacheService.getScriptCache().remove(LEAD_CACHE_KEY); } catch (e) {}
-}
+function clearLeadCache_() { clearCache_(LEAD_CACHE_KEY); }
 
 /* ========== UTIL ========== */
 function norm(v) {
@@ -504,7 +437,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.24.0';
+var BACKEND_VERSION = '3.24.1';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -634,6 +567,21 @@ function ensureTaskIdColumn_(sh) {
   sh.getRange(1, TASK_COL.ID).setValue('id').setFontWeight('bold');
 }
 
+/**
+ * 1-based sheet row whose col-1 id matches, or -1 (r11 dedup — replaces
+ * nine identical scan loops across equipment/facility/part/vehicle/lead/
+ * requisition handlers).
+ */
+function findRowById_(sh, id) {
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return -1;
+  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (norm(ids[i][0]) === norm(id)) return i + 2;
+  }
+  return -1;
+}
+
 /** 1-based row whose ID column matches, or -1. */
 function findTaskRowById_(id) {
   if (!id) return -1;
@@ -696,6 +644,35 @@ function backfillTaskIds() {
  * ROOM_HEADER_ALIASES). Tolerates schema variations (header order,
  * column-name aliases). Empty rows are dropped.
  */
+/**
+ * Canonical room-sheet header resolver (r11 dedup). One alias table for
+ * READERS AND WRITERS — previously getRooms_ accepted alias headers
+ * ('อาคาร', 'เลขห้อง', 'ผู้เช่าปัจจุบัน', …) while updateRoomStatus_
+ * matched exact names only, so a sheet using an alias could be READ but
+ * every write threw 'headers missing'. All indexes are 0-based; -1 when
+ * the column is absent.
+ */
+function roomHeaderCols_(headers) {
+  const findIdx = function (aliases) {
+    for (let a = 0; a < aliases.length; a++) {
+      const idx = headers.indexOf(aliases[a]);
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+  return {
+    bld:    findIdx(['ตึก', 'อาคาร']),
+    room:   findIdx(['ห้อง', 'เลขห้อง']),
+    floor:  findIdx(['ชั้น']),
+    status: findIdx(['สถานะ']),
+    tenant: findIdx(['ผู้เช่า', 'ผู้เช่าปัจจุบัน', 'ชื่อผู้เช่า']),
+    phone:  findIdx(['เบอร์', 'เบอร์ติดต่อ', 'เบอร์โทร']),
+    cntr:   findIdx(['สัญญา', 'วันสัญญาหมด', 'สัญญาหมด', 'วันหมดสัญญา']),
+    price:  findIdx(['ค่าเช่า', 'ราคา/เดือน', 'ราคา', 'ค่าเช่ารายเดือน']),
+    images: findIdx(['รูป', 'ภาพ', 'รูปภาพ', 'images', 'photos']),
+  };
+}
+
 function getRooms_() {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.ROOM);
   if (!sh) return [];
@@ -704,25 +681,10 @@ function getRooms_() {
   const data = sh.getDataRange().getValues();
   const headers = data[0].map(norm);
 
-  // Multi-alias resolver — first match wins
-  function findIdx(aliases) {
-    for (var i = 0; i < aliases.length; i++) {
-      var idx = headers.indexOf(aliases[i]);
-      if (idx >= 0) return idx;
-    }
-    return -1;
-  }
-  var iBld    = findIdx(['ตึก', 'อาคาร']);
-  var iRoom   = findIdx(['ห้อง', 'เลขห้อง']);
-  var iFloor  = findIdx(['ชั้น']);
-  var iStatus = findIdx(['สถานะ']);
-  var iTenant = findIdx(['ผู้เช่า', 'ผู้เช่าปัจจุบัน', 'ชื่อผู้เช่า']);
-  var iPhone  = findIdx(['เบอร์', 'เบอร์ติดต่อ', 'เบอร์โทร']);
-  var iCntr   = findIdx(['สัญญา', 'วันสัญญาหมด', 'สัญญาหมด', 'วันหมดสัญญา']);
-  var iPrice  = findIdx(['ค่าเช่า', 'ราคา/เดือน', 'ราคา', 'ค่าเช่ารายเดือน']);
-  // Optional image column (#7) — comma-separated URLs. -1 when absent,
-  // in which case images is '' and the dashboard hides the gallery.
-  var iImages = findIdx(['รูป', 'ภาพ', 'รูปภาพ', 'images', 'photos']);
+  const cols = roomHeaderCols_(headers);
+  var iBld = cols.bld, iRoom = cols.room, iFloor = cols.floor,
+      iStatus = cols.status, iTenant = cols.tenant, iPhone = cols.phone,
+      iCntr = cols.cntr, iPrice = cols.price, iImages = cols.images;
 
   var rows = [];
   for (var i = 1; i < data.length; i++) {
@@ -1016,22 +978,12 @@ function updateRoomStatus_(b) {
   if (!sh) throw new Error('sheet "ห้อง" not found');
   const data = sh.getDataRange().getValues();
   const headers = data[0].map(norm);
-  // Price column has several historical header aliases — match the same
-  // set getRooms_ reads from so a write lands in the column the UI shows.
-  const findIdx = function (aliases) {
-    for (let a = 0; a < aliases.length; a++) {
-      const idx = headers.indexOf(aliases[a]);
-      if (idx >= 0) return idx;
-    }
-    return -1;
-  };
-  const idxBld    = headers.indexOf('ตึก');
-  const idxRoom   = headers.indexOf('ห้อง');
-  const idxStatus = headers.indexOf('สถานะ');
-  const idxTenant = headers.indexOf('ผู้เช่า');
-  const idxPhone  = headers.indexOf('เบอร์');
-  const idxCntr   = headers.indexOf('สัญญา');
-  const idxPrice  = findIdx(['ค่าเช่า', 'ราคา/เดือน', 'ราคา', 'ค่าเช่ารายเดือน']);
+  // Shared resolver (r11) — same alias table as getRooms_, so any sheet
+  // the app can READ it can also WRITE (was exact-name-only here).
+  const cols = roomHeaderCols_(headers);
+  const idxBld = cols.bld, idxRoom = cols.room, idxStatus = cols.status,
+        idxTenant = cols.tenant, idxPhone = cols.phone,
+        idxCntr = cols.cntr, idxPrice = cols.price;
   if (idxBld < 0 || idxRoom < 0 || idxStatus < 0) throw new Error('headers missing on ห้อง');
   for (let i = 1; i < data.length; i++) {
     if (norm(data[i][idxBld]) === norm(b.building) && norm(data[i][idxRoom]) === norm(b.room)) {
@@ -1208,11 +1160,7 @@ function updateEquipment_(b) {
   if (!sh) throw new Error('sheet "อุปกรณ์" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) throw new Error('no equipment rows');
-  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let found = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
-  }
+  const found = findRowById_(sh, b.id); // r11 shared scan
   if (found < 0) throw new Error('equipment not found: ' + b.id);
   // Column index map (1-based)
   // 2:ตึก 3:ห้อง 4:ประเภท 5:ยี่ห้อ 6:วันติดตั้ง 7:วันซ่อมล่าสุด 8:สถานะ 9:หมายเหตุ 12:รอบบำรุง(วัน)
@@ -1318,11 +1266,7 @@ function updateFacility_(b) {
   if (!sh) throw new Error('sheet "สาธารณูปโภค" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) throw new Error('no facility rows');
-  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let found = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
-  }
+  const found = findRowById_(sh, b.id); // r11 shared scan
   if (found < 0) throw new Error('facility not found: ' + b.id);
   // 2:ตึก 3:ประเภท 4:ชื่อ 5:วันติดตั้ง 6:วันบริการล่าสุด 7:สถานะ 8:หมายเหตุ 11:รอบบำรุง
   if (b.type        !== undefined) sh.getRange(found, 3).setValue(b.type);
@@ -1450,11 +1394,7 @@ function updatePart_(b) {
   if (!sh) throw new Error('sheet "อะไหล่" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) throw new Error('no part rows');
-  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let found = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
-  }
+  const found = findRowById_(sh, b.id); // r11 shared scan
   if (found < 0) throw new Error('part not found: ' + b.id);
   // Cols: 2:name 3:category 4:stock 5:threshold 6:unit 7:note 10:updatedAt
   if (b.name      !== undefined) sh.getRange(found, 2).setValue(b.name);
@@ -1495,11 +1435,7 @@ function adjustStockPart_(b) {
   if (!sh) throw new Error('sheet "อะไหล่" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) throw new Error('no part rows');
-  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let found = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
-  }
+  const found = findRowById_(sh, b.id); // r11 shared scan
   if (found < 0) throw new Error('part not found: ' + b.id);
   const cell = sh.getRange(found, 4);
   const current = parseFloat(cell.getValue());
@@ -1813,11 +1749,7 @@ function updateVehicle_(b) {
   if (!sh) throw new Error('sheet "ยานพาหนะ" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) throw new Error('no vehicle rows');
-  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let found = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
-  }
+  const found = findRowById_(sh, b.id); // r11 shared scan
   if (found < 0) throw new Error('vehicle not found: ' + b.id);
   // Cols: 2:ตึก 3:ห้อง 4:ทะเบียน 5:ยี่ห้อ/รุ่น 6:สี 7:หมายเหตุ 10:updatedAt
   if (b.building !== undefined) sh.getRange(found, 2).setValue(b.building);
@@ -1842,11 +1774,7 @@ function deleteVehicle_(b) {
   if (!sh) throw new Error('sheet "ยานพาหนะ" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) throw new Error('no vehicle rows');
-  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let found = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
-  }
+  const found = findRowById_(sh, b.id); // r11 shared scan
   if (found < 0) throw new Error('vehicle not found: ' + b.id);
   sh.deleteRow(found);
   clearVehicleCache_();
@@ -1929,11 +1857,7 @@ function updateLead_(b) {
   if (!sh) throw new Error('sheet "ลูกค้าสนใจ" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) throw new Error('no lead rows');
-  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let found = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
-  }
+  const found = findRowById_(sh, b.id); // r11 shared scan
   if (found < 0) throw new Error('lead not found: ' + b.id);
   // 2:name 3:phone 4:source 5:interest 6:stage 7:note 10:updatedAt
   if (b.name     !== undefined) sh.getRange(found, 2).setValue(b.name);
@@ -1954,11 +1878,7 @@ function deleteLead_(b) {
   if (!sh) throw new Error('sheet "ลูกค้าสนใจ" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) throw new Error('no lead rows');
-  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let found = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
-  }
+  const found = findRowById_(sh, b.id); // r11 shared scan
   if (found < 0) throw new Error('lead not found: ' + b.id);
   sh.deleteRow(found);
   clearLeadCache_();
@@ -2051,13 +1971,7 @@ function addRequisition_(b) {
   // 1. Decrement stock in อะไหล่ sheet
   const partsSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PART);
   if (!partsSh) throw new Error('sheet "อะไหล่" not found — เพิ่มอะไหล่ก่อนเบิก');
-  const lastRow = partsSh.getLastRow();
-  if (lastRow < 2) throw new Error('no part rows');
-  const ids = partsSh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let row = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.partId)) { row = i + 2; break; }
-  }
+  const row = findRowById_(partsSh, b.partId); // r11 shared scan
   if (row < 0) throw new Error('part not found: ' + b.partId);
   const nameCell = partsSh.getRange(row, 2).getValue();
   const stockCell = partsSh.getRange(row, 4);
@@ -2265,11 +2179,7 @@ function deleteRecurring_(b) {
   if (!sh) throw new Error('sheet "งานประจำ" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) throw new Error('no recurring rows');
-  const ids = sh.getRange(2, 1, lastRow - 1, 1).getValues();
-  let found = -1;
-  for (let i = 0; i < ids.length; i++) {
-    if (norm(ids[i][0]) === norm(b.id)) { found = i + 2; break; }
-  }
+  const found = findRowById_(sh, b.id); // r11 shared scan
   if (found < 0) throw new Error('recurring not found: ' + b.id);
   sh.deleteRow(found);
   logAudit_('delete', 'recurring', b.id, '', b.creator);
@@ -2315,17 +2225,16 @@ function runRecurringCheck_(b) {
     const set = {};
     const roomSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.ROOM);
     if (!roomSh || roomSh.getLastRow() < 2) return set;
-    const rows = roomSh.getRange(2, 1, roomSh.getLastRow() - 1, 3).getValues();
     const headers = roomSh.getRange(1, 1, 1, roomSh.getLastColumn()).getValues()[0].map(norm);
-    let iBld = headers.indexOf('ตึก'); if (iBld < 0) iBld = headers.indexOf('อาคาร'); if (iBld < 0) iBld = 0;
-    let iRoom = headers.indexOf('ห้อง'); if (iRoom < 0) iRoom = headers.indexOf('เลขห้อง'); if (iRoom < 0) iRoom = 2;
+    const cols = roomHeaderCols_(headers); // r11 shared resolver
+    const iBld = cols.bld >= 0 ? cols.bld : 0;
+    const iRoom = cols.room >= 0 ? cols.room : 2;
     const full = roomSh.getRange(2, 1, roomSh.getLastRow() - 1, Math.max(iBld, iRoom) + 1).getValues();
     for (let j = 0; j < full.length; j++) {
       const bld = norm(full[j][iBld]);
       const rm = norm(full[j][iRoom]);
       if (bld && rm) set[bld + '|' + rm] = true;
     }
-    void rows;
     return set;
   })();
   const isCommonTarget = function (rm) {
@@ -2597,19 +2506,9 @@ function onEdit(e) {
   if (lastRoomRow < 2) return;
   const roomData = roomSh.getRange(1, 1, lastRoomRow, roomSh.getLastColumn()).getValues();
   const headers = roomData[0].map(norm);
-  const findIdx = function (aliases) {
-    for (let a = 0; a < aliases.length; a++) {
-      const idx = headers.indexOf(aliases[a]);
-      if (idx >= 0) return idx;
-    }
-    return -1;
-  };
-  const iBld    = findIdx(['ตึก', 'อาคาร']);
-  const iRoom   = findIdx(['ห้อง', 'เลขห้อง']);
-  const iStatus = findIdx(['สถานะ']);
-  const iTenant = findIdx(['ผู้เช่า', 'ผู้เช่าปัจจุบัน', 'ชื่อผู้เช่า']);
-  const iPhone  = findIdx(['เบอร์', 'เบอร์ติดต่อ', 'เบอร์โทร']);
-  const iCntr   = findIdx(['สัญญา', 'วันสัญญาหมด', 'สัญญาหมด', 'วันหมดสัญญา']);
+  const cols = roomHeaderCols_(headers); // r11 shared resolver
+  const iBld = cols.bld, iRoom = cols.room, iStatus = cols.status,
+        iTenant = cols.tenant, iPhone = cols.phone, iCntr = cols.cntr;
   if (iBld < 0 || iRoom < 0 || iStatus < 0) return;
   for (let i = 1; i < roomData.length; i++) {
     if (norm(roomData[i][iBld]) === norm(building) && norm(roomData[i][iRoom]) === norm(roomNum)) {

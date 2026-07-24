@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
 import { useSession } from "next-auth/react";
 import { applyAutoRoomStatus } from "@/lib/applyAutoRoomStatus";
@@ -21,7 +21,8 @@ import { taskKey } from "@/lib/taskKey";
 import { appendRepairLog } from "@/lib/repairLog";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { toast } from "@/lib/toast";
-import { MOVEOUT_PREP_KINDS, findOpenPrepTask } from "@/lib/moveoutTasks";
+import { resilientPost } from "@/lib/resilientWrite";
+import { MOVEOUT_PREP_KINDS, findOpenPrepTask, todayThaiDate } from "@/lib/moveoutTasks";
 
 interface Props {
   tasks: SheetRow[];
@@ -90,14 +91,6 @@ export const COLUMN_STATUS: Record<ColumnKey, string> = {
 
 /** MIME-ish key for the drag payload — just the taskKey string. */
 const DRAG_MIME = "application/x-task-key";
-
-function todayThai(): string {
-  const d = new Date();
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}/${d.getFullYear()}`;
-}
-
 
 /** Pure: bucket a list of tasks into the 4 Kanban columns. */
 export function groupTasksForKanban(
@@ -175,7 +168,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
   // `${building}|${room}|${kind}` so two chips on a row spin independently.
   const [creatingPrep, setCreatingPrep] = useState<Set<string>>(new Set());
 
-  const todayStr = todayThai();
+  const todayStr = todayThaiDate();
 
   // Filter: engineer-side tasks + active building + location kind
   const filtered = useMemo(() => {
@@ -213,17 +206,13 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
     setBusyKey(k);
     setErr(null);
     try {
-      const res = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "updateTaskStatus",
-          id: t.id || undefined, // v3.21 — pin the exact row when known
-          date: t.date, building: t.building, room: t.room, type: t.type,
-          status: newStatus,
-        }),
-      });
-      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+      // Shared POST (r11) — SET action retries server-side; no client retry.
+      const { res, data } = await resilientPost("/api/sheet/update", {
+        action: "updateTaskStatus",
+        id: t.id || undefined, // v3.21 — pin the exact row when known
+        date: t.date, building: t.building, room: t.room, type: t.type,
+        status: newStatus,
+      }, { retries: 0 });
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       // Card jumps columns NOW; the poll/refresh reconciles later.
       onOptimisticStatus?.(t, newStatus);
@@ -265,17 +254,12 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
     setBusyKey(k);
     setErr(null);
     try {
-      const res = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "updateTask",
-          id: t.id || undefined, // v3.21
-          match: { date: t.date, type: t.type, building: t.building, room: t.room },
-          note: newNote,
-        }),
-      });
-      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+      const { res, data } = await resilientPost("/api/sheet/update", {
+        action: "updateTask",
+        id: t.id || undefined, // v3.21
+        match: { date: t.date, type: t.type, building: t.building, room: t.room },
+        note: newNote,
+      }, { retries: 0 });
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
       // Keep the drawer in sync without waiting for the refetch round-trip.
@@ -327,16 +311,12 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
     setCreatingPrep((s) => new Set(s).add(ckey));
     setErr(null);
     try {
-      const res = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "addTask",
-          date: todayStr, type: kind.type,
-          building, room, note: kind.note,
-        }),
+      // addTask is server-deduped → safe to auto-retry on hiccups.
+      const { res, data } = await resilientPost("/api/sheet/update", {
+        action: "addTask",
+        date: todayStr, type: kind.type,
+        building, room, note: kind.note,
       });
-      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       onChanged?.();
     } catch (e: unknown) {
@@ -716,7 +696,14 @@ export function creatorLabel(creator: string | undefined): string {
   return at > 0 ? creator.slice(0, at) : creator;
 }
 
-function KanbanCard({
+/** Memoized (r11): the board holds every open task and each card runs
+ * a date parse + SLA computation per render. Task rows keep object
+ * identity across polls/optimistic patches (useDashboardData), so the
+ * data-props comparator lets untouched cards skip — same win as the
+ * room grid's RoomCard (r7). Callback props are excluded on purpose:
+ * they change identity per parent render but are behaviorally keyed by
+ * `column`/`busy`, which ARE compared. */
+const KanbanCard = memo(function KanbanCard({
   task, busy, onMove, onEdit, onSelect, column, flashing,
   dragging, onDragStart, onDragEnd,
 }: {
@@ -877,4 +864,10 @@ function KanbanCard({
       </footer>
     </article>
   );
-}
+}, (prev, next) =>
+  prev.task === next.task &&
+  prev.busy === next.busy &&
+  prev.column === next.column &&
+  prev.flashing === next.flashing &&
+  prev.dragging === next.dragging,
+);

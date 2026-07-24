@@ -20,6 +20,7 @@ import type { RoomView, SheetRow } from "@/types";
 import { isClosedStatus, isDoneStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
 import {
+  markerKey,
   MOVEOUT_CLEAN_TYPE, MOVEOUT_CLEAN_NOTE,
   MOVEOUT_INSPECT_TYPE, MOVEOUT_INSPECT_NOTE,
   AFTER_REPAIR_CLEAN_TYPE, AFTER_REPAIR_CLEAN_NOTE,
@@ -101,12 +102,9 @@ export interface JourneyState {
  * Task matching helpers
  * ==================================================================== */
 
-/** Stable match key — everything before the " —" separator, so users
- *  can append detail to a note without breaking stage detection.
- *  Exported for journeyActions' dup guard (same matching rule). */
-export function markerKey(note: string): string {
-  return note.split(" —")[0].trim();
-}
+// markerKey moved to lib/moveoutTasks (r11 dedup) — re-exported so the
+// many existing imports from this module keep working.
+export { markerKey } from "@/lib/moveoutTasks";
 
 function allTasks(room: RoomView): SheetRow[] {
   return [

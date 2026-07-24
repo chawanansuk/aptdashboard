@@ -2,7 +2,7 @@ import type { SheetRow } from "@/types";
 import { isCancelledStatus, isDoneStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { isCommonAreaTask, commonAreaSpot, COMMON_AREA_BARE } from "@/lib/taskLocation";
-import { MOVEOUT_INSPECT_NOTE, QC_CHECKLIST_NOTE } from "@/lib/moveoutTasks";
+import { markerKey, MOVEOUT_INSPECT_NOTE, QC_CHECKLIST_NOTE } from "@/lib/moveoutTasks";
 
 /**
  * บันทึกซ่อมบำรุง — pure helpers for the MaintLogView.
@@ -30,8 +30,8 @@ export const COMMON_AREA_ROOM = COMMON_AREA_BARE;
 /** Turnover checklist items are type อื่นๆ but they're pipeline steps,
  *  not maintenance — counting them inflated the digest (audit r8). */
 const TURNOVER_NOTE_KEYS = [
-  MOVEOUT_INSPECT_NOTE.split(" —")[0].trim(),
-  QC_CHECKLIST_NOTE.split(" —")[0].trim(),
+  markerKey(MOVEOUT_INSPECT_NOTE),
+  markerKey(QC_CHECKLIST_NOTE),
 ];
 function isTurnoverChecklist(t: SheetRow): boolean {
   const note = (t.note || "").trim();
