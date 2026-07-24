@@ -151,12 +151,42 @@ describe("autoCreateMoveoutPrep", () => {
     expect(onCreated).not.toHaveBeenCalled();
   });
 
-  it("tolerates a failed POST and still files the other kind", async () => {
-    fetchMock.mockRejectedValueOnce(new Error("boom"));
-    fetchMock.mockResolvedValueOnce(jsonRes({ ok: true }));
+  it("tolerates a PERSISTENTLY failing POST and still files the other kind", async () => {
+    // r11: addTask now auto-retries transient failures (resilientPost,
+    // 1 + 3 attempts) — so a single rejection no longer fails a kind.
+    // Simulate a HARD failure: every attempt for kind 1 rejects, then
+    // kind 2 succeeds. Backoff timers are stubbed to keep the test fast.
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      fn();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout);
+    fetchMock
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce(jsonRes({ ok: true }));
     const onCreated = vi.fn();
     await autoCreateMoveoutPrep([], "Kl", "101", onCreated);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(onCreated).toHaveBeenCalledTimes(1); // one kind still landed
+    expect(fetchMock).toHaveBeenCalledTimes(5); // 4 attempts kind1 + 1 kind2
+    expect(onCreated).toHaveBeenCalledTimes(1); // the other kind still landed
+    vi.restoreAllMocks();
+  });
+
+  it("a TRANSIENT failure now recovers by itself (r11 retry)", async () => {
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      fn();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout);
+    fetchMock
+      .mockRejectedValueOnce(new Error("blip"))
+      .mockResolvedValueOnce(jsonRes({ ok: true }))
+      .mockResolvedValueOnce(jsonRes({ ok: true }));
+    const onCreated = vi.fn();
+    await autoCreateMoveoutPrep([], "Kl", "101", onCreated);
+    expect(onCreated).toHaveBeenCalledTimes(1);
+    // kind1: fail+retry-success (2 calls) + kind2: success (1 call)
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    vi.restoreAllMocks();
   });
 });

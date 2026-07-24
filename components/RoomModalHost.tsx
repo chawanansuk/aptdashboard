@@ -13,6 +13,7 @@ import { todayThaiDate } from "@/lib/moveoutTasks";
 import { isTaskDatedToday } from "@/lib/dateUtils";
 import { appendRepairLog } from "@/lib/repairLog";
 import { fileRequisitionLines } from "@/lib/partsRequisition";
+import { resilientPost } from "@/lib/resilientWrite";
 import { isClosedStatus } from "@/lib/constants";
 import { roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import type { JourneyAction } from "@/lib/roomJourney";
@@ -112,20 +113,18 @@ export default function RoomModalHost({
     setRepairing(true);
     try {
       const today = todayThaiDate();
-      const res = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "addTask",
-          date: today,
-          type: "ซ่อม",
-          building: room.building,
-          room: room.room,
-          note,
-          status: "เสร็จ",
-        }),
+      // Shared POST (r11): addTask is server-deduped → auto-retry safe.
+      // `data.skipped` must stay visible — the duplicate-open branch
+      // below turns it into a note-append instead of a drop.
+      const { res, data } = await resilientPost("/api/sheet/update", {
+        action: "addTask",
+        date: today,
+        type: "ซ่อม",
+        building: room.building,
+        room: room.room,
+        note,
+        status: "เสร็จ",
       });
-      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
       if (data.skipped === "duplicate-open") {
@@ -144,17 +143,12 @@ export default function RoomModalHost({
           // the truth rather than a false success.
           throw new Error("ห้องนี้มีงานซ่อมค้างอยู่วันนี้ — เปิดงานนั้นในกระดานช่างแล้วบันทึกที่งานโดยตรง");
         }
-        const upRes = await fetch("/api/sheet/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "updateTask",
-            id: blocker.id || undefined, // v3.21
-            match: { date: blocker.date, type: blocker.type, building: blocker.building, room: blocker.room },
-            note: appendRepairLog(blocker.note || "", note),
-          }),
-        });
-        const upData = await upRes.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+        const { res: upRes, data: upData } = await resilientPost("/api/sheet/update", {
+          action: "updateTask",
+          id: blocker.id || undefined, // v3.21
+          match: { date: blocker.date, type: blocker.type, building: blocker.building, room: blocker.room },
+          note: appendRepairLog(blocker.note || "", note),
+        }, { retries: 0 });
         if (!upData.ok) throw new Error(upData.error || `HTTP ${upRes.status}`);
         toast.success("ต่อท้ายบันทึกในงานซ่อมที่เปิดอยู่ของห้องนี้แล้ว");
       } else {
@@ -223,12 +217,8 @@ export default function RoomModalHost({
             building: room.building, room: room.room,
             status: editStatus, note: editNote,
           };
-      const res = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+      // Shared POST (r11) — SET action, no client retry.
+      const { res, data } = await resilientPost("/api/sheet/update", body, { retries: 0 });
       console.log("[write]", body.action, "response", res.status, data);
       if (data.ok) {
         toast.success("บันทึกแล้ว — รีเฟรชข้อมูล");

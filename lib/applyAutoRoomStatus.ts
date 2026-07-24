@@ -3,6 +3,7 @@ import type { Role } from "@/auth";
 import { canPerform } from "@/lib/permissions";
 import { suggestRoomStatusAfterTaskDone } from "@/lib/autoRoomStatus";
 import { toast } from "@/lib/toast";
+import { resilientPost } from "@/lib/resilientWrite";
 
 /**
  * Post-task-update side effect:
@@ -57,19 +58,13 @@ export async function applyAutoRoomStatus(opts: {
 
   // Write the room status change.
   try {
-    const res = await fetch("/api/sheet/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "updateRoomStatus",
-        building: task.building,
-        room: task.room,
-        status: suggestion.rawStatus,
-        // Preserve other fields — server endpoint accepts partial
-        // when these are omitted (Apps Script updates only what it gets).
-      }),
-    });
-    const data = await res.json().catch(() => ({ ok: false }));
+    const { data } = await resilientPost("/api/sheet/update", {
+      action: "updateRoomStatus",
+      building: task.building,
+      room: task.room,
+      status: suggestion.rawStatus,
+      // Partial write — Apps Script updates only the fields it receives.
+    }, { retries: 0 });
     if (data.ok) {
       toast.success(`อัปเดตห้อง ${task.room} → ${suggestion.label}`);
     }

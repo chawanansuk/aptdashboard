@@ -46,6 +46,16 @@ export const QC_CHECKLIST_NOTE =
 export const TURNOVER_REPAIR_TYPE = "ซ่อม";
 export const TURNOVER_REPAIR_NOTE = "ซ่อมตามผลตรวจห้อง — ก่อนปล่อยขาย";
 
+/**
+ * Stable match key for a marker note — everything before the " —"
+ * separator, so users can append detail without breaking detection.
+ * Single source of truth (r11): roomJourney re-exports this; maintLog
+ * and detectTurnoverStep below use it too (were 3 hand-rolled copies).
+ */
+export function markerKey(note: string): string {
+  return note.split(" —")[0].trim();
+}
+
 export interface MoveoutPrepKind {
   /** Distinguishes the two prep tasks — used to label panel rows. */
   kind: "inspect" | "clean";
@@ -128,11 +138,11 @@ export function detectTurnoverStep(task: SheetRow): TurnoverStep | null {
   if (!note) return null;
   // Order matters when prefixes share a head (both cleans start with
   // "ทำสะอาด..."); the more-specific "หลังซ่อม" check comes first.
-  if (note.startsWith(AFTER_REPAIR_CLEAN_NOTE.split(" —")[0])) return "after-repair-clean";
-  if (note.startsWith(MOVEOUT_CLEAN_NOTE.split(" —")[0])) return "moveout-clean";
-  if (note.startsWith(MOVEOUT_INSPECT_NOTE.split(" —")[0])) return "inspect";
-  if (note.startsWith(TURNOVER_REPAIR_NOTE.split(" —")[0])) return "repair";
-  if (note.startsWith(QC_CHECKLIST_NOTE.split(" —")[0])) return "qc";
+  if (note.startsWith(markerKey(AFTER_REPAIR_CLEAN_NOTE))) return "after-repair-clean";
+  if (note.startsWith(markerKey(MOVEOUT_CLEAN_NOTE))) return "moveout-clean";
+  if (note.startsWith(markerKey(MOVEOUT_INSPECT_NOTE))) return "inspect";
+  if (note.startsWith(markerKey(TURNOVER_REPAIR_NOTE))) return "repair";
+  if (note.startsWith(markerKey(QC_CHECKLIST_NOTE))) return "qc";
   return null;
 }
 

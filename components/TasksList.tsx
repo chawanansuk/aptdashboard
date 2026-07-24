@@ -10,6 +10,7 @@ import {
   bucketTasks, daysOverdue, URGENCY_META, type Urgency,
 } from "@/lib/taskUrgency";
 import { TASK_STATUS } from "@/lib/taskStatus";
+import { resilientPost } from "@/lib/resilientWrite";
 import { TASK_TYPES } from "@/lib/taskConstants";
 import { TASK_TYPE_COLOR } from "@/lib/constants";
 import { taskKey as taskKeyOf } from "@/lib/taskKey";
@@ -167,12 +168,9 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
   const buckets = useMemo(() => bucketTasks(visible), [visible]);
 
   async function postUpdate(payload: Record<string, unknown>) {
-    const res = await fetch("/api/sheet/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+    // Shared POST (r11): SET/delete actions — no client retry (deleteTask
+    // must never re-fire; updateTaskStatus retries server-side already).
+    const { res, data } = await resilientPost("/api/sheet/update", payload, { retries: 0 });
     console.log("[write] task action", payload.action, res.status, data);
     if (!data.ok) {
       const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { SheetRow } from "@/types";
+import { resilientPost } from "@/lib/resilientWrite";
 
 interface Props {
   /** Task to edit — null hides the modal. Identity is the composite
@@ -65,29 +66,21 @@ export default function EditTaskModal({ task, onClose, onSaved }: Props) {
     if (!task) return;
     setSaving(true); setErr(null);
     try {
-      const res = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Apps Script updateTask_ expects flat fields, not nested
-          // match/set: it reads b.matchDate/matchType/matchBuilding/
-          // matchRoom for the row lookup and b.date/customer/phone/note
-          // for the new values. A previous nested-payload version
-          // silently failed every edit with "task not found" because
-          // b.matchDate was undefined.
-          action: "updateTask",
-          id: task.id || undefined, // v3.21 — pin the exact row when known
-          matchDate: task.date,
-          matchType: task.type,
-          matchBuilding: task.building,
-          matchRoom: task.room,
-          date,
-          customer,
-          phone,
-          note,
-        }),
-      });
-      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON response" }));
+      // Shared POST (r11). Apps Script updateTask_ expects flat match
+      // fields (matchDate/…), not nested — a nested version once failed
+      // every edit with "task not found".
+      const { res, data } = await resilientPost("/api/sheet/update", {
+        action: "updateTask",
+        id: task.id || undefined, // v3.21 — pin the exact row when known
+        matchDate: task.date,
+        matchType: task.type,
+        matchBuilding: task.building,
+        matchRoom: task.room,
+        date,
+        customer,
+        phone,
+        note,
+      }, { retries: 0 });
       if (!data.ok) {
         const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
         throw new Error(`${data.error || "ไม่สำเร็จ"}${statusSuffix}`);

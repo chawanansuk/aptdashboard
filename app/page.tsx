@@ -896,23 +896,18 @@ export default function Home() {
   async function handleBookingConfirm(data: BookingSaveData) {
     setBookingSaving(true);
     try {
-      const roomRes = await fetch("/api/sheet/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Booking bundle: status=รอสัญญา + tenant identity + price. This
-          // is sales' one legitimate path to write a tenant; gated to
-          // room.editStatus and audit-logged at the route. (security split)
-          action: "bookRoom",
-          building: data.building,
-          room: data.room,
-          status: "รอสัญญา",
-          tenant: data.tenant,
-          phone: data.phone,
-          price: String(data.monthlyRent),
-        }),
-      });
-      const roomData = await roomRes.json().catch(() => ({ ok: false }));
+      // Booking bundle: status=รอสัญญา + tenant identity + price. This
+      // is sales' one legitimate path to write a tenant; gated to
+      // room.editStatus and audit-logged at the route. (security split)
+      const { res: roomRes, data: roomData } = await resilientPost("/api/sheet/update", {
+        action: "bookRoom",
+        building: data.building,
+        room: data.room,
+        status: "รอสัญญา",
+        tenant: data.tenant,
+        phone: data.phone,
+        price: String(data.monthlyRent),
+      }, { retries: 0 });
       if (!roomData.ok) throw new Error(roomData.error || `HTTP ${roomRes.status}`);
 
       // Create the move-in appointment (best-effort; don't fail the
@@ -924,19 +919,15 @@ export default function Home() {
       const moveInExists = hasOpenPrepTask(tasks, data.building, data.room, "ย้ายเข้า");
       if (!moveInExists) {
         try {
-          await fetch("/api/sheet/update", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "addTask",
-              date: data.moveInDateIso,
-              type: "ย้ายเข้า",
-              building: data.building,
-              room: data.room,
-              customer: data.tenant,
-              phone: data.phone,
-              note: `ยืนยันการจอง — เข้าพัก ${data.moveInTime || ""}`.trim(),
-            }),
+          await resilientPost("/api/sheet/update", {
+            action: "addTask",
+            date: data.moveInDateIso,
+            type: "ย้ายเข้า",
+            building: data.building,
+            room: data.room,
+            customer: data.tenant,
+            phone: data.phone,
+            note: `ยืนยันการจอง — เข้าพัก ${data.moveInTime || ""}`.trim(),
           });
         } catch { /* surfaced via refresh; room booking already saved */ }
       }

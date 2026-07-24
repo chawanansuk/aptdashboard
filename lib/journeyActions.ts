@@ -17,6 +17,7 @@
 
 import type { RoomView, SheetRow } from "@/types";
 import { toast } from "@/lib/toast";
+import { resilientPost } from "@/lib/resilientWrite";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { autoCreateMoveoutPrep } from "@/lib/dashboardActions";
 import { isClosedStatus } from "@/lib/constants";
@@ -118,20 +119,15 @@ export async function quickSetRoomStatus(
   const payload = opts.clearTenant
     ? { action: "releaseRoom", building: room.building, room: room.room, status: rawStatus }
     : { action: "updateRoomStatus", building: room.building, room: room.room, status: rawStatus };
-  const post = (body: Record<string, unknown>) =>
-    fetch("/api/sheet/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  let res = await post(payload);
-  let data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+  // Shared POST (r11) — SET actions, no client retry.
+  let { res, data } = await resilientPost("/api/sheet/update", payload, { retries: 0 });
   if (!data.ok && opts.clearTenant && /unknown action/i.test(String(data.error || ""))) {
     // Backend not redeployed with releaseRoom yet — degrade to the plain
     // status write so ปล่อยขาย still flips the room (tenant blanking will
     // work after the next Apps Script redeploy).
-    res = await post({ action: "updateRoomStatus", building: room.building, room: room.room, status: rawStatus });
-    data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+    ({ res, data } = await resilientPost("/api/sheet/update", {
+      action: "updateRoomStatus", building: room.building, room: room.room, status: rawStatus,
+    }, { retries: 0 }));
   }
   if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
   // Optimistic patch always — every card must flip live, bulk or not.
@@ -149,17 +145,13 @@ export async function createJourneyTask(
   room: RoomView,
   spec: { type: string; note: string; label: string },
 ): Promise<void> {
-  const res = await fetch("/api/sheet/update", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "addTask",
-      date: todayThaiDate(), type: spec.type,
-      building: room.building, room: room.room,
-      note: spec.note,
-    }),
+  // addTask is server-deduped → safe to auto-retry on hiccups (r11).
+  const { res, data } = await resilientPost("/api/sheet/update", {
+    action: "addTask",
+    date: todayThaiDate(), type: spec.type,
+    building: room.building, room: room.room,
+    note: spec.note,
   });
-  const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
   if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
   toast.success(`สร้างงาน${spec.label}แล้ว — ดูในกระดานงานช่าง`);
   publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
@@ -189,12 +181,7 @@ export function hasOpenJourneyTask(
 }
 
 async function postSheetUpdate(body: Record<string, unknown>): Promise<void> {
-  const res = await fetch("/api/sheet/update", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+  const { res, data } = await resilientPost("/api/sheet/update", body, { retries: 0 });
   if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
 }
 
