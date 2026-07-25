@@ -1,10 +1,13 @@
 /**
- * Code.gs v3.24.1 — Dashboard หอพัก
+ * Code.gs v3.25.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
  *
+ * NEW v3.25.0:
+ *   - รูปตำหนิห้อง: uploadRoomPhoto/getRoomPhotos + tab รูปตำหนิ (append-only)
+ *     รูปเก็บใน Drive โฟลเดอร์ 'รูปตำหนิหอพัก' (pin ด้วย PHOTO_FOLDER_ID)
  * NEW v3.24.0:
  *   - งานประจำ: เช็คว่าห้องยังมีจริงก่อนสร้างงาน (กันงานกำพร้า) + แถวใหม่ได้ UUID
  *   - ประวัติเบิกอะไหล่: ล่าสุดขึ้นก่อน + จำกัดจำนวนแถว (กันโตไม่หยุด)
@@ -114,6 +117,7 @@ const SHEET_NAMES = {
   LEAD: 'ลูกค้าสนใจ', // v3.15.0 — Lead CRM (Task 26)
   REQUISITION: 'เบิกอะไหล่', // v3.16.0 — parts requisition log
   AUDIT: 'audit_log', // v3.17.0 — Task 18 audit log
+  PHOTO: 'รูปตำหนิ', // v3.25.0 — defect-photo log (append-only)
   RECURRING: 'งานประจำ', // v3.17.0 — recurring task templates
 };
 
@@ -355,6 +359,8 @@ function doPost(e) {
       // ----- reads (no lock) -----
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
       case 'getRoomTasks':     return ok_({ result: getRoomTasks_(body) }); // v3.22 — full per-room history
+      case 'getRoomPhotos':    return ok_({ result: getRoomPhotos_(body) }); // v3.25 — defect photos per room
+      case 'uploadRoomPhoto':  return ok_(withWriteLock_(function () { return uploadRoomPhoto_(body); })); // v3.25
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
       case 'getRoomEquipment': return ok_({ result: { rows: getRoomEquipment_(body.building, body.room) } });
       case 'getAllEquipment':  return ok_({ result: { rows: getAllEquipmentCached_() } });
@@ -437,7 +443,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.24.1';
+var BACKEND_VERSION = '3.25.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -516,6 +522,106 @@ function getTasks_() {
     if (obj.date && obj.type && obj.building) out.push(obj);
   }
   return out;
+}
+
+/* ========== DEFECT PHOTOS (v3.25.0) ==========
+ * รูปตำหนิสภาพห้องก่อนเข้าอยู่ — evidence for deposit disputes.
+ *
+ * Storage: Google Drive folder (pinned by PHOTO_FOLDER_ID script
+ * property, same pattern as the backup folder) with one subfolder per
+ * building. Files are shared anyone-with-link/VIEW so the app can
+ * render them by fileId; links are unguessable.
+ *
+ * Ledger: sheet tab รูปตำหนิ — APPEND-ONLY by design (no delete/update
+ * action exists), so a recorded photo can't be quietly swapped later;
+ * that's what makes the set usable as evidence.
+ */
+function getOrCreatePhotoFolder_(building) {
+  const props = PropertiesService.getScriptProperties();
+  let root = null;
+  const savedId = props.getProperty('PHOTO_FOLDER_ID');
+  if (savedId) {
+    try { root = DriveApp.getFolderById(savedId); } catch (e) { root = null; }
+  }
+  if (!root) {
+    const it = DriveApp.getFoldersByName('รูปตำหนิหอพัก');
+    root = it.hasNext() ? it.next() : DriveApp.createFolder('รูปตำหนิหอพัก');
+    props.setProperty('PHOTO_FOLDER_ID', root.getId());
+  }
+  const name = norm(building) || 'ไม่ระบุตึก';
+  const sub = root.getFoldersByName(name);
+  return sub.hasNext() ? sub.next() : root.createFolder(name);
+}
+
+function getOrCreatePhotoSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.PHOTO);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.PHOTO);
+    sh.getRange(1, 1, 1, 7).setValues([[
+      'id', 'ตึก', 'ห้อง', 'fileId', 'หมายเหตุ', 'ผู้บันทึก', 'วันที่บันทึก',
+    ]]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#FCE7F3');
+  }
+  return sh;
+}
+
+/**
+ * Save one defect photo. Body: { building, room, dataBase64, mimeType?,
+ * note?, creator? }. Returns { id, fileId }.
+ */
+function uploadRoomPhoto_(b) {
+  const building = norm(b.building);
+  const room = norm(b.room);
+  if (!building || !room) throw new Error('building/room required');
+  if (!b.dataBase64) throw new Error('dataBase64 required');
+  // ~0.75 bytes per base64 char; client compresses to ~200-400KB, so
+  // anything past 8MB decoded means compression was bypassed — reject
+  // rather than slowly eat Drive space with camera originals.
+  if (String(b.dataBase64).length > 11000000) throw new Error('รูปใหญ่เกินไป (ย่อรูปก่อนส่ง)');
+  const mime = norm(b.mimeType) || 'image/jpeg';
+  const bytes = Utilities.base64Decode(String(b.dataBase64));
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmmss');
+  const blob = Utilities.newBlob(bytes, mime, room + '_' + stamp + '.jpg');
+  const folder = getOrCreatePhotoFolder_(building);
+  const file = folder.createFile(blob);
+  // anyone-with-link VIEW — required for <img> rendering in the app.
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const sh = getOrCreatePhotoSheet_();
+  const id = Utilities.getUuid();
+  const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  sh.appendRow([id, building, room, file.getId(), norm(b.note), norm(b.creator), createdAt]);
+  logAudit_('uploadRoomPhoto', 'photo', building + ' ' + room, norm(b.note), b.creator);
+  return { id: id, fileId: file.getId(), createdAt: createdAt };
+}
+
+/** All photos for one room, newest first. */
+function getRoomPhotos_(b) {
+  const building = norm(b.building);
+  const room = norm(b.room);
+  if (!building || !room) throw new Error('building/room required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PHOTO);
+  if (!sh) return { rows: [] };
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { rows: [] };
+  const data = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    if (norm(r[1]) !== building || norm(r[2]) !== room) continue;
+    rows.push({
+      id: norm(r[0]),
+      building: building,
+      room: room,
+      fileId: norm(r[3]),
+      note: norm(r[4]),
+      creator: norm(r[5]),
+      createdAt: fmtDateTime_(r[6]),
+    });
+  }
+  rows.reverse(); // newest first
+  return { rows: rows };
 }
 
 /**

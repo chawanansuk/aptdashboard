@@ -119,6 +119,18 @@ export interface RoomEquipment {
   intervalDays?: number;  // v3.7.0 — รอบบำรุง (วัน); 0/undefined = ไม่กำหนด
 }
 
+// ===== Defect photos (v3.25.0) — รูปตำหนิสภาพห้อง =====
+export interface RoomPhoto {
+  id: string;
+  building: string;
+  room: string;
+  /** Google Drive file id — render via drive.google.com/thumbnail?id= */
+  fileId: string;
+  note: string;
+  creator: string;      // email
+  createdAt: string;    // yyyy-MM-dd HH:mm (เวลาไทย)
+}
+
 // ===== Maintenance schedule (v3.7.0) =====
 export type MaintenanceStatus = "ok" | "due-soon" | "overdue" | "needs-date" | "unknown";
 

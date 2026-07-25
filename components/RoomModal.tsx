@@ -16,6 +16,7 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useRoomHistory, fullPastTasks } from "@/lib/useRoomHistory";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
 import RoomImageGallery from "./RoomImageGallery";
+import RoomDefectPhotos from "./RoomDefectPhotos";
 
 // Lazy-load equipment tab: fetches the chunk + first API call only when
 // the user clicks the "อุปกรณ์" tab
@@ -715,6 +716,15 @@ export default function RoomModal({
                   />
                 </div>
               </div>
+
+              {/* รูปตำหนิสภาพห้อง (v3.25) — capture + evidence gallery.
+                  During the turnover pipeline (moveout/repair/qc) the
+                  section flags "เทียบก่อนคืนมัดจำ" (Phase 2). */}
+              <RoomDefectPhotos
+                building={room.building}
+                room={room.room}
+                turnover={room.status === "moveout" || room.status === "qc" || room.status === "repair"}
+              />
 
               {/* Upcoming tasks — visual upgrade */}
               {room.upcomingTasks.length > 0 && (

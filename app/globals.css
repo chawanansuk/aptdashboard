@@ -5952,6 +5952,89 @@ html.dark .ac-room-modal-chip.is-ready {
   padding: 3px 10px; border-radius: var(--radius-full);
 }
 
+/* ===== รูปตำหนิสภาพห้อง (defect photos, v3.25) ===== */
+.ac-defect-photos {
+  border: 1px dashed transparent;
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ac-defect-photos.is-dragover {
+  border-color: var(--color-primary, #2563eb);
+  background: color-mix(in srgb, var(--color-primary, #2563eb) 8%, transparent);
+}
+.ac-defect-compare-banner {
+  font-size: 12.5px;
+  padding: 8px 10px;
+  margin: 6px 0 8px;
+}
+.ac-defect-strip { margin: 6px 0 10px; }
+.ac-defect-thumb { position: relative; }
+.ac-defect-pending {
+  flex: 0 0 auto;
+  width: 112px;
+  height: 84px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg, #f1f5f9);
+}
+.ac-defect-pending img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  opacity: 0.55;
+}
+.ac-defect-pending.is-error { border-color: var(--color-danger, #dc2626); }
+.ac-defect-thumb-state {
+  position: absolute;
+  inset: auto 0 0 0;
+  font-size: 10.5px;
+  text-align: center;
+  padding: 2px 4px;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.65);
+}
+.ac-defect-thumb-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.45);
+}
+.ac-defect-thumb-actions .ac-btn {
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+}
+.ac-defect-add {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.ac-defect-note {
+  flex: 1 1 200px;
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface, #fff);
+  color: var(--color-text);
+}
+.ac-defect-note:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus, 0 0 0 3px rgba(37, 99, 235, 0.45));
+}
+.ac-defect-add-btn { min-height: 44px; white-space: nowrap; }
+.ac-defect-hint {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--color-text-secondary, #64748b);
+  line-height: 1.5;
+}
+
 /* Upcoming tasks list */
 .ac-room-upcoming-list {
   list-style: none;
