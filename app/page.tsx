@@ -91,6 +91,7 @@ const MaintLogView    = lazy(() => import("@/components/MaintLogView"));
 const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
 const PartsView       = lazy(() => import("@/components/PartsView"));
 const VehiclesView    = lazy(() => import("@/components/VehiclesView"));
+const PetsView        = lazy(() => import("@/components/PetsView"));
 const LeadsView       = lazy(() => import("@/components/LeadsView"));
 const RecurringView   = lazy(() => import("@/components/RecurringView"));
 const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
@@ -462,7 +463,7 @@ export default function Home() {
   const headerVacancy = isSupplyRelevantView(activeView) ? vacancyByBuilding : undefined;
 
   const visibleRooms = useMemo(() => {
-    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "recurring" || activeView === "maintlog" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
+    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "pets" || activeView === "leads" || activeView === "recurring" || activeView === "maintlog" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
     // Note: room search was previously layered in here using the `search`
     // state — duplicated ⌘K's room/tenant/phone search. Removed in
     // Problem #8; users find rooms via the top-nav ⌘K. The `search`
@@ -540,7 +541,7 @@ export default function Home() {
   // status via visibleRooms) instead of a task list keyed on a task TYPE
   // that often doesn't exist (badge showed N but the task list was empty).
   const showTasksView = activeView === "today";
-  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "leads" || activeView === "recurring" || activeView === "maintlog" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports";
+  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "pets" || activeView === "leads" || activeView === "recurring" || activeView === "maintlog" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports";
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
   // Stats for the welcome hero — same data the rest of the page already
@@ -1372,6 +1373,17 @@ export default function Home() {
             <ErrorBoundary level="route" label="ยานพาหนะ">
               <Suspense fallback={<FacilitiesSkeleton />}>
                 <VehiclesView
+                  buildings={buildings}
+                  activeBuilding={activeBuilding}
+                  rooms={rooms}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          )}
+          {activeView === "pets" && (
+            <ErrorBoundary level="route" label="สัตว์เลี้ยง">
+              <Suspense fallback={<FacilitiesSkeleton />}>
+                <PetsView
                   buildings={buildings}
                   activeBuilding={activeBuilding}
                   rooms={rooms}

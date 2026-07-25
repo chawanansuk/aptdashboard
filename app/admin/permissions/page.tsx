@@ -58,6 +58,7 @@ const ROUTE_DESC: Record<Route, string> = {
   engineerkanban: "Engineer Kanban",
   parts: "อะไหล่ (Inventory)",
   vehicles: "ยานพาหนะ (Vehicles per room)",
+  pets: "สัตว์เลี้ยงทั้งหอ (รูปแมวประจำห้อง ไว้เทียบตัวตอนหลุด)",
   leads: "ผู้สนใจเช่า",
   recurring: "งานประจำ (Recurring tasks)",
   income: "รายได้",

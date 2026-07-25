@@ -130,6 +130,13 @@ export async function compressImageFile(file: Blob): Promise<CompressedImage> {
   return { dataBase64: stripDataUrlPrefix(dataUrl), mimeType: "image/jpeg" };
 }
 
+/** หมวด value the backend stores for pet photos (col หมวด). */
+export const PHOTO_CATEGORY_PET = "สัตว์เลี้ยง";
+
+export function isPetPhoto(p: { category?: string }): boolean {
+  return (p.category || "") === PHOTO_CATEGORY_PET;
+}
+
 /** GET this room's photos. Returns [] on old backend / network failure —
  *  the gallery just shows its add button. */
 export async function fetchRoomPhotos(building: string, room: string): Promise<RoomPhoto[]> {
@@ -142,6 +149,20 @@ export async function fetchRoomPhotos(building: string, room: string): Promise<R
   } catch {
     return [];
   }
+}
+
+/** GET every pet photo across the property (หน้ารวมสัตว์เลี้ยง).
+ *  Throws with a Thai message (incl. old-backend hint) — the view shows
+ *  the error instead of a silent empty grid. */
+export async function fetchPetPhotos(): Promise<RoomPhoto[]> {
+  const res = await fetch("/api/room-photos?scope=pets", { cache: "no-store" });
+  const data = (await res.json().catch(() => null)) as
+    | { ok?: boolean; error?: string; rows?: RoomPhoto[] }
+    | null;
+  if (!res.ok || !data?.ok || !Array.isArray(data.rows)) {
+    throw new Error(data?.error || `โหลดรูปสัตว์เลี้ยงไม่สำเร็จ (HTTP ${res.status})`);
+  }
+  return data.rows;
 }
 
 /**
@@ -191,6 +212,8 @@ export async function uploadRoomPhoto(params: {
   dataBase64: string;
   mimeType: string;
   note?: string;
+  /** "pet" files the photo under สัตว์เลี้ยง (v3.25.4); omit = defect. */
+  category?: "pet";
 }): Promise<{ id: string; fileId: string; createdAt?: string }> {
   const res = await fetch("/api/room-photos", {
     method: "POST",

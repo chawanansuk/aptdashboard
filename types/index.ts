@@ -129,6 +129,8 @@ export interface RoomPhoto {
   note: string;
   creator: string;      // email
   createdAt: string;    // yyyy-MM-dd HH:mm (เวลาไทย)
+  /** v3.25.4 — "" (or absent, old backend) = ตำหนิ; "สัตว์เลี้ยง" = pet. */
+  category?: string;
 }
 
 // ===== Maintenance schedule (v3.7.0) =====

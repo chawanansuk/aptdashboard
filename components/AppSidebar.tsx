@@ -8,7 +8,7 @@ import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { canAccess, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
 
-export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports" | "parts" | "vehicles" | "leads" | "recurring" | "maintlog";
+export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports" | "parts" | "vehicles" | "pets" | "leads" | "recurring" | "maintlog";
 
 interface Props {
   isOpen: boolean;
@@ -140,6 +140,7 @@ function buildGroups(
     });
   }
   if (has("vehicles"))    assetItems.push({ key: "vehicles",    label: "ยานพาหนะ",      icon: icon("vehicle") });
+  if (has("pets"))        assetItems.push({ key: "pets",        label: "สัตว์เลี้ยง",     icon: icon("pet") });
   if (has("recurring"))   assetItems.push({ key: "recurring",   label: "งานประจำ",      icon: icon("calendar") });
 
   const dataItems: NavItem[] = [];
@@ -202,6 +203,7 @@ function prefetchUrlsFor(key: SidebarView): string[] | null {
     case "facilities":      return ["/api/facilities"];
     case "parts":           return ["/api/parts"];
     case "vehicles":        return ["/api/vehicles"];
+    case "pets":            return ["/api/room-photos?scope=pets"];
     case "recurring":       return ["/api/recurring"];
     case "leads":           return ["/api/leads"];
     // Sales/Engineer/Tenants views consume the already-loaded dashboard

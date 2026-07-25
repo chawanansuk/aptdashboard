@@ -123,11 +123,11 @@ describe("POST action:setNote (v3.25.1 fill-once description)", () => {
   });
 });
 
-describe("POST action:delete (v3.25.3 management-only)", () => {
+describe("POST action:delete (v3.25.3, category-aware v3.25.4)", () => {
   const delBody = { action: "delete", id: "p9" };
   const mgmtSession = { user: { email: "boss@apt.test", roles: ["management"] } };
 
-  it("management: forwards to deletePhoto with the session creator", async () => {
+  it("management: forwards to deletePhoto WITHOUT petOnly (may delete anything)", async () => {
     authMock.mockResolvedValue(mgmtSession);
     callMock.mockResolvedValue({ ok: true, id: "p9" });
     const res = await POST(postReq(delBody));
@@ -135,13 +135,24 @@ describe("POST action:delete (v3.25.3 management-only)", () => {
     const [action, sent] = callMock.mock.calls[0] as [string, Record<string, unknown>];
     expect(action).toBe("deletePhoto");
     expect(sent).toMatchObject({ id: "p9", creator: "boss@apt.test" });
+    expect(sent.petOnly).toBeUndefined();
   });
 
-  it("non-management roles get 403 without touching upstream", async () => {
+  it("staff roles forward WITH petOnly — backend allows pet photos only", async () => {
     authMock.mockResolvedValue({ user: { email: "sale@apt.test", roles: ["sales"] } });
+    callMock.mockResolvedValue({ ok: true, id: "p9" });
     const res = await POST(postReq(delBody));
-    expect(res.status).toBe(403);
-    expect(callMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    const [, sent] = callMock.mock.calls[0] as [string, Record<string, unknown>];
+    expect(sent.petOnly).toBe(true);
+  });
+
+  it("surfaces the backend's evidence rejection for staff-on-defect", async () => {
+    authMock.mockResolvedValue({ user: { email: "sale@apt.test", roles: ["sales"] } });
+    callMock.mockResolvedValue({ ok: false, error: "รูปตำหนิลบได้เฉพาะ management (เป็นหลักฐานคืนมัดจำ)" });
+    const res = await POST(postReq(delBody));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toContain("เฉพาะ management");
   });
 
   it("translates old-backend 'unknown action' into a redeploy hint", async () => {
@@ -149,13 +160,45 @@ describe("POST action:delete (v3.25.3 management-only)", () => {
     callMock.mockResolvedValue({ ok: false, error: "unknown action: deletePhoto" });
     const res = await POST(postReq(delBody));
     expect(res.status).toBe(502);
-    expect((await res.json()).error).toContain("v3.25.3");
+    expect((await res.json()).error).toContain("v3.25.4");
   });
 
   it("rejects a missing id", async () => {
     authMock.mockResolvedValue(mgmtSession);
     expect((await POST(postReq({ action: "delete" }))).status).toBe(400);
     expect(callMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("pet photos (v3.25.4)", () => {
+  it("upload passes category:'pet' through (and strips unknown values)", async () => {
+    callMock.mockResolvedValue({ ok: true, fileId: "f1" });
+    await POST(postReq({ building: "มีทอง", room: "204", dataBase64: "QUFB", category: "pet" }));
+    let [, sent] = callMock.mock.calls[0] as [string, Record<string, unknown>];
+    expect(sent.category).toBe("pet");
+
+    callMock.mockClear();
+    callMock.mockResolvedValue({ ok: true, fileId: "f2" });
+    await POST(postReq({ building: "มีทอง", room: "204", dataBase64: "QUFB", category: "hack" }));
+    [, sent] = callMock.mock.calls[0] as [string, Record<string, unknown>];
+    expect(sent.category).toBe("");
+  });
+
+  it("GET scope=pets calls getPetPhotos and returns rows", async () => {
+    callMock.mockResolvedValue({ ok: true, result: { rows: [{ id: "p1", fileId: "f1", category: "สัตว์เลี้ยง" }] } });
+    const res = await GET(new Request("http://test/api/room-photos?scope=pets"));
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.rows).toHaveLength(1);
+    const [action] = callMock.mock.calls[0] as [string];
+    expect(action).toBe("getPetPhotos");
+  });
+
+  it("GET scope=pets on an old backend answers with a redeploy hint", async () => {
+    callMock.mockResolvedValue({ ok: false, error: "unknown action: getPetPhotos" });
+    const res = await GET(new Request("http://test/api/room-photos?scope=pets"));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toContain("v3.25.4");
   });
 });
 
