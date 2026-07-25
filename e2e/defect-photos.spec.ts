@@ -31,7 +31,15 @@ test.describe("defect photos", () => {
     await page.route("**/api/room-photos**", async (route) => {
       const req = route.request();
       if (req.method() === "POST") {
-        posted.push(req.postDataJSON() as Record<string, unknown>);
+        const body = req.postDataJSON() as Record<string, unknown>;
+        posted.push(body);
+        if (body.action === "setNote") {
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ ok: true, id: body.id, note: body.note }),
+          });
+        }
         return route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -88,6 +96,18 @@ test.describe("defect photos", () => {
     expect(String(posted[0].dataBase64).length).toBeGreaterThan(50);
     // bare base64, no data: prefix
     expect(String(posted[0].dataBase64)).not.toContain(",");
+
+    // Notes are VISIBLY captioned under thumbnails (v3.25.1) — a saved
+    // note that only shows on hover reads as "ลงบันทึกไม่ได้".
+    await expect(section.locator(".ac-defect-caption").filter({ hasText: "รอยขีดผนัง" })).toBeVisible();
+
+    // p2 has no note → "+ คำอธิบาย" opens the fill-once editor
+    await section.getByRole("button", { name: "+ คำอธิบาย" }).first().click();
+    await section.locator(".ac-defect-caption-edit input").fill("คราบน้ำเพดาน");
+    await section.locator(".ac-defect-caption-edit input").press("Enter");
+    await expect(section.locator(".ac-defect-caption").filter({ hasText: "คราบน้ำเพดาน" })).toBeVisible();
+    const notePost = posted.find((p) => p.action === "setNote");
+    expect(notePost).toMatchObject({ action: "setNote", id: "p2", note: "คราบน้ำเพดาน" });
 
     // Lightbox opens with the full-size URL
     await section.locator(".ac-room-gallery-thumb").first().click();

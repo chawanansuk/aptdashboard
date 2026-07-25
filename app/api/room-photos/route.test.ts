@@ -90,6 +90,39 @@ describe("POST /api/room-photos", () => {
   });
 });
 
+describe("POST action:setNote (v3.25.1 fill-once description)", () => {
+  const noteBody = { action: "setNote", id: "p1", note: "รอยขีดผนัง" };
+
+  it("forwards to updatePhotoNote with the session creator", async () => {
+    callMock.mockResolvedValue({ ok: true, id: "p1", note: "รอยขีดผนัง" });
+    const res = await POST(postReq(noteBody));
+    expect(res.status).toBe(200);
+    expect((await res.json()).ok).toBe(true);
+    const [action, sent] = callMock.mock.calls[0] as [string, Record<string, unknown>];
+    expect(action).toBe("updatePhotoNote");
+    expect(sent).toMatchObject({ id: "p1", note: "รอยขีดผนัง", creator: "sale@apt.test" });
+  });
+
+  it("translates old-backend 'unknown action' into a redeploy hint", async () => {
+    callMock.mockResolvedValue({ ok: false, error: "unknown action: updatePhotoNote" });
+    const res = await POST(postReq(noteBody));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toContain("v3.25.1");
+  });
+
+  it("surfaces the write-once rejection as-is", async () => {
+    callMock.mockResolvedValue({ ok: false, error: "รูปนี้มีคำอธิบายแล้ว แก้ไม่ได้ (เป็นหลักฐาน)" });
+    const res = await POST(postReq(noteBody));
+    expect((await res.json()).error).toContain("มีคำอธิบายแล้ว");
+  });
+
+  it("rejects missing id / empty note without calling upstream", async () => {
+    expect((await POST(postReq({ action: "setNote", note: "x" }))).status).toBe(400);
+    expect((await POST(postReq({ action: "setNote", id: "p1", note: "  " }))).status).toBe(400);
+    expect(callMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("GET /api/room-photos", () => {
   it("unwraps rows from the result envelope", async () => {
     callMock.mockResolvedValue({ ok: true, result: { rows: [{ id: "p1", fileId: "f1" }] } });
