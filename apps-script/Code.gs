@@ -1,10 +1,13 @@
 /**
- * Code.gs v3.25.1 — Dashboard หอพัก
+ * Code.gs v3.25.2 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
  *
+ * NEW v3.25.2:
+ *   - ชื่อไฟล์รูปใน Drive = ตึก_ห้อง[_คำอธิบาย]_เวลา.jpg (อ่านรู้เรื่องจาก Drive
+ *     เลย) + เพิ่มคำอธิบายทีหลัง → เปลี่ยนชื่อไฟล์ตามให้ด้วย
  * NEW v3.25.1:
  *   - updatePhotoNote: เพิ่มคำอธิบายรูปตำหนิทีหลังได้ (เฉพาะรูปที่ยังไม่มี
  *     คำอธิบาย — เขียนได้ครั้งเดียว แก้ทับไม่ได้ เพื่อคงความเป็นหลักฐาน)
@@ -447,7 +450,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.25.1';
+var BACKEND_VERSION = '3.25.2';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -571,6 +574,22 @@ function getOrCreatePhotoSheet_() {
   return sh;
 }
 
+/** Make a string safe for a Drive filename: strip path/reserved chars,
+ *  collapse spaces, cap length so long notes don't bloat the name. */
+function photoFileSafe_(s) {
+  return norm(s).replace(/[\\\/:*?"<>|#]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+}
+
+/** v3.25.2 filename: ตึก_ห้อง[_คำอธิบาย]_เวลา.jpg — readable straight
+ *  from Drive without opening the file. */
+function photoFileName_(building, room, note, stamp) {
+  const parts = [photoFileSafe_(building) || 'ไม่ระบุตึก', photoFileSafe_(room)];
+  const n = photoFileSafe_(note);
+  if (n) parts.push(n);
+  parts.push(stamp);
+  return parts.join('_') + '.jpg';
+}
+
 /**
  * Save one defect photo. Body: { building, room, dataBase64, mimeType?,
  * note?, creator? }. Returns { id, fileId }.
@@ -587,7 +606,7 @@ function uploadRoomPhoto_(b) {
   const mime = norm(b.mimeType) || 'image/jpeg';
   const bytes = Utilities.base64Decode(String(b.dataBase64));
   const stamp = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmmss');
-  const blob = Utilities.newBlob(bytes, mime, room + '_' + stamp + '.jpg');
+  const blob = Utilities.newBlob(bytes, mime, photoFileName_(building, room, b.note, stamp));
   const folder = getOrCreatePhotoFolder_(building);
   const file = folder.createFile(blob);
   // anyone-with-link VIEW — required for <img> rendering in the app.
@@ -623,6 +642,23 @@ function updatePhotoNote_(b) {
     throw new Error('รูปนี้มีคำอธิบายแล้ว แก้ไม่ได้ (เป็นหลักฐาน)');
   }
   sh.getRange(row, 5).setValue(note);
+  // v3.25.2 — keep the Drive filename in sync: a late-added description
+  // goes into the file name too, so browsing Drive tells the whole
+  // story. Best effort: the note is already committed above; a
+  // missing/unreachable file must not fail the save.
+  try {
+    const fileId = norm(sh.getRange(row, 4).getValue());
+    if (fileId) {
+      const file = DriveApp.getFileById(fileId);
+      const building = norm(sh.getRange(row, 2).getValue());
+      const roomVal = norm(sh.getRange(row, 3).getValue());
+      // Reuse the original timestamp from the current name (last two
+      // "_"-parts = yyyyMMdd_HHmmss); fall back to the ledger date.
+      const m = file.getName().match(/(\d{8}_\d{6})\.jpg$/);
+      const stamp = m ? m[1] : Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmmss');
+      file.setName(photoFileName_(building, roomVal, note, stamp));
+    }
+  } catch (e) { /* rename is cosmetic — never block the note */ }
   logAudit_('updatePhotoNote', 'photo', id, note, b.creator);
   return { id: id, note: note };
 }
