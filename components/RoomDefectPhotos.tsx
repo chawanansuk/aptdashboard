@@ -63,7 +63,6 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
   // that and items sat in "รอคิว" forever); a ref is always current.
   const itemsRef = useRef<QueueItem[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [note, setNote] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [lightbox, setLightbox] = useState<RoomPhoto | null>(null);
   // Add-description-later editor (v3.25.1): the natural flow is snap
@@ -139,10 +138,13 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
     }
   }, [building, room, sync]);
 
+  // Photos upload without a description — staff add one afterwards via
+  // "+ คำอธิบาย" under the thumbnail. There used to be a type-note-first
+  // box next to the add button, but "พิมพ์แล้วไม่เกิดอะไร" — two
+  // competing note flows confused more than they helped (owner feedback).
   const addFiles = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
-      const trimmedNote = note.trim();
       let added = 0;
       for (const f of files) {
         try {
@@ -152,7 +154,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
             previewUrl: URL.createObjectURL(f),
             dataBase64: c.dataBase64,
             mimeType: c.mimeType,
-            note: trimmedNote,
+            note: "",
             status: "queued",
           });
           added++;
@@ -161,12 +163,11 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
         }
       }
       if (added > 0) {
-        setNote("");
         sync();
         void pump();
       }
     },
-    [note, pump, sync]
+    [pump, sync]
   );
 
   // Escape closes the LIGHTBOX only — capture phase so it wins over the
@@ -359,14 +360,6 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
             void addFiles(files);
           }}
         />
-        <input
-          type="text"
-          className="ac-defect-note"
-          placeholder="หมายเหตุ เช่น รอยขีดข่วนผนังหัวเตียง (ไม่บังคับ)"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          maxLength={200}
-        />
         <button
           type="button"
           className="ac-btn ac-btn-secondary ac-defect-add-btn"
@@ -378,7 +371,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
       <p className="ac-defect-hint">
         ถ่ายจากมือถือ · เลือกไฟล์ · ลากมาวาง · หรือกด Ctrl+V วางรูปที่ก๊อปมา (เช่นจาก LINE) —
         รูปถูกย่ออัตโนมัติ และลบไม่ได้ (เป็นหลักฐานคืนมัดจำ) ·
-        อัปรูปไปแล้ว? กด <strong>+ คำอธิบาย</strong> ใต้รูปเพื่อบันทึกทีหลังได้ (เขียนได้ครั้งเดียว)
+        อัปเสร็จแล้วกด <strong>+ คำอธิบาย</strong> ใต้รูปเพื่อบอกว่าตำหนิอะไร (เขียนได้ครั้งเดียว)
       </p>
 
       {lightbox && (

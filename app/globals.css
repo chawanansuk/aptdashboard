@@ -6069,20 +6069,6 @@ html.dark .ac-room-modal-chip.is-ready {
   align-items: stretch;
   flex-wrap: wrap;
 }
-.ac-defect-note {
-  flex: 1 1 200px;
-  min-height: 44px;
-  padding: 8px 12px;
-  font-size: 13.5px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface, #fff);
-  color: var(--color-text);
-}
-.ac-defect-note:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus, 0 0 0 3px rgba(37, 99, 235, 0.45));
-}
 .ac-defect-add-btn { min-height: 44px; white-space: nowrap; }
 .ac-defect-hint {
   margin: 6px 0 0;
