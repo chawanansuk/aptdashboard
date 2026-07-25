@@ -5967,8 +5967,64 @@ html.dark .ac-room-modal-chip.is-ready {
   padding: 8px 10px;
   margin: 6px 0 8px;
 }
-.ac-defect-strip { margin: 6px 0 10px; }
+.ac-defect-strip { margin: 6px 0 10px; align-items: flex-start; }
 .ac-defect-thumb { position: relative; }
+.ac-defect-cell {
+  flex: 0 0 auto;
+  width: 112px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ac-defect-caption {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-secondary, #64748b);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.ac-defect-caption-add {
+  border: none;
+  background: none;
+  padding: 2px 0;
+  min-height: 28px;
+  font-size: 11px;
+  text-align: left;
+  color: var(--color-primary, #2563eb);
+  cursor: pointer;
+}
+.ac-defect-caption-add:hover { text-decoration: underline; }
+@media (pointer: coarse) {
+  .ac-defect-caption-add { min-height: 44px; }
+}
+.ac-defect-caption-edit {
+  display: flex;
+  gap: 4px;
+}
+/* Give the inline editor breathing room — the 112px photo column is too
+   tight for Thai text + the save button. */
+.ac-defect-cell:has(.ac-defect-caption-edit) { width: 220px; }
+.ac-defect-cell:has(.ac-defect-caption-edit) .ac-defect-thumb { width: 112px; }
+.ac-defect-caption-edit input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid var(--color-primary, #2563eb);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface, #fff);
+  color: var(--color-text);
+}
+.ac-defect-caption-edit .ac-btn {
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+}
 .ac-defect-pending {
   flex: 0 0 auto;
   width: 112px;

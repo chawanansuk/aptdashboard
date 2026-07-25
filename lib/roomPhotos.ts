@@ -145,6 +145,24 @@ export async function fetchRoomPhotos(building: string, room: string): Promise<R
 }
 
 /**
+ * Fill-once description on an existing photo (v3.25.1). The backend
+ * rejects changing a non-empty note (evidence stays tamper-resistant);
+ * replaying the same text is accepted, so this is safe to retry by hand.
+ * Throws with a Thai message on failure (incl. old-backend hint).
+ */
+export async function setPhotoNote(id: string, note: string): Promise<void> {
+  const res = await fetch("/api/room-photos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "setNote", id, note }),
+  });
+  const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || `บันทึกคำอธิบายไม่สำเร็จ (HTTP ${res.status})`);
+  }
+}
+
+/**
  * Upload ONE photo. NOT idempotent (each call creates a Drive file +
  * ledger row) — deliberately no auto-retry here; the UI offers a manual
  * "ลองอีกครั้ง" instead. Throws with a Thai message on failure.

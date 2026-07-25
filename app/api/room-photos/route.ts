@@ -70,6 +70,39 @@ export async function POST(req: Request) {
     return bad("invalid JSON");
   }
 
+  // action: "setNote" — fill-once description on an existing photo
+  // (v3.25.1). Backend enforces write-once; replaying the same note is
+  // idempotent, so a resilient retry here would be safe — but it's a
+  // tiny payload, so we keep single-shot like the upload.
+  if (String(body.action || "") === "setNote") {
+    const id = String(body.id || "").trim();
+    const noteText = String(body.note || "").trim();
+    if (!id) return bad("id required");
+    if (!noteText) return bad("note required");
+    try {
+      const json = await appsScriptCall("updatePhotoNote", {
+        id,
+        note: noteText,
+        creator: session.user.email,
+      });
+      if (!json.ok) {
+        // Old backend answers ok:false "unknown action" — translate.
+        const err = json.error || "backend error";
+        return bad(
+          /unknown action/i.test(err)
+            ? "ต้องอัปเดตหลังบ้านเป็น v3.25.1 ก่อน (ดูแถบฟ้าด้านบน)"
+            : err,
+          502
+        );
+      }
+      return NextResponse.json({ ok: true, id, note: noteText });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown";
+      const status = e instanceof AppsScriptError ? e.status : 502;
+      return bad(`บันทึกคำอธิบายไม่สำเร็จ: ${msg}`, status);
+    }
+  }
+
   const building = String(body.building || "").trim();
   const room = String(body.room || "").trim();
   const dataBase64 = String(body.dataBase64 || "");

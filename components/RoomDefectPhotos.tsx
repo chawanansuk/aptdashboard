@@ -9,6 +9,7 @@ import {
   fetchRoomPhotos,
   photoFullUrl,
   photoThumbUrl,
+  setPhotoNote,
   uploadRoomPhoto,
 } from "@/lib/roomPhotos";
 
@@ -65,6 +66,12 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
   const [note, setNote] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [lightbox, setLightbox] = useState<RoomPhoto | null>(null);
+  // Add-description-later editor (v3.25.1): the natural flow is snap
+  // first, describe second — without this, text typed after upload had
+  // nowhere to go and looked like "ลงบันทึกไม่ได้".
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pumpBusy = useRef(false);
 
@@ -204,6 +211,24 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
     sync();
   };
 
+  const saveNote = async (photo: RoomPhoto) => {
+    const text = editText.trim();
+    if (!text || savingNote) return;
+    setSavingNote(true);
+    try {
+      await setPhotoNote(photo.id, text);
+      setPhotos((rows) =>
+        (rows || []).map((p) => (p.id === photo.id ? { ...p, note: text } : p))
+      );
+      setEditingId(null);
+      setEditText("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "บันทึกคำอธิบายไม่สำเร็จ");
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
   const count = photos?.length ?? 0;
 
   return (
@@ -262,17 +287,59 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
             </div>
           ))}
           {(photos || []).map((p) => (
-            <button
-              key={p.id || p.fileId}
-              type="button"
-              className="ac-room-gallery-thumb ac-defect-thumb"
-              onClick={() => setLightbox(p)}
-              title={p.note || p.createdAt}
-              aria-label={`ดูรูปตำหนิ ${p.note || p.createdAt || ""}`.trim()}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photoThumbUrl(p.fileId)} alt={p.note || "รูปตำหนิ"} loading="lazy" />
-            </button>
+            <figure key={p.id || p.fileId} className="ac-defect-cell">
+              <button
+                type="button"
+                className="ac-room-gallery-thumb ac-defect-thumb"
+                onClick={() => setLightbox(p)}
+                title={p.note || p.createdAt}
+                aria-label={`ดูรูปตำหนิ ${p.note || p.createdAt || ""}`.trim()}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoThumbUrl(p.fileId)} alt={p.note || "รูปตำหนิ"} loading="lazy" />
+              </button>
+              {/* Caption is ALWAYS visible — a note nobody can see reads
+                  as "ไม่ได้บันทึก" even when it saved fine. */}
+              {p.note ? (
+                <figcaption className="ac-defect-caption" title={p.note}>{p.note}</figcaption>
+              ) : editingId === p.id ? (
+                <span className="ac-defect-caption-edit">
+                  <input
+                    type="text"
+                    value={editText}
+                    autoFocus
+                    maxLength={200}
+                    placeholder="เช่น รอยขีดผนัง"
+                    disabled={savingNote}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void saveNote(p);
+                      } else if (e.key === "Escape") {
+                        e.stopPropagation();
+                        setEditingId(null);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="ac-btn ac-btn-primary"
+                    disabled={savingNote || !editText.trim()}
+                    onClick={() => void saveNote(p)}
+                  >{savingNote ? "..." : "บันทึก"}</button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="ac-defect-caption-add"
+                  onClick={() => {
+                    setEditingId(p.id);
+                    setEditText("");
+                  }}
+                >+ คำอธิบาย</button>
+              )}
+            </figure>
           ))}
         </div>
       )}
@@ -310,7 +377,8 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
       </div>
       <p className="ac-defect-hint">
         ถ่ายจากมือถือ · เลือกไฟล์ · ลากมาวาง · หรือกด Ctrl+V วางรูปที่ก๊อปมา (เช่นจาก LINE) —
-        รูปถูกย่ออัตโนมัติ และลบไม่ได้ (เป็นหลักฐานคืนมัดจำ)
+        รูปถูกย่ออัตโนมัติ และลบไม่ได้ (เป็นหลักฐานคืนมัดจำ) ·
+        อัปรูปไปแล้ว? กด <strong>+ คำอธิบาย</strong> ใต้รูปเพื่อบันทึกทีหลังได้ (เขียนได้ครั้งเดียว)
       </p>
 
       {lightbox && (

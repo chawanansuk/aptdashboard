@@ -1,10 +1,13 @@
 /**
- * Code.gs v3.25.0 — Dashboard หอพัก
+ * Code.gs v3.25.1 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
  *
+ * NEW v3.25.1:
+ *   - updatePhotoNote: เพิ่มคำอธิบายรูปตำหนิทีหลังได้ (เฉพาะรูปที่ยังไม่มี
+ *     คำอธิบาย — เขียนได้ครั้งเดียว แก้ทับไม่ได้ เพื่อคงความเป็นหลักฐาน)
  * NEW v3.25.0:
  *   - รูปตำหนิห้อง: uploadRoomPhoto/getRoomPhotos + tab รูปตำหนิ (append-only)
  *     รูปเก็บใน Drive โฟลเดอร์ 'รูปตำหนิหอพัก' (pin ด้วย PHOTO_FOLDER_ID)
@@ -361,6 +364,7 @@ function doPost(e) {
       case 'getRoomTasks':     return ok_({ result: getRoomTasks_(body) }); // v3.22 — full per-room history
       case 'getRoomPhotos':    return ok_({ result: getRoomPhotos_(body) }); // v3.25 — defect photos per room
       case 'uploadRoomPhoto':  return ok_(withWriteLock_(function () { return uploadRoomPhoto_(body); })); // v3.25
+      case 'updatePhotoNote':  return ok_(withWriteLock_(function () { return updatePhotoNote_(body); })); // v3.25.1 — fill-once
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
       case 'getRoomEquipment': return ok_({ result: { rows: getRoomEquipment_(body.building, body.room) } });
       case 'getAllEquipment':  return ok_({ result: { rows: getAllEquipmentCached_() } });
@@ -443,7 +447,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.25.0';
+var BACKEND_VERSION = '3.25.1';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -594,6 +598,33 @@ function uploadRoomPhoto_(b) {
   sh.appendRow([id, building, room, file.getId(), norm(b.note), norm(b.creator), createdAt]);
   logAudit_('uploadRoomPhoto', 'photo', building + ' ' + room, norm(b.note), b.creator);
   return { id: id, fileId: file.getId(), createdAt: createdAt };
+}
+
+/**
+ * Add a description to a photo AFTER upload (v3.25.1) — the natural
+ * flow is snap first, describe second, and the ledger had no way to do
+ * that. FILL-ONCE, not edit: a note can only be set while the cell is
+ * still empty (same-note replays are OK = idempotent retry). An existing
+ * description can never be changed, which keeps the append-only
+ * evidence property intact.
+ */
+function updatePhotoNote_(b) {
+  const id = norm(b.id);
+  const note = norm(b.note);
+  if (!id) throw new Error('id required');
+  if (!note) throw new Error('note required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PHOTO);
+  if (!sh) throw new Error('ไม่พบรูป (ยังไม่มีแท็บรูปตำหนิ)');
+  const row = findRowById_(sh, id);
+  if (row < 0) throw new Error('ไม่พบรูปนี้');
+  const existing = norm(sh.getRange(row, 5).getValue());
+  if (existing) {
+    if (existing === note) return { id: id, note: note }; // idempotent replay
+    throw new Error('รูปนี้มีคำอธิบายแล้ว แก้ไม่ได้ (เป็นหลักฐาน)');
+  }
+  sh.getRange(row, 5).setValue(note);
+  logAudit_('updatePhotoNote', 'photo', id, note, b.creator);
+  return { id: id, note: note };
 }
 
 /** All photos for one room, newest first. */
