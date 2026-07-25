@@ -5,6 +5,10 @@ import type { RoomPhoto } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Upload calls Apps Script with a 45s timeout (Drive write + cold start)
+// — the function budget must exceed it or Vercel kills us mid-upload
+// and the client sees a bare 504. Same pattern as /api/sheet/update.
+export const maxDuration = 60;
 
 /**
  * Per-room defect photos (v3.25).
@@ -76,7 +80,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const json = await appsScriptCall<{ id?: string; fileId?: string; createdAt?: string }>(
+    const json = await appsScriptCall(
       "uploadRoomPhoto",
       {
         building,
@@ -91,7 +95,14 @@ export async function POST(req: Request) {
       { timeoutMs: 45_000 }
     );
     if (!json.ok) return bad(json.error || "backend error", 502);
-    return NextResponse.json({ ok: true, ...json.result });
+    // WRITE actions return their payload at the TOP LEVEL of the envelope
+    // ({ok, id, fileId, createdAt}) — only reads use {ok, result}. The
+    // first cut read json.result here, got undefined, and the client
+    // declared "อัปโหลดไม่สำเร็จ (HTTP 200)" on every SUCCESSFUL upload.
+    // Accept both shapes so a future backend normalization can't re-break it.
+    const r = (json.result ?? json) as { id?: string; fileId?: string; createdAt?: string };
+    if (!r.fileId) return bad("backend ตอบกลับไม่มี fileId (ตรวจเวอร์ชัน Apps Script)", 502);
+    return NextResponse.json({ ok: true, id: r.id || "", fileId: r.fileId, createdAt: r.createdAt || "" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     const status = e instanceof AppsScriptError ? e.status : 502;
