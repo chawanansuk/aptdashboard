@@ -79,8 +79,9 @@ test.describe("defect photos", () => {
     // Phase-2 turnover banner (room is แจ้งย้ายออก and photos exist)
     await expect(section.locator(".ac-defect-compare-banner")).toContainText("2 รูป");
 
-    // Upload path: note + file picker
-    await section.locator(".ac-defect-note").fill("ตรวจก่อนเข้า");
+    // Upload path: file picker only — descriptions are added AFTER
+    // upload via "+ คำอธิบาย" (the pre-type note box was removed;
+    // two competing note flows confused users).
     await section.locator('input[type="file"]').setInputFiles({
       name: "defect.png",
       mimeType: "image/png",
@@ -92,7 +93,6 @@ test.describe("defect photos", () => {
     expect(posted[0].building).toBe("มีทอง");
     expect(posted[0].room).toBe("204");
     expect(posted[0].mimeType).toBe("image/jpeg");
-    expect(posted[0].note).toBe("ตรวจก่อนเข้า");
     expect(String(posted[0].dataBase64).length).toBeGreaterThan(50);
     // bare base64, no data: prefix
     expect(String(posted[0].dataBase64)).not.toContain(",");
@@ -101,13 +101,15 @@ test.describe("defect photos", () => {
     // note that only shows on hover reads as "ลงบันทึกไม่ได้".
     await expect(section.locator(".ac-defect-caption").filter({ hasText: "รอยขีดผนัง" })).toBeVisible();
 
-    // p2 has no note → "+ คำอธิบาย" opens the fill-once editor
+    // The just-uploaded photo has no note → "+ คำอธิบาย" (first cell =
+    // newest) opens the fill-once editor. This is the real user flow:
+    // snap first, describe right after.
     await section.getByRole("button", { name: "+ คำอธิบาย" }).first().click();
     await section.locator(".ac-defect-caption-edit input").fill("คราบน้ำเพดาน");
     await section.locator(".ac-defect-caption-edit input").press("Enter");
     await expect(section.locator(".ac-defect-caption").filter({ hasText: "คราบน้ำเพดาน" })).toBeVisible();
     const notePost = posted.find((p) => p.action === "setNote");
-    expect(notePost).toMatchObject({ action: "setNote", id: "p2", note: "คราบน้ำเพดาน" });
+    expect(notePost).toMatchObject({ action: "setNote", id: "new1", note: "คราบน้ำเพดาน" });
 
     // Lightbox opens with the full-size URL
     await section.locator(".ac-room-gallery-thumb").first().click();
