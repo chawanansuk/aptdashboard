@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isManagement } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import type { RoomPhoto } from "@/types";
 
@@ -42,6 +43,32 @@ export async function GET(req: Request) {
   if (!session?.user?.email) return bad("unauthenticated", 401);
 
   const url = new URL(req.url);
+
+  // scope=pets (v3.25.4): EVERY pet photo across the property — powers
+  // the หน้ารวมสัตว์เลี้ยง view (find an escaped cat without opening
+  // rooms one by one). No PII in the payload; any authenticated user.
+  if (url.searchParams.get("scope") === "pets") {
+    try {
+      const json = await appsScriptCall<{ rows?: RoomPhoto[] }>(
+        "getPetPhotos", {}, { idempotent: true }
+      );
+      if (!json.ok) {
+        const err = json.error || "backend error";
+        return bad(
+          /unknown action/i.test(err)
+            ? "ต้องอัปเดตหลังบ้านเป็น v3.25.4 ก่อน (ดูแถบฟ้าด้านบน)"
+            : err,
+          502
+        );
+      }
+      return NextResponse.json({ ok: true, rows: json.result?.rows || [] });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown";
+      const status = e instanceof AppsScriptError ? e.status : 502;
+      return bad(`ดึงรูปสัตว์เลี้ยงไม่สำเร็จ: ${msg}`, status);
+    }
+  }
+
   const building = (url.searchParams.get("building") || "").trim();
   const room = (url.searchParams.get("room") || "").trim();
   if (!building || !room) return bad("building/room required");
@@ -68,6 +95,41 @@ export async function POST(req: Request) {
     body = (await req.json()) as Record<string, unknown>;
   } catch {
     return bad("invalid JSON");
+  }
+
+  // action: "delete" (v3.25.3, widened v3.25.4):
+  //   - DEFECT photos: management only — append-only evidence for staff
+  //   - PET photos: any role (owner decision "ทุก role ลบได้") — they're
+  //     a registry, not evidence
+  // Non-management requests carry petOnly; the BACKEND checks it against
+  // the row's actual category, so a forged client can't delete evidence.
+  // Backend deletes the ledger row and trashes the Drive file (30-day
+  // undo). Idempotent upstream (missing id → alreadyGone), so a retry
+  // after timeout is harmless.
+  if (String(body.action || "") === "delete") {
+    const id = String(body.id || "").trim();
+    if (!id) return bad("id required");
+    try {
+      const json = await appsScriptCall("deletePhoto", {
+        id,
+        ...(isManagement(session.user.roles) ? {} : { petOnly: true }),
+        creator: session.user.email,
+      });
+      if (!json.ok) {
+        const err = json.error || "backend error";
+        return bad(
+          /unknown action/i.test(err)
+            ? "ต้องอัปเดตหลังบ้านเป็น v3.25.4 ก่อน (ดูแถบฟ้าด้านบน)"
+            : err,
+          502
+        );
+      }
+      return NextResponse.json({ ok: true, id });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown";
+      const status = e instanceof AppsScriptError ? e.status : 502;
+      return bad(`ลบรูปไม่สำเร็จ: ${msg}`, status);
+    }
   }
 
   // action: "setNote" — fill-once description on an existing photo
@@ -121,6 +183,8 @@ export async function POST(req: Request) {
         dataBase64,
         mimeType: String(body.mimeType || "image/jpeg"),
         note: String(body.note || "").trim(),
+        // "pet" files under สัตว์เลี้ยง; anything else is a defect photo.
+        category: body.category === "pet" ? "pet" : "",
         creator: session.user.email,
       },
       // Upload payloads are big and Drive writes are slow — allow more

@@ -57,7 +57,8 @@ describe("useViewRouting — basics", () => {
     expect(VALID_VIEWS).toContain("salespipeline");
     expect(VALID_VIEWS).toContain("engineerkanban");
     expect(VALID_VIEWS).toContain("maintlog");
-    expect(VALID_VIEWS.length).toBe(22);
+    expect(VALID_VIEWS).toContain("pets");
+    expect(VALID_VIEWS.length).toBe(23);
   });
 });
 

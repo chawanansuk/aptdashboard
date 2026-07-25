@@ -1,10 +1,16 @@
 /**
- * Code.gs v3.25.2 — Dashboard หอพัก
+ * Code.gs v3.25.4 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
  *
+ * NEW v3.25.4:
+ *   - รูปสัตว์เลี้ยงประจำห้อง: คอลัมน์ หมวด ในแท็บรูปตำหนิ + getPetPhotos
+ *     (หน้ารวมทั้งหอ ไว้เทียบตัวตอนแมวหลุด)
+ * NEW v3.25.3:
+ *   - deletePhoto: ลบรูปตำหนิ (เฉพาะ management — เช็คสิทธิ์ที่ฝั่งเว็บ)
+ *     ลบแถวชีท + ย้ายไฟล์ Drive ลงถังขยะ (กู้คืนได้ 30 วัน) + ลง audit
  * NEW v3.25.2:
  *   - ชื่อไฟล์รูปใน Drive = ตึก_ห้อง[_คำอธิบาย]_เวลา.jpg (อ่านรู้เรื่องจาก Drive
  *     เลย) + เพิ่มคำอธิบายทีหลัง → เปลี่ยนชื่อไฟล์ตามให้ด้วย
@@ -366,8 +372,10 @@ function doPost(e) {
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
       case 'getRoomTasks':     return ok_({ result: getRoomTasks_(body) }); // v3.22 — full per-room history
       case 'getRoomPhotos':    return ok_({ result: getRoomPhotos_(body) }); // v3.25 — defect photos per room
+      case 'getPetPhotos':     return ok_({ result: getPetPhotos_() }); // v3.25.4 — all pet photos (แมวหลุด lookup)
       case 'uploadRoomPhoto':  return ok_(withWriteLock_(function () { return uploadRoomPhoto_(body); })); // v3.25
       case 'updatePhotoNote':  return ok_(withWriteLock_(function () { return updatePhotoNote_(body); })); // v3.25.1 — fill-once
+      case 'deletePhoto':      return ok_(withWriteLock_(function () { return deletePhoto_(body); })); // v3.25.3 — mgmt-only (gated at the Vercel route)
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
       case 'getRoomEquipment': return ok_({ result: { rows: getRoomEquipment_(body.building, body.room) } });
       case 'getAllEquipment':  return ok_({ result: { rows: getAllEquipmentCached_() } });
@@ -450,7 +458,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.25.2';
+var BACKEND_VERSION = '3.25.4';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -565,14 +573,22 @@ function getOrCreatePhotoSheet_() {
   let sh = ss.getSheetByName(SHEET_NAMES.PHOTO);
   if (!sh) {
     sh = ss.insertSheet(SHEET_NAMES.PHOTO);
-    sh.getRange(1, 1, 1, 7).setValues([[
-      'id', 'ตึก', 'ห้อง', 'fileId', 'หมายเหตุ', 'ผู้บันทึก', 'วันที่บันทึก',
+    sh.getRange(1, 1, 1, 8).setValues([[
+      'id', 'ตึก', 'ห้อง', 'fileId', 'หมายเหตุ', 'ผู้บันทึก', 'วันที่บันทึก', 'หมวด',
     ]]);
     sh.setFrozenRows(1);
-    sh.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#FCE7F3');
+    sh.getRange(1, 1, 1, 8).setFontWeight('bold').setBackground('#FCE7F3');
+  }
+  // v3.25.4 — sheets created before the หมวด column: stamp the header
+  // in place (rows just have an empty col 8 = ตำหนิ by default).
+  if (!norm(sh.getRange(1, 8).getValue())) {
+    sh.getRange(1, 8).setValue('หมวด').setFontWeight('bold').setBackground('#FCE7F3');
   }
   return sh;
 }
+
+/** หมวด strings stored in col 8. Empty/anything else = defect photo. */
+var PHOTO_CAT_PET = 'สัตว์เลี้ยง';
 
 /** Make a string safe for a Drive filename: strip path/reserved chars,
  *  collapse spaces, cap length so long notes don't bloat the name. */
@@ -614,7 +630,10 @@ function uploadRoomPhoto_(b) {
   const sh = getOrCreatePhotoSheet_();
   const id = Utilities.getUuid();
   const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
-  sh.appendRow([id, building, room, file.getId(), norm(b.note), norm(b.creator), createdAt]);
+  // v3.25.4 — category: 'pet' → สัตว์เลี้ยง (per-room cat registry);
+  // anything else stays a defect photo (empty col 8).
+  const category = norm(b.category) === 'pet' ? PHOTO_CAT_PET : '';
+  sh.appendRow([id, building, room, file.getId(), norm(b.note), norm(b.creator), createdAt, category]);
   logAudit_('uploadRoomPhoto', 'photo', building + ' ' + room, norm(b.note), b.creator);
   return { id: id, fileId: file.getId(), createdAt: createdAt };
 }
@@ -663,6 +682,38 @@ function updatePhotoNote_(b) {
   return { id: id, note: note };
 }
 
+/**
+ * Delete one photo (v3.25.3): ledger row + Drive file (to trash, so
+ * 30-day undo exists). The APP only offers this to management — the
+ * role gate lives in the Vercel route (Apps Script never sees roles);
+ * staff roles keep the append-only evidence property. Audit-logged.
+ */
+function deletePhoto_(b) {
+  const id = norm(b.id);
+  if (!id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PHOTO);
+  if (!sh) throw new Error('ไม่พบรูป (ยังไม่มีแท็บรูปตำหนิ)');
+  const row = findRowById_(sh, id);
+  if (row < 0) return { id: id, alreadyGone: true }; // idempotent replay
+  // v3.25.4 — petOnly: staff roles may delete PET photos only (the
+  // Vercel route sets this for non-management). Checked against the
+  // ROW's category, so a client can't free-type its way around it.
+  if (b.petOnly && norm(sh.getRange(row, 8).getValue()) !== PHOTO_CAT_PET) {
+    throw new Error('รูปตำหนิลบได้เฉพาะ management (เป็นหลักฐานคืนมัดจำ)');
+  }
+  const fileId = norm(sh.getRange(row, 4).getValue());
+  const label = norm(sh.getRange(row, 2).getValue()) + ' ' + norm(sh.getRange(row, 3).getValue());
+  const note = norm(sh.getRange(row, 5).getValue());
+  sh.deleteRow(row);
+  // Trash (not hard-delete) the Drive file — best effort; a file the
+  // owner already removed by hand must not fail the ledger cleanup.
+  if (fileId) {
+    try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) { /* already gone */ }
+  }
+  logAudit_('deletePhoto', 'photo', label, note, b.creator);
+  return { id: id };
+}
+
 /** All photos for one room, newest first. */
 function getRoomPhotos_(b) {
   const building = norm(b.building);
@@ -672,7 +723,7 @@ function getRoomPhotos_(b) {
   if (!sh) return { rows: [] };
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return { rows: [] };
-  const data = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+  const data = sh.getRange(2, 1, lastRow - 1, 8).getValues();
   const rows = [];
   for (let i = 0; i < data.length; i++) {
     const r = data[i];
@@ -685,6 +736,38 @@ function getRoomPhotos_(b) {
       note: norm(r[4]),
       creator: norm(r[5]),
       createdAt: fmtDateTime_(r[6]),
+      category: norm(r[7]), // v3.25.4 — '' = ตำหนิ, สัตว์เลี้ยง = pet
+    });
+  }
+  rows.reverse(); // newest first
+  return { rows: rows };
+}
+
+/**
+ * EVERY pet photo across the property (v3.25.4) — powers the หน้ารวม
+ * สัตว์เลี้ยง view: a cat escapes, staff scan one grid instead of
+ * opening rooms one by one. Small payload: one sheet-row per photo,
+ * image bytes stay on Drive.
+ */
+function getPetPhotos_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PHOTO);
+  if (!sh) return { rows: [] };
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { rows: [] };
+  const data = sh.getRange(2, 1, lastRow - 1, 8).getValues();
+  const rows = [];
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+    if (norm(r[7]) !== PHOTO_CAT_PET) continue;
+    rows.push({
+      id: norm(r[0]),
+      building: norm(r[1]),
+      room: norm(r[2]),
+      fileId: norm(r[3]),
+      note: norm(r[4]),
+      creator: norm(r[5]),
+      createdAt: fmtDateTime_(r[6]),
+      category: PHOTO_CAT_PET,
     });
   }
   rows.reverse(); // newest first

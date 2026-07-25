@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import type { RoomPhoto } from "@/types";
 import { toast } from "@/lib/toast";
+import { isManagement } from "@/lib/permissions";
 import {
   compressImageFile,
+  deleteRoomPhoto,
   extractImageFiles,
   fetchRoomPhotos,
+  isPetPhoto,
   photoFullUrl,
   photoThumbUrl,
   setPhotoNote,
@@ -41,6 +45,8 @@ interface QueueItem {
   dataBase64: string;
   mimeType: string;
   note: string;
+  /** "" = defect photo, "pet" = สัตว์เลี้ยง (v3.25.4). */
+  category: "" | "pet";
   status: "queued" | "uploading" | "error";
   error?: string;
 }
@@ -56,7 +62,11 @@ interface Props {
 let keySeq = 0;
 
 export default function RoomDefectPhotos({ building, room, turnover }: Props) {
+  const { data: session } = useSession();
+  // Delete uses ACTUAL roles — view-as preview must not grant it.
+  const canDelete = isManagement(session?.user?.roles);
   const [photos, setPhotos] = useState<RoomPhoto[] | null>(null);
+  const [deleting, setDeleting] = useState(false);
   // The upload queue's source of truth is a REF, mirrored into state for
   // rendering. The pump is a sync loop over async uploads — reading React
   // state from it races the commit schedule (the first cut did exactly
@@ -72,6 +82,8 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
   const [editText, setEditText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** Which section the file picker was opened from ("" = defect). */
+  const pendingCatRef = useRef<"" | "pet">("");
   const pumpBusy = useRef(false);
 
   const sync = useCallback(() => setQueue([...itemsRef.current]), []);
@@ -109,6 +121,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
             dataBase64: next.dataBase64,
             mimeType: next.mimeType,
             note: next.note,
+            ...(next.category === "pet" ? { category: "pet" as const } : {}),
           });
           URL.revokeObjectURL(next.previewUrl);
           itemsRef.current = itemsRef.current.filter((q) => q.key !== next.key);
@@ -122,6 +135,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
               note: next.note,
               creator: "",
               createdAt: r.createdAt || "",
+              category: next.category === "pet" ? "สัตว์เลี้ยง" : "",
             },
             ...(rows || []),
           ]);
@@ -143,7 +157,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
   // box next to the add button, but "พิมพ์แล้วไม่เกิดอะไร" — two
   // competing note flows confused more than they helped (owner feedback).
   const addFiles = useCallback(
-    async (files: File[]) => {
+    async (files: File[], category: "" | "pet" = "") => {
       if (files.length === 0) return;
       let added = 0;
       for (const f of files) {
@@ -155,6 +169,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
             dataBase64: c.dataBase64,
             mimeType: c.mimeType,
             note: "",
+            category,
             status: "queued",
           });
           added++;
@@ -212,6 +227,25 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
     sync();
   };
 
+  const removePhoto = async (photo: RoomPhoto) => {
+    if (deleting) return;
+    const label = photo.note || photo.createdAt || "รูปนี้";
+    if (!window.confirm(`ลบรูป "${label}" ?\n\nแถวในชีทถูกลบ และไฟล์ย้ายลงถังขยะ Drive (กู้คืนได้ 30 วัน)`)) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteRoomPhoto(photo.id);
+      setPhotos((rows) => (rows || []).filter((p) => p.id !== photo.id));
+      setLightbox(null);
+      toast.success("ลบรูปแล้ว");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ลบรูปไม่สำเร็จ");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const saveNote = async (photo: RoomPhoto) => {
     const text = editText.trim();
     if (!text || savingNote) return;
@@ -230,9 +264,103 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
     }
   };
 
-  const count = photos?.length ?? 0;
+  const defectPhotos = (photos || []).filter((p) => !isPetPhoto(p));
+  const petPhotos = (photos || []).filter(isPetPhoto);
+  const defectQueue = queue.filter((q) => q.category !== "pet");
+  const petQueue = queue.filter((q) => q.category === "pet");
+  const defectCount = defectPhotos.length;
+
+  // Pet photos are a registry, not evidence — every role may delete
+  // them (owner decision). Defect photos stay management-only.
+  const canDeletePhoto = (p: RoomPhoto) => canDelete || isPetPhoto(p);
+
+  const openPicker = (category: "" | "pet") => {
+    pendingCatRef.current = category;
+    fileRef.current?.click();
+  };
+
+  const queueCell = (q: QueueItem) => (
+    <div
+      key={q.key}
+      className={`ac-defect-thumb ac-defect-pending ${q.status === "error" ? "is-error" : ""}`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={q.previewUrl} alt="รออัปโหลด" />
+      {q.status !== "error" ? (
+        <span className="ac-defect-thumb-state" aria-live="polite">
+          {q.status === "uploading" ? "กำลังอัปโหลด…" : "รอคิว…"}
+        </span>
+      ) : (
+        <span className="ac-defect-thumb-actions">
+          <button type="button" className="ac-btn ac-btn-secondary" onClick={() => retry(q.key)}>
+            ลองอีกครั้ง
+          </button>
+          <button type="button" className="ac-btn ac-btn-ghost" onClick={() => discard(q.key)} aria-label="ลบออกจากคิว">
+            ✕
+          </button>
+        </span>
+      )}
+    </div>
+  );
+
+  const photoCell = (p: RoomPhoto, notePlaceholder: string) => (
+    <figure key={p.id || p.fileId} className="ac-defect-cell">
+      <button
+        type="button"
+        className="ac-room-gallery-thumb ac-defect-thumb"
+        onClick={() => setLightbox(p)}
+        title={p.note || p.createdAt}
+        aria-label={`ดูรูป ${p.note || p.createdAt || ""}`.trim()}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={photoThumbUrl(p.fileId)} alt={p.note || "รูป"} loading="lazy" />
+      </button>
+      {/* Caption is ALWAYS visible — a note nobody can see reads
+          as "ไม่ได้บันทึก" even when it saved fine. */}
+      {p.note ? (
+        <figcaption className="ac-defect-caption" title={p.note}>{p.note}</figcaption>
+      ) : editingId === p.id ? (
+        <span className="ac-defect-caption-edit">
+          <input
+            type="text"
+            value={editText}
+            autoFocus
+            maxLength={200}
+            placeholder={notePlaceholder}
+            disabled={savingNote}
+            onChange={(e) => setEditText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void saveNote(p);
+              } else if (e.key === "Escape") {
+                e.stopPropagation();
+                setEditingId(null);
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="ac-btn ac-btn-primary"
+            disabled={savingNote || !editText.trim()}
+            onClick={() => void saveNote(p)}
+          >{savingNote ? "..." : "บันทึก"}</button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          className="ac-defect-caption-add"
+          onClick={() => {
+            setEditingId(p.id);
+            setEditText("");
+          }}
+        >+ คำอธิบาย</button>
+      )}
+    </figure>
+  );
 
   return (
+    <>
     <section
       className={`ac-form-section ac-defect-photos ${dragOver ? "is-dragover" : ""}`}
       aria-label="รูปตำหนิสภาพห้อง"
@@ -251,101 +379,27 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
     >
       <div className="ac-form-section-label">
         📷 รูปตำหนิสภาพห้อง
-        {count > 0 && <span className="ac-form-section-optional">({count} รูป)</span>}
+        {defectCount > 0 && <span className="ac-form-section-optional">({defectCount} รูป)</span>}
       </div>
 
       {/* Phase 2 — during turnover, an inspector opening this room should
           COMPARE against the move-in photos before returning the deposit. */}
-      {turnover && count > 0 && (
+      {turnover && defectCount > 0 && (
         <div className="ac-banner ac-banner-info ac-defect-compare-banner">
-          มีรูปตำหนิบันทึกไว้ <strong>{count} รูป</strong> — เปิดเทียบสภาพห้องก่อนคืนมัดจำ
+          มีรูปตำหนิบันทึกไว้ <strong>{defectCount} รูป</strong> — เปิดเทียบสภาพห้องก่อนคืนมัดจำ
         </div>
       )}
 
-      {(count > 0 || queue.length > 0) && (
+      {(defectCount > 0 || defectQueue.length > 0) && (
         <div className="ac-room-gallery-strip ac-defect-strip">
-          {queue.map((q) => (
-            <div
-              key={q.key}
-              className={`ac-defect-thumb ac-defect-pending ${q.status === "error" ? "is-error" : ""}`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={q.previewUrl} alt="รออัปโหลด" />
-              {q.status !== "error" ? (
-                <span className="ac-defect-thumb-state" aria-live="polite">
-                  {q.status === "uploading" ? "กำลังอัปโหลด…" : "รอคิว…"}
-                </span>
-              ) : (
-                <span className="ac-defect-thumb-actions">
-                  <button type="button" className="ac-btn ac-btn-secondary" onClick={() => retry(q.key)}>
-                    ลองอีกครั้ง
-                  </button>
-                  <button type="button" className="ac-btn ac-btn-ghost" onClick={() => discard(q.key)} aria-label="ลบออกจากคิว">
-                    ✕
-                  </button>
-                </span>
-              )}
-            </div>
-          ))}
-          {(photos || []).map((p) => (
-            <figure key={p.id || p.fileId} className="ac-defect-cell">
-              <button
-                type="button"
-                className="ac-room-gallery-thumb ac-defect-thumb"
-                onClick={() => setLightbox(p)}
-                title={p.note || p.createdAt}
-                aria-label={`ดูรูปตำหนิ ${p.note || p.createdAt || ""}`.trim()}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photoThumbUrl(p.fileId)} alt={p.note || "รูปตำหนิ"} loading="lazy" />
-              </button>
-              {/* Caption is ALWAYS visible — a note nobody can see reads
-                  as "ไม่ได้บันทึก" even when it saved fine. */}
-              {p.note ? (
-                <figcaption className="ac-defect-caption" title={p.note}>{p.note}</figcaption>
-              ) : editingId === p.id ? (
-                <span className="ac-defect-caption-edit">
-                  <input
-                    type="text"
-                    value={editText}
-                    autoFocus
-                    maxLength={200}
-                    placeholder="เช่น รอยขีดผนัง"
-                    disabled={savingNote}
-                    onChange={(e) => setEditText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void saveNote(p);
-                      } else if (e.key === "Escape") {
-                        e.stopPropagation();
-                        setEditingId(null);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="ac-btn ac-btn-primary"
-                    disabled={savingNote || !editText.trim()}
-                    onClick={() => void saveNote(p)}
-                  >{savingNote ? "..." : "บันทึก"}</button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="ac-defect-caption-add"
-                  onClick={() => {
-                    setEditingId(p.id);
-                    setEditText("");
-                  }}
-                >+ คำอธิบาย</button>
-              )}
-            </figure>
-          ))}
+          {defectQueue.map(queueCell)}
+          {defectPhotos.map((p) => photoCell(p, "เช่น รอยขีดผนัง"))}
         </div>
       )}
 
       <div className="ac-defect-add">
+        {/* ONE hidden input serves both sections — pendingCatRef decides
+            which category the picked files file under. */}
         <input
           ref={fileRef}
           type="file"
@@ -357,13 +411,13 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
               f.type.startsWith("image/")
             );
             e.target.value = ""; // allow re-picking the same file
-            void addFiles(files);
+            void addFiles(files, pendingCatRef.current);
           }}
         />
         <button
           type="button"
           className="ac-btn ac-btn-secondary ac-defect-add-btn"
-          onClick={() => fileRef.current?.click()}
+          onClick={() => openPicker("")}
         >
           📷 เพิ่มรูปตำหนิ
         </button>
@@ -373,13 +427,42 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
         รูปถูกย่ออัตโนมัติ และลบไม่ได้ (เป็นหลักฐานคืนมัดจำ) ·
         อัปเสร็จแล้วกด <strong>+ คำอธิบาย</strong> ใต้รูปเพื่อบอกว่าตำหนิอะไร (เขียนได้ครั้งเดียว)
       </p>
+    </section>
+
+    <section className="ac-form-section ac-defect-photos" aria-label="สัตว์เลี้ยงประจำห้อง">
+      <div className="ac-form-section-label">
+        🐱 สัตว์เลี้ยงประจำห้อง
+        {petPhotos.length > 0 && (
+          <span className="ac-form-section-optional">({petPhotos.length} รูป)</span>
+        )}
+      </div>
+      {(petPhotos.length > 0 || petQueue.length > 0) && (
+        <div className="ac-room-gallery-strip ac-defect-strip">
+          {petQueue.map(queueCell)}
+          {petPhotos.map((p) => photoCell(p, "ชื่อ + จุดเด่น เช่น ส้มจุด หางงอ"))}
+        </div>
+      )}
+      <div className="ac-defect-add">
+        <button
+          type="button"
+          className="ac-btn ac-btn-secondary ac-defect-add-btn"
+          onClick={() => openPicker("pet")}
+        >
+          🐱 เพิ่มรูปสัตว์เลี้ยง
+        </button>
+      </div>
+      <p className="ac-defect-hint">
+        ใส่ชื่อ + จุดเด่นในคำอธิบาย (เช่น &quot;ส้มจุด — ส้มขาว หางงอ&quot;) —
+        รูปทุกห้องรวมอยู่ในเมนู <strong>สัตว์เลี้ยง</strong> ไว้เทียบตัวตอนแมวหลุด
+      </p>
+    </section>
 
       {lightbox && (
         <div
           className="ac-room-lightbox"
           role="dialog"
           aria-modal="true"
-          aria-label="รูปตำหนิขยาย"
+          aria-label="รูปขยาย"
           onClick={() => setLightbox(null)}
         >
           <button type="button" className="ac-room-lightbox-close" onClick={() => setLightbox(null)} aria-label="ปิด">
@@ -389,14 +472,25 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
           <img
             className="ac-room-lightbox-img"
             src={photoFullUrl(lightbox.fileId)}
-            alt={lightbox.note || "รูปตำหนิ"}
+            alt={lightbox.note || "รูป"}
             onClick={(e) => e.stopPropagation()}
           />
           <div className="ac-room-lightbox-count">
-            {[lightbox.createdAt, lightbox.note].filter(Boolean).join(" · ") || "รูปตำหนิ"}
+            {[lightbox.createdAt, lightbox.note].filter(Boolean).join(" · ") || "รูป"}
           </div>
+          {canDeletePhoto(lightbox) && (
+            <button
+              type="button"
+              className="ac-defect-delete-btn"
+              disabled={deleting}
+              onClick={(e) => {
+                e.stopPropagation();
+                void removePhoto(lightbox);
+              }}
+            >{deleting ? "กำลังลบ…" : "🗑 ลบรูป"}</button>
+          )}
         </div>
       )}
-    </section>
+    </>
   );
 }

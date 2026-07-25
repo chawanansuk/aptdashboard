@@ -6070,12 +6070,103 @@ html.dark .ac-room-modal-chip.is-ready {
   flex-wrap: wrap;
 }
 .ac-defect-add-btn { min-height: 44px; white-space: nowrap; }
+/* Management-only delete inside the lightbox — bottom-right, away from
+   the caption pill and the nav arrows. */
+.ac-defect-delete-btn {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--radius-full, 999px);
+  background: rgba(220, 38, 38, 0.85);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ac-defect-delete-btn:hover { background: rgba(220, 38, 38, 1); }
+.ac-defect-delete-btn:disabled { opacity: 0.6; cursor: default; }
 .ac-defect-hint {
   margin: 6px 0 0;
   font-size: 11.5px;
   color: var(--color-text-secondary, #64748b);
   line-height: 1.5;
 }
+
+/* ===== 🐱 สัตว์เลี้ยงทั้งหอ (PetsView, v3.25.4) ===== */
+.ac-pets-view { display: flex; flex-direction: column; gap: 14px; }
+.ac-pets-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ac-pets-title { margin: 0; font-size: 18px; font-weight: 700; }
+.ac-pets-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.ac-pets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+@media (min-width: 768px) {
+  .ac-pets-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+.ac-pets-card {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ac-pets-thumb {
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: zoom-in;
+  background: var(--color-bg, #f1f5f9);
+  aspect-ratio: 1 / 1;
+}
+.ac-pets-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ac-pets-thumb:focus-visible { outline: none; box-shadow: var(--shadow-focus, 0 0 0 3px rgba(37,99,235,0.45)); }
+.ac-pets-caption { display: flex; flex-direction: column; gap: 1px; }
+.ac-pets-room { font-size: 13px; font-weight: 700; }
+.ac-pets-note {
+  font-size: 12px;
+  color: var(--color-text-secondary, #64748b);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.ac-pets-lightbox-info {
+  position: absolute;
+  bottom: 18px; left: 50%; transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 92vw;
+  color: #fff; font-size: 14px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 8px 14px; border-radius: var(--radius-full, 999px);
+}
+.ac-pets-call {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 12px;
+  border-radius: var(--radius-full, 999px);
+  background: #16a34a;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ac-pets-call:hover { background: #15803d; }
 
 /* Upcoming tasks list */
 .ac-room-upcoming-list {

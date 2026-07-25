@@ -1,0 +1,197 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import type { RoomPhoto, RoomView } from "@/types";
+import { canViewTenant } from "@/lib/permissions";
+import { fetchPetPhotos, photoFullUrl, photoThumbUrl } from "@/lib/roomPhotos";
+import EmptyState from "./EmptyState";
+import LoadingState from "./LoadingState";
+import ErrorBanner from "./ErrorBanner";
+
+/**
+ * 🐱 สัตว์เลี้ยง — property-wide pet photo grid (v3.25.4).
+ *
+ * The scenario this exists for: a cat escapes and staff need to know
+ * whose it is. One grid of every registered pet across the property
+ * (photo + room + name/markings) beats opening rooms one by one.
+ *
+ * Registration happens in the RoomModal's สัตว์เลี้ยงประจำห้อง strip;
+ * this view is read-only lookup. Clicking a photo opens a lightbox
+ * with the room and — for roles with tenant.view — the tenant's name
+ * and a tap-to-call phone link, so "found the cat" flows straight
+ * into "call the owner".
+ *
+ * Perf: fetched only when the view opens (one sheet-scan payload of
+ * text rows); image bytes come from Google's CDN, lazy per thumbnail.
+ * The main dashboard feed is untouched.
+ */
+
+interface Props {
+  buildings: string[];
+  activeBuilding: string;
+  rooms: RoomView[];
+}
+
+export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
+  const { data: session } = useSession();
+  const canSeeTenant = canViewTenant(session?.user?.roles);
+  const [pets, setPets] = useState<RoomPhoto[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // activeBuilding can be the "ทั้งหมด" pseudo-value — only adopt it
+  // when it's a REAL building; anything else means "show all".
+  const [building, setBuilding] = useState<string>(
+    buildings.includes(activeBuilding) ? activeBuilding : ""
+  );
+  const [lightbox, setLightbox] = useState<RoomPhoto | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    fetchPetPhotos()
+      .then((rows) => {
+        if (!cancelled) setPets(rows);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setPets([]);
+          setError(e instanceof Error ? e.message : "โหลดรูปสัตว์เลี้ยงไม่สำเร็จ");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Escape closes the lightbox (capture — same pattern as the room
+  // modal gallery so muscle memory carries over).
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [lightbox]);
+
+  const shown = useMemo(() => {
+    if (!pets) return [];
+    const filtered = building ? pets.filter((p) => p.building === building) : pets;
+    // Group by room so multiple photos of the same cat sit together.
+    return [...filtered].sort(
+      (a, b) =>
+        a.building.localeCompare(b.building, "th") ||
+        a.room.localeCompare(b.room, undefined, { numeric: true })
+    );
+  }, [pets, building]);
+
+  /** Tenant lookup for the lightbox — PII stays behind tenant.view. */
+  const tenantOf = (p: RoomPhoto): { tenant: string; phone: string } | null => {
+    if (!canSeeTenant) return null;
+    const r = rooms.find((rv) => rv.building === p.building && rv.room === p.room);
+    if (!r || (!r.tenant && !r.phone)) return null;
+    return { tenant: r.tenant || "", phone: r.phone || "" };
+  };
+
+  if (pets === null) return <LoadingState label="กำลังโหลดรูปสัตว์เลี้ยง…" />;
+
+  return (
+    <div className="ac-pets-view">
+      <div className="ac-pets-head">
+        <h2 className="ac-pets-title">🐱 สัตว์เลี้ยงทั้งหอ</h2>
+        <div className="ac-pets-filters" role="tablist" aria-label="กรองตามตึก">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={building === ""}
+            className={`ac-chip ${building === "" ? "is-active" : ""}`}
+            onClick={() => setBuilding("")}
+          >ทั้งหมด</button>
+          {buildings.map((b) => (
+            <button
+              key={b}
+              type="button"
+              role="tab"
+              aria-selected={building === b}
+              className={`ac-chip ${building === b ? "is-active" : ""}`}
+              onClick={() => setBuilding(b)}
+            >{b}</button>
+          ))}
+        </div>
+      </div>
+
+      {error && <ErrorBanner message={error} />}
+
+      {!error && shown.length === 0 && (
+        <EmptyState
+          icon="search"
+          title={building ? `ยังไม่มีรูปสัตว์เลี้ยงของตึก ${building}` : "ยังไม่มีรูปสัตว์เลี้ยง"}
+          description='ลงทะเบียนได้ที่หน้าห้อง → แถบ "🐱 สัตว์เลี้ยงประจำห้อง" — ใส่ชื่อ+จุดเด่นไว้ เวลาแมวหลุดจะได้เทียบตัวถูก'
+        />
+      )}
+
+      {shown.length > 0 && (
+        <div className="ac-pets-grid">
+          {shown.map((p) => (
+            <figure key={p.id || p.fileId} className="ac-pets-card">
+              <button
+                type="button"
+                className="ac-pets-thumb"
+                onClick={() => setLightbox(p)}
+                aria-label={`ดูรูป ${p.note || ""} ${p.building} ${p.room}`.trim()}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoThumbUrl(p.fileId, 800)} alt={p.note || "สัตว์เลี้ยง"} loading="lazy" />
+              </button>
+              <figcaption className="ac-pets-caption">
+                <span className="ac-pets-room">{p.building} {p.room}</span>
+                {p.note && <span className="ac-pets-note" title={p.note}>{p.note}</span>}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+
+      {lightbox && (
+        <div
+          className="ac-room-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="รูปสัตว์เลี้ยงขยาย"
+          onClick={() => setLightbox(null)}
+        >
+          <button type="button" className="ac-room-lightbox-close" onClick={() => setLightbox(null)} aria-label="ปิด">
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="ac-room-lightbox-img"
+            src={photoFullUrl(lightbox.fileId)}
+            alt={lightbox.note || "สัตว์เลี้ยง"}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <div className="ac-pets-lightbox-info" onClick={(e) => e.stopPropagation()}>
+            <strong>{lightbox.building} {lightbox.room}</strong>
+            {lightbox.note && <span> · {lightbox.note}</span>}
+            {(() => {
+              const t = tenantOf(lightbox);
+              if (!t) return null;
+              return (
+                <span className="ac-pets-owner">
+                  {t.tenant && <span> · {t.tenant}</span>}
+                  {t.phone && (
+                    <a className="ac-pets-call" href={`tel:${t.phone}`}>
+                      📞 โทร {t.phone}
+                    </a>
+                  )}
+                </span>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

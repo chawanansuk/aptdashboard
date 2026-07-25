@@ -57,6 +57,7 @@ export type Route =
   | "maintlog"
   // shared operational
   | "vehicles"
+  | "pets"
   | "leads"
   // management-only
   | "income" | "reports";
@@ -94,6 +95,10 @@ export const ROUTE_ALLOW: Record<Route, Role[]> = {
   // vehicles: shared operational info (not PII); all authenticated
   // users have visibility per the product decision.
   vehicles:    ["sales", "engineer", "management"],
+  // pets: property-wide pet-photo lookup (แมวหลุด). Photos + room
+  // numbers only — tenant name/phone in the lightbox stays behind
+  // tenant.view, checked inside the view.
+  pets:        ["sales", "engineer", "management"],
   // Lead CRM: sales pipeline data. Sales + management; engineer doesn't
   // need it (different workflow).
   leads:       ["sales", "management"],
