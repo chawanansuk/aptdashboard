@@ -6070,6 +6070,23 @@ html.dark .ac-room-modal-chip.is-ready {
   flex-wrap: wrap;
 }
 .ac-defect-add-btn { min-height: 44px; white-space: nowrap; }
+/* Management-only delete inside the lightbox — bottom-right, away from
+   the caption pill and the nav arrows. */
+.ac-defect-delete-btn {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--radius-full, 999px);
+  background: rgba(220, 38, 38, 0.85);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ac-defect-delete-btn:hover { background: rgba(220, 38, 38, 1); }
+.ac-defect-delete-btn:disabled { opacity: 0.6; cursor: default; }
 .ac-defect-hint {
   margin: 6px 0 0;
   font-size: 11.5px;

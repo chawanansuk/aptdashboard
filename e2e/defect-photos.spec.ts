@@ -40,6 +40,13 @@ test.describe("defect photos", () => {
             body: JSON.stringify({ ok: true, id: body.id, note: body.note }),
           });
         }
+        if (body.action === "delete") {
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ ok: true, id: body.id }),
+          });
+        }
         return route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -118,6 +125,16 @@ test.describe("defect photos", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator(".ac-room-lightbox-img")).toBeHidden();
     await expect(section).toBeVisible();
+
+    // Management-only delete (v3.25.3): reopen the lightbox, confirm the
+    // dialog, photo leaves the strip and the POST carries action:delete.
+    await section.locator(".ac-room-gallery-thumb").first().click();
+    page.on("dialog", (d) => void d.accept());
+    await page.locator(".ac-defect-delete-btn").click();
+    await expect(page.locator(".ac-room-lightbox-img")).toBeHidden();
+    await expect(section.locator(".ac-room-gallery-thumb")).toHaveCount(2);
+    const delPost = posted.find((p) => p.action === "delete");
+    expect(delPost).toMatchObject({ action: "delete", id: "new1" });
   });
 
   test("upload failure shows manual retry, retry succeeds", async ({ page }) => {

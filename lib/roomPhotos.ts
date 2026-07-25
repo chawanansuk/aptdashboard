@@ -163,6 +163,24 @@ export async function setPhotoNote(id: string, note: string): Promise<void> {
 }
 
 /**
+ * Delete a photo (v3.25.3) — MANAGEMENT ONLY (route enforces; the UI
+ * hides the button for other roles). Removes the ledger row and trashes
+ * the Drive file (30-day undo). Idempotent upstream, safe to retry.
+ * Throws with a Thai message on failure (incl. old-backend hint).
+ */
+export async function deleteRoomPhoto(id: string): Promise<void> {
+  const res = await fetch("/api/room-photos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "delete", id }),
+  });
+  const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || `ลบรูปไม่สำเร็จ (HTTP ${res.status})`);
+  }
+}
+
+/**
  * Upload ONE photo. NOT idempotent (each call creates a Drive file +
  * ledger row) — deliberately no auto-retry here; the UI offers a manual
  * "ลองอีกครั้ง" instead. Throws with a Thai message on failure.

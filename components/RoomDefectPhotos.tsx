@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import type { RoomPhoto } from "@/types";
 import { toast } from "@/lib/toast";
+import { isManagement } from "@/lib/permissions";
 import {
   compressImageFile,
+  deleteRoomPhoto,
   extractImageFiles,
   fetchRoomPhotos,
   photoFullUrl,
@@ -56,7 +59,11 @@ interface Props {
 let keySeq = 0;
 
 export default function RoomDefectPhotos({ building, room, turnover }: Props) {
+  const { data: session } = useSession();
+  // Delete uses ACTUAL roles — view-as preview must not grant it.
+  const canDelete = isManagement(session?.user?.roles);
   const [photos, setPhotos] = useState<RoomPhoto[] | null>(null);
+  const [deleting, setDeleting] = useState(false);
   // The upload queue's source of truth is a REF, mirrored into state for
   // rendering. The pump is a sync loop over async uploads — reading React
   // state from it races the commit schedule (the first cut did exactly
@@ -210,6 +217,25 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
     if (item) URL.revokeObjectURL(item.previewUrl);
     itemsRef.current = itemsRef.current.filter((q) => q.key !== key);
     sync();
+  };
+
+  const removePhoto = async (photo: RoomPhoto) => {
+    if (deleting) return;
+    const label = photo.note || photo.createdAt || "รูปนี้";
+    if (!window.confirm(`ลบรูป "${label}" ?\n\nแถวในชีทถูกลบ และไฟล์ย้ายลงถังขยะ Drive (กู้คืนได้ 30 วัน)`)) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteRoomPhoto(photo.id);
+      setPhotos((rows) => (rows || []).filter((p) => p.id !== photo.id));
+      setLightbox(null);
+      toast.success("ลบรูปแล้ว");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ลบรูปไม่สำเร็จ");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const saveNote = async (photo: RoomPhoto) => {
@@ -395,6 +421,17 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
           <div className="ac-room-lightbox-count">
             {[lightbox.createdAt, lightbox.note].filter(Boolean).join(" · ") || "รูปตำหนิ"}
           </div>
+          {canDelete && (
+            <button
+              type="button"
+              className="ac-defect-delete-btn"
+              disabled={deleting}
+              onClick={(e) => {
+                e.stopPropagation();
+                void removePhoto(lightbox);
+              }}
+            >{deleting ? "กำลังลบ…" : "🗑 ลบรูป"}</button>
+          )}
         </div>
       )}
     </section>

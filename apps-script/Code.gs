@@ -1,10 +1,13 @@
 /**
- * Code.gs v3.25.2 — Dashboard หอพัก
+ * Code.gs v3.25.3 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
  *
+ * NEW v3.25.3:
+ *   - deletePhoto: ลบรูปตำหนิ (เฉพาะ management — เช็คสิทธิ์ที่ฝั่งเว็บ)
+ *     ลบแถวชีท + ย้ายไฟล์ Drive ลงถังขยะ (กู้คืนได้ 30 วัน) + ลง audit
  * NEW v3.25.2:
  *   - ชื่อไฟล์รูปใน Drive = ตึก_ห้อง[_คำอธิบาย]_เวลา.jpg (อ่านรู้เรื่องจาก Drive
  *     เลย) + เพิ่มคำอธิบายทีหลัง → เปลี่ยนชื่อไฟล์ตามให้ด้วย
@@ -368,6 +371,7 @@ function doPost(e) {
       case 'getRoomPhotos':    return ok_({ result: getRoomPhotos_(body) }); // v3.25 — defect photos per room
       case 'uploadRoomPhoto':  return ok_(withWriteLock_(function () { return uploadRoomPhoto_(body); })); // v3.25
       case 'updatePhotoNote':  return ok_(withWriteLock_(function () { return updatePhotoNote_(body); })); // v3.25.1 — fill-once
+      case 'deletePhoto':      return ok_(withWriteLock_(function () { return deletePhoto_(body); })); // v3.25.3 — mgmt-only (gated at the Vercel route)
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
       case 'getRoomEquipment': return ok_({ result: { rows: getRoomEquipment_(body.building, body.room) } });
       case 'getAllEquipment':  return ok_({ result: { rows: getAllEquipmentCached_() } });
@@ -450,7 +454,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.25.2';
+var BACKEND_VERSION = '3.25.3';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -661,6 +665,32 @@ function updatePhotoNote_(b) {
   } catch (e) { /* rename is cosmetic — never block the note */ }
   logAudit_('updatePhotoNote', 'photo', id, note, b.creator);
   return { id: id, note: note };
+}
+
+/**
+ * Delete one photo (v3.25.3): ledger row + Drive file (to trash, so
+ * 30-day undo exists). The APP only offers this to management — the
+ * role gate lives in the Vercel route (Apps Script never sees roles);
+ * staff roles keep the append-only evidence property. Audit-logged.
+ */
+function deletePhoto_(b) {
+  const id = norm(b.id);
+  if (!id) throw new Error('id required');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PHOTO);
+  if (!sh) throw new Error('ไม่พบรูป (ยังไม่มีแท็บรูปตำหนิ)');
+  const row = findRowById_(sh, id);
+  if (row < 0) return { id: id, alreadyGone: true }; // idempotent replay
+  const fileId = norm(sh.getRange(row, 4).getValue());
+  const label = norm(sh.getRange(row, 2).getValue()) + ' ' + norm(sh.getRange(row, 3).getValue());
+  const note = norm(sh.getRange(row, 5).getValue());
+  sh.deleteRow(row);
+  // Trash (not hard-delete) the Drive file — best effort; a file the
+  // owner already removed by hand must not fail the ledger cleanup.
+  if (fileId) {
+    try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) { /* already gone */ }
+  }
+  logAudit_('deletePhoto', 'photo', label, note, b.creator);
+  return { id: id };
 }
 
 /** All photos for one room, newest first. */

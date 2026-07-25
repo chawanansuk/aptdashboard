@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isManagement } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import type { RoomPhoto } from "@/types";
 
@@ -68,6 +69,39 @@ export async function POST(req: Request) {
     body = (await req.json()) as Record<string, unknown>;
   } catch {
     return bad("invalid JSON");
+  }
+
+  // action: "delete" — MANAGEMENT ONLY (v3.25.3). Staff roles keep the
+  // append-only evidence property; the owner can clean up mistakes.
+  // Backend deletes the ledger row and trashes the Drive file (30-day
+  // undo). Idempotent upstream (missing id → alreadyGone), so a retry
+  // after timeout is harmless.
+  if (String(body.action || "") === "delete") {
+    if (!isManagement(session.user.roles)) {
+      return bad("ลบรูปได้เฉพาะ management เท่านั้น (รูปเป็นหลักฐานคืนมัดจำ)", 403);
+    }
+    const id = String(body.id || "").trim();
+    if (!id) return bad("id required");
+    try {
+      const json = await appsScriptCall("deletePhoto", {
+        id,
+        creator: session.user.email,
+      });
+      if (!json.ok) {
+        const err = json.error || "backend error";
+        return bad(
+          /unknown action/i.test(err)
+            ? "ต้องอัปเดตหลังบ้านเป็น v3.25.3 ก่อน (ดูแถบฟ้าด้านบน)"
+            : err,
+          502
+        );
+      }
+      return NextResponse.json({ ok: true, id });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown";
+      const status = e instanceof AppsScriptError ? e.status : 502;
+      return bad(`ลบรูปไม่สำเร็จ: ${msg}`, status);
+    }
   }
 
   // action: "setNote" — fill-once description on an existing photo

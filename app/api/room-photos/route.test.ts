@@ -123,6 +123,42 @@ describe("POST action:setNote (v3.25.1 fill-once description)", () => {
   });
 });
 
+describe("POST action:delete (v3.25.3 management-only)", () => {
+  const delBody = { action: "delete", id: "p9" };
+  const mgmtSession = { user: { email: "boss@apt.test", roles: ["management"] } };
+
+  it("management: forwards to deletePhoto with the session creator", async () => {
+    authMock.mockResolvedValue(mgmtSession);
+    callMock.mockResolvedValue({ ok: true, id: "p9" });
+    const res = await POST(postReq(delBody));
+    expect(res.status).toBe(200);
+    const [action, sent] = callMock.mock.calls[0] as [string, Record<string, unknown>];
+    expect(action).toBe("deletePhoto");
+    expect(sent).toMatchObject({ id: "p9", creator: "boss@apt.test" });
+  });
+
+  it("non-management roles get 403 without touching upstream", async () => {
+    authMock.mockResolvedValue({ user: { email: "sale@apt.test", roles: ["sales"] } });
+    const res = await POST(postReq(delBody));
+    expect(res.status).toBe(403);
+    expect(callMock).not.toHaveBeenCalled();
+  });
+
+  it("translates old-backend 'unknown action' into a redeploy hint", async () => {
+    authMock.mockResolvedValue(mgmtSession);
+    callMock.mockResolvedValue({ ok: false, error: "unknown action: deletePhoto" });
+    const res = await POST(postReq(delBody));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toContain("v3.25.3");
+  });
+
+  it("rejects a missing id", async () => {
+    authMock.mockResolvedValue(mgmtSession);
+    expect((await POST(postReq({ action: "delete" }))).status).toBe(400);
+    expect(callMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("GET /api/room-photos", () => {
   it("unwraps rows from the result envelope", async () => {
     callMock.mockResolvedValue({ ok: true, result: { rows: [{ id: "p1", fileId: "f1" }] } });
