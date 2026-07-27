@@ -181,8 +181,13 @@ export async function POST(req: Request) {
         building,
         room,
         dataBase64,
-        mimeType: String(body.mimeType || "image/jpeg"),
-        note: String(body.note || "").trim(),
+        // Only real image types reach Drive (files get anyone-with-link
+        // sharing); note capped server-side — the client maxLength=200
+        // doesn't bind a direct POST.
+        mimeType: ["image/jpeg", "image/png", "image/webp"].includes(String(body.mimeType))
+          ? String(body.mimeType)
+          : "image/jpeg",
+        note: String(body.note || "").trim().slice(0, 500),
         // "pet" files under สัตว์เลี้ยง; anything else is a defect photo.
         category: body.category === "pet" ? "pet" : "",
         creator: session.user.email,

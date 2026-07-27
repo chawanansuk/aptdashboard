@@ -214,3 +214,16 @@ describe("GET /api/room-photos", () => {
     expect(opts.idempotent).toBe(true);
   });
 });
+
+describe("upload hardening (audit r12)", () => {
+  it("rejects non-image mimeTypes down to image/jpeg and caps the note", async () => {
+    callMock.mockResolvedValue({ ok: true, fileId: "f9" });
+    await POST(postReq({
+      building: "มีทอง", room: "204", dataBase64: "QUFB",
+      mimeType: "text/html", note: "x".repeat(1000),
+    }));
+    const [, sent] = callMock.mock.calls[0] as [string, Record<string, unknown>];
+    expect(sent.mimeType).toBe("image/jpeg");
+    expect(String(sent.note)).toHaveLength(500);
+  });
+});

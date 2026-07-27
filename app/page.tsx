@@ -896,6 +896,7 @@ export default function Home() {
    * user still has the room booked + the copied LINE message.
    */
   async function handleBookingConfirm(data: BookingSaveData) {
+    if (bookingSaving) return; // re-entrancy guard — a double submit would duplicate the ย้ายเข้า task
     setBookingSaving(true);
     try {
       // Booking bundle: status=รอสัญญา + tenant identity + price. This

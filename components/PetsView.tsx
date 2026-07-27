@@ -182,7 +182,7 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
                 <span className="ac-pets-owner">
                   {t.tenant && <span> · {t.tenant}</span>}
                   {t.phone && (
-                    <a className="ac-pets-call" href={`tel:${t.phone}`}>
+                    <a className="ac-pets-call" href={`tel:${t.phone.replace(/[^0-9+]/g, "")}`}>
                       📞 โทร {t.phone}
                     </a>
                   )}

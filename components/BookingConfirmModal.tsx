@@ -137,15 +137,30 @@ export default function BookingConfirmModal({
     tenant: defaultTenant || "",
     phone: phoneDigits(defaultPhone || ""),
     rent: String(parseMoney(defaultRent || "")) || "",
-    pet: "",
+    deposit: String(defaultDepositFor(building)),
+    moveInIso: todayIso(),
+    apartmentName: apartmentNameFor(building),
   });
+  // Every user-editable field counts — audit r12 found the first cut
+  // covered so few fields that typed มัดจำ/date/time closed silently.
+  // (chargeNextMonth/depositStatus stay out: cheap toggles, and the
+  // auto-tick effect would otherwise mark a fresh modal dirty.)
   const isDirty =
     tenant !== initialRef.current.tenant ||
     phone !== initialRef.current.phone ||
     rent !== initialRef.current.rent ||
-    pet !== initialRef.current.pet ||
+    deposit !== initialRef.current.deposit ||
+    moveInIso !== initialRef.current.moveInIso ||
+    apartmentName !== initialRef.current.apartmentName ||
+    moveInTime !== "09:00" ||
+    bookingPaid !== "" ||
+    pet !== "" ||
+    contractTerms !== "ขั้นต่ำ 6 เดือนขึ้นไป" ||
     nickname !== "" ||
+    vaccineDocumented ||
+    selectedChips.size > 0 ||
     discountAmt !== "" ||
+    discountReason !== "" ||
     Object.keys(overrides).length > 0;
 
   function attemptClose() {
@@ -163,7 +178,7 @@ export default function BookingConfirmModal({
         attemptClose();
       } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
-        handleConfirm();
+        if (!e.repeat) handleConfirm(); // holding the key must not re-fire
       }
     }
     window.addEventListener("keydown", onKey);
@@ -187,6 +202,12 @@ export default function BookingConfirmModal({
   function setDepositStatusAndMode(s: "pending" | "paid") {
     setDepositStatus(s);
     if (!modeTouchedRef.current) setMsgMode(s === "pending" ? "A" : "B");
+    // Pending = we're about to ASK for the deposit — an empty
+    // "มัดจำที่จ่ายแล้ว" would put "ยอดมัดจำ: 0 บาท" in the request
+    // message (audit r12). Default the ask to one month's rent.
+    if (s === "pending" && parseMoney(bookingPaid) <= 0 && parseMoney(rent) > 0) {
+      setBookingPaid(moneyDigits(rent));
+    }
   }
 
   const calc = useMemo(() => {
@@ -285,7 +306,10 @@ export default function BookingConfirmModal({
   const copiedCurrent = lastCopied[msgMode] !== undefined && lastCopied[msgMode] === message;
 
   function handleConfirm() {
-    if (!valid || !moveInDate || !calc || saveBlocked) return;
+    // `saving` guard: the BUTTON is disabled while saving but the
+    // Ctrl+Enter path is not — without this, a double press piles a
+    // second bookRoom + a duplicate ย้ายเข้า task (audit r12, HIGH).
+    if (!valid || !moveInDate || !calc || saveBlocked || saving) return;
     onConfirm({
       building,
       room,
@@ -527,6 +551,16 @@ export default function BookingConfirmModal({
             {calc && calc.deposit === 0 && (
               <div className="ac-banner ac-banner-warn ac-booking-warn">
                 ⚠️ ค่าประกันเป็น 0 — ยืนยันว่าถูกต้องไหม?
+              </div>
+            )}
+            {calc && msgMode === "A" && calc.bookingPaid === 0 && (
+              <div className="ac-banner ac-banner-warn ac-booking-warn">
+                ⚠️ ยอดมัดจำเป็น 0 — ใส่ช่อง &quot;มัดจำที่จ่ายแล้ว&quot; ก่อนส่งขอมัดจำ
+              </div>
+            )}
+            {calc && calc.remaining < 0 && (
+              <div className="ac-banner ac-banner-warn ac-booking-warn">
+                ⚠️ ยอดคงเหลือติดลบ ({fmt(calc.remaining)}) — ตรวจส่วนลด/มัดจำอีกครั้ง
               </div>
             )}
 
