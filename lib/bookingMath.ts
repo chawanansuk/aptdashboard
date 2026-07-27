@@ -48,6 +48,9 @@ export interface BookingCalc {
   total: number;
   /** total − bookingPaid (can be negative if overpaid). */
   remaining: number;
+  /** Rounded monthly rent echoed back — the V2 messages show it as an
+   *  info line ("ค่าเช่ารายเดือน: X บาท/เดือน"). */
+  monthlyRent: number;
 }
 
 function toMoney(n: number): number {
@@ -86,5 +89,5 @@ export function computeBooking(input: BookingInput): BookingCalc {
 
   const total = proratedAmount + nextMonthRent + deposit;
   const remaining = total - bookingPaid;
-  return { proratedDays, proratedAmount, nextMonthRent, deposit, bookingPaid, total, remaining };
+  return { proratedDays, proratedAmount, nextMonthRent, deposit, bookingPaid, total, remaining, monthlyRent: rent };
 }
