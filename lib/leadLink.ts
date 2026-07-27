@@ -36,6 +36,18 @@ function wonIndex(stage: string): number {
 export const STAGE_ON_VIEWING_SCHEDULED: LeadStage = "นัดดูแล้ว";
 
 /**
+ * Stage when a booking is confirmed (P2): the prospect put money down,
+ * so they're signing. Advances anything earlier on the won path to
+ * "ทำสัญญา" — including reviving a ปิดเลิก lead (a booking is the
+ * strongest possible "they came back" signal). Never regresses
+ * ทำสัญญา/ปิดดีล. Returns null to mean "leave the lead alone".
+ */
+export function nextStageOnBookingConfirmed(currentStage: string): LeadStage | null {
+  if (currentStage === "ทำสัญญา" || currentStage === "ปิดดีล") return null;
+  return "ทำสัญญา";
+}
+
+/**
  * Decide the lead's next stage when a viewing task is closed. Returns null
  * to mean "leave the lead alone" (no regressions, no clobbering a won deal).
  *

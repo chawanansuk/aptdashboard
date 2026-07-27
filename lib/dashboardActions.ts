@@ -21,6 +21,7 @@ import { publishTurnoverStarted } from "@/lib/turnoverNotifications";
 import {
   findLeadByPhone,
   nextStageOnViewingClosed,
+  nextStageOnBookingConfirmed,
   STAGE_ON_VIEWING_SCHEDULED,
 } from "@/lib/leadLink";
 import {
@@ -103,6 +104,38 @@ export async function bumpLeadOnViewingClosed(
     if (upData.ok) toast.success(`อัปเดตผู้สนใจเช่า → ${next}`);
   } catch (e) {
     console.warn("[lead-link] close failed (non-blocking)", e);
+  }
+}
+
+/**
+ * When a booking is confirmed (P2), advance the matching lead (by
+ * phone) to "ทำสัญญา" — the prospect paid a deposit, so the pipeline
+ * should reflect it without sales re-entering anything. Also revives a
+ * ปิดเลิก lead (booking = they came back). No-ops without a phone, a
+ * matching lead, or when already ทำสัญญา/ปิดดีล. Fire-and-forget —
+ * the booking write already succeeded.
+ */
+export async function bumpLeadOnBookingConfirmed(phone: string): Promise<void> {
+  const p = (phone || "").trim();
+  if (!p) return;
+  try {
+    const res = await fetch("/api/leads", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    const leads: Lead[] = data.rows || [];
+    const lead = findLeadByPhone(leads, p);
+    if (!lead) return;
+    const next = nextStageOnBookingConfirmed(lead.stage);
+    if (!next || next === lead.stage) return;
+    const upRes = await fetch("/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update", id: lead.id, stage: next }),
+    });
+    const upData = await upRes.json().catch(() => ({ ok: false }));
+    if (upData.ok) toast.success(`อัปเดตผู้สนใจเช่า → ${next}`);
+  } catch (e) {
+    console.warn("[lead-link] booking bump failed (non-blocking)", e);
   }
 }
 
