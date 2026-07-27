@@ -59,6 +59,7 @@ import { hasOpenPrepTask } from "@/lib/moveoutTasks";
 import {
   linkLeadOnViewingScheduled,
   bumpLeadOnViewingClosed,
+  bumpLeadOnBookingConfirmed,
 } from "@/lib/dashboardActions";
 import { canAccess, canPerform } from "@/lib/permissions";
 import type { QuickAction } from "@/components/QuickActionMenu";
@@ -928,7 +929,15 @@ export default function Home() {
             room: data.room,
             customer: data.tenant,
             phone: data.phone,
-            note: `ยืนยันการจอง — เข้าพัก ${data.moveInTime || ""}`.trim(),
+            // P2: the note is the audit artifact — the room sheet has no
+            // deposit columns, so the figures + the LINE message the
+            // tenant received ride on the move-in appointment.
+            note: [
+              `ยืนยันการจอง — เข้าพัก ${data.moveInTime || ""}`.trim(),
+              `ค่าเช่า ${data.monthlyRent} | ประกัน ${data.deposit} | มัดจำ ${data.bookingPaid} | คงเหลือ ${data.remaining}${data.pet ? ` | สัตว์เลี้ยง: ${data.pet}` : ""}`,
+              "---",
+              data.message,
+            ].join("\n"),
           });
         } catch { /* surfaced via refresh; room booking already saved */ }
       }
@@ -939,6 +948,9 @@ export default function Home() {
           : "บันทึกการจอง + สร้างนัดย้ายเข้าแล้ว"
       );
       publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
+      // P2: prospect paid → the sales pipeline should say ทำสัญญา without
+      // re-entry. Fire-and-forget (phone match; never regresses ปิดดีล).
+      void bumpLeadOnBookingConfirmed(data.phone);
       optimisticUpdateRoom(data.building, data.room, {
         status: "รอสัญญา", tenant: data.tenant, phone: data.phone, price: String(data.monthlyRent),
       });

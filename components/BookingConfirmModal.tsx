@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { computeBooking } from "@/lib/bookingMath";
 import {
   formatMessageForMode,
@@ -30,8 +31,15 @@ export interface BookingSaveData {
   monthlyRent: number;
   moveInDateIso: string; // yyyy-MM-dd
   moveInTime: string;
-  /** Full generated LINE message — kept for the task note / audit. */
+  /** Full LINE confirmation message (mode B, incl. hand edits) — the
+   *  save handler writes it into the ย้ายเข้า task note for audit. */
   message: string;
+  /** Booking figures (P2) — carried into the task note; the room sheet
+   *  has no deposit columns, and the note is the audit artifact. */
+  deposit: number;
+  bookingPaid: number;
+  remaining: number;
+  pet: string;
 }
 
 interface Props {
@@ -102,14 +110,50 @@ export default function BookingConfirmModal({
   // Hand-edits are kept PER MODE and never cleared by mode switches or
   // form edits — regenerating only happens via the explicit ↻ button.
   const [overrides, setOverrides] = useState<Partial<Record<BookingMessageMode, string>>>({});
+  // P2: per-mode "what was last copied" — the footer indicator compares
+  // it against the CURRENT text, so any edit that changes the message
+  // automatically flips back to "ยังไม่ได้คัดลอก".
+  const [lastCopied, setLastCopied] = useState<Partial<Record<BookingMessageMode, string>>>({});
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(true, dialogRef);
+
+  // P2 unsaved-close guard: dirty = any field differs from its initial
+  // value OR a hand-edited message exists. Same UX as RoomModal.
+  const initialRef = useRef({
+    tenant: defaultTenant || "",
+    phone: phoneDigits(defaultPhone || ""),
+    rent: String(parseMoney(defaultRent || "")) || "",
+    pet: "",
+  });
+  const isDirty =
+    tenant !== initialRef.current.tenant ||
+    phone !== initialRef.current.phone ||
+    rent !== initialRef.current.rent ||
+    pet !== initialRef.current.pet ||
+    Object.keys(overrides).length > 0;
+
+  function attemptClose() {
+    if (saving) return;
+    if (isDirty && !window.confirm("มีการแก้ไขที่ยังไม่ได้บันทึก — ทิ้งการแก้ไขนี้?")) return;
+    onClose();
+  }
+
+  // Esc → guarded close; Ctrl/Cmd+Enter → save (same keys as RoomModal).
+  // Re-registered per render so the handlers never go stale.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !saving) onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        attemptClose();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleConfirm();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saving, onClose]);
+  });
 
   const moveInDate = useMemo(() => isoToDate(moveInIso), [moveInIso]);
 
@@ -174,17 +218,26 @@ export default function BookingConfirmModal({
   if (!moveInDate) missing.push("วันที่เข้าพัก");
   const missingTitle = missing.length ? `ยังไม่ครบ: ${missing.join(" · ")}` : undefined;
 
-  async function copyText(text: string, label: string) {
+  async function copyText(text: string, label: string, modes: BookingMessageMode[]) {
     try {
       await navigator.clipboard.writeText(text);
+      // Remember what was copied per mode — the footer indicator compares
+      // against the current text, so later edits un-check it by themselves.
+      setLastCopied((prev) => {
+        const next = { ...prev };
+        for (const m of modes) next[m] = displayed(m);
+        return next;
+      });
       toast.success(`คัดลอก${label}แล้ว ✓ — วางใน LINE ได้เลย`);
     } catch {
       toast.error("คัดลอกอัตโนมัติไม่ได้ — เลือกข้อความในกล่องแล้วคัดลอกเอง");
     }
   }
 
+  const copiedCurrent = lastCopied[msgMode] !== undefined && lastCopied[msgMode] === message;
+
   function handleConfirm() {
-    if (!valid || !moveInDate) return;
+    if (!valid || !moveInDate || !calc) return;
     onConfirm({
       building,
       room,
@@ -195,6 +248,10 @@ export default function BookingConfirmModal({
       moveInTime: moveInTime.trim(),
       // What the tenant actually receives — respects hand edits.
       message: displayed("B"),
+      deposit: calc.deposit,
+      bookingPaid: calc.bookingPaid,
+      remaining: calc.remaining,
+      pet: pet.trim(),
     });
   }
 
@@ -205,8 +262,9 @@ export default function BookingConfirmModal({
   };
 
   return (
-    <div className="ac-modal-backdrop" onClick={() => !saving && onClose()}>
+    <div className="ac-modal-backdrop" onClick={attemptClose}>
       <div
+        ref={dialogRef}
         className="ac-modal ac-modal-form ac-booking-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -218,7 +276,7 @@ export default function BookingConfirmModal({
             <div className="ac-modal-title">ยืนยันการจอง</div>
             <div className="ac-modal-sub">{building} ห้อง {room}</div>
           </div>
-          <button className="ac-modal-close" onClick={onClose} aria-label="ปิด" type="button">✕</button>
+          <button className="ac-modal-close" onClick={attemptClose} aria-label="ปิด" type="button">✕</button>
         </header>
 
         <div className="ac-modal-body ac-booking-body">
@@ -356,9 +414,31 @@ export default function BookingConfirmModal({
               ))}
             </div>
 
-            <label className="ac-booking-preview-label" htmlFor="ac-bk-msg">
-              ข้อความสำหรับ LINE — {MODE_LABEL[msgMode]}
-            </label>
+            <div className="ac-booking-msg-head">
+              <label className="ac-booking-preview-label" htmlFor="ac-bk-msg">
+                ข้อความสำหรับ LINE — {MODE_LABEL[msgMode]}
+              </label>
+              <div className="ac-booking-copy-row">
+                <button
+                  type="button"
+                  className="ac-btn ac-btn-secondary"
+                  onClick={() => void copyText(message, `ข้อความ "${MODE_LABEL[msgMode]}"`, [msgMode])}
+                  disabled={!valid}
+                  title={missingTitle}
+                >
+                  📋 คัดลอกโหมดนี้
+                </button>
+                <button
+                  type="button"
+                  className="ac-btn ac-btn-ghost"
+                  onClick={() => void copyText(`${displayed("B")}\n\n${displayed("C")}`, "ข้อความยืนยัน + สิ่งที่ต้องเตรียม", ["B", "C"])}
+                  disabled={!valid}
+                  title={missingTitle || "LINE ส่งทีละข้อความ — ก๊อปสองข้อความติดกันในครั้งเดียว"}
+                >
+                  📑 B+C
+                </button>
+              </div>
+            </div>
             {/* P0-2: hand edits shadow the generated text per mode; form
                 changes never clobber them — only the explicit ↻ does. */}
             {msgDirty && (
@@ -376,26 +456,6 @@ export default function BookingConfirmModal({
               rows={14}
               onChange={(e) => setOverrides((o) => ({ ...o, [msgMode]: e.target.value }))}
             />
-            <div className="ac-booking-copy-row">
-              <button
-                type="button"
-                className="ac-btn ac-btn-secondary"
-                onClick={() => void copyText(message, `ข้อความ "${MODE_LABEL[msgMode]}"`)}
-                disabled={!valid}
-                title={missingTitle}
-              >
-                📋 คัดลอกโหมดนี้
-              </button>
-              <button
-                type="button"
-                className="ac-btn ac-btn-ghost"
-                onClick={() => void copyText(`${displayed("B")}\n\n${displayed("C")}`, "ข้อความยืนยัน + สิ่งที่ต้องเตรียม")}
-                disabled={!valid}
-                title={missingTitle || "LINE ส่งทีละข้อความ — ก๊อปสองข้อความติดกันในครั้งเดียว"}
-              >
-                📑 คัดลอก B+C เรียงกัน
-              </button>
-            </div>
           </div>
         </div>
 
@@ -411,8 +471,15 @@ export default function BookingConfirmModal({
               ยังไม่ครบ: {missing.join(" · ")}
             </div>
           )}
+          {/* P2: don't let staff save-and-close while forgetting to send
+              the message — the indicator tracks the CURRENT mode's text. */}
+          {valid && (
+            <div className={`ac-booking-copied ${copiedCurrent ? "is-copied" : ""}`} aria-live="polite">
+              {copiedCurrent ? "คัดลอกแล้ว ✓" : "ยังไม่ได้คัดลอกข้อความ"}
+            </div>
+          )}
           <div className="ac-booking-foot-actions">
-            <button className="ac-btn ac-btn-ghost" onClick={onClose} disabled={saving}>ยกเลิก</button>
+            <button className="ac-btn ac-btn-ghost" onClick={attemptClose} disabled={saving}>ยกเลิก</button>
             <button
               className="ac-btn ac-btn-primary"
               onClick={handleConfirm}

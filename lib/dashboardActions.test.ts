@@ -3,6 +3,7 @@ import type { Lead, SheetRow } from "@/types";
 import {
   linkLeadOnViewingScheduled,
   bumpLeadOnViewingClosed,
+  bumpLeadOnBookingConfirmed,
   autoCreateMoveoutPrep,
 } from "./dashboardActions";
 
@@ -115,6 +116,51 @@ describe("bumpLeadOnViewingClosed", () => {
     fetchMock.mockResolvedValueOnce(jsonRes({ rows: [mkLead({ stage: "ปิดดีล" })] }));
     await bumpLeadOnViewingClosed(mkTask({ phone: "0812345678" }), "ไม่สนใจ");
     expect(fetchMock).toHaveBeenCalledTimes(1); // GET only
+  });
+});
+
+describe("bumpLeadOnBookingConfirmed (P2)", () => {
+  it("no-ops on a blank phone (no fetch)", async () => {
+    await bumpLeadOnBookingConfirmed("  ");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("advances an earlier-stage lead to ทำสัญญา", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ rows: [mkLead({ stage: "นัดดูแล้ว" })] }));
+    fetchMock.mockResolvedValueOnce(jsonRes({ ok: true }));
+    await bumpLeadOnBookingConfirmed("0812345678");
+    const [, post] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(post.body))).toMatchObject({
+      action: "update", id: "L1", stage: "ทำสัญญา",
+    });
+  });
+
+  it("revives a ปิดเลิก lead (a booking means they came back)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ rows: [mkLead({ stage: "ปิดเลิก" })] }));
+    fetchMock.mockResolvedValueOnce(jsonRes({ ok: true }));
+    await bumpLeadOnBookingConfirmed("0812345678");
+    const [, post] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(post.body))).toMatchObject({ stage: "ทำสัญญา" });
+  });
+
+  it("never touches a lead already at ทำสัญญา or ปิดดีล", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ rows: [mkLead({ stage: "ปิดดีล" })] }));
+    await bumpLeadOnBookingConfirmed("0812345678");
+    expect(fetchMock).toHaveBeenCalledTimes(1); // GET only
+
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce(jsonRes({ rows: [mkLead({ stage: "ทำสัญญา" })] }));
+    await bumpLeadOnBookingConfirmed("0812345678");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("no-ops when no lead matches and swallows network failures", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ rows: [] }));
+    await bumpLeadOnBookingConfirmed("0899999999");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fetchMock.mockRejectedValueOnce(new Error("net down"));
+    await expect(bumpLeadOnBookingConfirmed("0812345678")).resolves.toBeUndefined();
   });
 });
 

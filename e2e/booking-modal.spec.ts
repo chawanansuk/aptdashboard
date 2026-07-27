@@ -66,8 +66,59 @@ test("booking P0: prefill, modes, dirty edit, phone format, copy gating", async 
   await expect(modal.locator("#ac-bk-msg")).toHaveValue(/\(10:30\)/);
 
   // copy now enabled; B+C copies both messages
-  await modal.getByRole("button", { name: "📑 คัดลอก B+C เรียงกัน" }).click();
+  await modal.getByRole("button", { name: "📑 B+C" }).click();
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   expect(clip).toContain("✅ ยืนยันการจองเรียบร้อยค่ะ");
   expect(clip).toContain("📄 สิ่งที่ต้องเตรียม");
+});
+
+/**
+ * P2: save carries the figures + LINE message into the ย้ายเข้า task
+ * note, Ctrl+Enter saves, the footer copy indicator tracks edits, and
+ * the dirty-close guard blocks accidental Esc.
+ */
+test("booking P2: save note, Ctrl+Enter, copy indicator, dirty-close guard", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const posted: Record<string, unknown>[] = [];
+  await mockDashboard(page, {
+    rooms: [room({ building: "มีทอง", room: "401", status: "ว่าง", price: "5200" })],
+    tasks: [],
+  });
+  await page.route("**/api/sheet/update", async (r) => {
+    posted.push(r.request().postDataJSON() as Record<string, unknown>);
+    return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+  });
+  await page.goto("/");
+  await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
+  await page.locator(".ac-rc").filter({ hasText: "401" }).first().click();
+  await page.getByRole("button", { name: "📋 รับจอง (มัดจำ)" }).first().click();
+
+  const modal = page.locator(".ac-booking-modal");
+  await modal.locator("#ac-bk-tenant").fill("กุ๊กไก่");
+  await modal.locator("#ac-bk-phone").pressSequentially("0924561642");
+
+  // Copy indicator: starts un-copied → ✓ after copy → reverts on edit
+  const indicator = modal.locator(".ac-booking-copied");
+  await expect(indicator).toHaveText("ยังไม่ได้คัดลอกข้อความ");
+  await modal.getByRole("button", { name: "📋 คัดลอกโหมดนี้" }).click();
+  await expect(indicator).toHaveText("คัดลอกแล้ว ✓");
+  await modal.locator("#ac-bk-msg").fill("ข้อความที่แก้ใหม่");
+  await expect(indicator).toHaveText("ยังไม่ได้คัดลอกข้อความ");
+
+  // Dirty-close guard: Esc asks first; dismiss keeps the modal open
+  page.once("dialog", (d) => void d.dismiss());
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeVisible();
+
+  // Ctrl+Enter saves; the addTask note carries figures + the message
+  await page.keyboard.press("Control+Enter");
+  await expect(modal).toBeHidden();
+  const book = posted.find((p) => p.action === "bookRoom");
+  expect(book).toMatchObject({ building: "มีทอง", room: "401", status: "รอสัญญา", tenant: "กุ๊กไก่", phone: "0924561642" });
+  const task = posted.find((p) => p.action === "addTask");
+  expect(task).toBeTruthy();
+  const note = String(task!.note);
+  expect(note).toContain("ประกัน 10000");
+  expect(note).toContain("---");
+  expect(note).toContain("ข้อความที่แก้ใหม่"); // hand-edited mode-B message is what gets audited
 });
