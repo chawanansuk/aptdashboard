@@ -260,3 +260,19 @@ describe("formatMessageForMode", () => {
     expect(formatMessageForMode("C", i)).toContain("📄 สิ่งที่ต้องเตรียม");
   });
 });
+
+describe("ส่วนลดในข้อความโหมด B (P1-3)", () => {
+  it("adds the discount line with reason inside the totals block", () => {
+    const calc = computeBooking({
+      monthlyRent: 5200, moveInDate: new Date(2026, 6, 30),
+      deposit: 10000, bookingPaid: 5200, chargeNextMonth: true, discount: 500,
+    });
+    const msg = formatBookingMessageV2(mkInput({ calc, discountReason: "โปรย้ายเข้าเดือนนี้" }));
+    expect(msg).toContain("• ส่วนลด (โปรย้ายเข้าเดือนนี้): -500 บาท");
+    expect(msg).toContain("• ยอดรวมทั้งหมด: 15,035 บาท");
+    expect(msg).toContain("• ยอดคงเหลือโอนเพิ่ม: 9,835 บาท");
+  });
+  it("no discount → no line (legacy shape preserved)", () => {
+    expect(formatBookingMessageV2(mkInput())).not.toContain("ส่วนลด");
+  });
+});
