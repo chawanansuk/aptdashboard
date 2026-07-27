@@ -9,7 +9,7 @@ import {
   type BookingMessageMode,
   type BookingMessageInputV2,
 } from "@/lib/bookingMessage";
-import { bankFor, defaultDepositFor, NOTE_CHIPS, PRORATE_MODE } from "@/lib/bookingConfig";
+import { apartmentNameFor, bankFor, defaultDepositFor, NOTE_CHIPS, PRORATE_MODE } from "@/lib/bookingConfig";
 import { bookingWarnings, shouldAutoChargeNextMonth } from "@/lib/bookingWarnings";
 import { formatThaiPhone, phoneDigits } from "@/lib/phoneFormat";
 import { toast } from "@/lib/toast";
@@ -85,7 +85,7 @@ function isoToDate(iso: string): Date | null {
 export default function BookingConfirmModal({
   building, room, defaultTenant, defaultPhone, defaultRent, saving, onClose, onConfirm,
 }: Props) {
-  const [apartmentName, setApartmentName] = useState(`${building} เรสซิเด้นท์`);
+  const [apartmentName, setApartmentName] = useState(apartmentNameFor(building));
   const [tenant, setTenant] = useState(defaultTenant || "");
   // Phone state = raw digits only; the input DISPLAYS the dashed form
   // (092-4561642) via formatThaiPhone. Raw digits stay safe for tel:
