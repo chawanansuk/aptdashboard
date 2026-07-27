@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { computeBooking } from "@/lib/bookingMath";
-import { formatBookingMessage, moveInLabel } from "@/lib/bookingMessage";
+import {
+  formatMessageForMode,
+  moveInLabel,
+  type BookingMessageMode,
+  type BookingMessageInputV2,
+} from "@/lib/bookingMessage";
+import { bankFor, defaultDepositFor } from "@/lib/bookingConfig";
+import { formatThaiPhone, phoneDigits } from "@/lib/phoneFormat";
 import { toast } from "@/lib/toast";
 import { parsePriceOr0 as parseMoney } from "@/lib/money";
 
@@ -71,17 +78,30 @@ export default function BookingConfirmModal({
 }: Props) {
   const [apartmentName, setApartmentName] = useState(`${building} เรสซิเด้นท์`);
   const [tenant, setTenant] = useState(defaultTenant || "");
-  const [phone, setPhone] = useState(defaultPhone || "");
+  // Phone state = raw digits only; the input DISPLAYS the dashed form
+  // (092-4561642) via formatThaiPhone. Raw digits stay safe for tel:
+  // links and lead phone-matching.
+  const [phone, setPhone] = useState(phoneDigits(defaultPhone || ""));
   const [moveInIso, setMoveInIso] = useState(todayIso());
   const [moveInTime, setMoveInTime] = useState("09:00");
   const [rent, setRent] = useState(String(parseMoney(defaultRent || "")) || "");
-  const [deposit, setDeposit] = useState("");
+  // Prefill the REAL default deposit (P0-1). The old "" default + 10,000
+  // placeholder computed as 0 — one hasty copy sent a customer a total
+  // that was ฿10,000 short.
+  const [deposit, setDeposit] = useState(String(defaultDepositFor(building)));
   const [bookingPaid, setBookingPaid] = useState("");
   // Collect the next full month up front (late-month move-ins). Default
   // off — an early move-in shouldn't be billed ~2 months at once.
   const [chargeNextMonth, setChargeNextMonth] = useState(false);
   const [pet, setPet] = useState("");
   const [contractTerms, setContractTerms] = useState("ขั้นต่ำ 6 เดือนขึ้นไป");
+  // ===== 3 message modes (P0-5) + hand-edit overrides (P0-2) =====
+  // The admin's real workflow sends 3 LINE messages: ขอมัดจำ (A) →
+  // ยืนยันการจอง (B) → สิ่งที่ต้องเตรียม (C), all from the same form.
+  const [msgMode, setMsgMode] = useState<BookingMessageMode>("B");
+  // Hand-edits are kept PER MODE and never cleared by mode switches or
+  // form edits — regenerating only happens via the explicit ↻ button.
+  const [overrides, setOverrides] = useState<Partial<Record<BookingMessageMode, string>>>({});
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -104,20 +124,43 @@ export default function BookingConfirmModal({
     });
   }, [rent, moveInDate, deposit, bookingPaid, chargeNextMonth]);
 
-  const message = useMemo(() => {
-    if (!moveInDate || !calc) return "";
-    return formatBookingMessage({
+  // All three mode messages, regenerated from the form. Overrides (hand
+  // edits) shadow these per mode; displayed() picks the right one.
+  const generated = useMemo((): Record<BookingMessageMode, string> => {
+    if (!moveInDate || !calc) return { A: "", B: "", C: "" };
+    const input: BookingMessageInputV2 = {
       apartmentName: apartmentName.trim() || building,
       room,
       tenant: tenant.trim(),
-      phone: phone.trim(),
+      phone: formatThaiPhone(phone),
       moveInDate,
       moveInTime: moveInTime.trim() || undefined,
       calc,
       pet,
       contractTerms,
-    });
+      bank: bankFor(building),
+    };
+    return {
+      A: formatMessageForMode("A", input),
+      B: formatMessageForMode("B", input),
+      C: formatMessageForMode("C", input),
+    };
   }, [apartmentName, building, room, tenant, phone, moveInDate, moveInTime, calc, pet, contractTerms]);
+
+  const displayed = (m: BookingMessageMode) => overrides[m] ?? generated[m];
+  const message = displayed(msgMode);
+  // Dirty only while the override actually DIFFERS — typing the text
+  // back to the generated form counts as clean again.
+  const msgDirty = overrides[msgMode] !== undefined && overrides[msgMode] !== generated[msgMode];
+
+  function regenerateCurrent() {
+    if (msgDirty && !window.confirm("ทิ้งข้อความที่แก้เอง แล้วสร้างใหม่จากข้อมูลในฟอร์ม?")) return;
+    setOverrides((o) => {
+      const next = { ...o };
+      delete next[msgMode];
+      return next;
+    });
+  }
 
   const fmt = (n: number) => n.toLocaleString("th-TH");
   const valid = !!(moveInDate && tenant.trim() && phone.trim() && parseMoney(rent) > 0);
@@ -129,11 +172,12 @@ export default function BookingConfirmModal({
   if (!phone.trim()) missing.push("เบอร์ติดต่อ");
   if (parseMoney(rent) <= 0) missing.push("ค่าเช่า");
   if (!moveInDate) missing.push("วันที่เข้าพัก");
+  const missingTitle = missing.length ? `ยังไม่ครบ: ${missing.join(" · ")}` : undefined;
 
-  async function copyMessage() {
+  async function copyText(text: string, label: string) {
     try {
-      await navigator.clipboard.writeText(message);
-      toast.success("คัดลอกข้อความแล้ว — วางใน LINE ได้เลย");
+      await navigator.clipboard.writeText(text);
+      toast.success(`คัดลอก${label}แล้ว ✓ — วางใน LINE ได้เลย`);
     } catch {
       toast.error("คัดลอกอัตโนมัติไม่ได้ — เลือกข้อความในกล่องแล้วคัดลอกเอง");
     }
@@ -145,13 +189,20 @@ export default function BookingConfirmModal({
       building,
       room,
       tenant: tenant.trim(),
-      phone: phone.trim(),
+      phone,
       monthlyRent: parseMoney(rent),
       moveInDateIso: moveInIso,
       moveInTime: moveInTime.trim(),
-      message,
+      // What the tenant actually receives — respects hand edits.
+      message: displayed("B"),
     });
   }
+
+  const MODE_LABEL: Record<BookingMessageMode, string> = {
+    A: "ขอมัดจำ",
+    B: "ยืนยันการจอง",
+    C: "สิ่งที่ต้องเตรียม",
+  };
 
   return (
     <div className="ac-modal-backdrop" onClick={() => !saving && onClose()}>
@@ -182,8 +233,8 @@ export default function BookingConfirmModal({
                 </div>
                 <div className="ac-field">
                   <label htmlFor="ac-bk-phone">เบอร์ติดต่อ</label>
-                  <input id="ac-bk-phone" type="tel" value={phone}
-                    onChange={(e) => setPhone(e.target.value)} placeholder="08x-xxx-xxxx" />
+                  <input id="ac-bk-phone" type="tel" value={formatThaiPhone(phone)}
+                    onChange={(e) => setPhone(phoneDigits(e.target.value))} placeholder="092-4561642" />
                 </div>
               </div>
               <div className="ac-field">
@@ -232,6 +283,13 @@ export default function BookingConfirmModal({
                   <label htmlFor="ac-bk-paid">มัดจำที่จ่ายแล้ว</label>
                   <input id="ac-bk-paid" inputMode="numeric" value={formatMoneyDisplay(bookingPaid)}
                     onChange={(e) => setBookingPaid(moneyDigits(e.target.value))} placeholder="5,500" />
+                  <button
+                    type="button"
+                    className="ac-booking-paid-shortcut"
+                    onClick={() => setBookingPaid(moneyDigits(rent))}
+                    disabled={parseMoney(rent) <= 0}
+                    title="ตั้งมัดจำเท่าค่าเช่า 1 เดือน"
+                  >= ค่าเช่า 1 เดือน</button>
                 </div>
               </div>
               <label className="ac-booking-checkbox">
@@ -272,11 +330,72 @@ export default function BookingConfirmModal({
                 <div className="ac-booking-total-row is-remaining"><span>คงเหลือโอนเพิ่ม</span><span>{fmt(calc.remaining)}</span></div>
               </div>
             )}
-            <label className="ac-booking-preview-label" htmlFor="ac-bk-msg">ข้อความสำหรับ LINE</label>
-            <textarea id="ac-bk-msg" className="ac-booking-message" value={message} readOnly rows={14} />
-            <button type="button" className="ac-btn ac-btn-secondary" onClick={copyMessage} disabled={!message}>
-              📋 คัดลอกข้อความ
-            </button>
+            {/* P0-1: a zero deposit is almost always the placeholder trap,
+                not a real free-deposit deal — flag it loudly. */}
+            {calc && calc.deposit === 0 && (
+              <div className="ac-banner ac-banner-warn ac-booking-warn">
+                ⚠️ ค่าประกันเป็น 0 — ยืนยันว่าถูกต้องไหม?
+              </div>
+            )}
+
+            {/* P0-5: one form → three LINE messages the admin actually
+                sends (ขอมัดจำ → ยืนยัน → สิ่งที่ต้องเตรียม). */}
+            <div className="ac-chips ac-booking-modes" role="tablist" aria-label="เลือกแบบข้อความ">
+              {(["A", "B", "C"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={msgMode === m}
+                  className={`ac-chip ${msgMode === m ? "is-active" : ""}`}
+                  onClick={() => setMsgMode(m)}
+                >
+                  {MODE_LABEL[m]}
+                  {overrides[m] !== undefined && overrides[m] !== generated[m] ? " ✏️" : ""}
+                </button>
+              ))}
+            </div>
+
+            <label className="ac-booking-preview-label" htmlFor="ac-bk-msg">
+              ข้อความสำหรับ LINE — {MODE_LABEL[msgMode]}
+            </label>
+            {/* P0-2: hand edits shadow the generated text per mode; form
+                changes never clobber them — only the explicit ↻ does. */}
+            {msgDirty && (
+              <div className="ac-booking-dirtybar">
+                <span>✏️ แก้ข้อความเองอยู่ — ตัวเลขอาจไม่ตรงกับฟอร์ม</span>
+                <button type="button" className="ac-btn ac-btn-ghost" onClick={regenerateCurrent}>
+                  ↻ สร้างใหม่จากข้อมูล
+                </button>
+              </div>
+            )}
+            <textarea
+              id="ac-bk-msg"
+              className="ac-booking-message"
+              value={message}
+              rows={14}
+              onChange={(e) => setOverrides((o) => ({ ...o, [msgMode]: e.target.value }))}
+            />
+            <div className="ac-booking-copy-row">
+              <button
+                type="button"
+                className="ac-btn ac-btn-secondary"
+                onClick={() => void copyText(message, `ข้อความ "${MODE_LABEL[msgMode]}"`)}
+                disabled={!valid}
+                title={missingTitle}
+              >
+                📋 คัดลอกโหมดนี้
+              </button>
+              <button
+                type="button"
+                className="ac-btn ac-btn-ghost"
+                onClick={() => void copyText(`${displayed("B")}\n\n${displayed("C")}`, "ข้อความยืนยัน + สิ่งที่ต้องเตรียม")}
+                disabled={!valid}
+                title={missingTitle || "LINE ส่งทีละข้อความ — ก๊อปสองข้อความติดกันในครั้งเดียว"}
+              >
+                📑 คัดลอก B+C เรียงกัน
+              </button>
+            </div>
           </div>
         </div>
 
