@@ -17,6 +17,8 @@
  * All amounts are rounded to whole baht.
  */
 
+import type { ProrateMode } from "./bookingConfig";
+
 export interface BookingInput {
   /** Monthly rent in baht. */
   monthlyRent: number;
@@ -33,6 +35,14 @@ export interface BookingInput {
    * charging the next month means ~2 months up front). Defaults false.
    */
   chargeNextMonth?: boolean;
+  /**
+   * Divisor rule for the daily rate (P1-3). Default "actual-days" —
+   * the behavior documented above. "fixed-30"/"fixed-31" divide by a
+   * constant instead (days charged stay the ACTUAL remaining days).
+   */
+  prorateMode?: ProrateMode;
+  /** One-off adjustment/discount in baht (P1-3); subtracted from total. */
+  discount?: number;
 }
 
 export interface BookingCalc {
@@ -51,6 +61,10 @@ export interface BookingCalc {
   /** Rounded monthly rent echoed back — the V2 messages show it as an
    *  info line ("ค่าเช่ารายเดือน: X บาท/เดือน"). */
   monthlyRent: number;
+  /** Discount applied (0 when none). */
+  discount: number;
+  /** The divisor the daily rate used — shown in the formula caption. */
+  prorateDivisor: number;
 }
 
 function toMoney(n: number): number {
@@ -66,20 +80,24 @@ export function computeBooking(input: BookingInput): BookingCalc {
   const rent = toMoney(input.monthlyRent);
   const deposit = toMoney(input.deposit);
   const bookingPaid = toMoney(input.bookingPaid);
+  const discount = toMoney(input.discount ?? 0);
   const d = input.moveInDate;
   const dim = daysInMonth(d.getFullYear(), d.getMonth());
   const day = d.getDate();
+  const mode = input.prorateMode ?? "actual-days";
+  const divisor = mode === "fixed-30" ? 30 : mode === "fixed-31" ? 31 : dim;
 
   let proratedDays: number;
   let proratedAmount: number;
 
   if (day <= 1) {
-    // Move-in on the 1st: the whole month (no rounding drift).
+    // Move-in on the 1st: the whole month (no rounding drift), no
+    // matter the divisor convention.
     proratedDays = dim;
     proratedAmount = rent;
   } else {
     proratedDays = dim - day + 1;
-    proratedAmount = Math.round((rent / dim) * proratedDays);
+    proratedAmount = Math.round((rent / divisor) * proratedDays);
   }
 
   // The upcoming full month is collected ONLY when staff opt in
@@ -87,7 +105,10 @@ export function computeBooking(input: BookingInput): BookingCalc {
   // early move-in (e.g. 3rd) doesn't get billed ~2 months up front.
   const nextMonthRent = input.chargeNextMonth ? rent : 0;
 
-  const total = proratedAmount + nextMonthRent + deposit;
+  const total = proratedAmount + nextMonthRent + deposit - discount;
   const remaining = total - bookingPaid;
-  return { proratedDays, proratedAmount, nextMonthRent, deposit, bookingPaid, total, remaining, monthlyRent: rent };
+  return {
+    proratedDays, proratedAmount, nextMonthRent, deposit, bookingPaid,
+    total, remaining, monthlyRent: rent, discount, prorateDivisor: divisor,
+  };
 }

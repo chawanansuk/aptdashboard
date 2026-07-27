@@ -9,7 +9,8 @@ import {
   type BookingMessageMode,
   type BookingMessageInputV2,
 } from "@/lib/bookingMessage";
-import { bankFor, defaultDepositFor } from "@/lib/bookingConfig";
+import { apartmentNameFor, bankFor, defaultDepositFor, NOTE_CHIPS, PRORATE_MODE } from "@/lib/bookingConfig";
+import { bookingWarnings, shouldAutoChargeNextMonth } from "@/lib/bookingWarnings";
 import { formatThaiPhone, phoneDigits } from "@/lib/phoneFormat";
 import { toast } from "@/lib/toast";
 import { parsePriceOr0 as parseMoney } from "@/lib/money";
@@ -84,7 +85,7 @@ function isoToDate(iso: string): Date | null {
 export default function BookingConfirmModal({
   building, room, defaultTenant, defaultPhone, defaultRent, saving, onClose, onConfirm,
 }: Props) {
-  const [apartmentName, setApartmentName] = useState(`${building} เรสซิเด้นท์`);
+  const [apartmentName, setApartmentName] = useState(apartmentNameFor(building));
   const [tenant, setTenant] = useState(defaultTenant || "");
   // Phone state = raw digits only; the input DISPLAYS the dashed form
   // (092-4561642) via formatThaiPhone. Raw digits stay safe for tel:
@@ -103,6 +104,18 @@ export default function BookingConfirmModal({
   const [chargeNextMonth, setChargeNextMonth] = useState(false);
   const [pet, setPet] = useState("");
   const [contractTerms, setContractTerms] = useState("ขั้นต่ำ 6 เดือนขึ้นไป");
+  // ===== P1 fields =====
+  // ชื่อเล่น — real messages address the customer by nickname; blank
+  // falls back to the full tenant name.
+  const [nickname, setNickname] = useState("");
+  const [vaccineDocumented, setVaccineDocumented] = useState(false);
+  // สถานะมัดจำ gates the flow: "pending" = still requesting the deposit
+  // (mode A, can't save yet — no card before the money), "paid" = the
+  // normal confirm flow. Default paid (today's behavior).
+  const [depositStatus, setDepositStatus] = useState<"pending" | "paid">("paid");
+  const [selectedChips, setSelectedChips] = useState<Set<string>>(new Set());
+  const [discountAmt, setDiscountAmt] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
   // ===== 3 message modes (P0-5) + hand-edit overrides (P0-2) =====
   // The admin's real workflow sends 3 LINE messages: ขอมัดจำ (A) →
   // ยืนยันการจอง (B) → สิ่งที่ต้องเตรียม (C), all from the same form.
@@ -131,6 +144,8 @@ export default function BookingConfirmModal({
     phone !== initialRef.current.phone ||
     rent !== initialRef.current.rent ||
     pet !== initialRef.current.pet ||
+    nickname !== "" ||
+    discountAmt !== "" ||
     Object.keys(overrides).length > 0;
 
   function attemptClose() {
@@ -157,6 +172,23 @@ export default function BookingConfirmModal({
 
   const moveInDate = useMemo(() => isoToDate(moveInIso), [moveInIso]);
 
+  // P1-3 auto-tick: late-month move-in (≥25th) checks เก็บเดือนถัดไป by
+  // itself — but a manual toggle wins forever after (touched ref).
+  const chargeNextTouchedRef = useRef(false);
+  const autoTicked = !chargeNextTouchedRef.current && !!moveInDate && shouldAutoChargeNextMonth(moveInDate);
+  useEffect(() => {
+    if (!moveInDate || chargeNextTouchedRef.current) return;
+    setChargeNextMonth(shouldAutoChargeNextMonth(moveInDate));
+  }, [moveInDate]);
+
+  // P1-1 สถานะมัดจำ drives the mode — unless the user picked a tab by
+  // hand afterwards (touched ref, same pattern as auto-tick).
+  const modeTouchedRef = useRef(false);
+  function setDepositStatusAndMode(s: "pending" | "paid") {
+    setDepositStatus(s);
+    if (!modeTouchedRef.current) setMsgMode(s === "pending" ? "A" : "B");
+  }
+
   const calc = useMemo(() => {
     if (!moveInDate) return null;
     return computeBooking({
@@ -165,8 +197,16 @@ export default function BookingConfirmModal({
       deposit: parseMoney(deposit),
       bookingPaid: parseMoney(bookingPaid),
       chargeNextMonth,
+      prorateMode: PRORATE_MODE,
+      discount: parseMoney(discountAmt),
     });
-  }, [rent, moveInDate, deposit, bookingPaid, chargeNextMonth]);
+  }, [rent, moveInDate, deposit, bookingPaid, chargeNextMonth, discountAmt]);
+
+  // P1-2 advisory warnings — never gate saving/copying.
+  const warnings = useMemo(
+    () => (moveInDate ? bookingWarnings({ moveInDate, moveInTime }) : []),
+    [moveInDate, moveInTime]
+  );
 
   // All three mode messages, regenerated from the form. Overrides (hand
   // edits) shadow these per mode; displayed() picks the right one.
@@ -182,6 +222,10 @@ export default function BookingConfirmModal({
       calc,
       pet,
       contractTerms,
+      nickname,
+      vaccineDocumented,
+      noteChipLines: NOTE_CHIPS.filter((c) => selectedChips.has(c.id)).map((c) => c.line),
+      discountReason,
       bank: bankFor(building),
     };
     return {
@@ -189,7 +233,8 @@ export default function BookingConfirmModal({
       B: formatMessageForMode("B", input),
       C: formatMessageForMode("C", input),
     };
-  }, [apartmentName, building, room, tenant, phone, moveInDate, moveInTime, calc, pet, contractTerms]);
+  }, [apartmentName, building, room, tenant, phone, moveInDate, moveInTime, calc, pet, contractTerms,
+      nickname, vaccineDocumented, selectedChips, discountReason]);
 
   const displayed = (m: BookingMessageMode) => overrides[m] ?? generated[m];
   const message = displayed(msgMode);
@@ -217,6 +262,9 @@ export default function BookingConfirmModal({
   if (parseMoney(rent) <= 0) missing.push("ค่าเช่า");
   if (!moveInDate) missing.push("วันที่เข้าพัก");
   const missingTitle = missing.length ? `ยังไม่ครบ: ${missing.join(" · ")}` : undefined;
+  // P1-1: no confirmation card before the money — mode A is for asking,
+  // saving the booking waits for the slip.
+  const saveBlocked = depositStatus === "pending";
 
   async function copyText(text: string, label: string, modes: BookingMessageMode[]) {
     try {
@@ -237,7 +285,7 @@ export default function BookingConfirmModal({
   const copiedCurrent = lastCopied[msgMode] !== undefined && lastCopied[msgMode] === message;
 
   function handleConfirm() {
-    if (!valid || !moveInDate || !calc) return;
+    if (!valid || !moveInDate || !calc || saveBlocked) return;
     onConfirm({
       building,
       room,
@@ -322,6 +370,9 @@ export default function BookingConfirmModal({
               {moveInDate && (
                 <div className="ac-booking-date-hint">📅 {moveInLabel(moveInDate, moveInTime.trim() || undefined)}</div>
               )}
+              {warnings.map((w) => (
+                <div key={w} className="ac-banner ac-banner-warn ac-booking-warn">⚠️ {w}</div>
+              ))}
             </div>
 
             <div className="ac-form-section">
@@ -354,10 +405,51 @@ export default function BookingConfirmModal({
                 <input
                   type="checkbox"
                   checked={chargeNextMonth}
-                  onChange={(e) => setChargeNextMonth(e.target.checked)}
+                  onChange={(e) => {
+                    chargeNextTouchedRef.current = true;
+                    setChargeNextMonth(e.target.checked);
+                  }}
                 />
-                <span>เก็บค่าเช่าเดือนถัดไปล่วงหน้า <span className="ac-booking-checkbox-hint">(ติ๊กเมื่อเข้าปลายเดือน)</span></span>
+                <span>
+                  เก็บค่าเช่าเดือนถัดไปล่วงหน้า{" "}
+                  <span className="ac-booking-checkbox-hint">
+                    {autoTicked && chargeNextMonth
+                      ? "(เข้าปลายเดือน ระบบติ๊กให้อัตโนมัติ — เอาออกได้)"
+                      : "(ติ๊กเมื่อเข้าปลายเดือน)"}
+                  </span>
+                </span>
               </label>
+
+              {/* P1-1 สถานะมัดจำ — "ยังไม่โอน" flips to the ขอมัดจำ message
+                  and blocks saving: no confirmation card before the money. */}
+              <div className="ac-booking-radio-row" role="radiogroup" aria-label="สถานะมัดจำ">
+                <span className="ac-booking-radio-label">สถานะมัดจำ:</span>
+                <label className="ac-booking-radio">
+                  <input type="radio" name="ac-bk-depstatus" checked={depositStatus === "pending"}
+                    onChange={() => setDepositStatusAndMode("pending")} />
+                  <span>ยังไม่โอน</span>
+                </label>
+                <label className="ac-booking-radio">
+                  <input type="radio" name="ac-bk-depstatus" checked={depositStatus === "paid"}
+                    onChange={() => setDepositStatusAndMode("paid")} />
+                  <span>โอนแล้ว (ได้สลิป)</span>
+                </label>
+              </div>
+
+              {/* P1-3 ปรับยอด/ส่วนลด — flows into totals + the message, so
+                  staff never hand-edit numbers inside the text box. */}
+              <div className="ac-form-row">
+                <div className="ac-field">
+                  <label htmlFor="ac-bk-discount">ปรับยอด/ส่วนลด</label>
+                  <input id="ac-bk-discount" inputMode="numeric" value={formatMoneyDisplay(discountAmt)}
+                    onChange={(e) => setDiscountAmt(moneyDigits(e.target.value))} placeholder="0" />
+                </div>
+                <div className="ac-field">
+                  <label htmlFor="ac-bk-discount-reason">เหตุผล (โชว์ในข้อความ)</label>
+                  <input id="ac-bk-discount-reason" type="text" value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)} placeholder="เช่น โปรย้ายเข้าเดือนนี้" />
+                </div>
+              </div>
             </div>
 
             <div className="ac-form-section">
@@ -367,10 +459,46 @@ export default function BookingConfirmModal({
                 <input id="ac-bk-pet" type="text" value={pet}
                   onChange={(e) => setPet(e.target.value)} placeholder="น้องแมว 1 ตัว…" />
               </div>
+              {pet.trim() && (
+                <>
+                  <label className="ac-booking-checkbox">
+                    <input type="checkbox" checked={vaccineDocumented}
+                      onChange={(e) => setVaccineDocumented(e.target.checked)} />
+                    <span>มีเอกสารวัคซีนแล้ว <span className="ac-booking-checkbox-hint">(ต่อท้ายบรรทัดสัตว์เลี้ยงในข้อความ)</span></span>
+                  </label>
+                  {!vaccineDocumented && (
+                    <div className="ac-booking-vaccine-hint">ยังไม่ได้ยืนยันเอกสารวัคซีน</div>
+                  )}
+                </>
+              )}
               <div className="ac-field">
                 <label htmlFor="ac-bk-contract">เงื่อนไขสัญญา</label>
                 <input id="ac-bk-contract" type="text" value={contractTerms}
                   onChange={(e) => setContractTerms(e.target.value)} />
+              </div>
+              <div className="ac-field">
+                <label htmlFor="ac-bk-nickname">ชื่อเล่น (สำหรับเรียกในข้อความ)</label>
+                <input id="ac-bk-nickname" type="text" value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="เว้นว่าง = ใช้ชื่อผู้เช่า" />
+              </div>
+              {/* P1-1 chips หมายเหตุ — one tap adds the standard lines to
+                  the ข้อมูลเพิ่มเติม block. */}
+              <div className="ac-field">
+                <span className="ac-booking-chips-label">หมายเหตุเพิ่มเติม</span>
+                <div className="ac-chips">
+                  {NOTE_CHIPS.map((c) => (
+                    <button key={c.id} type="button"
+                      className={`ac-chip ${selectedChips.has(c.id) ? "is-active" : ""}`}
+                      aria-pressed={selectedChips.has(c.id)}
+                      onClick={() => setSelectedChips((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
+                        return next;
+                      })}
+                    >{c.label}</button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -382,9 +510,15 @@ export default function BookingConfirmModal({
                   <div className="ac-booking-total-row"><span>ค่าห้องรายเดือน</span><span>{fmt(calc.nextMonthRent)}</span></div>
                 )}
                 <div className="ac-booking-total-row"><span>ค่าห้องตามจำนวนวัน ({calc.proratedDays} วัน)</span><span>{fmt(calc.proratedAmount)}</span></div>
+                {calc.monthlyRent > 0 && calc.proratedDays > 0 && (
+                  <div className="ac-booking-formula">{fmt(calc.monthlyRent)} ÷ {calc.prorateDivisor} วัน × {calc.proratedDays} วัน</div>
+                )}
                 <div className="ac-booking-total-row"><span>ค่าประกัน</span><span>{fmt(calc.deposit)}</span></div>
+                {calc.discount > 0 && (
+                  <div className="ac-booking-total-row"><span>ส่วนลด{discountReason.trim() ? ` (${discountReason.trim()})` : ""}</span><span>-{fmt(calc.discount)}</span></div>
+                )}
                 <div className="ac-booking-total-row is-sum"><span>ยอดรวม</span><span>{fmt(calc.total)}</span></div>
-                <div className="ac-booking-total-row"><span>ชำระมัดจำแล้ว</span><span>-{fmt(calc.bookingPaid)}</span></div>
+                <div className="ac-booking-total-row"><span>{depositStatus === "pending" ? "มัดจำ (รอโอน)" : "ชำระมัดจำแล้ว"}</span><span>-{fmt(calc.bookingPaid)}</span></div>
                 <div className="ac-booking-total-row is-remaining"><span>คงเหลือโอนเพิ่ม</span><span>{fmt(calc.remaining)}</span></div>
               </div>
             )}
@@ -406,7 +540,10 @@ export default function BookingConfirmModal({
                   role="tab"
                   aria-selected={msgMode === m}
                   className={`ac-chip ${msgMode === m ? "is-active" : ""}`}
-                  onClick={() => setMsgMode(m)}
+                  onClick={() => {
+                    modeTouchedRef.current = true;
+                    setMsgMode(m);
+                  }}
                 >
                   {MODE_LABEL[m]}
                   {overrides[m] !== undefined && overrides[m] !== generated[m] ? " ✏️" : ""}
@@ -471,6 +608,9 @@ export default function BookingConfirmModal({
               ยังไม่ครบ: {missing.join(" · ")}
             </div>
           )}
+          {saveBlocked && (
+            <div className="ac-booking-foot-hint">โอนมัดจำก่อนจึงบันทึกการจองได้ — ส่งข้อความ "ขอมัดจำ" แล้วรอสลิป</div>
+          )}
           {/* P2: don't let staff save-and-close while forgetting to send
               the message — the indicator tracks the CURRENT mode's text. */}
           {valid && (
@@ -483,7 +623,7 @@ export default function BookingConfirmModal({
             <button
               className="ac-btn ac-btn-primary"
               onClick={handleConfirm}
-              disabled={!valid || saving}
+              disabled={!valid || saving || saveBlocked}
               aria-describedby={!valid && missing.length > 0 ? "ac-bk-missing" : undefined}
             >
               {saving && <span className="ac-btn-spinner" aria-hidden />}

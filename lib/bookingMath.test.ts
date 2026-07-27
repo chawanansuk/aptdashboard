@@ -118,3 +118,67 @@ describe("computeBooking", () => {
     expect(daysInMonth(2026, 1)).toBe(28);
   });
 });
+
+/* ===== P1-3: prorate modes + discount ===== */
+
+describe("prorateMode (P1-3)", () => {
+  it("fixed-30: divisor 30, days stay ACTUAL remaining days", () => {
+    // 30 ก.ค. (31-day month) → 2 real days, but divided by 30.
+    const c = computeBooking({
+      monthlyRent: 5200, moveInDate: new Date(2026, 6, 30),
+      deposit: 0, bookingPaid: 0, prorateMode: "fixed-30",
+    });
+    expect(c.proratedDays).toBe(2);
+    expect(c.prorateDivisor).toBe(30);
+    expect(c.proratedAmount).toBe(Math.round((5200 / 30) * 2)); // 347
+  });
+
+  it("fixed-31: divisor 31 in a 30-day month", () => {
+    const c = computeBooking({
+      monthlyRent: 6000, moveInDate: new Date(2026, 8, 21), // ก.ย. = 30 วัน → 10 วัน
+      deposit: 0, bookingPaid: 0, prorateMode: "fixed-31",
+    });
+    expect(c.proratedDays).toBe(10);
+    expect(c.proratedAmount).toBe(Math.round((6000 / 31) * 10)); // 1935
+  });
+
+  it("move-in on the 1st is a full month under EVERY mode", () => {
+    for (const prorateMode of ["actual-days", "fixed-30", "fixed-31"] as const) {
+      const c = computeBooking({
+        monthlyRent: 5200, moveInDate: new Date(2026, 6, 1),
+        deposit: 0, bookingPaid: 0, prorateMode,
+      });
+      expect(c.proratedAmount).toBe(5200);
+    }
+  });
+
+  it("default mode stays actual-days (existing behavior untouched)", () => {
+    const c = computeBooking({
+      monthlyRent: 5200, moveInDate: new Date(2026, 6, 30),
+      deposit: 0, bookingPaid: 0,
+    });
+    expect(c.prorateDivisor).toBe(31);
+    expect(c.proratedAmount).toBe(335);
+  });
+});
+
+describe("discount (P1-3)", () => {
+  it("flows into total and remaining", () => {
+    const c = computeBooking({
+      monthlyRent: 5200, moveInDate: new Date(2026, 6, 30),
+      deposit: 10000, bookingPaid: 5200, chargeNextMonth: true, discount: 500,
+    });
+    expect(c.discount).toBe(500);
+    expect(c.total).toBe(15035);      // 15,535 - 500
+    expect(c.remaining).toBe(9835);   // 10,335 - 500
+  });
+
+  it("absent/zero discount changes nothing", () => {
+    const base = computeBooking({
+      monthlyRent: 5200, moveInDate: new Date(2026, 6, 30),
+      deposit: 10000, bookingPaid: 5200, chargeNextMonth: true,
+    });
+    expect(base.discount).toBe(0);
+    expect(base.total).toBe(15535);
+  });
+});

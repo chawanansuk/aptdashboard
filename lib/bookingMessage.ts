@@ -97,6 +97,8 @@ export interface BookingMessageInputV2 extends BookingMessageInput {
   vaccineDocumented?: boolean;
   /** บรรทัด chips หมายเหตุเพิ่มเติม (P1) — ต่อท้ายบล็อกข้อมูลเพิ่มเติม. */
   noteChipLines?: string[];
+  /** เหตุผลส่วนลด (P1-3) — โชว์กำกับบรรทัดส่วนลดเมื่อ calc.discount > 0. */
+  discountReason?: string;
   bank: BankAccount;
 }
 
@@ -156,6 +158,10 @@ export function formatBookingMessageV2(i: BookingMessageInputV2): string {
   }
   lines.push(`• ค่าห้องตามจำนวนวัน (${prorateRangeLabel(moveInDate, calc.proratedDays)}): ${baht(calc.proratedAmount)} บาท`);
   lines.push(`• ค่าประกัน: ${baht(calc.deposit)} บาท`);
+  if (calc.discount > 0) {
+    const reason = (i.discountReason || "").trim();
+    lines.push(`• ส่วนลด${reason ? ` (${reason})` : ""}: -${baht(calc.discount)} บาท`);
+  }
   lines.push("");
   lines.push(`• ยอดรวมทั้งหมด: ${baht(calc.total)} บาท`);
   lines.push(`• ชำระมัดจำแล้ว: -${baht(calc.bookingPaid)} บาท`);

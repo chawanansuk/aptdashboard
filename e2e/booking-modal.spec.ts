@@ -122,3 +122,58 @@ test("booking P2: save note, Ctrl+Enter, copy indicator, dirty-close guard", asy
   expect(note).toContain("---");
   expect(note).toContain("ข้อความที่แก้ใหม่"); // hand-edited mode-B message is what gets audited
 });
+
+/**
+ * P1: deposit-status radio drives mode + save gating, vaccine hint,
+ * note chips land in the message, discount flows into totals+message,
+ * late-month auto-tick with manual override.
+ */
+test("booking P1: deposit radio, vaccine, chips, discount, auto-tick", async ({ page }) => {
+  await mockDashboard(page, {
+    rooms: [room({ building: "มีทอง", room: "401", status: "ว่าง", price: "5200" })],
+    tasks: [],
+  });
+  await page.goto("/");
+  await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
+  await page.locator(".ac-rc").filter({ hasText: "401" }).first().click();
+  await page.getByRole("button", { name: "📋 รับจอง (มัดจำ)" }).first().click();
+
+  const modal = page.locator(".ac-booking-modal");
+  await modal.locator("#ac-bk-tenant").fill("กุ๊กไก่");
+  await modal.locator("#ac-bk-phone").pressSequentially("0924561642");
+
+  // Radio "ยังไม่โอน" → auto-switch to mode A + save disabled with hint
+  await modal.getByRole("radio", { name: "ยังไม่โอน" }).check();
+  await expect(modal.getByRole("tab", { name: "ขอมัดจำ" })).toHaveAttribute("aria-selected", "true");
+  await expect(modal.getByRole("button", { name: /บันทึก & สร้างนัดย้ายเข้า/ })).toBeDisabled();
+  await expect(modal.locator(".ac-booking-foot-hint")).toContainText("โอนมัดจำก่อน");
+  // back to โอนแล้ว → mode B + save enabled
+  await modal.getByRole("radio", { name: "โอนแล้ว (ได้สลิป)" }).check();
+  await expect(modal.getByRole("tab", { name: "ยืนยันการจอง" })).toHaveAttribute("aria-selected", "true");
+  await expect(modal.getByRole("button", { name: /บันทึก & สร้างนัดย้ายเข้า/ })).toBeEnabled();
+
+  // Vaccine hint appears for a pet without the checkbox; suffix lands when ticked
+  await modal.locator("#ac-bk-pet").fill("น้องแมว 1 ตัว");
+  await expect(modal.locator(".ac-booking-vaccine-hint")).toHaveText("ยังไม่ได้ยืนยันเอกสารวัคซีน");
+  await modal.getByRole("checkbox", { name: /มีเอกสารวัคซีนแล้ว/ }).check();
+  await expect(modal.locator(".ac-booking-vaccine-hint")).toBeHidden();
+  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/สัตว์เลี้ยง : น้องแมว 1 ตัว มีเอกสารยืนยันการฉีดวัคซีนแล้ว/);
+
+  // Note chip → line in the message
+  await modal.getByRole("button", { name: "ที่จอดมอไซค์ในร่ม +200" }).click();
+  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/ที่จอดมอเตอร์ไซค์ในร่ม \+200 บาท\/เดือน/);
+
+  // Discount → totals row + message line
+  await modal.locator("#ac-bk-discount").fill("500");
+  await modal.locator("#ac-bk-discount-reason").fill("โปรเปิดตึก");
+  await expect(modal.locator(".ac-booking-totals")).toContainText("ส่วนลด (โปรเปิดตึก)");
+  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/• ส่วนลด \(โปรเปิดตึก\): -500 บาท/);
+
+  // Late-month auto-tick + manual untick sticks
+  await modal.locator("#ac-bk-date").fill("2026-08-28");
+  const chargeNext = modal.locator(".ac-booking-checkbox").first().getByRole("checkbox");
+  await expect(chargeNext).toBeChecked();
+  await chargeNext.uncheck();
+  await modal.locator("#ac-bk-date").fill("2026-08-29");
+  await expect(chargeNext).not.toBeChecked(); // touched → auto-tick never overrides
+});

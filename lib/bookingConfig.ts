@@ -13,17 +13,53 @@ export interface BankAccount {
 }
 
 /** บัญชีรับโอนหลักของบริษัท — โชว์ในข้อความโหมด "ขอมัดจำ" และ
- *  "สิ่งที่ต้องเตรียม" (ค่าที่ใช้ส่งลูกค้าจริง). */
+ *  "สิ่งที่ต้องเตรียม" (ค่าที่ใช้ส่งลูกค้าจริง). ใช้เมื่อหาตึกไม่เจอ. */
 export const DEFAULT_BANK: BankAccount = {
   bank: "กรุงไทย",
   accountNo: "017-0-46047-9",
   accountName: "บริษัท ม.ทวีทอง จำกัด",
 };
 
-export const BANK_BY_BUILDING: Record<string, BankAccount> = {};
+/** บัญชีรายหอ (ข้อมูลจริงจากเจ้าของ 2026-07). key จับคู่กับคอลัมน์
+ *  "ตึก" ในชีทแบบยืดหยุ่น (ตรงเป๊ะ หรือชื่อตึกมีคำนี้อยู่) — ชีทใช้ชื่อย่อ
+ *  เช่น "มีทอง"/"มั่งมี" ส่วนชื่อเต็มอยู่ที่ APARTMENT_NAME_BY_BUILDING. */
+export const BANK_BY_BUILDING: Record<string, BankAccount> = {
+  "มีทอง": { bank: "กรุงไทย", accountNo: "017-0-46047-9", accountName: "บริษัท ม.ทวีทอง จำกัด" },
+  "มั่งมี": { bank: "กสิกร", accountNo: "051-1-88802-6", accountName: "นายชวนันท์ สุขพรชัยรัก" },
+  "มายทรี": { bank: "ไทยพาณิชย์", accountNo: "039-232971-2", accountName: "บริษัทมายทรี48 จำกัด" },
+  "บ้านคุณหลวง": { bank: "ออมสิน", accountNo: "020-2-2690349-8", accountName: "นายชวนันท์ สุขพรชัยรัก" },
+  "บ้านมีทรัพย์": { bank: "อาคารสงเคราะห์", accountNo: "206-1-1000754-2", accountName: "CHAWANAN SUKPORNCHAIRAK" },
+};
+
+/** จับคู่ config รายตึกแบบยืดหยุ่น: ตรง key เป๊ะก่อน แล้วค่อยลอง
+ *  "ชื่อตึกมี key อยู่ข้างใน" (เช่น ตึก "มายทรี48" เจอ key "มายทรี") —
+ *  กันชื่อในชีทสะกดยาว/สั้นกว่า config เล็กน้อย. */
+function matchByBuilding<T>(table: Record<string, T>, building: string): T | undefined {
+  const b = (building || "").trim();
+  if (!b) return undefined;
+  if (table[b] !== undefined) return table[b];
+  for (const key of Object.keys(table)) {
+    if (b.includes(key) || key.includes(b)) return table[key];
+  }
+  return undefined;
+}
 
 export function bankFor(building: string): BankAccount {
-  return BANK_BY_BUILDING[building] || DEFAULT_BANK;
+  return matchByBuilding(BANK_BY_BUILDING, building) || DEFAULT_BANK;
+}
+
+/** ชื่อหอเต็มสำหรับข้อความ LINE (หัวข้อความจอง). ตึกที่ไม่รู้จัก
+ *  fallback เป็น "{ตึก} เรสซิเด้นท์" (พฤติกรรมเดิม) — แก้เองในฟอร์มได้เสมอ. */
+export const APARTMENT_NAME_BY_BUILDING: Record<string, string> = {
+  "มีทอง": "มีทองเรสซิเด้นท์",
+  "มั่งมี": "หอพักมั่งมีทวีสุข",
+  "มายทรี": "หอพักมายทรี48",
+  "บ้านคุณหลวง": "หอพักบ้านคุณหลวง",
+  "บ้านมีทรัพย์": "หอพักบ้านมีทรัพย์",
+};
+
+export function apartmentNameFor(building: string): string {
+  return matchByBuilding(APARTMENT_NAME_BY_BUILDING, building) || `${building} เรสซิเด้นท์`;
 }
 
 /** ค่าประกันเริ่มต้น — prefill ช่องค่าประกันตอนเปิดโมดัล (บั๊กเดิม:
