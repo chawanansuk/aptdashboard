@@ -13,7 +13,11 @@ export function formatThaiPhone(raw: string): string {
   return `${d.slice(0, 3)}-${d.slice(3)}`;
 }
 
-/** Digits only, capped at 10 (เบอร์ไทย) — ใช้เป็นตัวเก็บลง state. */
+/** Digits only, capped at 10 (เบอร์ไทย) — ใช้เป็นตัวเก็บลง state.
+ *  เบอร์รูปแบบสากล +66 92... ถูกแปลงกลับเป็น 092... ก่อน (ไม่งั้นการตัด
+ *  10 หลักจะกินเลขตัวท้ายหาย — audit r12). */
 export function phoneDigits(raw: string): string {
-  return normalizePhone(raw).slice(0, 10);
+  let d = normalizePhone(raw);
+  if (d.length >= 11 && d.startsWith("66")) d = "0" + d.slice(2);
+  return d.slice(0, 10);
 }

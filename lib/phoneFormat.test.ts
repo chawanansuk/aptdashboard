@@ -30,6 +30,14 @@ describe("phoneDigits", () => {
     expect(phoneDigits("abc")).toBe("");
   });
 
+  it("normalizes +66 international format back to 0-prefix (audit r12)", () => {
+    // Without this, the 10-digit cap ate the LAST digit of +66 numbers.
+    expect(phoneDigits("+66 92-456-1642")).toBe("0924561642");
+    expect(phoneDigits("+66924561642")).toBe("0924561642");
+    // 9-digit landline stays untouched (starts with 0 already)
+    expect(phoneDigits("02-123-4567")).toBe("021234567");
+  });
+
   it("round-trips with formatThaiPhone", () => {
     expect(phoneDigits(formatThaiPhone("0924561642"))).toBe("0924561642");
   });

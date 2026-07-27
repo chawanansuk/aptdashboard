@@ -137,15 +137,30 @@ export default function BookingConfirmModal({
     tenant: defaultTenant || "",
     phone: phoneDigits(defaultPhone || ""),
     rent: String(parseMoney(defaultRent || "")) || "",
-    pet: "",
+    deposit: String(defaultDepositFor(building)),
+    moveInIso: todayIso(),
+    apartmentName: apartmentNameFor(building),
   });
+  // Every user-editable field counts — audit r12 found the first cut
+  // covered so few fields that typed มัดจำ/date/time closed silently.
+  // (chargeNextMonth/depositStatus stay out: cheap toggles, and the
+  // auto-tick effect would otherwise mark a fresh modal dirty.)
   const isDirty =
     tenant !== initialRef.current.tenant ||
     phone !== initialRef.current.phone ||
     rent !== initialRef.current.rent ||
-    pet !== initialRef.current.pet ||
+    deposit !== initialRef.current.deposit ||
+    moveInIso !== initialRef.current.moveInIso ||
+    apartmentName !== initialRef.current.apartmentName ||
+    moveInTime !== "09:00" ||
+    bookingPaid !== "" ||
+    pet !== "" ||
+    contractTerms !== "ขั้นต่ำ 6 เดือนขึ้นไป" ||
     nickname !== "" ||
+    vaccineDocumented ||
+    selectedChips.size > 0 ||
     discountAmt !== "" ||
+    discountReason !== "" ||
     Object.keys(overrides).length > 0;
 
   function attemptClose() {
@@ -163,7 +178,7 @@ export default function BookingConfirmModal({
         attemptClose();
       } else if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
-        handleConfirm();
+        if (!e.repeat) handleConfirm(); // holding the key must not re-fire
       }
     }
     window.addEventListener("keydown", onKey);
@@ -187,6 +202,12 @@ export default function BookingConfirmModal({
   function setDepositStatusAndMode(s: "pending" | "paid") {
     setDepositStatus(s);
     if (!modeTouchedRef.current) setMsgMode(s === "pending" ? "A" : "B");
+    // Pending = we're about to ASK for the deposit — an empty
+    // "มัดจำที่จ่ายแล้ว" would put "ยอดมัดจำ: 0 บาท" in the request
+    // message (audit r12). Default the ask to one month's rent.
+    if (s === "pending" && parseMoney(bookingPaid) <= 0 && parseMoney(rent) > 0) {
+      setBookingPaid(moneyDigits(rent));
+    }
   }
 
   const calc = useMemo(() => {
@@ -285,7 +306,10 @@ export default function BookingConfirmModal({
   const copiedCurrent = lastCopied[msgMode] !== undefined && lastCopied[msgMode] === message;
 
   function handleConfirm() {
-    if (!valid || !moveInDate || !calc || saveBlocked) return;
+    // `saving` guard: the BUTTON is disabled while saving but the
+    // Ctrl+Enter path is not — without this, a double press piles a
+    // second bookRoom + a duplicate ย้ายเข้า task (audit r12, HIGH).
+    if (!valid || !moveInDate || !calc || saveBlocked || saving) return;
     onConfirm({
       building,
       room,
@@ -307,6 +331,14 @@ export default function BookingConfirmModal({
     A: "ขอมัดจำ",
     B: "ยืนยันการจอง",
     C: "สิ่งที่ต้องเตรียม",
+  };
+  const MODE_STEP: Record<BookingMessageMode, string> = { A: "1", B: "2", C: "3" };
+  // One line under the tabs telling staff WHEN to send this message —
+  // the 3 modes are a sequence, not alternatives.
+  const MODE_DESC: Record<BookingMessageMode, string> = {
+    A: "ส่งตอนลูกค้าตกลงจอง — ขอโอนมัดจำ พร้อมเลขบัญชี",
+    B: "ส่งหลังได้สลิปมัดจำ — สรุปยอดที่ต้องจ่ายวันเข้าพัก",
+    C: "ส่งก่อนวันเข้าพัก — เอกสารที่ต้องเตรียม + ยอดโอนส่วนที่เหลือ",
   };
 
   return (
@@ -389,7 +421,7 @@ export default function BookingConfirmModal({
                     onChange={(e) => setDeposit(moneyDigits(e.target.value))} placeholder="10,000" />
                 </div>
                 <div className="ac-field">
-                  <label htmlFor="ac-bk-paid">มัดจำที่จ่ายแล้ว</label>
+                  <label htmlFor="ac-bk-paid">ยอดมัดจำจอง</label>
                   <input id="ac-bk-paid" inputMode="numeric" value={formatMoneyDisplay(bookingPaid)}
                     onChange={(e) => setBookingPaid(moneyDigits(e.target.value))} placeholder="5,500" />
                   <button
@@ -401,6 +433,22 @@ export default function BookingConfirmModal({
                   >= ค่าเช่า 1 เดือน</button>
                 </div>
               </div>
+              {/* P1-1 สถานะมัดจำ — "ยังไม่โอน" flips to the ขอมัดจำ message
+                  and blocks saving: no confirmation card before the money. */}
+              <div className="ac-booking-radio-row" role="radiogroup" aria-label="สถานะมัดจำ">
+                <span className="ac-booking-radio-label">ลูกค้าโอนมัดจำแล้วหรือยัง?</span>
+                <label className="ac-booking-radio">
+                  <input type="radio" name="ac-bk-depstatus" checked={depositStatus === "pending"}
+                    onChange={() => setDepositStatusAndMode("pending")} />
+                  <span>ยังไม่โอน</span>
+                </label>
+                <label className="ac-booking-radio">
+                  <input type="radio" name="ac-bk-depstatus" checked={depositStatus === "paid"}
+                    onChange={() => setDepositStatusAndMode("paid")} />
+                  <span>โอนแล้ว (ได้สลิป)</span>
+                </label>
+              </div>
+
               <label className="ac-booking-checkbox">
                 <input
                   type="checkbox"
@@ -419,22 +467,6 @@ export default function BookingConfirmModal({
                   </span>
                 </span>
               </label>
-
-              {/* P1-1 สถานะมัดจำ — "ยังไม่โอน" flips to the ขอมัดจำ message
-                  and blocks saving: no confirmation card before the money. */}
-              <div className="ac-booking-radio-row" role="radiogroup" aria-label="สถานะมัดจำ">
-                <span className="ac-booking-radio-label">สถานะมัดจำ:</span>
-                <label className="ac-booking-radio">
-                  <input type="radio" name="ac-bk-depstatus" checked={depositStatus === "pending"}
-                    onChange={() => setDepositStatusAndMode("pending")} />
-                  <span>ยังไม่โอน</span>
-                </label>
-                <label className="ac-booking-radio">
-                  <input type="radio" name="ac-bk-depstatus" checked={depositStatus === "paid"}
-                    onChange={() => setDepositStatusAndMode("paid")} />
-                  <span>โอนแล้ว (ได้สลิป)</span>
-                </label>
-              </div>
 
               {/* P1-3 ปรับยอด/ส่วนลด — flows into totals + the message, so
                   staff never hand-edit numbers inside the text box. */}
@@ -506,6 +538,7 @@ export default function BookingConfirmModal({
           <div className="ac-booking-preview">
             {calc && (
               <div className="ac-booking-totals">
+                <div className="ac-booking-totals-head">💰 สรุปยอดวันเข้าพัก</div>
                 {calc.nextMonthRent > 0 && (
                   <div className="ac-booking-total-row"><span>ค่าห้องรายเดือน</span><span>{fmt(calc.nextMonthRent)}</span></div>
                 )}
@@ -529,6 +562,16 @@ export default function BookingConfirmModal({
                 ⚠️ ค่าประกันเป็น 0 — ยืนยันว่าถูกต้องไหม?
               </div>
             )}
+            {calc && msgMode === "A" && calc.bookingPaid === 0 && (
+              <div className="ac-banner ac-banner-warn ac-booking-warn">
+                ⚠️ ยอดมัดจำเป็น 0 — ใส่ช่อง &quot;มัดจำที่จ่ายแล้ว&quot; ก่อนส่งขอมัดจำ
+              </div>
+            )}
+            {calc && calc.remaining < 0 && (
+              <div className="ac-banner ac-banner-warn ac-booking-warn">
+                ⚠️ ยอดคงเหลือติดลบ ({fmt(calc.remaining)}) — ตรวจส่วนลด/มัดจำอีกครั้ง
+              </div>
+            )}
 
             {/* P0-5: one form → three LINE messages the admin actually
                 sends (ขอมัดจำ → ยืนยัน → สิ่งที่ต้องเตรียม). */}
@@ -545,15 +588,17 @@ export default function BookingConfirmModal({
                     setMsgMode(m);
                   }}
                 >
+                  <span className="ac-booking-mode-step" aria-hidden>{MODE_STEP[m]}</span>
                   {MODE_LABEL[m]}
                   {overrides[m] !== undefined && overrides[m] !== generated[m] ? " ✏️" : ""}
                 </button>
               ))}
             </div>
+            <div className="ac-booking-mode-desc">{MODE_DESC[msgMode]}</div>
 
             <div className="ac-booking-msg-head">
               <label className="ac-booking-preview-label" htmlFor="ac-bk-msg">
-                ข้อความสำหรับ LINE — {MODE_LABEL[msgMode]}
+                ข้อความสำหรับ LINE
               </label>
               <div className="ac-booking-copy-row">
                 <button
@@ -563,16 +608,16 @@ export default function BookingConfirmModal({
                   disabled={!valid}
                   title={missingTitle}
                 >
-                  📋 คัดลอกโหมดนี้
+                  📋 คัดลอกข้อความนี้
                 </button>
                 <button
                   type="button"
                   className="ac-btn ac-btn-ghost"
                   onClick={() => void copyText(`${displayed("B")}\n\n${displayed("C")}`, "ข้อความยืนยัน + สิ่งที่ต้องเตรียม", ["B", "C"])}
                   disabled={!valid}
-                  title={missingTitle || "LINE ส่งทีละข้อความ — ก๊อปสองข้อความติดกันในครั้งเดียว"}
+                  title={missingTitle || "คัดลอกข้อความยืนยัน + สิ่งที่ต้องเตรียม ไว้วางสองรอบใน LINE"}
                 >
-                  📑 B+C
+                  📑 ขั้น 2+3 ต่อกัน
                 </button>
               </div>
             </div>
