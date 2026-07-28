@@ -206,6 +206,47 @@ test.describe("defect photos", () => {
     await expect(page.locator(".ac-room-lightbox-img")).toBeHidden();
   });
 
+  test("PetsView: photo on a vacated room hides the new tenant and flags stale", async ({ page }) => {
+    await mockDashboard(page, {
+      // Cat was registered while 204 was occupied; the room has since
+      // turned over and now sits ว่าง (a new tenant may follow).
+      rooms: [room({ building: "มีทอง", room: "204", status: "ว่าง", tenant: "", phone: "" })],
+      tasks: [],
+    });
+    await page.route("**/api/room-photos**", (r) => {
+      const rows = r.request().url().includes("scope=pets")
+        ? [{ id: "c1", building: "มีทอง", room: "204", fileId: "f1", note: "ส้มจุด", creator: "a@b.c", createdAt: "2026-07-01 09:00", category: "สัตว์เลี้ยง" }]
+        : [];
+      return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, rows }) });
+    });
+    await page.route("**://drive.google.com/**", (r) =>
+      r.fulfill({ status: 200, contentType: "image/png", body: TINY_PNG }),
+    );
+    await page.route("**://lh3.googleusercontent.com/**", (r) =>
+      r.fulfill({ status: 200, contentType: "image/png", body: TINY_PNG }),
+    );
+
+    await page.goto("/");
+    await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
+    await page.getByRole("button", { name: "สัตว์เลี้ยง" }).click();
+
+    const view = page.locator(".ac-pets-view");
+    await expect(view.locator(".ac-pets-card")).toHaveCount(1);
+    await expect(view.locator(".ac-pets-stale").first()).toContainText("ห้องว่าง");
+    await expect(view.locator(".ac-pets-date").first()).toContainText("2026-07-01");
+
+    // Lightbox warns instead of offering a (wrong) call button
+    await view.locator(".ac-pets-thumb").first().click();
+    const info = page.locator(".ac-pets-lightbox-info");
+    await expect(info).toContainText("ไม่มีผู้เช่าแล้ว");
+    await expect(info.locator("a.ac-pets-call")).toHaveCount(0);
+
+    // Any role can delete a pet photo straight from this view
+    page.on("dialog", (d) => void d.accept());
+    await page.locator(".ac-defect-delete-btn").click();
+    await expect(view.locator(".ac-pets-card")).toHaveCount(0);
+  });
+
   test("upload failure shows manual retry, retry succeeds", async ({ page }) => {
     let postCount = 0;
     await mockDashboard(page, {
