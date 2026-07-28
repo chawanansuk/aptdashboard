@@ -1,10 +1,13 @@
 /**
- * Code.gs v3.25.4 — Dashboard หอพัก
+ * Code.gs v3.25.5 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
  *
+ * NEW v3.25.5:
+ *   - รูปสัตว์เลี้ยงแยกโฟลเดอร์ใน Drive: รูปตำหนิหอพัก/ตึก/สัตว์เลี้ยง
+ *     (หาใน Drive ง่ายขึ้น — แอพแสดงผลเหมือนเดิม) + เวลาถ่ายรูปตัดวินาทีทิ้ง
  * NEW v3.25.4:
  *   - รูปสัตว์เลี้ยงประจำห้อง: คอลัมน์ หมวด ในแท็บรูปตำหนิ + getPetPhotos
  *     (หน้ารวมทั้งหอ ไว้เทียบตัวตอนแมวหลุด)
@@ -458,7 +461,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.25.4';
+var BACKEND_VERSION = '3.25.5';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -551,7 +554,7 @@ function getTasks_() {
  * action exists), so a recorded photo can't be quietly swapped later;
  * that's what makes the set usable as evidence.
  */
-function getOrCreatePhotoFolder_(building) {
+function getOrCreatePhotoFolder_(building, category) {
   const props = PropertiesService.getScriptProperties();
   let root = null;
   const savedId = props.getProperty('PHOTO_FOLDER_ID');
@@ -565,7 +568,16 @@ function getOrCreatePhotoFolder_(building) {
   }
   const name = norm(building) || 'ไม่ระบุตึก';
   const sub = root.getFoldersByName(name);
-  return sub.hasNext() ? sub.next() : root.createFolder(name);
+  const buildingFolder = sub.hasNext() ? sub.next() : root.createFolder(name);
+  // v3.25.5 — pet photos get their own subfolder per building
+  // (รูปตำหนิหอพัก/ตึก/สัตว์เลี้ยง) so browsing Drive tells the two
+  // apart; the owner couldn't find the cat photos mixed in with defects.
+  // App display is unaffected (rendered by fileId, not location).
+  if (category === PHOTO_CAT_PET) {
+    const petSub = buildingFolder.getFoldersByName('สัตว์เลี้ยง');
+    return petSub.hasNext() ? petSub.next() : buildingFolder.createFolder('สัตว์เลี้ยง');
+  }
+  return buildingFolder;
 }
 
 function getOrCreatePhotoSheet_() {
@@ -623,16 +635,15 @@ function uploadRoomPhoto_(b) {
   const bytes = Utilities.base64Decode(String(b.dataBase64));
   const stamp = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd_HHmmss');
   const blob = Utilities.newBlob(bytes, mime, photoFileName_(building, room, b.note, stamp));
-  const folder = getOrCreatePhotoFolder_(building);
+  // v3.25.4 — category: 'pet' → สัตว์เลี้ยง (per-room cat registry).
+  const category = norm(b.category) === 'pet' ? PHOTO_CAT_PET : '';
+  const folder = getOrCreatePhotoFolder_(building, category);
   const file = folder.createFile(blob);
   // anyone-with-link VIEW — required for <img> rendering in the app.
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   const sh = getOrCreatePhotoSheet_();
   const id = Utilities.getUuid();
   const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
-  // v3.25.4 — category: 'pet' → สัตว์เลี้ยง (per-room cat registry);
-  // anything else stays a defect photo (empty col 8).
-  const category = norm(b.category) === 'pet' ? PHOTO_CAT_PET : '';
   sh.appendRow([id, building, room, file.getId(), norm(b.note), norm(b.creator), createdAt, category]);
   logAudit_('uploadRoomPhoto', 'photo', building + ' ' + room, norm(b.note), b.creator);
   return { id: id, fileId: file.getId(), createdAt: createdAt };
@@ -735,7 +746,7 @@ function getRoomPhotos_(b) {
       fileId: norm(r[3]),
       note: norm(r[4]),
       creator: norm(r[5]),
-      createdAt: fmtDateTime_(r[6]),
+      createdAt: fmtDateTime_(r[6]).slice(0, 16), // always yyyy-MM-dd HH:mm (drop coerced :ss)
       category: norm(r[7]), // v3.25.4 — '' = ตำหนิ, สัตว์เลี้ยง = pet
     });
   }
@@ -766,7 +777,7 @@ function getPetPhotos_() {
       fileId: norm(r[3]),
       note: norm(r[4]),
       creator: norm(r[5]),
-      createdAt: fmtDateTime_(r[6]),
+      createdAt: fmtDateTime_(r[6]).slice(0, 16), // always yyyy-MM-dd HH:mm
       category: PHOTO_CAT_PET,
     });
   }

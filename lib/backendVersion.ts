@@ -8,7 +8,7 @@
  * the previously-silent "did my redeploy take?" question into an explicit
  * on-screen answer.
  */
-export const EXPECTED_BACKEND_VERSION = "3.25.4";
+export const EXPECTED_BACKEND_VERSION = "3.25.5";
 
 /**
  * Compare two dotted numeric versions ("3.21.0" vs "3.10.0").
