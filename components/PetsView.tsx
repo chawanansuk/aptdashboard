@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomPhoto, RoomView } from "@/types";
 import { canViewTenant } from "@/lib/permissions";
-import { fetchPetPhotos, photoFullUrl, photoThumbUrl } from "@/lib/roomPhotos";
+import { deleteRoomPhoto, fetchPetPhotos, photoFullUrl, photoThumbUrl } from "@/lib/roomPhotos";
+import { toast } from "@/lib/toast";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
@@ -44,6 +45,7 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
     buildings.includes(activeBuilding) ? activeBuilding : ""
   );
   const [lightbox, setLightbox] = useState<RoomPhoto | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,12 +89,36 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
     );
   }, [pets, building]);
 
-  /** Tenant lookup for the lightbox — PII stays behind tenant.view. */
-  const tenantOf = (p: RoomPhoto): { tenant: string; phone: string } | null => {
-    if (!canSeeTenant) return null;
+  /**
+   * Room lookup for a photo. `occupied` matters: pet photos survive a
+   * tenant turnover, so a photo on a vacant/moved-out room belongs to
+   * the PREVIOUS tenant — showing the new tenant's phone next to it
+   * would send staff calling the wrong person about someone else's cat.
+   */
+  const roomInfo = (p: RoomPhoto) => {
     const r = rooms.find((rv) => rv.building === p.building && rv.room === p.room);
-    if (!r || (!r.tenant && !r.phone)) return null;
-    return { tenant: r.tenant || "", phone: r.phone || "" };
+    const occupied = r ? r.status === "occupied" : false;
+    const tenant = canSeeTenant && occupied ? r?.tenant || "" : "";
+    const phone = canSeeTenant && occupied ? r?.phone || "" : "";
+    return { found: !!r, occupied, tenant, phone };
+  };
+
+  /** Pet photos are a registry, not evidence — any role may delete
+   *  (owner decision). Cleanup right where the stale photo is noticed. */
+  const removePhoto = async (p: RoomPhoto) => {
+    if (deleting) return;
+    if (!window.confirm(`ลบรูปนี้ (${p.building} ${p.room}${p.note ? ` — ${p.note}` : ""}) ?`)) return;
+    setDeleting(true);
+    try {
+      await deleteRoomPhoto(p.id);
+      setPets((rows) => (rows || []).filter((x) => x.id !== p.id));
+      setLightbox(null);
+      toast.success("ลบรูปแล้ว");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ลบรูปไม่สำเร็จ");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (pets === null) return <LoadingState label="กำลังโหลดรูปสัตว์เลี้ยง…" />;
@@ -146,8 +172,14 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
                 <img src={photoThumbUrl(p.fileId, 800)} alt={p.note || "สัตว์เลี้ยง"} loading="lazy" />
               </button>
               <figcaption className="ac-pets-caption">
-                <span className="ac-pets-room">{p.building} {p.room}</span>
+                <span className="ac-pets-room">
+                  {p.building} {p.room}
+                  {!roomInfo(p).occupied && (
+                    <span className="ac-pets-stale" title="ห้องนี้ไม่มีผู้เช่าแล้ว — รูปอาจเป็นของผู้เช่าคนก่อน">ห้องว่าง</span>
+                  )}
+                </span>
                 {p.note && <span className="ac-pets-note" title={p.note}>{p.note}</span>}
+                {p.createdAt && <span className="ac-pets-date">{p.createdAt.slice(0, 10)}</span>}
               </figcaption>
             </figure>
           ))}
@@ -175,21 +207,38 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
           <div className="ac-pets-lightbox-info" onClick={(e) => e.stopPropagation()}>
             <strong>{lightbox.building} {lightbox.room}</strong>
             {lightbox.note && <span> · {lightbox.note}</span>}
+            {lightbox.createdAt && <span className="ac-pets-date"> · {lightbox.createdAt}</span>}
             {(() => {
-              const t = tenantOf(lightbox);
-              if (!t) return null;
+              const info = roomInfo(lightbox);
+              if (!info.occupied) {
+                return (
+                  <span className="ac-pets-stale">
+                    ห้องนี้ไม่มีผู้เช่าแล้ว — รูปอาจเป็นของผู้เช่าคนก่อน
+                  </span>
+                );
+              }
+              if (!info.tenant && !info.phone) return null;
               return (
                 <span className="ac-pets-owner">
-                  {t.tenant && <span> · {t.tenant}</span>}
-                  {t.phone && (
-                    <a className="ac-pets-call" href={`tel:${t.phone.replace(/[^0-9+]/g, "")}`}>
-                      📞 โทร {t.phone}
+                  {info.tenant && <span> · ผู้เช่าห้องนี้: {info.tenant}</span>}
+                  {info.phone && (
+                    <a className="ac-pets-call" href={`tel:${info.phone.replace(/[^0-9+]/g, "")}`}>
+                      📞 โทร {info.phone}
                     </a>
                   )}
                 </span>
               );
             })()}
           </div>
+          <button
+            type="button"
+            className="ac-defect-delete-btn"
+            disabled={deleting}
+            onClick={(e) => {
+              e.stopPropagation();
+              void removePhoto(lightbox);
+            }}
+          >{deleting ? "กำลังลบ…" : "🗑 ลบรูป"}</button>
         </div>
       )}
     </div>
