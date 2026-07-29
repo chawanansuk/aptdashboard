@@ -634,7 +634,7 @@
 .appt:hover { border-color: var(--border-strong); }
 
 .apptMain {
-  display: flex; flex-direction: column; gap: 3px;
+  display: flex; align-items: center; gap: 10px;
   min-width: 0; flex: 1;
   background: none; border: none;
   text-align: left;
@@ -653,12 +653,13 @@
   box-shadow: 0 0 0 3px var(--ak-tint, transparent);
 }
 .apptCust {
-  font-size: 14.5px; font-weight: 600; color: var(--text);
+  min-width: 0;
+  font-size: 14px; font-weight: 600; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* Row 2 — type tag + room, quieter supporting context. */
-.apptSub { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding-left: 14px; }
+.apptSub { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .apptTag {
   font-size: 10.5px; font-weight: 600;
   color: var(--ak-base); background: var(--ak-tint);
@@ -667,21 +668,70 @@
 }
 .apptRoom { font-size: 12px; color: var(--text-2); }
 .apptRoom .mono { font-family: var(--font-num); color: var(--text); }
+/* Phone sits INLINE on row 2 now. The old 84px right-hand block wrapped
+   the number onto two lines and ate a third of a phone screen for what
+   is supporting info; the call action stays as a compact icon button. */
+.apptPhone {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+/* Room number is the anchor staff scan for → its own left column, so the
+   customer name gets the full remaining width and never truncates. */
+.apptRoomChip {
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  min-width: 46px; padding: 4px 6px;
+  border-radius: 8px;
+  background: var(--ak-tint, var(--bg-3, var(--bg-2)));
+  color: var(--ak-base, var(--text));
+  font-family: var(--font-num);
+  font-size: 14px; font-weight: 700;
+}
+.apptBody { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+/* Building sub-groups inside a day — staff work one property at a time,
+   and lifting the name out of every card is what makes the row fit. */
+.railBuilding { display: flex; flex-direction: column; gap: 6px; }
+.railBuilding + .railBuilding { margin-top: 4px; }
+.railBuildingHead {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 2px;
+}
+.railBuildingName {
+  font-size: 11.5px; font-weight: 700;
+  color: var(--text-2);
+  letter-spacing: 0.01em;
+}
+.railBuildingCount {
+  font-size: 10px; font-weight: 600;
+  color: var(--text-3);
+  background: var(--bg-3, var(--bg-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full, 999px);
+  padding: 0 6px;
+  line-height: 15px;
+}
+.railBuildingHead::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
 
 .apptCall {
-  display: flex; flex-direction: column;
+  display: flex;
   align-items: center; justify-content: center;
-  gap: 2px; flex: none;
-  width: 84px;
-  padding: 6px 8px;
+  flex: none;
+  width: 48px;
+  padding: 6px;
   color: var(--primary-2);
-  background: var(--primary-tint);
+  background: transparent;
   border-left: 1px solid var(--border);
   transition: background 140ms ease;
 }
 .apptCall:hover { background: var(--hover); }
 .apptCall:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.apptCallNum { font-size: 10.5px; color: var(--primary-2); line-height: 1.1; text-align: center; }
 
 /* ====================================================================
  * Room detail drawer
@@ -992,7 +1042,7 @@
    * must clear the 44px tap floor on phones (this rail is sales' main
    * phone surface). */
   .apptMain { min-height: 44px; }
-  .apptCall { min-height: 44px; min-width: 56px; }
+  .apptCall { min-height: 44px; min-width: 52px; }
   /* Room-status cards on the sales board — primary tap target for sales
    * walking units; keep above the 44px floor even in dense wrapping. */
   .roomCard { min-height: 44px; }

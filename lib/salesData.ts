@@ -189,6 +189,40 @@ export interface ApptDayGroup {
   items: Appointment[];
 }
 
+export interface ApptBuildingGroup {
+  building: string;
+  items: Appointment[];
+}
+
+/**
+ * Split one day's appointments by building. Staff work a building at a
+ * time (they walk one property), so a day with 3 นัด across 3 buildings
+ * reads as three separate errands — the building name also moves out of
+ * every card into one header, which is what makes the row fit on a phone.
+ * Buildings follow BUILDING_ORDER (the team's mental order, same as the
+ * card view); rooms sort numerically within a building.
+ */
+export function groupAppointmentsByBuilding(items: Appointment[]): ApptBuildingGroup[] {
+  const index = new Map<string, Appointment[]>();
+  for (const a of items) {
+    const b = a.task.building || "(ไม่ระบุตึก)";
+    if (!index.has(b)) index.set(b, []);
+    index.get(b)!.push(a);
+  }
+  return Array.from(index.entries())
+    .map(([building, list]) => ({
+      building,
+      items: [...list].sort((x, y) =>
+        (x.task.room || "").localeCompare(y.task.room || "", undefined, { numeric: true })
+      ),
+    }))
+    .sort(
+      (a, b) =>
+        buildingSortIndex(a.building) - buildingSortIndex(b.building) ||
+        a.building.localeCompare(b.building, "th")
+    );
+}
+
 const THAI_DOW = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัส", "ศุกร์", "เสาร์"];
 
 function dayKey(d: Date): string {
