@@ -5,6 +5,7 @@ import {
   groupAppointmentsByDay, dayLabel, groupByBuildingFloor, buildBuildingGrids,
   buildKpis, applyBoardFilter, distinctFloors, formatDateShort,
   buildAppointmentsTrend, buildOverdueAppointments,
+  groupAppointmentsByBuilding,
 } from "./salesData";
 
 function mkRoom(p: Partial<RoomView>): RoomView {
@@ -273,5 +274,28 @@ describe("buildAppointmentsTrend", () => {
       mkTask({ date: "07/06/2026", type: "ย้ายออก" }),
     ];
     expect(buildAppointmentsTrend(tasks, "ทั้งหมด", 7, NOW_MON)).toEqual([0, 0, 0, 0, 0, 0, 3]);
+  });
+});
+
+describe("groupAppointmentsByBuilding", () => {
+  const mk = (building: string, room: string) =>
+    ({ task: { date: "01/08/2026", type: "ย้ายเข้า", building, room, customer: "", phone: "", note: "", status: "" }, date: new Date(2026, 7, 1) }) as never;
+
+  it("groups a day's appointments per building, BUILDING_ORDER first", () => {
+    const g = groupAppointmentsByBuilding([
+      mk("มีทอง", "502"), mk("มั่งมี", "603"), mk("มีทอง", "401"),
+    ]);
+    expect(g.map((x) => x.building)).toEqual(["มั่งมี", "มีทอง"]); // BUILDING_ORDER
+    expect(g[1].items.map((i) => i.task.room)).toEqual(["401", "502"]); // numeric within
+  });
+
+  it("keeps unknown buildings (sorted last) and labels blank ones", () => {
+    const g = groupAppointmentsByBuilding([mk("ตึกใหม่", "1"), mk("", "2"), mk("มีทอง", "3")]);
+    expect(g[0].building).toBe("มีทอง");
+    expect(g.map((x) => x.building)).toContain("(ไม่ระบุตึก)");
+  });
+
+  it("returns [] for no appointments", () => {
+    expect(groupAppointmentsByBuilding([])).toEqual([]);
   });
 });

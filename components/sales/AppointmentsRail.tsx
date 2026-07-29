@@ -4,9 +4,10 @@ import { forwardRef } from "react";
 import { Icon } from "@/lib/icons";
 import { apptKindFromType, APPT_KIND_META } from "@/lib/salesTheme";
 import {
-  groupAppointmentsByDay, formatDateShort,
+  groupAppointmentsByDay, groupAppointmentsByBuilding, formatDateShort,
   type Appointment, type OverdueAppointment,
 } from "@/lib/salesData";
+import { formatSheetPhone, sheetPhoneDigits } from "@/lib/phoneFormat";
 import styles from "./sales.module.css";
 
 interface Props {
@@ -22,18 +23,23 @@ interface Props {
 
 /** One appointment card — shared by the overdue group and the day groups. */
 function ApptCard({
-  a, overdueDays, onSelectRoom,
+  a, overdueDays, onSelectRoom, showBuilding = false,
 }: {
   a: Appointment;
   overdueDays?: number;
   onSelectRoom?: (building: string, room: string) => void;
+  /** Overdue cards aren't building-grouped, so they still print it. */
+  showBuilding?: boolean;
 }) {
   const kind = apptKindFromType(a.task.type);
   const km = kind ? APPT_KIND_META[kind] : null;
   const akVars = km
     ? ({ "--ak-base": km.base, "--ak-tint": km.tint } as React.CSSProperties)
     : undefined;
-  const tel = a.task.phone?.replace(/[^0-9+]/g, "");
+  // Sheets strips the leading 0 from numeric phone cells (0624705817 →
+  // 624705817) — that number both DISPLAYS wrong and fails to dial.
+  const tel = sheetPhoneDigits(a.task.phone || "");
+  const phoneLabel = formatSheetPhone(a.task.phone || "");
   return (
     <div className={styles.appt} style={akVars}>
       <button
@@ -55,8 +61,14 @@ function ApptCard({
         <span className={styles.apptSub}>
           {km && <span className={styles.apptTag}>{km.label}</span>}
           <span className={styles.apptRoom}>
-            {a.task.building} · <span className={styles.mono}>{a.task.room}</span>
+            {/* Building lives in the group header — repeating it on every
+                card is what pushed the phone into a wrapped 2-line block. */}
+            {showBuilding && <>{a.task.building} · </>}
+            ห้อง <span className={styles.mono}>{a.task.room}</span>
           </span>
+          {phoneLabel && (
+            <span className={`${styles.apptPhone} ${styles.mono}`}>{phoneLabel}</span>
+          )}
           {overdueDays !== undefined && (
             <span className={`${styles.apptRoom} ${styles.mono}`}>
               {formatDateShort(a.date)}
@@ -68,11 +80,10 @@ function ApptCard({
         <a
           className={styles.apptCall}
           href={`tel:${tel}`}
-          title={`โทร ${a.task.phone}`}
-          aria-label={`โทรหา ${a.task.customer || a.task.phone}`}
+          title={`โทร ${phoneLabel}`}
+          aria-label={`โทรหา ${a.task.customer || phoneLabel}`}
         >
-          <Icon name="phone" size={15} />
-          <span className={`${styles.apptCallNum} ${styles.mono}`}>{a.task.phone}</span>
+          <Icon name="phone" size={17} />
         </a>
       )}
     </div>
@@ -119,6 +130,7 @@ const AppointmentsRail = forwardRef<HTMLDivElement, Props>(
                     a={o}
                     overdueDays={o.daysOverdue}
                     onSelectRoom={onSelectRoom}
+                    showBuilding
                   />
                 ))}
               </div>
@@ -129,12 +141,20 @@ const AppointmentsRail = forwardRef<HTMLDivElement, Props>(
                   <span className={styles.railDayLabel}>{d.label}</span>
                   <span className={styles.railDayCount}>{d.items.length}</span>
                 </div>
-                {d.items.map((a, i) => (
-                  <ApptCard
-                    key={`${a.task.date}|${a.task.building}|${a.task.room}|${i}`}
-                    a={a}
-                    onSelectRoom={onSelectRoom}
-                  />
+                {groupAppointmentsByBuilding(d.items).map((b) => (
+                  <div key={b.building} className={styles.railBuilding}>
+                    <div className={styles.railBuildingHead}>
+                      <span className={styles.railBuildingName}>{b.building}</span>
+                      <span className={styles.railBuildingCount}>{b.items.length}</span>
+                    </div>
+                    {b.items.map((a, i) => (
+                      <ApptCard
+                        key={`${a.task.date}|${a.task.building}|${a.task.room}|${i}`}
+                        a={a}
+                        onSelectRoom={onSelectRoom}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
             ))}
