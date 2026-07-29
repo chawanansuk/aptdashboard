@@ -47,33 +47,25 @@ function ApptCard({
         onClick={() => onSelectRoom?.(a.task.building, a.task.room)}
         title={`เปิดห้อง ${a.task.building} ${a.task.room}`}
       >
-        <span className={styles.apptTopline}>
-          {km && <span className={styles.apptDot} aria-hidden />}
-          <span className={styles.apptCust}>
-            {a.task.customer || "—"}
-          </span>
-          {overdueDays !== undefined && (
-            <span className={styles.apptOverdueChip}>
-              เลย {overdueDays} วัน
-            </span>
-          )}
+        <span className={`${styles.apptRoomChip} ${styles.mono}`}>
+          {showBuilding ? `${a.task.building} ` : ""}{a.task.room}
         </span>
-        <span className={styles.apptSub}>
-          {km && <span className={styles.apptTag}>{km.label}</span>}
-          <span className={styles.apptRoom}>
-            {/* Building lives in the group header — repeating it on every
-                card is what pushed the phone into a wrapped 2-line block. */}
-            {showBuilding && <>{a.task.building} · </>}
-            ห้อง <span className={styles.mono}>{a.task.room}</span>
+        <span className={styles.apptBody}>
+          <span className={styles.apptCust}>{a.task.customer || "—"}</span>
+          <span className={styles.apptSub}>
+            {km && <span className={styles.apptTag}>{km.label}</span>}
+            {phoneLabel && (
+              <span className={`${styles.apptPhone} ${styles.mono}`}>{phoneLabel}</span>
+            )}
+            {overdueDays !== undefined && (
+              <span className={styles.apptOverdueChip}>เลย {overdueDays} วัน</span>
+            )}
+            {overdueDays !== undefined && (
+              <span className={`${styles.apptRoom} ${styles.mono}`}>
+                {formatDateShort(a.date)}
+              </span>
+            )}
           </span>
-          {phoneLabel && (
-            <span className={`${styles.apptPhone} ${styles.mono}`}>{phoneLabel}</span>
-          )}
-          {overdueDays !== undefined && (
-            <span className={`${styles.apptRoom} ${styles.mono}`}>
-              {formatDateShort(a.date)}
-            </span>
-          )}
         </span>
       </button>
       {tel && (

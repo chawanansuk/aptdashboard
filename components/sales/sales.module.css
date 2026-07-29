@@ -634,7 +634,7 @@
 .appt:hover { border-color: var(--border-strong); }
 
 .apptMain {
-  display: flex; flex-direction: column; gap: 3px;
+  display: flex; align-items: center; gap: 10px;
   min-width: 0; flex: 1;
   background: none; border: none;
   text-align: left;
@@ -653,12 +653,13 @@
   box-shadow: 0 0 0 3px var(--ak-tint, transparent);
 }
 .apptCust {
-  font-size: 14.5px; font-weight: 600; color: var(--text);
+  min-width: 0;
+  font-size: 14px; font-weight: 600; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* Row 2 — type tag + room, quieter supporting context. */
-.apptSub { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding-left: 14px; }
+.apptSub { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .apptTag {
   font-size: 10.5px; font-weight: 600;
   color: var(--ak-base); background: var(--ak-tint);
@@ -675,6 +676,19 @@
   color: var(--text-2);
   white-space: nowrap;
 }
+/* Room number is the anchor staff scan for → its own left column, so the
+   customer name gets the full remaining width and never truncates. */
+.apptRoomChip {
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  min-width: 46px; padding: 4px 6px;
+  border-radius: 8px;
+  background: var(--ak-tint, var(--bg-3, var(--bg-2)));
+  color: var(--ak-base, var(--text));
+  font-family: var(--font-num);
+  font-size: 14px; font-weight: 700;
+}
+.apptBody { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 
 /* Building sub-groups inside a day — staff work one property at a time,
    and lifting the name out of every card is what makes the row fit. */
@@ -709,10 +723,10 @@
   display: flex;
   align-items: center; justify-content: center;
   flex: none;
-  width: 52px;
+  width: 48px;
   padding: 6px;
   color: var(--primary-2);
-  background: var(--primary-tint);
+  background: transparent;
   border-left: 1px solid var(--border);
   transition: background 140ms ease;
 }
