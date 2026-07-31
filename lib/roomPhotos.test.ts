@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_EDGE,
+  getCachedPetPhotos,
+  getCachedRoomPhotos,
+  setCachedPetPhotos,
+  setCachedRoomPhotos,
   extractImageFiles,
   fitScale,
   photoFullUrl,
@@ -75,5 +79,29 @@ describe("extractImageFiles", () => {
   it("falls back to files when items yield nothing (drop path)", () => {
     expect(extractImageFiles(fakeDt({ items: [txt], files: [img] }))).toEqual([img]);
     expect(extractImageFiles(fakeDt({ files: [img, txt] }))).toEqual([img]);
+  });
+});
+
+describe("session photo cache (perf r13)", () => {
+  it("round-trips per room and expires after the TTL", () => {
+    const rows = [{ id: "p1", building: "มีทอง", room: "204", fileId: "f1", note: "", creator: "", createdAt: "" }];
+    setCachedRoomPhotos("มีทอง", "204", rows);
+    expect(getCachedRoomPhotos("มีทอง", "204")).toBe(rows);
+    expect(getCachedRoomPhotos("มีทอง", "205")).toBeNull(); // per-room isolation
+
+    const realNow = Date.now;
+    Date.now = () => realNow() + 6 * 60_000; // past the 5-min TTL
+    try {
+      expect(getCachedRoomPhotos("มีทอง", "204")).toBeNull();
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it("pets cache is independent of room caches", () => {
+    const pets = [{ id: "c1", building: "มีทอง", room: "204", fileId: "f9", note: "ส้มจุด", creator: "", createdAt: "", category: "สัตว์เลี้ยง" }];
+    setCachedPetPhotos(pets);
+    expect(getCachedPetPhotos()).toBe(pets);
+    expect(getCachedRoomPhotos("::pets::", "")).toBeNull();
   });
 });

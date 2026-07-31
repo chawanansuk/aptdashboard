@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomPhoto, RoomView } from "@/types";
 import { canViewTenant } from "@/lib/permissions";
-import { deleteRoomPhoto, fetchPetPhotos, photoFullUrl, photoThumbUrl } from "@/lib/roomPhotos";
+import { deleteRoomPhoto, fetchPetPhotos, getCachedPetPhotos, setCachedPetPhotos, photoFullUrl, photoThumbUrl } from "@/lib/roomPhotos";
 import { toast } from "@/lib/toast";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -50,6 +50,10 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
   useEffect(() => {
     let cancelled = false;
     setError(null);
+    // Stale-while-revalidate (perf r13): revisiting the view paints the
+    // last-known grid instantly; the fresh fetch replaces it silently.
+    const cached = getCachedPetPhotos();
+    if (cached) setPets(cached);
     fetchPetPhotos()
       .then((rows) => {
         if (!cancelled) setPets(rows);
@@ -120,6 +124,11 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
       setDeleting(false);
     }
   };
+
+  // Write-through: current grid = cache (mutations like delete included).
+  useEffect(() => {
+    if (pets) setCachedPetPhotos(pets);
+  }, [pets]);
 
   if (pets === null) return <LoadingState label="กำลังโหลดรูปสัตว์เลี้ยง…" />;
 
