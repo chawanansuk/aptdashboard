@@ -42,6 +42,26 @@ export function redisEnabled(): boolean {
   return redisEnv() !== null;
 }
 
+/**
+ * Live health check for /api/version?ping=1 — the only way to SEE
+ * whether the shared cache actually works (a bad token is silently
+ * swallowed everywhere else by design). Round-trips a PING.
+ */
+export async function redisPing(): Promise<{
+  configured: boolean;
+  ok: boolean;
+  latencyMs: number | null;
+}> {
+  if (!redisEnv()) return { configured: false, ok: false, latencyMs: null };
+  const t0 = Date.now();
+  const res = await command<string>(["PING"]);
+  return {
+    configured: true,
+    ok: res === "PONG",
+    latencyMs: res === "PONG" ? Date.now() - t0 : null,
+  };
+}
+
 /** A hung cache lookup must never stall the dashboard — fail fast and
  *  fall through to origin. Upstash p99 is ~50ms from Vercel regions. */
 const CMD_TIMEOUT_MS = 1_500;
