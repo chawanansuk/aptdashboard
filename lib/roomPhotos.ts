@@ -137,6 +137,41 @@ export function isPetPhoto(p: { category?: string }): boolean {
   return (p.category || "") === PHOTO_CATEGORY_PET;
 }
 
+/* ===== Session photo cache (perf r13) =====
+ * Every RoomModal open used to refetch photos from Apps Script
+ * (600ms-2s on a cold start) even for a room viewed seconds earlier.
+ * Stale-while-revalidate: the gallery paints instantly from this cache
+ * and the fresh fetch replaces it when it lands. Write-through from the
+ * components keeps mutations (upload/note/delete) in sync. Module-level
+ * → per-tab, gone on reload, no invalidation protocol needed. */
+const PHOTO_CACHE_TTL_MS = 5 * 60_000;
+const photoCache = new Map<string, { rows: RoomPhoto[]; at: number }>();
+const PETS_CACHE_KEY = "::pets::";
+
+function cacheKey(building: string, room: string): string {
+  return `${building}|${room}`;
+}
+
+export function getCachedRoomPhotos(building: string, room: string): RoomPhoto[] | null {
+  const hit = photoCache.get(cacheKey(building, room));
+  if (!hit || Date.now() - hit.at > PHOTO_CACHE_TTL_MS) return null;
+  return hit.rows;
+}
+
+export function setCachedRoomPhotos(building: string, room: string, rows: RoomPhoto[]): void {
+  photoCache.set(cacheKey(building, room), { rows, at: Date.now() });
+}
+
+export function getCachedPetPhotos(): RoomPhoto[] | null {
+  const hit = photoCache.get(PETS_CACHE_KEY);
+  if (!hit || Date.now() - hit.at > PHOTO_CACHE_TTL_MS) return null;
+  return hit.rows;
+}
+
+export function setCachedPetPhotos(rows: RoomPhoto[]): void {
+  photoCache.set(PETS_CACHE_KEY, { rows, at: Date.now() });
+}
+
 /** GET this room's photos. Returns [] on old backend / network failure —
  *  the gallery just shows its add button. */
 export async function fetchRoomPhotos(building: string, room: string): Promise<RoomPhoto[]> {

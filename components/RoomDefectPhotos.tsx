@@ -10,6 +10,8 @@ import {
   deleteRoomPhoto,
   extractImageFiles,
   fetchRoomPhotos,
+  getCachedRoomPhotos,
+  setCachedRoomPhotos,
   isPetPhoto,
   photoFullUrl,
   photoThumbUrl,
@@ -89,9 +91,12 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
   const sync = useCallback(() => setQueue([...itemsRef.current]), []);
 
   // Lazy fetch on mount (the section only mounts inside an open modal).
+  // Stale-while-revalidate (perf r13): paint instantly from the session
+  // cache — reopening a room no longer waits 0.6-2s on Apps Script —
+  // then let the fresh fetch replace it.
   useEffect(() => {
     let cancelled = false;
-    setPhotos(null);
+    setPhotos(getCachedRoomPhotos(building, room));
     itemsRef.current.forEach((q) => URL.revokeObjectURL(q.previewUrl));
     itemsRef.current = [];
     setQueue([]);
@@ -102,6 +107,12 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
       cancelled = true;
     };
   }, [building, room]);
+
+  // Write-through: whatever the gallery currently shows (fresh fetch or
+  // an optimistic upload/note/delete update) IS the cache.
+  useEffect(() => {
+    if (photos) setCachedRoomPhotos(building, room, photos);
+  }, [photos, building, room]);
 
   /** Sequential upload worker — one file at a time so a slow Apps Script
    *  cold start doesn't stack 5 concurrent 45s requests. */
