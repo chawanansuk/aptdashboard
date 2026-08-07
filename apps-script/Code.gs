@@ -1,10 +1,13 @@
 /**
- * Code.gs v3.25.5 — Dashboard หอพัก
+ * Code.gs v3.26.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
  *
+ * NEW v3.26.0:
+ *   - แจ้งเตือนรอบซ่อมบำรุงเข้าอีเมลทุกเช้า (setupDailyEmailReminder —
+ *     รันครั้งเดียวเพื่อเปิดใช้; ทดสอบด้วย sendMaintenanceReminderEmail)
  * NEW v3.25.5:
  *   - รูปสัตว์เลี้ยงแยกโฟลเดอร์ใน Drive: รูปตำหนิหอพัก/ตึก/สัตว์เลี้ยง
  *     (หาใน Drive ง่ายขึ้น — แอพแสดงผลเหมือนเดิม) + เวลาถ่ายรูปตัดวินาทีทิ้ง
@@ -461,7 +464,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.25.5';
+var BACKEND_VERSION = '3.26.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -540,6 +543,142 @@ function getTasks_() {
     if (obj.date && obj.type && obj.building) out.push(obj);
   }
   return out;
+}
+
+/* ========== EMAIL REMINDERS (v3.26.0) ==========
+ * แจ้งเตือนรอบซ่อมบำรุงเข้าอีเมล — กันลืมเช็คปั๊มน้ำ/ล้างแอร์ ฯลฯ
+ *
+ * ครอบคลุม: สาธารณูปโภค (รายตึก) + อุปกรณ์ (รายห้อง) ทุกแถวที่ตั้ง
+ * "รอบบำรุง(วัน)" ไว้ — ใกล้ถึงกำหนด (≤14 วัน เท่าป้ายเตือนในแอป)
+ * และเลยกำหนด. ส่งเฉพาะวันที่มีรายการ ไม่มีรายการ = ไม่ส่ง (ไม่สแปม).
+ *
+ * วิธีเปิดใช้ (ทำครั้งเดียวหลังวางโค้ดนี้):
+ *   1. ในหน้า Apps Script เลือกฟังก์ชัน setupDailyEmailReminder → Run
+ *      (ครั้งแรก Google จะขอสิทธิ์ส่งอีเมล → กด Allow)
+ *   2. เสร็จแล้ว — ระบบจะเช็คทุกเช้า ~07:00 แล้วส่งเมลเมื่อมีรายการ
+ * ผู้รับ: เจ้าของสคริปต์ (บัญชีนี้เอง) — เพิ่มคนอื่นได้ที่ Script
+ * Properties key EMAIL_RECIPIENTS (คั่นด้วย , )
+ * ทดสอบทันที: เลือกฟังก์ชัน sendMaintenanceReminderEmail → Run
+ */
+
+var EMAIL_DUE_SOON_DAYS = 14; // ให้ตรงกับป้ายเตือนในแอป (DUE_SOON_DAYS)
+
+/** strict 'yyyy-MM-dd' → Date (null เมื่อว่าง/รูปแบบผิด). */
+function ymdToDate_(s) {
+  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const date = new Date(y, mo - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
+  return date;
+}
+
+function bkkToday_() {
+  return ymdToDate_(Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd'));
+}
+
+/**
+ * รายการที่ถึง/ใกล้ถึงรอบบำรุง จากสาธารณูปโภค + อุปกรณ์.
+ * daysLeft < 0 = เลยกำหนดแล้ว. เรียงเลยกำหนดมากสุดก่อน.
+ */
+function serviceDueRows_() {
+  const today = bkkToday_();
+  const out = [];
+  function consider(kind, building, label, lastService, installDate, intervalDays, status) {
+    if (!intervalDays || intervalDays <= 0) return;
+    if (status === 'ปิดใช้งาน' || status === 'ใช้ไม่ได้') return;
+    const anchor = ymdToDate_(lastService) || ymdToDate_(installDate);
+    if (!anchor) return;
+    const next = new Date(anchor);
+    next.setDate(next.getDate() + intervalDays);
+    const daysLeft = Math.round((next.getTime() - today.getTime()) / 86400000);
+    if (daysLeft > EMAIL_DUE_SOON_DAYS) return;
+    out.push({
+      kind: kind, building: building, label: label,
+      intervalDays: intervalDays, daysLeft: daysLeft,
+      nextDate: Utilities.formatDate(next, 'Asia/Bangkok', 'd/M/yyyy'),
+      lastService: lastService || installDate || '-',
+    });
+  }
+  const facilities = getAllFacilities_();
+  for (let i = 0; i < facilities.length; i++) {
+    const f = facilities[i];
+    consider('สาธารณูปโภค', f.building, f.type + (f.name ? ' (' + f.name + ')' : ''),
+      f.lastService, f.installDate, f.intervalDays, f.status);
+  }
+  const equipment = getAllEquipment_();
+  for (let j = 0; j < equipment.length; j++) {
+    const e = equipment[j];
+    consider('อุปกรณ์', e.building, e.type + ' ห้อง ' + e.room + (e.brand ? ' (' + e.brand + ')' : ''),
+      e.lastService, e.installDate, e.intervalDays, e.status);
+  }
+  out.sort(function (a, b) { return a.daysLeft - b.daysLeft; });
+  return out;
+}
+
+function emailRecipients_() {
+  const prop = PropertiesService.getScriptProperties().getProperty('EMAIL_RECIPIENTS');
+  if (prop && prop.trim()) return prop.trim();
+  return Session.getEffectiveUser().getEmail();
+}
+
+/**
+ * ส่งอีเมลสรุปรอบบำรุง (รันมือเพื่อทดสอบได้). ส่งเฉพาะเมื่อมีรายการ.
+ */
+function sendMaintenanceReminderEmail() {
+  const rows = serviceDueRows_();
+  if (rows.length === 0) return 'ไม่มีรายการถึงรอบ — ไม่ส่งอีเมล';
+  const overdue = rows.filter(function (r) { return r.daysLeft < 0; });
+  const dueSoon = rows.filter(function (r) { return r.daysLeft >= 0; });
+
+  function line(r) {
+    const when = r.daysLeft < 0
+      ? '<b style="color:#dc2626">เลยกำหนด ' + (-r.daysLeft) + ' วัน</b>'
+      : (r.daysLeft === 0 ? '<b style="color:#d97706">ครบกำหนดวันนี้</b>'
+        : 'อีก ' + r.daysLeft + ' วัน (' + r.nextDate + ')');
+    return '<li style="margin:4px 0">[' + r.building + '] ' + r.label +
+      ' — ' + when +
+      ' <span style="color:#64748b">· รอบทุก ' + r.intervalDays + ' วัน · ล่าสุด ' + r.lastService + '</span></li>';
+  }
+
+  const parts = [];
+  parts.push('<div style="font-family:sans-serif;font-size:14px;line-height:1.6">');
+  parts.push('<h2 style="font-size:16px">🔔 แจ้งเตือนรอบซ่อมบำรุง</h2>');
+  if (overdue.length) {
+    parts.push('<h3 style="font-size:14px;color:#dc2626">🔴 เลยกำหนด (' + overdue.length + ')</h3><ul>' +
+      overdue.map(line).join('') + '</ul>');
+  }
+  if (dueSoon.length) {
+    parts.push('<h3 style="font-size:14px;color:#d97706">🟠 ใกล้ถึงกำหนดใน ' + EMAIL_DUE_SOON_DAYS + ' วัน (' + dueSoon.length + ')</h3><ul>' +
+      dueSoon.map(line).join('') + '</ul>');
+  }
+  parts.push('<p style="color:#64748b;font-size:12px">ทำเสร็จแล้ว อัปเดต "วันบริการล่าสุด" ในแอป (หน้าสาธารณูปโภค/อุปกรณ์) เพื่อเริ่มนับรอบใหม่และหยุดเตือนรายการนั้น</p>');
+  parts.push('</div>');
+
+  const subject = '🔔 ซ่อมบำรุง: เลยกำหนด ' + overdue.length + ' · ใกล้ถึง ' + dueSoon.length +
+    ' (' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'd/M/yyyy') + ')';
+  MailApp.sendEmail({
+    to: emailRecipients_(),
+    subject: subject,
+    htmlBody: parts.join(''),
+    name: 'APARTCLOUD แจ้งเตือน',
+  });
+  return 'ส่งแล้ว: ' + subject + ' → ' + emailRecipients_();
+}
+
+/**
+ * ตั้ง trigger รายวัน ~07:00 (รันครั้งเดียวพอ — รันซ้ำ = รีเซ็ต trigger เดิม).
+ */
+function setupDailyEmailReminder() {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'sendMaintenanceReminderEmail') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('sendMaintenanceReminderEmail')
+    .timeBased().everyDays(1).atHour(7).create();
+  return 'ตั้งแจ้งเตือนรายวัน ~07:00 แล้ว → ' + emailRecipients_();
 }
 
 /* ========== DEFECT PHOTOS (v3.25.0) ==========
