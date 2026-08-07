@@ -208,15 +208,54 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
     }
   }
 
+  /** บันทึกว่าทำรอบบำรุงแล้ววันนี้ — จุดที่เคยต้องเปิดแก้ไขแล้วพิมพ์วันเอง. */
+  async function handleMarkServiced(f: Facility) {
+    if (!canWrite) return;
+    const today = new Date().toISOString().slice(0, 10);
+    setSubmitting(true);
+    setErr(null);
+    const snapshot = rows;
+    setRows((prev) =>
+      prev ? prev.map((r) => (r.id === f.id ? { ...r, lastService: today } : r)) : prev
+    );
+    try {
+      const res = await fetch("/api/facilities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", id: f.id, lastService: today }),
+      });
+      const j = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+      if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      invalidateFacilityCache();
+      bustCachedFetch("/api/facilities");
+      await load({ force: true });
+    } catch (e) {
+      setRows(snapshot);
+      setErr(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /** รายการถึง/ใกล้ถึงรอบ — โผล่เป็นมุมด่วนบนสุด (เลยกำหนดก่อน). */
+  const dueList = useMemo(() => {
+    return filtered
+      .filter((f) => {
+        if (f.status === "ปิดใช้งาน") return false;
+        const m = getMaintenanceStatus(f);
+        return m === "overdue" || m === "due-soon";
+      })
+      .sort((a, b) => (daysUntilService(a) ?? 0) - (daysUntilService(b) ?? 0));
+  }, [filtered]);
+
   // Summary counts (respect active building filter)
   const counts = useMemo(() => {
-    let working = 0, repair = 0, offline = 0;
+    let working = 0, repair = 0;
     for (const f of filtered) {
       if (f.status === "ใช้งานได้") working++;
       else if (f.status === "ต้องซ่อม" || f.status === "กำลังซ่อม") repair++;
-      else if (f.status === "ปิดใช้งาน") offline++;
     }
-    return { working, repair, offline, total: filtered.length };
+    return { working, repair, total: filtered.length };
   }, [filtered]);
 
   return (
@@ -232,9 +271,9 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
           <div className="ac-maint-stat-num" style={{ color: FACILITY_STATUS_COLOR["ต้องซ่อม"] }}>{counts.repair}</div>
           <div className="ac-maint-stat-label">ต้อง/กำลังซ่อม</div>
         </div>
-        <div className="ac-maint-stat" style={{ borderColor: FACILITY_STATUS_COLOR["ปิดใช้งาน"] }}>
-          <div className="ac-maint-stat-num" style={{ color: FACILITY_STATUS_COLOR["ปิดใช้งาน"] }}>{counts.offline}</div>
-          <div className="ac-maint-stat-label">ปิดใช้งาน</div>
+        <div className="ac-maint-stat" style={{ borderColor: dueList.length ? "#D97706" : "var(--color-border)" }}>
+          <div className="ac-maint-stat-num" style={{ color: dueList.length ? "#D97706" : "var(--color-text-faint)" }}>{dueList.length}</div>
+          <div className="ac-maint-stat-label">🔔 ถึงรอบบำรุง</div>
         </div>
         <div className="ac-maint-stat" style={{ borderColor: "var(--color-text-faint)" }}>
           <div className="ac-maint-stat-num" style={{ color: "var(--color-text-faint)" }}>{counts.total}</div>
@@ -315,6 +354,42 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
         />
       )}
 
+      {dueList.length > 0 && (
+        <section className="ac-fac-due" aria-label="ถึงรอบบำรุง">
+          <h3 className="ac-fac-due-head">🔔 ถึงรอบบำรุง <span>({dueList.length})</span></h3>
+          <ul className="ac-fac-due-list">
+            {dueList.map((f) => {
+              const days = daysUntilService(f);
+              const overdue = days !== null && days < 0;
+              return (
+                <li key={`due-${f.id}`} className={`ac-fac-due-row ${overdue ? "is-overdue" : ""}`}>
+                  <span className="ac-fac-due-icon" aria-hidden>{FACILITY_TYPE_ICON[f.type] || "🏢"}</span>
+                  <span className="ac-fac-due-main">
+                    <span className="ac-fac-due-title">
+                      <b>{f.building}</b> · {f.type}{f.name ? ` ${f.name}` : ""}
+                    </span>
+                    <span className="ac-fac-due-sub">
+                      รอบทุก {f.intervalDays} วัน · ทำล่าสุด {f.lastService ? formatDateLabel(f.lastService) : "—"}
+                    </span>
+                  </span>
+                  <span className={`ac-fac-due-count ${overdue ? "is-overdue" : ""}`}>
+                    {days === null ? "" : overdue ? `เลย ${Math.abs(days)} วัน` : days === 0 ? "วันนี้" : `อีก ${days} วัน`}
+                  </span>
+                  {canWrite && (
+                    <button
+                      className="ac-btn ac-btn-primary ac-btn-sm ac-fac-done-btn"
+                      onClick={() => handleMarkServiced(f)}
+                      disabled={submitting}
+                      title="บันทึกวันบริการล่าสุด = วันนี้ (เริ่มนับรอบใหม่)"
+                    >✓ ทำแล้ววันนี้</button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {buildingOrder.map((b) => {
         const list = grouped.get(b) || [];
         return (
@@ -357,6 +432,15 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
                             <span>บริการล่าสุด {formatDateLabel(f.lastService)}</span>
                           </>
                         )}
+                        {(f.intervalDays || 0) > 0 && (
+                          <>
+                            {(f.installDate || f.lastService) && <span> · </span>}
+                            <span>
+                              รอบทุก {f.intervalDays} วัน
+                              {(f.intervalDays || 0) >= 28 ? ` (≈ ${Math.round((f.intervalDays || 0) / 30)} เดือน)` : ""}
+                            </span>
+                          </>
+                        )}
                       </div>
                       {next && (
                         <div className="ac-equipment-card-meta">
@@ -379,6 +463,14 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
                             disabled={submitting}
                             title="ตั้งสถานะเป็น 'ใช้งานได้' + วันบริการล่าสุด = วันนี้"
                           >✓ ซ่อมแล้ว</button>
+                        )}
+                        {!needsRepair && (m === "overdue" || m === "due-soon") && (
+                          <button
+                            className="ac-btn ac-btn-primary ac-btn-sm"
+                            onClick={() => handleMarkServiced(f)}
+                            disabled={submitting}
+                            title="บันทึกวันบริการล่าสุด = วันนี้ (เริ่มนับรอบใหม่)"
+                          >✓ ทำแล้ววันนี้</button>
                         )}
                         <button
                           className="ac-btn ac-btn-ghost ac-btn-sm"
