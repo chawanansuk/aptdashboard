@@ -93,6 +93,7 @@ const FacilitiesView  = lazy(() => import("@/components/FacilitiesView"));
 const PartsView       = lazy(() => import("@/components/PartsView"));
 const VehiclesView    = lazy(() => import("@/components/VehiclesView"));
 const PetsView        = lazy(() => import("@/components/PetsView"));
+const MaintenanceHub  = lazy(() => import("@/components/MaintenanceHub"));
 const LeadsView       = lazy(() => import("@/components/LeadsView"));
 const RecurringView   = lazy(() => import("@/components/RecurringView"));
 const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
@@ -1354,23 +1355,17 @@ export default function Home() {
               </Suspense>
             </ErrorBoundary>
           )}
-          {activeView === "maintenance" && (
-            <ErrorBoundary level="route" label="บำรุงรักษา">
+          {/* UI r15 — one ซ่อมบำรุง hub; the old view keys stay valid and
+              land on the matching tab so bookmarks keep working. */}
+          {(activeView === "maintenance" || activeView === "facilities" || activeView === "recurring") && (
+            <ErrorBoundary level="route" label="ซ่อมบำรุง">
               <Suspense fallback={<MaintenanceSkeleton />}>
-                <MaintenanceView
-                  activeBuilding={activeBuilding}
-                  onScheduleService={openMaintenanceTask}
-                />
-              </Suspense>
-            </ErrorBoundary>
-          )}
-          {activeView === "facilities" && (
-            <ErrorBoundary level="route" label="สาธารณูปโภค">
-              <Suspense fallback={<FacilitiesSkeleton />}>
-                <FacilitiesView
+                <MaintenanceHub
+                  key={activeView}
                   buildings={buildings}
                   activeBuilding={activeBuilding}
                   onScheduleService={openMaintenanceTask}
+                  initialTab={activeView === "facilities" ? "facility" : activeView === "recurring" ? "recurring" : "due"}
                 />
               </Suspense>
             </ErrorBoundary>
@@ -1411,13 +1406,7 @@ export default function Home() {
               </Suspense>
             </ErrorBoundary>
           )}
-          {activeView === "recurring" && (
-            <ErrorBoundary level="route" label="งานประจำ">
-              <Suspense fallback={<FacilitiesSkeleton />}>
-                <RecurringView buildings={buildings} />
-              </Suspense>
-            </ErrorBoundary>
-          )}
+
     </AppShell>
 
       {cmdk.open && (
