@@ -128,7 +128,10 @@ export const DEFAULT_INTERVAL_DAYS: Record<string, number> = {
 
 export const INTERVAL_OPTIONS: { value: number; label: string }[] = [
   { value: 0,   label: "ไม่กำหนด" },
+  { value: 30,  label: "ทุก 1 เดือน" },
+  { value: 60,  label: "ทุก 2 เดือน" },
   { value: 90,  label: "ทุก 3 เดือน" },
+  { value: 120, label: "ทุก 4 เดือน" },
   { value: 180, label: "ทุก 6 เดือน" },
   { value: 365, label: "ทุก 1 ปี" },
   { value: 730, label: "ทุก 2 ปี" },

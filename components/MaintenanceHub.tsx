@@ -9,6 +9,8 @@ import { daysUntilService, getMaintenanceStatus, formatDateLabel } from "@/lib/m
 import { invalidateFacilityCache } from "@/lib/facilityCache";
 import { bustCachedFetch } from "@/lib/cachedFetchJson";
 import { formatCommonArea } from "@/lib/taskLocation";
+import { bangkokTodayYmd } from "@/lib/dateUtils";
+import { invalidateEquipmentCache } from "@/lib/equipmentCache";
 import { toast } from "@/lib/toast";
 import { FacilitiesSkeleton, MaintenanceSkeleton } from "@/components/skeletons/ViewSkeletons";
 import LoadingState from "./LoadingState";
@@ -56,6 +58,10 @@ interface DueItem {
   intervalDays: number;
   lastService: string;
   days: number; // negative = overdue
+  /** ต้องซ่อม/กำลังซ่อม — the row needs the REPAIR action, not just a
+   *  cycle reset (audit r16 #3). */
+  broken: boolean;
+  status: string;
 }
 
 const TABS: { key: HubTab; label: string }[] = [
@@ -96,6 +102,12 @@ export default function MaintenanceHub({
     }
   }, []);
 
+  // Load once on mount (not only when the due tab is active) — the 🔔
+  // badge must be correct even when deep-linked into another tab
+  // (audit r16 #4); re-load when returning to the due tab.
+  useEffect(() => {
+    void loadDue();
+  }, [loadDue]);
   useEffect(() => {
     if (tab === "due") void loadDue();
   }, [tab, loadDue]);
@@ -116,6 +128,8 @@ export default function MaintenanceHub({
         intervalDays: f.intervalDays || 0,
         lastService: f.lastService || f.installDate || "",
         days: daysUntilService(f) ?? 0,
+        broken: f.status === "ต้องซ่อม" || f.status === "กำลังซ่อม",
+        status: f.status,
       });
     }
     for (const e of equipment || []) {
@@ -132,29 +146,45 @@ export default function MaintenanceHub({
         intervalDays: e.intervalDays || 0,
         lastService: e.lastService || e.installDate || "",
         days: daysUntilService(e) ?? 0,
+        broken: e.status === "ต้องซ่อม" || e.status === "กำลังซ่อม",
+        status: e.status,
       });
     }
     out.sort((a, b) => a.days - b.days);
     return out;
   }, [facilities, equipment, activeBuilding]);
 
-  /** ✓ ทำแล้ววันนี้ — same quick action for BOTH sources. */
+  /** ✓ ทำแล้ววันนี้ / ✓ ซ่อมแล้ว — one quick action for BOTH sources.
+   *  A broken item also gets its status reset to normal (a plain
+   *  cycle-reset would leave it broken forever — audit r16 #3). */
   async function markServiced(item: DueItem) {
     if (!canWrite || busyKey) return;
     setBusyKey(item.key);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokTodayYmd();
     try {
       const url = item.source === "facility" ? "/api/facilities" : "/api/room-equipment";
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update", id: item.id, lastService: today }),
+        body: JSON.stringify({
+          action: "update",
+          id: item.id,
+          lastService: today,
+          ...(item.broken
+            ? { status: item.source === "facility" ? "ใช้งานได้" : "ปกติ" }
+            : {}),
+        }),
       });
       const j = await res.json().catch(() => ({ ok: false }));
       if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
       if (item.source === "facility") {
         invalidateFacilityCache();
         bustCachedFetch("/api/facilities");
+      } else {
+        // Mirror RoomEquipmentTab's busts so the sidebar badge /
+        // ServiceDueBanner / room modal don't stay stale (audit r16 #7).
+        bustCachedFetch("/api/maintenance-plan");
+        invalidateEquipmentCache(item.building, item.room);
       }
       toast.success(`บันทึกแล้ว: ${item.label} — เริ่มนับรอบใหม่`);
       await loadDue();
@@ -196,7 +226,7 @@ export default function MaintenanceHub({
           </p>
           {err && <div className="ac-banner ac-banner-warn">{err}</div>}
           {loadingDue && <LoadingState label="กำลังรวมรายการถึงรอบ..." />}
-          {!loadingDue && dueItems.length === 0 && (
+          {!loadingDue && !err && dueItems.length === 0 && (
             <EmptyState
               icon="celebration"
               tone="celebration"
@@ -212,7 +242,10 @@ export default function MaintenanceHub({
                   <li key={it.key} className={`ac-fac-due-row ${overdue ? "is-overdue" : ""}`}>
                     <span className="ac-fac-due-icon" aria-hidden>{it.icon}</span>
                     <span className="ac-fac-due-main">
-                      <span className="ac-fac-due-title"><b>{it.where}</b> · {it.label}</span>
+                      <span className="ac-fac-due-title">
+                        <b>{it.where}</b> · {it.label}
+                        {it.broken && <span className="ac-fac-due-broken">{it.status}</span>}
+                      </span>
                       <span className="ac-fac-due-sub">
                         รอบทุก {it.intervalDays} วัน · ทำล่าสุด {it.lastService ? formatDateLabel(it.lastService) : "—"}
                       </span>
@@ -226,8 +259,10 @@ export default function MaintenanceHub({
                           className="ac-btn ac-btn-primary ac-btn-sm ac-fac-done-btn"
                           onClick={() => void markServiced(it)}
                           disabled={busyKey !== null}
-                          title="บันทึกวันบริการล่าสุด = วันนี้ (เริ่มนับรอบใหม่)"
-                        >{busyKey === it.key ? "..." : "✓ ทำแล้ววันนี้"}</button>
+                          title={it.broken
+                            ? "ตั้งสถานะกลับเป็นปกติ + วันบริการล่าสุด = วันนี้"
+                            : "บันทึกวันบริการล่าสุด = วันนี้ (เริ่มนับรอบใหม่)"}
+                        >{busyKey === it.key ? "..." : it.broken ? "✓ ซ่อมแล้ว" : "✓ ทำแล้ววันนี้"}</button>
                         <button
                           className="ac-btn ac-btn-ghost ac-btn-sm"
                           onClick={() =>

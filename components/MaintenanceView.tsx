@@ -6,6 +6,7 @@ import {
   EQUIPMENT_TYPES, EQUIPMENT_TYPE_ICON, EQUIPMENT_STATUS_COLOR,
   MAINTENANCE_STATUS_COLOR,
 } from "@/lib/constants";
+import { bangkokTodayYmd } from "@/lib/dateUtils";
 import {
   computeNextService, getMaintenanceStatus, daysUntilService, formatDateLabel,
   maintenanceGroup, type MaintenanceGroup,
@@ -184,7 +185,7 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
 
   function handleExport() {
     if (filtered.length === 0) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokTodayYmd();
     const tag = activeBuilding === "ทั้งหมด" ? "ทั้งหมด" : activeBuilding;
     exportCsv(
       `อุปกรณ์_${tag}_${today}.csv`,

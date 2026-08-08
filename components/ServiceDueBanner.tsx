@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { RoomEquipment } from "@/types";
-import { getMaintenanceStatus } from "@/lib/maintenanceUtils";
+import { getMaintenanceStatus, isServiceCountable } from "@/lib/maintenanceUtils";
 import { canAccess } from "@/lib/permissions";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { cachedFetchJson } from "@/lib/cachedFetchJson";
@@ -54,6 +54,7 @@ export default function ServiceDueBanner({ activeBuilding, onNavigate }: Props) 
       : rows.filter((e) => e.building === activeBuilding);
     let overdue = 0, dueSoon = 0;
     for (const e of scoped) {
+      if (!isServiceCountable(e)) continue;
       const s = getMaintenanceStatus(e);
       if (s === "overdue") overdue++;
       else if (s === "due-soon") dueSoon++;

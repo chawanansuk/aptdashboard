@@ -52,7 +52,7 @@ const EditTaskModal = lazy(() => import("@/components/EditTaskModal"));
 import { buildNotifications } from "@/lib/notifications";
 import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
-import { parseThaiDate, isTaskDatedToday } from "@/lib/dateUtils";
+import { parseThaiDate, isTaskDatedToday, bangkokTodayYmd } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { VIEW_LABEL, VIEW_TO_TASK_TYPE, isClosedStatus } from "@/lib/constants";
 import { hasOpenPrepTask } from "@/lib/moveoutTasks";
@@ -263,7 +263,10 @@ export default function Home() {
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
-  const [tDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  // Bangkok "today" computed at RENDER time — the old useState snapshot
+  // was UTC and frozen at page mount, so a task added before 07:00 or
+  // from a long-lived tab defaulted to a PAST date (audit r16 #2).
+  const tDate = bangkokTodayYmd();
   const [tType, setTType] = useState<string>(() => modeConfig.defaultTaskType);
   // Keep tType in sync when mode changes (View-as swap) — only if the user
   // hasn't started editing the modal (i.e. when it's closed).
