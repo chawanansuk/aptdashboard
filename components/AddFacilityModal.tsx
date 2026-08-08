@@ -288,6 +288,11 @@ export default function AddFacilityModal({
                   {INTERVAL_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
+                  {/* ค่าที่พิมพ์เองในชีท (เช่น 45 วัน) ต้องยังมองเห็น —
+                      เดิม select เงียบๆ โชว์ว่างทั้งที่ค่าจริงถูกส่ง (audit r16 #5) */}
+                  {intervalDays > 0 && !INTERVAL_OPTIONS.some((o) => o.value === intervalDays) && (
+                    <option value={intervalDays}>ทุก {intervalDays} วัน (กำหนดเอง)</option>
+                  )}
                 </select>
               </div>
             </div>

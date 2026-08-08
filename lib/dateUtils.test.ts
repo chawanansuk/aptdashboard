@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseThaiDate, parseSheetDate, isTaskDatedToday } from "./dateUtils";
+import { parseThaiDate, parseSheetDate, isTaskDatedToday, bangkokTodayYmd, getBangkokNow } from "./dateUtils";
 
 describe("isTaskDatedToday — format-agnostic same-day check", () => {
   const NOW = new Date(2026, 4, 19); // 19 May 2026
@@ -106,5 +106,16 @@ describe("parseSheetDate (strict day-in-month)", () => {
 
   it("rejects non-leap-year Feb 29", () => {
     expect(parseSheetDate("2026-02-29")).toBeNull();
+  });
+});
+
+describe("bangkokTodayYmd (audit r16)", () => {
+  it("returns yyyy-MM-dd for the BANGKOK calendar day", () => {
+    const s = bangkokTodayYmd();
+    expect(s).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // Must equal the Bangkok clock's own Y/M/D, never the UTC one.
+    const bkk = getBangkokNow();
+    const expected = `${bkk.getFullYear()}-${String(bkk.getMonth() + 1).padStart(2, "0")}-${String(bkk.getDate()).padStart(2, "0")}`;
+    expect(s).toBe(expected);
   });
 });

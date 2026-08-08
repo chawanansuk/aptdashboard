@@ -20,6 +20,7 @@ import AddFacilityModal from "./AddFacilityModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import { exportCsv } from "@/lib/csvExport";
+import { bangkokTodayYmd } from "@/lib/dateUtils";
 
 interface Props {
   buildings: string[];
@@ -175,7 +176,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
 
   async function handleMarkRepaired(f: Facility) {
     if (!canWrite) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokTodayYmd();
     setSubmitting(true);
     setErr(null);
     const snapshot = rows;
@@ -211,7 +212,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
   /** บันทึกว่าทำรอบบำรุงแล้ววันนี้ — จุดที่เคยต้องเปิดแก้ไขแล้วพิมพ์วันเอง. */
   async function handleMarkServiced(f: Facility) {
     if (!canWrite) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokTodayYmd();
     setSubmitting(true);
     setErr(null);
     const snapshot = rows;
@@ -305,7 +306,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
             className="ac-btn ac-btn-ghost ac-btn-sm"
             onClick={() => {
               if (filtered.length === 0) return;
-              const today = new Date().toISOString().slice(0, 10);
+              const today = bangkokTodayYmd();
               const tag = activeBuilding === "ทั้งหมด" ? "ทั้งหมด" : activeBuilding;
               exportCsv(
                 `สาธารณูปโภค_${tag}_${today}.csv`,
@@ -375,14 +376,21 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
                   <span className={`ac-fac-due-count ${overdue ? "is-overdue" : ""}`}>
                     {days === null ? "" : overdue ? `เลย ${Math.abs(days)} วัน` : days === 0 ? "วันนี้" : `อีก ${days} วัน`}
                   </span>
-                  {canWrite && (
+                  {canWrite && (f.status === "ต้องซ่อม" || f.status === "กำลังซ่อม" ? (
+                    <button
+                      className="ac-btn ac-btn-primary ac-btn-sm ac-fac-done-btn"
+                      onClick={() => handleMarkRepaired(f)}
+                      disabled={submitting}
+                      title="ตั้งสถานะเป็น 'ใช้งานได้' + วันบริการล่าสุด = วันนี้"
+                    >✓ ซ่อมแล้ว</button>
+                  ) : (
                     <button
                       className="ac-btn ac-btn-primary ac-btn-sm ac-fac-done-btn"
                       onClick={() => handleMarkServiced(f)}
                       disabled={submitting}
                       title="บันทึกวันบริการล่าสุด = วันนี้ (เริ่มนับรอบใหม่)"
                     >✓ ทำแล้ววันนี้</button>
-                  )}
+                  ))}
                 </li>
               );
             })}

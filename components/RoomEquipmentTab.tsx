@@ -17,6 +17,7 @@ import {
   loadEquipmentCache, saveEquipmentCache, invalidateEquipmentCache,
 } from "@/lib/equipmentCache";
 import { bustCachedFetch } from "@/lib/cachedFetchJson";
+import { bangkokTodayYmd } from "@/lib/dateUtils";
 import AddEquipmentModal from "./AddEquipmentModal";
 
 interface Props {
@@ -177,7 +178,7 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
   /** Quick action: mark this equipment as repaired (status=ปกติ, lastService=today) */
   async function handleMarkRepaired(eq: RoomEquipment) {
     if (!canWrite) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokTodayYmd();
     setSubmitting(true);
     setErr(null);
     // Optimistic

@@ -3,6 +3,14 @@ import { toZonedTime, fromZonedTime } from "date-fns-tz";
 
 const TZ = "Asia/Bangkok";
 
+/** วันนี้ตามปฏิทินไทยเป็น "yyyy-MM-dd" — ใช้กับทุกจุดที่ประทับ "วันนี้"
+ *  ลงชีท. ห้ามใช้ new Date().toISOString() แทน: นั่นคือเวลา UTC ซึ่งก่อน
+ *  07:00 น. ไทยยังเป็น "เมื่อวาน" (audit r16 — ปุ่มทำแล้ววันนี้เคยบันทึก
+ *  ย้อนหลังหนึ่งวันทุกเช้า). */
+export function bangkokTodayYmd(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+}
+
 export function getBangkokNow(): Date {
   return toZonedTime(new Date(), TZ);
 }

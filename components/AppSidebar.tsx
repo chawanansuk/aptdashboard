@@ -197,12 +197,10 @@ function ItemIcon({ icon: ic }: { icon: SidebarIcon }) {
  */
 function prefetchUrlsFor(key: SidebarView): string[] | null {
   switch (key) {
-    case "maintenance":     return ["/api/maintenance-plan"];
-    case "facilities":      return ["/api/facilities"];
+    case "maintenance":     return ["/api/maintenance-plan", "/api/facilities"]; // hub due tab needs both
     case "parts":           return ["/api/parts"];
     case "vehicles":        return ["/api/vehicles"];
     case "pets":            return ["/api/room-photos?scope=pets"];
-    case "recurring":       return ["/api/recurring"];
     case "leads":           return ["/api/leads"];
     // Sales/Engineer/Tenants views consume the already-loaded dashboard
     // data — no extra prefetch necessary.

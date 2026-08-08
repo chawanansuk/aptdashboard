@@ -72,6 +72,12 @@ export function daysUntilService(eq: Serviceable): number | null {
   return Math.round(diffMs / (24 * 60 * 60 * 1000));
 }
 
+/** อุปกรณ์/สาธารณูปโภคที่นับเป็น "ถึงรอบ" ได้ — ตัวที่ปิดใช้งาน/ใช้ไม่ได้
+ *  ไม่นับ (ทุกตัวนับต้องตรงกัน: hub, ป้ายข้าง, banner, อีเมล — audit r16 #8). */
+export function isServiceCountable(item: { status?: string }): boolean {
+  return item.status !== "ใช้ไม่ได้" && item.status !== "ปิดใช้งาน";
+}
+
 export function getMaintenanceStatus(eq: Serviceable): MaintenanceStatus {
   const interval = Number(eq.intervalDays || 0);
   const hasAnchor = !!(parseYmd(eq.lastService) || parseYmd(eq.installDate));

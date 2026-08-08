@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Part, RoomEquipment } from "@/types";
 import { isLowStock } from "@/types";
-import { getMaintenanceStatus } from "@/lib/maintenanceUtils";
+import { getMaintenanceStatus, isServiceCountable } from "@/lib/maintenanceUtils";
 import { cachedFetchJson, bustCachedFetch } from "@/lib/cachedFetchJson";
 import { subscribeBus } from "@/lib/realtimeBus";
 
@@ -68,7 +68,7 @@ export function useAssetAlertCounts(enabled: boolean): AssetAlertCounts {
       const equipment = (eqRes?.rows || []) as RoomEquipment[];
       const lowStockParts = parts.filter(isLowStock).length;
       const overdueEquipment = equipment.filter(
-        (e) => getMaintenanceStatus(e) === "overdue",
+        (e) => isServiceCountable(e) && getMaintenanceStatus(e) === "overdue",
       ).length;
       setCounts({ lowStockParts, overdueEquipment, loading: false });
     });

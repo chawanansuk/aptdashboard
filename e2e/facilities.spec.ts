@@ -82,3 +82,29 @@ test("ส่วนกลาง tab keeps the FacilitiesView due strip + one-tap"
   // Card meta spells out the interval in months
   await expect(page.locator(".ac-equipment-card-meta").filter({ hasText: "รอบทุก 120 วัน (≈ 4 เดือน)" }).first()).toBeVisible();
 });
+
+test("broken item in due list gets ✓ ซ่อมแล้ว (status reset + lastService)", async ({ page }) => {
+  const posted: Record<string, unknown>[] = [];
+  await mockDashboard(page, { rooms: [room({ building: "มีทอง", room: "101" })], tasks: [] });
+  await page.route("**/api/facilities**", (r) => {
+    if (r.request().method() === "POST") {
+      posted.push(r.request().postDataJSON() as Record<string, unknown>);
+      return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    }
+    return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, rows: [
+      { id: "fb", building: "มีทอง", type: "ปั๊มน้ำ", name: "", installDate: "2025-01-10", lastService: "2026-03-01", status: "ต้องซ่อม", note: "", creator: "a@b.c", createdAt: "", intervalDays: 120 },
+    ] }) });
+  });
+  await page.route("**/api/maintenance-plan**", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, rows: [] }) }),
+  );
+  await openHub(page);
+
+  const row = page.locator(".ac-maint-hub .ac-fac-due-row").first();
+  await expect(row.locator(".ac-fac-due-broken")).toHaveText("ต้องซ่อม");
+  await row.getByRole("button", { name: "✓ ซ่อมแล้ว" }).click();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+  expect(posted.find((p) => p.action === "update")).toMatchObject({
+    id: "fb", lastService: today, status: "ใช้งานได้",
+  });
+});

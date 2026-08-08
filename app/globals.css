@@ -10824,3 +10824,17 @@ html.dark .ac-kanban-card-badge.is-warn { background: #78350F; color: #FDE68A; }
   line-height: 1.55;
 }
 .ac-maint-hub-due { display: flex; flex-direction: column; gap: 10px; }
+
+/* Broken-status chip inside due rows (audit r16 #3) */
+.ac-fac-due-broken {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full, 999px);
+  background: color-mix(in srgb, #dc2626 14%, transparent);
+  color: #dc2626;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+html.dark .ac-fac-due-broken { color: #f87171; }

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Facility, RoomEquipment } from "@/types";
 import { EQUIPMENT_TYPE_ICON, FACILITY_TYPE_ICON } from "@/lib/constants";
-import { daysUntilService } from "@/lib/maintenanceUtils";
+import { daysUntilService, isServiceCountable } from "@/lib/maintenanceUtils";
+import { formatCommonArea } from "@/lib/taskLocation";
 import { cachedFetchJson } from "@/lib/cachedFetchJson";
 
 interface Props {
@@ -75,6 +76,7 @@ export default function MaintenanceTodaySection({
       const out: BriefingItem[] = [];
       const consider = (list: Array<RoomEquipment | Facility>, kind: ServiceableKind) => {
         for (const eq of list) {
+          if (!isServiceCountable(eq)) continue; // ใช้ไม่ได้/ปิดใช้งาน ไม่นับ (audit r16 #9)
           const days = daysUntilService(eq);
           if (days === null) continue;
           if (days > 0) continue; // only overdue (< 0) or today (= 0)
@@ -82,7 +84,11 @@ export default function MaintenanceTodaySection({
             kind,
             id: eq.id,
             building: eq.building,
-            room: isEquipment(eq) ? eq.room : "",
+            room: isEquipment(eq)
+              ? eq.room
+              : formatCommonArea(
+                  (eq as Facility).name ? `${eq.type} ${(eq as Facility).name}` : eq.type
+                ),
             type: eq.type,
             brand: isEquipment(eq) ? eq.brand : (eq as Facility).name,
             days,
