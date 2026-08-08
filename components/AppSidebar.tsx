@@ -118,18 +118,17 @@ function buildGroups(
 
   const assetItems: NavItem[] = [];
   if (has("maintenance")) {
-    // Surface overdue equipment count — proactive engineer cue.
-    // Omit badge entirely when 0 so the asset section stays calm in
-    // a healthy state (vs. showing "0" alongside real alerts).
+    // UI r15 — ONE ซ่อมบำรุง entry replaces บำรุงรักษา + สาธารณูปโภค +
+    // งานประจำ (they live as tabs inside the hub now; the routes stay
+    // valid for deep links). Badge = overdue equipment count.
     const overdue = assetAlerts?.overdueEquipment ?? 0;
     assetItems.push({
       key: "maintenance",
-      label: "บำรุงรักษา",
+      label: "ซ่อมบำรุง",
       icon: icon("maintenance"),
       ...(overdue > 0 && { badge: overdue, badgeClass: "ac-badge-red" }),
     });
   }
-  if (has("facilities"))  assetItems.push({ key: "facilities",  label: "สาธารณูปโภค",   icon: icon("facilities") });
   if (has("parts")) {
     const low = assetAlerts?.lowStockParts ?? 0;
     assetItems.push({
@@ -141,7 +140,6 @@ function buildGroups(
   }
   if (has("vehicles"))    assetItems.push({ key: "vehicles",    label: "ยานพาหนะ",      icon: icon("vehicle") });
   if (has("pets"))        assetItems.push({ key: "pets",        label: "สัตว์เลี้ยง",     icon: icon("pet") });
-  if (has("recurring"))   assetItems.push({ key: "recurring",   label: "งานประจำ",      icon: icon("calendar") });
 
   const dataItems: NavItem[] = [];
   if (has("calendar")) dataItems.push({ key: "calendar", label: "ปฏิทิน", icon: icon("calendar") });
