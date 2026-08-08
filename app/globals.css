@@ -278,7 +278,9 @@ h3, .ac-h3 {
     padding: 12px;
     padding-left: max(12px, env(safe-area-inset-left));
     padding-right: max(12px, env(safe-area-inset-right));
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    /* Clear the fixed bottom nav (~64px) — cards' action buttons used
+       to hide behind it at the end of the list (UI r17). */
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
   }
 
   /* --- Filter chips horizontal scroll --- */
@@ -6686,7 +6688,10 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
 /* KPI strip at top */
 .ac-kanban-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0,1fr): Thai labels have no spaces, so their min-content
+     width floored plain 1fr and pushed tile 3 off-screen on phones
+     (UI r17 — third KPI clipped at the right edge). */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
   /* Stick the KPI strip to the top of the scroll container (.ac-main)
      while the board scrolls. Opaque app background + a little vertical
@@ -6700,7 +6705,9 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
 }
 html.dark .ac-kanban-strip { background: #0F172A; }
 @media (max-width: 600px) {
-  .ac-kanban-strip { grid-template-columns: 1fr 1fr 1fr; gap: var(--space-2); }
+  .ac-kanban-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+  .ac-kanban-kpi { padding: var(--space-2) var(--space-3); }
+  .ac-kanban-kpi-value { font-size: 22px; }
 }
 .ac-kanban-kpi {
   padding: var(--space-3) var(--space-4);
