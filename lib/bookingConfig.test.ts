@@ -38,11 +38,38 @@ describe("bookingConfig", () => {
     expect(apartmentNameFor("มายทรี48")).toBe("หอพักมายทรี48");
     expect(apartmentNameFor("บ้านคุณหลวง")).toBe("หอพักบ้านคุณหลวง");
     expect(apartmentNameFor("บ้านมีทรัพย์")).toBe("หอพักบ้านมีทรัพย์");
-    expect(apartmentNameFor("KL")).toBe("KL เรสซิเด้นท์");
+    // KL is a REAL building (บ้านคุณหลวง) — use a genuinely unknown one
+    // to exercise the fallback.
+    expect(apartmentNameFor("ตึกใหม่")).toBe("ตึกใหม่ เรสซิเด้นท์");
   });
 
   it("defaultDepositFor falls back to 10,000", () => {
     expect(defaultDepositFor("ตึกที่ไม่มีจริง")).toBe(DEFAULT_DEPOSIT);
     expect(DEFAULT_DEPOSIT).toBe(10000);
+  });
+});
+
+describe("KL / บ้านคุณหลวง (sheet name ≠ display name)", () => {
+  it("resolves the ออมสิน account for every spelling of the building", () => {
+    for (const name of ["KL", "Kl", "kl", "บ้านคุณหลวง"]) {
+      expect(bankFor(name)).toMatchObject({
+        bank: "ออมสิน", accountNo: "020-2-2690349-8", accountName: "นายชวนันท์ สุขพรชัยรัก",
+      });
+    }
+  });
+
+  it("shows หอพักบ้านคุณหลวง instead of the old 'KL เรสซิเด้นท์' fallback", () => {
+    expect(apartmentNameFor("KL")).toBe("หอพักบ้านคุณหลวง");
+    expect(apartmentNameFor("Kl")).toBe("หอพักบ้านคุณหลวง");
+  });
+
+  it("every real building resolves a non-default account", () => {
+    for (const b of ["KL", "มั่งมี", "มายทรี48", "มีทรัพย์", "มีทอง"]) {
+      expect(apartmentNameFor(b)).not.toContain("เรสซิเด้นท์ ");
+      expect(bankFor(b).accountNo).toBeTruthy();
+    }
+    // มีทรัพย์ (sheet) must reach the ธอส. account, not the default
+    expect(bankFor("มีทรัพย์").bank).toBe("อาคารสงเคราะห์");
+    expect(bankFor("มายทรี48").bank).toBe("ไทยพาณิชย์");
   });
 });

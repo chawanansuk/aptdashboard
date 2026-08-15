@@ -24,6 +24,9 @@ export const DEFAULT_BANK: BankAccount = {
  *  "ตึก" ในชีทแบบยืดหยุ่น (ตรงเป๊ะ หรือชื่อตึกมีคำนี้อยู่) — ชีทใช้ชื่อย่อ
  *  เช่น "มีทอง"/"มั่งมี" ส่วนชื่อเต็มอยู่ที่ APARTMENT_NAME_BY_BUILDING. */
 export const BANK_BY_BUILDING: Record<string, BankAccount> = {
+  // ชีทเรียกตึกนี้ว่า "KL"/"Kl" — ชื่อจริงคือบ้านคุณหลวง. ไม่มี key นี้
+  // ระบบจะ fallback ไปบัญชีกรุงไทยของมีทอง = แจ้งเลขบัญชีผิดให้ลูกค้า.
+  "KL": { bank: "ออมสิน", accountNo: "020-2-2690349-8", accountName: "นายชวนันท์ สุขพรชัยรัก" },
   "มีทอง": { bank: "กรุงไทย", accountNo: "017-0-46047-9", accountName: "บริษัท ม.ทวีทอง จำกัด" },
   "มั่งมี": { bank: "กสิกร", accountNo: "051-1-88802-6", accountName: "นายชวนันท์ สุขพรชัยรัก" },
   "มายทรี": { bank: "ไทยพาณิชย์", accountNo: "039-232971-2", accountName: "บริษัทมายทรี48 จำกัด" },
@@ -38,8 +41,13 @@ function matchByBuilding<T>(table: Record<string, T>, building: string): T | und
   const b = (building || "").trim();
   if (!b) return undefined;
   if (table[b] !== undefined) return table[b];
+  // Case-insensitive for latin names — the sheet writes "KL" while the
+  // constants say "Kl"; an exact-only match sent that building to the
+  // WRONG bank account (the default), not just the wrong label.
+  const lower = b.toLowerCase();
   for (const key of Object.keys(table)) {
-    if (b.includes(key) || key.includes(b)) return table[key];
+    const k = key.toLowerCase();
+    if (lower === k || lower.includes(k) || k.includes(lower)) return table[key];
   }
   return undefined;
 }
@@ -51,6 +59,7 @@ export function bankFor(building: string): BankAccount {
 /** ชื่อหอเต็มสำหรับข้อความ LINE (หัวข้อความจอง). ตึกที่ไม่รู้จัก
  *  fallback เป็น "{ตึก} เรสซิเด้นท์" (พฤติกรรมเดิม) — แก้เองในฟอร์มได้เสมอ. */
 export const APARTMENT_NAME_BY_BUILDING: Record<string, string> = {
+  "KL": "หอพักบ้านคุณหลวง",
   "มีทอง": "มีทองเรสซิเด้นท์",
   "มั่งมี": "หอพักมั่งมีทวีสุข",
   "มายทรี": "หอพักมายทรี48",
