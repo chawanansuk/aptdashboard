@@ -7,7 +7,7 @@ import { canAddEngTask } from "@/lib/permissions";
 import { FACILITY_TYPE_ICON, EQUIPMENT_TYPE_ICON } from "@/lib/constants";
 import { daysUntilService, getMaintenanceStatus, formatDateLabel } from "@/lib/maintenanceUtils";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
-import { bustCachedFetch } from "@/lib/cachedFetchJson";
+import { bustCachedFetch, cachedFetchJson } from "@/lib/cachedFetchJson";
 import { formatCommonArea } from "@/lib/taskLocation";
 import { bangkokTodayYmd } from "@/lib/dateUtils";
 import { invalidateEquipmentCache } from "@/lib/equipmentCache";
@@ -85,14 +85,15 @@ export default function MaintenanceHub({
   const loadDue = useCallback(async () => {
     setErr(null);
     try {
-      const [fRes, eRes] = await Promise.all([
-        fetch("/api/facilities", { cache: "no-store" }),
-        fetch("/api/maintenance-plan", { cache: "no-store" }),
+      // Shared 30s cache + in-flight dedup (perf r18): the sidebar
+      // badge, ServiceDueBanner and the hover-prefetch all read the
+      // SAME endpoints — with plain no-store fetches the hub re-paid
+      // two network round-trips on every open even when that data was
+      // seconds old. Mutations bust these URLs, so freshness holds.
+      const [fj, ej] = await Promise.all([
+        cachedFetchJson<{ rows?: Facility[] }>("/api/facilities"),
+        cachedFetchJson<{ rows?: RoomEquipment[] }>("/api/maintenance-plan"),
       ]);
-      const fj = await fRes.json().catch(() => ({}));
-      const ej = await eRes.json().catch(() => ({}));
-      if (!fRes.ok) throw new Error(fj.error || `HTTP ${fRes.status}`);
-      if (!eRes.ok) throw new Error(ej.error || `HTTP ${eRes.status}`);
       setFacilities(Array.isArray(fj.rows) ? fj.rows : []);
       setEquipment(Array.isArray(ej.rows) ? ej.rows : []);
     } catch (e) {
@@ -102,14 +103,12 @@ export default function MaintenanceHub({
     }
   }, []);
 
-  // Load once on mount (not only when the due tab is active) — the 🔔
-  // badge must be correct even when deep-linked into another tab
-  // (audit r16 #4); re-load when returning to the due tab.
+  // ONE effect covers both needs: fires on mount (whatever the initial
+  // tab — the 🔔 badge must count, audit r16 #4) and again on every tab
+  // change back to due. The previous two-effect split double-fetched on
+  // mount (perf r18); repeat calls inside 30s are cache hits anyway.
   useEffect(() => {
     void loadDue();
-  }, [loadDue]);
-  useEffect(() => {
-    if (tab === "due") void loadDue();
   }, [tab, loadDue]);
 
   const dueItems = useMemo((): DueItem[] => {

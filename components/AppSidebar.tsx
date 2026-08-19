@@ -7,6 +7,7 @@ import { STATUS_LABEL, STATUS_DOT } from "@/lib/constants";
 import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { canAccess, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
+import { cachedFetchJson } from "@/lib/cachedFetchJson";
 
 export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports" | "parts" | "vehicles" | "pets" | "leads" | "recurring" | "maintlog";
 
@@ -209,15 +210,12 @@ function prefetchUrlsFor(key: SidebarView): string[] | null {
 }
 
 function prefetch(url: string) {
-  // GET with `cache: "force-cache"` lets browser hit disk cache fast if
-  // we already fetched within Cache-Control max-age window; otherwise
-  // the request goes to network and primes both Vercel SWR + browser cache.
+  // cachedFetchJson (not raw fetch): fills the same 30s memory cache the
+  // views actually read, so hover → open becomes a cache HIT. The old
+  // force-cache fetch warmed only the browser HTTP cache, which these
+  // force-dynamic endpoints bypass — that prefetch was a no-op (perf r18).
   // Errors are silent — this is best-effort warmup.
-  try {
-    fetch(url, { cache: "force-cache", credentials: "include" }).catch(() => {});
-  } catch {
-    // ignore — sandbox / SSR
-  }
+  void cachedFetchJson(url).catch(() => {});
 }
 
 function AppSidebar({

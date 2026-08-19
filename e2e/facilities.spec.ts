@@ -27,6 +27,7 @@ async function openHub(page: import("@playwright/test").Page) {
 
 test("hub tab 🔔 merges facility + equipment due items, one-tap serviced", async ({ page }) => {
   const posted: { url: string; body: Record<string, unknown> }[] = [];
+  const gets = { facilities: 0, plan: 0 };
   await mockDashboard(page, { rooms: [room({ building: "มีทอง", room: "204" })], tasks: [] });
   for (const path of ["**/api/facilities**", "**/api/maintenance-plan**", "**/api/room-equipment**"]) {
     await page.route(path, (r) => {
@@ -34,7 +35,9 @@ test("hub tab 🔔 merges facility + equipment due items, one-tap serviced", asy
         posted.push({ url: r.request().url(), body: r.request().postDataJSON() as Record<string, unknown> });
         return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
       }
-      const rows = r.request().url().includes("facilities") ? FACILITIES : EQUIPMENT;
+      const isFac = r.request().url().includes("facilities");
+      if (isFac) gets.facilities++; else if (r.request().url().includes("maintenance-plan")) gets.plan++;
+      const rows = isFac ? FACILITIES : EQUIPMENT;
       return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, rows }) });
     });
   }
@@ -45,6 +48,12 @@ test("hub tab 🔔 merges facility + equipment due items, one-tap serviced", asy
   await expect(hub.locator(".ac-maint-hub-badge")).toHaveText("2");
   const rows = hub.locator(".ac-fac-due-row");
   await expect(rows).toHaveCount(2);
+  // perf r18: ONE fetch per endpoint on hub open — the old double
+  // mount-effect fired each twice, and no-store bypassed the shared
+  // 30s cache the sidebar badge had already filled.
+  expect(gets.facilities).toBeLessThanOrEqual(1);
+  expect(gets.plan).toBeLessThanOrEqual(2); // badge hook may add one
+
   // Worst-first: the AC (overdue longer) leads; sources are labelled
   await expect(rows.first()).toContainText("ห้อง 204");
   await expect(rows.first()).toContainText("แอร์ Daikin");
