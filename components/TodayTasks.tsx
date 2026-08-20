@@ -2,6 +2,7 @@
 
 import { SheetRow, TASK_ORDER, TaskType } from "@/types";
 import { parseThaiDate, isToday } from "@/lib/dateUtils";
+import { formatSheetPhone, sheetPhoneDigits } from "@/lib/phoneFormat";
 import EmptyState from "./EmptyState";
 
 interface Props {
@@ -19,9 +20,6 @@ function hasUrgentNote(note: string): boolean {
   return /เช็ค|ตรวจ/.test(note);
 }
 
-function formatPhone(phone: string): string {
-  return phone.replace(/[^0-9+]/g, "");
-}
 
 export default function TodayTasks({ rows }: Props) {
   const today = rows
@@ -52,7 +50,7 @@ export default function TodayTasks({ rows }: Props) {
           {today.map((row, i) => {
             const badge = BADGE_STYLE[row.type] ?? "bg-gray-100 text-gray-700";
             const urgent = row.note && hasUrgentNote(row.note);
-            const rawPhone = formatPhone(row.phone);
+            const rawPhone = sheetPhoneDigits(row.phone);
 
             return (
               <div
@@ -76,7 +74,7 @@ export default function TodayTasks({ rows }: Props) {
                         href={`tel:${rawPhone}`}
                         className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                       >
-                        {row.phone}
+                        {formatSheetPhone(row.phone)}
                       </a>
                     )}
                   </div>

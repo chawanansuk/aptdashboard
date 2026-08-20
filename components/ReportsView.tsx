@@ -242,7 +242,9 @@ export default function ReportsView({ rooms, tasks }: Props) {
                 <XAxis dataKey="building" />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
-                <Bar dataKey="count" fill="#6366F1" radius={[6, 6, 0, 0]} />
+                {/* ปิด entry animation ทุกกราฟในหน้านี้ — ปุ่ม PDF ใช้ window.print()
+                    ถ้ากดตอนกราฟยังวิ่งอยู่ กระดาษที่พิมพ์ได้แท่ง/วงกลมครึ่งเดียว */}
+                <Bar dataKey="count" fill="#6366F1" radius={[6, 6, 0, 0]} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -262,6 +264,7 @@ export default function ReportsView({ rooms, tasks }: Props) {
                   cx="50%"
                   cy="50%"
                   outerRadius={90}
+                  isAnimationActive={false}
                   label={(props: { name?: string | number; value?: string | number }) => `${props.name ?? ""} (${props.value ?? 0})`}
                 >
                   {byType.map((entry) => (
@@ -289,7 +292,7 @@ export default function ReportsView({ rooms, tasks }: Props) {
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="count" stroke="#0EA5E9" strokeWidth={2} dot={false} name="งานต่อวัน" />
+                <Line type="monotone" dataKey="count" stroke="#0EA5E9" strokeWidth={2} dot={false} name="งานต่อวัน" isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           )}

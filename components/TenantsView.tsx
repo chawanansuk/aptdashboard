@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { RoomView } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { exportCsv } from "@/lib/csvExport";
+import { formatSheetPhone, sheetPhoneDigits } from "@/lib/phoneFormat";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import EmptyState from "./EmptyState";
 
@@ -108,7 +109,8 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
                   { header: "ห้อง",          value: (r: RoomView) => r.room },
                   { header: "ชั้น",          value: (r: RoomView) => r.floor },
                   { header: "ชื่อผู้เช่า",    value: (r: RoomView) => r.tenant },
-                  { header: "เบอร์โทร",      value: (r: RoomView) => r.phone },
+                  // กู้เลข 0 นำหน้าที่ชีทกินไป — export ดิบๆ แล้วเบอร์โทรไม่ติด
+                  { header: "เบอร์โทร",      value: (r: RoomView) => sheetPhoneDigits(r.phone) },
                   { header: "วันสิ้นสุดสัญญา", value: (r: RoomView) => r.contractEnd },
                   { header: "ราคา",         value: (r: RoomView) => r.price },
                   { header: "สถานะ",        value: (r: RoomView) => r.rawStatus || r.status },
@@ -165,7 +167,7 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
               return (
                 <tr key={`${r.building}-${r.room}`} onClick={() => onSelectRoom(r)} style={{ cursor: "pointer" }}>
                   <td><strong>{r.tenant || "—"}</strong></td>
-                  <td>{r.phone ? <a href={`tel:${r.phone.replace(/[^0-9+]/g, "")}`} onClick={(e) => e.stopPropagation()}>{r.phone}</a> : "—"}</td>
+                  <td>{r.phone ? <a href={`tel:${sheetPhoneDigits(r.phone)}`} onClick={(e) => e.stopPropagation()}>{formatSheetPhone(r.phone)}</a> : "—"}</td>
                   <td>{r.building} {r.room}</td>
                   <td>{r.contractEnd || "—"}</td>
                   <td className="num">
