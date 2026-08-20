@@ -12,6 +12,7 @@ import { parseRepairLog } from "@/lib/repairLog";
 import { RepairPartsPicker, RoomPartsUsed, type RepairPartLine } from "./RoomRepairParts";
 import { sumCompletedCosts } from "@/lib/taskCost";
 import { formatBaht } from "@/lib/money";
+import { sheetPhoneDigits } from "@/lib/phoneFormat";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useRoomHistory, fullPastTasks } from "@/lib/useRoomHistory";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
@@ -609,7 +610,7 @@ export default function RoomModal({
                         {phone && (
                           <a
                             className="ac-room-phone-call"
-                            href={`tel:${phone.replace(/[^0-9+]/g, "")}`}
+                            href={`tel:${sheetPhoneDigits(phone)}`}
                             title={`โทรหา ${phone}`}
                           >📞 โทร</a>
                         )}

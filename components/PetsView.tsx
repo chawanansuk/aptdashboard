@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomPhoto, RoomView } from "@/types";
 import { canViewTenant } from "@/lib/permissions";
+import { formatSheetPhone, sheetPhoneDigits } from "@/lib/phoneFormat";
 import { deleteRoomPhoto, fetchPetPhotos, getCachedPetPhotos, setCachedPetPhotos, photoFullUrl, photoThumbUrl } from "@/lib/roomPhotos";
 import { toast } from "@/lib/toast";
 import EmptyState from "./EmptyState";
@@ -231,8 +232,8 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
                 <span className="ac-pets-owner">
                   {info.tenant && <span> · ผู้เช่าห้องนี้: {info.tenant}</span>}
                   {info.phone && (
-                    <a className="ac-pets-call" href={`tel:${info.phone.replace(/[^0-9+]/g, "")}`}>
-                      📞 โทร {info.phone}
+                    <a className="ac-pets-call" href={`tel:${sheetPhoneDigits(info.phone)}`}>
+                      📞 โทร {formatSheetPhone(info.phone)}
                     </a>
                   )}
                 </span>

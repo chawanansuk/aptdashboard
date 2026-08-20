@@ -8,6 +8,7 @@ import { formatBaht } from "@/lib/money";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { salesMeta, apptKindFromType, APPT_KIND_META } from "@/lib/salesTheme";
 import { formatDateShort } from "@/lib/salesData";
+import { formatSheetPhone, sheetPhoneDigits } from "@/lib/phoneFormat";
 import { deriveJourney, TURNOVER_STEP_LABELS, type JourneyAction } from "@/lib/roomJourney";
 import { executeJourneyAction } from "@/lib/journeyActions";
 import { toast } from "@/lib/toast";
@@ -124,8 +125,8 @@ export default function RoomDetailDrawer({ room, onClose, onOpenFull, onRefresh,
           {room.phone && (
             <div className={styles.field}>
               <span className={styles.fieldLabel}>เบอร์ติดต่อ</span>
-              <a className={`${styles.fieldValue} ${styles.drawerPhone}`} href={`tel:${room.phone}`}>
-                <Icon name="phone" size={14} />{room.phone}
+              <a className={`${styles.fieldValue} ${styles.drawerPhone}`} href={`tel:${sheetPhoneDigits(room.phone)}`}>
+                <Icon name="phone" size={14} />{formatSheetPhone(room.phone)}
               </a>
             </div>
           )}

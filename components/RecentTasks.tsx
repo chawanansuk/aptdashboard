@@ -38,7 +38,7 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 function shortenCreator(email: string | undefined): string {
-  if (!email) return "—";
+  if (!email) return "";
   const at = email.indexOf("@");
   return at > 0 ? email.slice(0, at) : email;
 }
@@ -111,7 +111,9 @@ function RecentTasks({ tasks, rooms, activeBuilding, onSelectRoom }: Props) {
                     <span className="ac-recent-task-bldg"> · {t.building}</span>
                   </span>
                   <span className="ac-recent-task-meta">
-                    {shortenCreator(t.creator)} · <time title={timeFull}>{timeShort}</time>
+                    {/* ไม่มีชื่อผู้บันทึก → โชว์เวลาอย่างเดียว (แถว "— · วันที่" อ่านแล้วเหมือนข้อมูลพัง) */}
+                    {shortenCreator(t.creator) && <>{shortenCreator(t.creator)} · </>}
+                    <time title={timeFull}>{timeShort}</time>
                   </span>
                 </span>
                 {t.status && (

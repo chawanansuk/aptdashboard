@@ -9,6 +9,7 @@ import { computeSla, slaBadgeLabel } from "@/lib/sla";
 import { categorizeStatus, TASK_STATUS } from "@/lib/taskStatus";
 import { useSession } from "next-auth/react";
 import { canPerform, canViewFinancials } from "@/lib/permissions";
+import { formatSheetPhone, sheetPhoneDigits } from "@/lib/phoneFormat";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { taskKey } from "@/lib/taskKey";
 import { useTaskTimer, formatDuration } from "@/lib/useTaskTimer";
@@ -180,7 +181,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
                   {task.phone && (
                     <>
                       {" · "}
-                      <a className="ac-task-drawer-phone" href={`tel:${task.phone}`}>📞 {task.phone}</a>
+                      <a className="ac-task-drawer-phone" href={`tel:${sheetPhoneDigits(task.phone)}`}>📞 {formatSheetPhone(task.phone)}</a>
                     </>
                   )}
                 </dd>
