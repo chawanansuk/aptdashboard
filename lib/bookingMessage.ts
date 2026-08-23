@@ -88,7 +88,7 @@ export function formatBookingMessage(input: BookingMessageInput): string {
  * ห้ามแก้ body; โหมด B (V2) ประกอบใหม่จากถ้อยคำเดิมทุกตัวอักษร + ส่วนเพิ่ม.
  */
 
-export type BookingMessageMode = "A" | "B" | "C";
+export type BookingMessageMode = "S" | "A" | "B" | "C";
 
 export interface BookingMessageInputV2 extends BookingMessageInput {
   /** ชื่อเล่นสำหรับเรียกในข้อความ (P1) — เว้นว่าง = ใช้ชื่อผู้เช่า. */
@@ -114,6 +114,44 @@ export function bankBlockLines(bank: BankAccount): string[] {
     `เลขบัญชี: ${bank.accountNo}`,
     `ชื่อบัญชี: ${bank.accountName}`,
   ];
+}
+
+/**
+ * โหมด S — สรุปยอด (ขั้นแรกสุด ก่อนขอมัดจำ): แจ้งยอดเต็มที่ต้องจ่าย
+ * วันเข้าพักให้ลูกค้ารู้ก่อนตัดสินใจ. ยังไม่มีการโอนใดๆ ณ จุดนี้ จึง
+ * ไม่มีบรรทัดหักมัดจำ/ยอดคงเหลือ (มติเจ้าของ 2026-08).
+ */
+export function formatMoveInSummaryMessage(i: BookingMessageInputV2): string {
+  const { apartmentName, room, moveInDate, calc } = i;
+  const monthName = THAI_MONTH[moveInDate.getMonth()];
+  const nextMonthName = THAI_MONTH[(moveInDate.getMonth() + 1) % 12];
+
+  const lines: string[] = [];
+  lines.push(`📌 ${apartmentName} ห้อง ${room}`.trim());
+  lines.push(`📅 เข้าพัก: ${moveInLabel(moveInDate, i.moveInTime)}`);
+  lines.push("");
+  lines.push("รายละเอียดตามนี้ค่ะ");
+  lines.push("รบกวนยืนยันให้แอดมินหน่อยนะคะ");
+  lines.push("");
+  lines.push("💰 สรุปยอดวันเข้าพัก");
+  if (calc.nextMonthRent > 0) {
+    lines.push(`• ค่าห้องรายเดือน${nextMonthName}: ${baht(calc.nextMonthRent)} บาท`);
+  }
+  if (moveInDate.getDate() <= 1) {
+    // เข้าวันที่ 1 = เก็บเต็มเดือน — เขียน "รายเดือน" อ่านง่ายกว่า
+    // "ตามจำนวนวัน (1-31 ...)" ที่ชวนงงว่าทำไมเท่าค่าเช่าพอดี
+    lines.push(`• ค่าห้องรายเดือน${monthName}: ${baht(calc.proratedAmount)} บาท`);
+  } else {
+    lines.push(`• ค่าห้องตามจำนวนวัน (${prorateRangeLabel(moveInDate, calc.proratedDays)}): ${baht(calc.proratedAmount)} บาท`);
+  }
+  lines.push(`• ค่าประกัน: ${baht(calc.deposit)} บาท`);
+  if (calc.discount > 0) {
+    const reason = (i.discountReason || "").trim();
+    lines.push(`• ส่วนลด${reason ? ` (${reason})` : ""}: -${baht(calc.discount)} บาท`);
+  }
+  lines.push("");
+  lines.push(`• ยอดรวมทั้งหมด: ${baht(calc.total)} บาท`);
+  return lines.join("\n");
 }
 
 /** โหมด A — ขอมัดจำ (ส่งก่อนได้เงิน จึงไม่มียอดรวม/คงเหลือ). */
@@ -200,6 +238,7 @@ export function formatPrepareMessage(i: BookingMessageInputV2): string {
 }
 
 export function formatMessageForMode(mode: BookingMessageMode, i: BookingMessageInputV2): string {
+  if (mode === "S") return formatMoveInSummaryMessage(i);
   if (mode === "A") return formatDepositRequestMessage(i);
   if (mode === "C") return formatPrepareMessage(i);
   return formatBookingMessageV2(i);
