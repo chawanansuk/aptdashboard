@@ -66,7 +66,7 @@ test("booking P0: prefill, modes, dirty edit, phone format, copy gating", async 
   await expect(modal.locator("#ac-bk-msg")).toHaveValue(/\(10:30\)/);
 
   // copy now enabled; B+C copies both messages
-  await modal.getByRole("button", { name: "📑 ขั้น 2+3 ต่อกัน" }).click();
+  await modal.getByRole("button", { name: "📑 ขั้น 3+4 ต่อกัน" }).click();
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   expect(clip).toContain("✅ ยืนยันการจองเรียบร้อยค่ะ");
   expect(clip).toContain("📄 สิ่งที่ต้องเตรียม");
@@ -142,9 +142,14 @@ test("booking P1: deposit radio, vaccine, chips, discount, auto-tick", async ({ 
   await modal.locator("#ac-bk-tenant").fill("กุ๊กไก่");
   await modal.locator("#ac-bk-phone").pressSequentially("0924561642");
 
-  // Radio "ยังไม่โอน" → auto-switch to mode A + save disabled with hint
+  // Radio "ยังไม่โอน" → auto-switch to mode S (สรุปยอด — step ① of the
+  // sequence, full amount with no deposit deduction) + save disabled
   await modal.getByRole("radio", { name: "ยังไม่โอน" }).check();
-  await expect(modal.getByRole("tab", { name: "ขอมัดจำ" })).toHaveAttribute("aria-selected", "true");
+  await expect(modal.getByRole("tab", { name: "สรุปยอด" })).toHaveAttribute("aria-selected", "true");
+  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/💰 สรุปยอดวันเข้าพัก/);
+  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/รบกวนยืนยันให้แอดมินหน่อยนะคะ/);
+  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/• ยอดรวมทั้งหมด: /);
+  await expect(modal.locator("#ac-bk-msg")).not.toHaveValue(/มัดจำ/);
   await expect(modal.getByRole("button", { name: /บันทึก & สร้างนัดย้ายเข้า/ })).toBeDisabled();
   await expect(modal.locator(".ac-booking-foot-hint")).toContainText("โอนมัดจำก่อน");
   // back to โอนแล้ว → mode B + save enabled

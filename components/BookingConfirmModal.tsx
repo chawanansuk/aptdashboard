@@ -201,7 +201,9 @@ export default function BookingConfirmModal({
   const modeTouchedRef = useRef(false);
   function setDepositStatusAndMode(s: "pending" | "paid") {
     setDepositStatus(s);
-    if (!modeTouchedRef.current) setMsgMode(s === "pending" ? "A" : "B");
+    // Pending = ยังไม่ได้เงินเลย → เริ่มที่ขั้น ① สรุปยอด (ลูกค้าต้องเห็น
+    // ยอดเต็มก่อนตัดสินใจ — มติเจ้าของ 2026-08) แล้วค่อยไล่ไปขอมัดจำ.
+    if (!modeTouchedRef.current) setMsgMode(s === "pending" ? "S" : "B");
     // Pending = we're about to ASK for the deposit — an empty
     // "มัดจำที่จ่ายแล้ว" would put "ยอดมัดจำ: 0 บาท" in the request
     // message (audit r12). Default the ask to one month's rent.
@@ -232,7 +234,7 @@ export default function BookingConfirmModal({
   // All three mode messages, regenerated from the form. Overrides (hand
   // edits) shadow these per mode; displayed() picks the right one.
   const generated = useMemo((): Record<BookingMessageMode, string> => {
-    if (!moveInDate || !calc) return { A: "", B: "", C: "" };
+    if (!moveInDate || !calc) return { S: "", A: "", B: "", C: "" };
     const input: BookingMessageInputV2 = {
       apartmentName: apartmentName.trim() || building,
       room,
@@ -250,6 +252,7 @@ export default function BookingConfirmModal({
       bank: bankFor(building),
     };
     return {
+      S: formatMessageForMode("S", input),
       A: formatMessageForMode("A", input),
       B: formatMessageForMode("B", input),
       C: formatMessageForMode("C", input),
@@ -328,14 +331,16 @@ export default function BookingConfirmModal({
   }
 
   const MODE_LABEL: Record<BookingMessageMode, string> = {
+    S: "สรุปยอด",
     A: "ขอมัดจำ",
     B: "ยืนยันการจอง",
     C: "สิ่งที่ต้องเตรียม",
   };
-  const MODE_STEP: Record<BookingMessageMode, string> = { A: "1", B: "2", C: "3" };
+  const MODE_STEP: Record<BookingMessageMode, string> = { S: "1", A: "2", B: "3", C: "4" };
   // One line under the tabs telling staff WHEN to send this message —
-  // the 3 modes are a sequence, not alternatives.
+  // the 4 modes are a sequence, not alternatives.
   const MODE_DESC: Record<BookingMessageMode, string> = {
+    S: "ส่งเป็นข้อความแรก — แจ้งยอดทั้งหมดให้ลูกค้ารู้ก่อนตัดสินใจ (ยอดเต็ม ยังไม่หักมัดจำ)",
     A: "ส่งตอนลูกค้าตกลงจอง — ขอโอนมัดจำ พร้อมเลขบัญชี",
     B: "ส่งหลังได้สลิปมัดจำ — สรุปยอดที่ต้องจ่ายวันเข้าพัก",
     C: "ส่งก่อนวันเข้าพัก — เอกสารที่ต้องเตรียม + ยอดโอนส่วนที่เหลือ",
@@ -576,7 +581,7 @@ export default function BookingConfirmModal({
             {/* P0-5: one form → three LINE messages the admin actually
                 sends (ขอมัดจำ → ยืนยัน → สิ่งที่ต้องเตรียม). */}
             <div className="ac-chips ac-booking-modes" role="tablist" aria-label="เลือกแบบข้อความ">
-              {(["A", "B", "C"] as const).map((m) => (
+              {(["S", "A", "B", "C"] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -617,7 +622,7 @@ export default function BookingConfirmModal({
                   disabled={!valid}
                   title={missingTitle || "คัดลอกข้อความยืนยัน + สิ่งที่ต้องเตรียม ไว้วางสองรอบใน LINE"}
                 >
-                  📑 ขั้น 2+3 ต่อกัน
+                  📑 ขั้น 3+4 ต่อกัน
                 </button>
               </div>
             </div>

@@ -93,6 +93,7 @@ import {
   formatDepositRequestMessage,
   formatBookingMessageV2,
   formatPrepareMessage,
+  formatMoveInSummaryMessage,
   formatMessageForMode,
   bankBlockLines,
   type BookingMessageInputV2,
@@ -255,9 +256,92 @@ describe("โหมด C — สิ่งที่ต้องเตรียม
 describe("formatMessageForMode", () => {
   it("routes to the right template per mode", () => {
     const i = mkInput();
+    expect(formatMessageForMode("S", i)).toContain("💰 สรุปยอดวันเข้าพัก");
     expect(formatMessageForMode("A", i)).toContain("📌 จองห้องพัก");
     expect(formatMessageForMode("B", i)).toContain("✅ ยืนยันการจอง");
     expect(formatMessageForMode("C", i)).toContain("📄 สิ่งที่ต้องเตรียม");
+  });
+});
+
+describe("โหมด S — สรุปยอดก่อนจอง (ขั้นแรกสุด)", () => {
+  // ตัวอย่างจริงจากเจ้าของ 2026-08: เช่า 4,500 เข้า 31 ส.ค. + เดือนถัดไป
+  // + ประกัน 10,000 → 4,500 + 145 + 10,000 = 14,645
+  function mkSummary(over: Partial<BookingMessageInputV2> = {}): BookingMessageInputV2 {
+    const calc = computeBooking({
+      monthlyRent: 4500,
+      moveInDate: new Date(2026, 7, 31),
+      deposit: 10000,
+      bookingPaid: 0,
+      chargeNextMonth: true,
+    });
+    return mkInput({
+      apartmentName: "หอพักมั่งมีทวีสุข",
+      room: "105",
+      moveInDate: new Date(2026, 7, 31),
+      moveInTime: undefined,
+      calc,
+      ...over,
+    });
+  }
+
+  it("matches the owner's example message exactly", () => {
+    expect(formatMoveInSummaryMessage(mkSummary())).toBe([
+      "📌 หอพักมั่งมีทวีสุข ห้อง 105",
+      "📅 เข้าพัก: จันทร์ที่ 31 สิงหาคม 2569",
+      "",
+      "รายละเอียดตามนี้ค่ะ",
+      "รบกวนยืนยันให้แอดมินหน่อยนะคะ",
+      "",
+      "💰 สรุปยอดวันเข้าพัก",
+      "• ค่าห้องรายเดือนกันยายน: 4,500 บาท",
+      "• ค่าห้องตามจำนวนวัน (31 สิงหาคม): 145 บาท",
+      "• ค่าประกัน: 10,000 บาท",
+      "",
+      "• ยอดรวมทั้งหมด: 14,645 บาท",
+    ].join("\n"));
+  });
+
+  it("never deducts the booking deposit — full amount, first message (owner decision)", () => {
+    const calc = computeBooking({
+      monthlyRent: 4500, moveInDate: new Date(2026, 7, 31),
+      deposit: 10000, bookingPaid: 4500, chargeNextMonth: true,
+    });
+    const msg = formatMoveInSummaryMessage(mkSummary({ calc }));
+    expect(msg).toContain("• ยอดรวมทั้งหมด: 14,645 บาท");
+    expect(msg).not.toContain("มัดจำ");
+    expect(msg).not.toContain("คงเหลือ");
+  });
+
+  it("mid-month move-in (before day 25): no next-month line, day range shown", () => {
+    const calc = computeBooking({
+      monthlyRent: 4500, moveInDate: new Date(2026, 7, 15),
+      deposit: 10000, bookingPaid: 0, chargeNextMonth: false,
+    });
+    const msg = formatMoveInSummaryMessage(mkSummary({ moveInDate: new Date(2026, 7, 15), calc }));
+    expect(msg).not.toContain("ค่าห้องรายเดือนกันยายน");
+    expect(msg).toContain("• ค่าห้องตามจำนวนวัน (15-31 สิงหาคม): 2,468 บาท");
+    expect(msg).toContain("• ยอดรวมทั้งหมด: 12,468 บาท");
+  });
+
+  it("move-in on the 1st: reads as a full month, not a day range", () => {
+    const calc = computeBooking({
+      monthlyRent: 4500, moveInDate: new Date(2026, 8, 1),
+      deposit: 10000, bookingPaid: 0, chargeNextMonth: false,
+    });
+    const msg = formatMoveInSummaryMessage(mkSummary({ moveInDate: new Date(2026, 8, 1), calc }));
+    expect(msg).toContain("• ค่าห้องรายเดือนกันยายน: 4,500 บาท");
+    expect(msg).not.toContain("ตามจำนวนวัน");
+    expect(msg).toContain("• ยอดรวมทั้งหมด: 14,500 บาท");
+  });
+
+  it("shows the discount line with reason when a discount applies", () => {
+    const calc = computeBooking({
+      monthlyRent: 4500, moveInDate: new Date(2026, 7, 31),
+      deposit: 10000, bookingPaid: 0, chargeNextMonth: true, discount: 500,
+    });
+    const msg = formatMoveInSummaryMessage(mkSummary({ calc, discountReason: "โปรหน้าฝน" }));
+    expect(msg).toContain("• ส่วนลด (โปรหน้าฝน): -500 บาท");
+    expect(msg).toContain("• ยอดรวมทั้งหมด: 14,145 บาท");
   });
 });
 
