@@ -585,7 +585,7 @@
 }
 .apptOverdueChip {
   flex: none;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: #FDA4AF;
   background: rgba(244, 63, 94, .18);
@@ -704,7 +704,7 @@
   letter-spacing: 0.01em;
 }
 .railBuildingCount {
-  font-size: 10px; font-weight: 600;
+  font-size: 11px; font-weight: 600;
   color: var(--text-3);
   background: var(--bg-3, var(--bg-2));
   border: 1px solid var(--border);
@@ -975,7 +975,7 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   font-family: var(--font-num);
   z-index: 1;
@@ -994,7 +994,7 @@
   box-shadow: 0 0 0 3px var(--primary-tint);
 }
 .journeyStepLabel {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;

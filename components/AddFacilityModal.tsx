@@ -6,6 +6,7 @@ import {
   INTERVAL_OPTIONS, FACILITY_DEFAULT_INTERVAL_DAYS,
 } from "@/lib/constants";
 import type { FacilityType, FacilityStatus } from "@/types";
+import { modKey } from "@/lib/platform";
 
 interface Props {
   open: boolean;
@@ -317,7 +318,7 @@ export default function AddFacilityModal({
 
         <footer className="ac-modal-foot ac-modal-foot-sticky">
           <span className="ac-modal-foot-hint" aria-hidden>
-            <kbd>⌘</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
+            <kbd>{modKey()}</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
           </span>
           <button
             className="ac-btn ac-btn-ghost"

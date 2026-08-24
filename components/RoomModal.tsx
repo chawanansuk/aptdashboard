@@ -14,6 +14,7 @@ import { sumCompletedCosts } from "@/lib/taskCost";
 import { formatBaht } from "@/lib/money";
 import { sheetPhoneDigits } from "@/lib/phoneFormat";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { modKey } from "@/lib/platform";
 import { useRoomHistory, fullPastTasks } from "@/lib/useRoomHistory";
 import { RoomEquipmentSkeleton } from "@/components/skeletons/ViewSkeletons";
 import RoomImageGallery from "./RoomImageGallery";
@@ -888,7 +889,7 @@ export default function RoomModal({
         <footer className="ac-modal-foot ac-modal-foot-sticky">
           {(canEdit || canEditStatus) && tab === "info" && (
             <span className="ac-modal-foot-hint" aria-hidden>
-              <kbd>⌘</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
+              <kbd>{modKey()}</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
             </span>
           )}
           <button

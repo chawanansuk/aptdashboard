@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
 import type { Role } from "@/auth";
 import { canAddSalesTask, canAddEngTask, canAddCleanTask } from "@/lib/permissions";
+import { modKey } from "@/lib/platform";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import {
   makeTaskSchema,
@@ -617,7 +618,7 @@ export default function AddTaskModal({
 
           <footer className="ac-modal-foot ac-modal-foot-sticky">
             <span className="ac-modal-foot-hint" aria-hidden>
-              <kbd>⌘</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
+              <kbd>{modKey()}</kbd>+<kbd>↵</kbd> บันทึก · <kbd>esc</kbd> ปิด
             </span>
             <button
               type="button"

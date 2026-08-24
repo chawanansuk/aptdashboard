@@ -3,6 +3,7 @@
 import { memo, useMemo } from "react";
 import type { SheetRow, RoomView } from "@/types";
 import { relativeTimeShort, formatFullTimestamp } from "@/lib/relativeTime";
+import { taskStatusLabel } from "@/lib/taskStatus";
 import { parseTaskLocation } from "@/lib/taskLocation";
 
 /**
@@ -117,8 +118,8 @@ function RecentTasks({ tasks, rooms, activeBuilding, onSelectRoom }: Props) {
                   </span>
                 </span>
                 {t.status && (
-                  <span className="ac-recent-task-status" data-status={t.status}>
-                    {t.status}
+                  <span className="ac-recent-task-status" data-status={taskStatusLabel(t.status)}>
+                    {taskStatusLabel(t.status)}
                   </span>
                 )}
               </Tag>

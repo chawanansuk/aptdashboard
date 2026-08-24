@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_Thai, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-// Sales dashboard (ภาพรวมขาย v2) typography. Exposed as CSS variables so
-// only `sales.module.css` opts in via var(--font-plex-*) — the rest of the
-// app keeps its existing system-font stack untouched. self-hosted by
-// next/font (no runtime Google request, no layout shift).
+// App-wide typography. Exposed as CSS variables and consumed by
+// `--font-sans` / `--font-mono` in globals.css (UI audit r20 — เดิมมีแค่
+// sales.module.css ที่ใช้ ทั้งแอปเรนเดอร์ฟอนต์ระบบทั้งที่โหลดมาแล้ว).
+// self-hosted by next/font (no runtime Google request, no layout shift).
 const plexSansThai = IBM_Plex_Sans_Thai({
   subsets: ["thai", "latin"],
   weight: ["400", "500", "600", "700"],
@@ -97,11 +97,13 @@ export default async function RootLayout({
           <ErrorBoundary level="global">{children}</ErrorBoundary>
           {/* Single Toaster mount-point. `lib/toast.ts` is the wrapper —
               call toast.success/error/info from anywhere. */}
+          {/* offset เผื่อความสูง sticky header (~48px) — เดิม toast ทับปุ่ม
+              +เพิ่ม/ค้นหา/กระดิ่ง/ธีม มุมขวาบนพอดี (UI audit r20) */}
           <Toaster
             position="top-right"
             richColors
             theme="system"
-            offset={16}
+            offset={60}
             gap={8}
           />
         </SessionProviderClient>

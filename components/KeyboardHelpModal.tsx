@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { modKey } from "@/lib/platform";
 
 /**
  * Keyboard shortcut cheatsheet — invoked by pressing `?` from
@@ -25,12 +26,14 @@ interface Shortcut {
   hint?: string;
 }
 
-const GROUPS: Array<{ title: string; items: Shortcut[] }> = [
+// ป้ายคีย์ตามเครื่องจริง (modKey → ⌘ บน Mac, Ctrl ที่อื่น) — เดิม fix "⌘"
+// แล้วต้องมีแถว "(Windows)" ซ้ำอีกแถว. สร้างเป็นฟังก์ชันเพราะ modKey อ่าน
+// navigator ได้ตอนเรนเดอร์ฝั่ง client เท่านั้น (modal นี้ mount หลังกดปุ่ม).
+const buildGroups = (mod: string): Array<{ title: string; items: Shortcut[] }> => [
   {
     title: "ค้นหา / นำทาง",
     items: [
-      { keys: ["⌘", "K"], label: "Command palette", hint: "ค้นหาห้อง · ผู้เช่า · เบอร์ · ทะเบียนรถ · หน้า" },
-      { keys: ["Ctrl", "K"], label: "Command palette (Windows)" },
+      { keys: [mod, "K"], label: "Command palette", hint: "ค้นหาห้อง · ผู้เช่า · เบอร์ · ทะเบียนรถ · หน้า" },
       { keys: ["/"],         label: "โฟกัสช่องค้นหาบนหน้า", hint: "ใช้ใน list views" },
       { keys: ["Esc"],       label: "ปิด modal / panel", hint: "RoomModal, AddTask, Drawer, Sidebar" },
     ],
@@ -56,7 +59,7 @@ const GROUPS: Array<{ title: string; items: Shortcut[] }> = [
     items: [
       { keys: ["←"], label: "ห้องก่อนหน้า", hint: "หรือ K (vim style)" },
       { keys: ["→"], label: "ห้องถัดไป", hint: "หรือ J (vim style)" },
-      { keys: ["⌘", "Enter"], label: "บันทึก (ระหว่างแก้ไข)" },
+      { keys: [mod, "Enter"], label: "บันทึก (ระหว่างแก้ไข)" },
     ],
   },
 ];
@@ -97,7 +100,7 @@ export default function KeyboardHelpModal({ open, onClose }: Props) {
         </header>
 
         <div className="ac-modal-body ac-help-body">
-          {GROUPS.map((group) => (
+          {buildGroups(modKey()).map((group) => (
             <section key={group.title} className="ac-help-group">
               <h3 className="ac-help-group-title">{group.title}</h3>
               <ul className="ac-help-list">

@@ -49,10 +49,12 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* ----- Typography ----- */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Sukhumvit Set", Tahoma, Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", monospace;
+  /* IBM Plex Sans Thai โหลด (self-host) ผ่าน next/font อยู่แล้ว — เดิมมีแค่
+   * หน้า sales ที่ใช้ ทั้งแอปเรนเดอร์ Segoe UI/Tahoma แทน (UI audit r20) */
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Sukhumvit Set", Tahoma, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", monospace;
 
-  --text-xs: 11px;
+  --text-xs: 12px;
   --text-sm: 12px;
   --text-base: 14px;
   --text-md: 16px;
@@ -79,7 +81,8 @@
   --color-border-strong: #CBD5E1;
   --color-text: #0F172A;
   --color-text-muted: #64748B;
-  --color-text-faint: #94A3B8;
+  /* faint เดิม #94A3B8 = 2.9:1 บนพื้นขาว — ตก WCAG AA (UI audit r20) */
+  --color-text-faint: #64748B;
   --color-accent: #2563EB;
   /* Danger/urgent — several kanban-moveout rules already consumed this
    * token but it was never DEFINED, so those backgrounds/borders
@@ -162,7 +165,8 @@ html.dark {
   --color-border-strong: #475569;
   --color-text: #F1F5F9;
   --color-text-muted: #94A3B8;
-  --color-text-faint: #64748B;
+  /* faint เดิม #64748B = 3.75:1 บนพื้นมืด — ตก WCAG AA (UI audit r20) */
+  --color-text-faint: #94A3B8;
   --color-accent: #3B82F6;
   --color-danger: #EF4444;
 }
@@ -271,7 +275,7 @@ h3, .ac-h3 {
   .ac-si { width: 36px; height: 36px; font-size: 16px; border-radius: 8px; }
   .ac-sc-label { font-size: 11px; }
   .ac-sc-num { font-size: 20px; }
-  .ac-sc-sub { font-size: 10px; padding: 2px 6px; }
+  .ac-sc-sub { font-size: 11px; padding: 2px 6px; }
 
   /* --- Main padding (safe-area aware) --- */
   .ac-main {
@@ -773,7 +777,7 @@ body { padding-top: env(safe-area-inset-top); }
 .ac-logo-text { font-weight: 800; color: #4F46E5; font-size: 14px; letter-spacing: 0.5px; }
 
 .ac-mode-badge {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 999px;
@@ -1033,12 +1037,21 @@ html.dark .ac-cmdk-btn-kbd {
 /* Make room at the top of the sidebar for the collapse button so it
    doesn't overlap the first nav-group label. */
 @media (min-width: 1281px) {
-  .ac-side { position: relative; padding-top: 36px; }
+  /* Sticky rail (UI audit r20) — เดิม position:relative สูงเท่าเนื้อหา
+   * ทั้งหน้า เลื่อนลงไกลๆ แล้วเมนูหายไปเหลือคอลัมน์ว่าง. --nav-h ต้อง
+   * ตรงกับความสูงจริงของ .ac-nav (วัดได้ 48px ที่ 1440px). */
+  .ac-side {
+    position: sticky;
+    top: var(--nav-h, 48px);
+    height: calc(100vh - var(--nav-h, 48px));
+    align-self: flex-start;
+    padding-top: 36px;
+  }
   .ac-side-collapse-btn { display: inline-flex; }
 }
 .ac-side-group { display: flex; flex-direction: column; gap: 2px; }
 .ac-side-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: #9CA3AF;
   text-transform: uppercase;
@@ -1099,7 +1112,7 @@ html.dark .ac-cmdk-btn-kbd {
   gap: 6px;
 }
 .ac-side-room-bldg {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--color-text-faint, #94A3B8);
   flex-shrink: 0;
@@ -1169,7 +1182,7 @@ html.dark .ac-badge-empty { background: #334155; color: #94A3B8; }
 .ac-sc-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ac-sc-label { font-size: 12px; color: #6B7280; }
 .ac-sc-num { font-size: 22px; font-weight: 800; color: #111827; line-height: 1.1; }
-.ac-sc-sub { font-size: 10px; padding: 2px 8px; border-radius: 6px; align-self: flex-start; font-weight: 600; }
+.ac-sc-sub { font-size: 11px; padding: 2px 8px; border-radius: 6px; align-self: flex-start; font-weight: 600; }
 .ac-sub-info { background: #EFF6FF; color: #2563EB; }
 .ac-sub-urgent { background: #FEF2F2; color: #DC2626; }
 
@@ -1401,12 +1414,12 @@ html.dark .ac-fs-stat.is-active {
 .ac-rc:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); transition: transform 180ms var(--ease), box-shadow 180ms var(--ease); }
 .ac-rc:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
 .ac-rc-num { font-size: 15px; font-weight: 800; line-height: 1.1; }
-.ac-rc-status { font-size: 9px; font-weight: 600; line-height: 1.1; }
+.ac-rc-status { font-size: 11px; font-weight: 600; line-height: 1.1; }
 /* "วันเข้า" hint for pending rooms — small purple date pill under status */
 .ac-rc-movein {
   display: inline-block;
   margin-top: 2px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1.1;
   /* Light theme: dark-purple text on a pale purple chip. The previous
@@ -1431,7 +1444,7 @@ html.dark .ac-rc-movein {
   display: block;
   margin-top: 2px;
   max-width: 100%;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.1;
   color: #92400E;
@@ -1481,7 +1494,7 @@ html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in
 .ac-rc-clean {
   position: absolute;
   bottom: 2px; left: 3px;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   pointer-events: none;
 }
@@ -1509,7 +1522,7 @@ html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in
 }
 .ac-rc-veh,
 .ac-rc-eq {
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1;
   font-weight: 600;
   color: var(--color-text-muted);
@@ -1609,7 +1622,7 @@ html.dark .ac-rc-more:hover { background: #0F172A; color: #F1F5F9; }
    same number across buildings (102 exists in three of them).
    Hidden in compact density where every pixel counts. */
 .ac-rc-bldg {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.4px;
   line-height: 1;
@@ -1904,7 +1917,7 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   .ac-sg { grid-template-columns: repeat(2, 1fr); }
   .ac-rc { width: 64px; min-height: 60px; padding: 6px; contain-intrinsic-size: 64px 60px; }
   .ac-rc-num { font-size: 16px; }
-  .ac-rc-status { font-size: 10px; }
+  .ac-rc-status { font-size: 11px; }
   .ac-search { min-width: 0; flex: 1; }
   .ac-fs-stats { display: none; }
 }
@@ -2910,7 +2923,7 @@ html.dark .ac-cal-cell.is-today {
   width: 100%;
 }
 .ac-cal-cell-count {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   padding: 1px 5px;
   border-radius: 999px;
@@ -2926,7 +2939,7 @@ html.dark .ac-cal-cell-count { background: #F1F5F9; color: #0F172A; }
   color: #fff;
 }
 .ac-cal-dot-more {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: #64748B;
   padding: 0 4px;
@@ -3835,7 +3848,7 @@ html.dark .ac-user-email { color: #94A3B8; }
   margin-top: 6px;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -4325,7 +4338,7 @@ html.dark .ac-quick-popover-back { border-top-color: #1E293B; }
   overflow-y: auto; flex: 1;
 }
 .ac-cmdk-group-head {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--color-text-faint);
   padding: var(--space-2) var(--space-4) var(--space-1);
@@ -4375,7 +4388,7 @@ html.dark .ac-quick-popover-back { border-top-color: #1E293B; }
   border: 1px solid var(--color-border);
   border-radius: 3px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   margin-right: 2px;
 }
 html.dark .ac-cmdk-foot kbd { background: #1E293B; border-color: #334155; }
@@ -4672,7 +4685,7 @@ html.dark .ac-cal-week-day.is-today {
   opacity: 0.65;
 }
 .ac-cal-week-day-label {
-  font-size: 10px;
+  font-size: 11px;
   color: #64748B;
   font-weight: 600;
   line-height: 1.2;
@@ -4722,7 +4735,7 @@ html.dark .ac-cal-legend-item { color: #CBD5E1; }
 /* "วันนี้" pill in day-detail header */
 .ac-cal-today-pill {
   display: inline-block;
-  font-size: 10px; font-weight: 700;
+  font-size: 11px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.05em;
   padding: 2px 6px;
   background: #2563EB; color: #fff;
@@ -4738,7 +4751,7 @@ html.dark .ac-cal-cell.has-tasks { background: #131F35; }
 @media (max-width: 640px) {
   .ac-cal-week-strip { gap: 4px; }
   .ac-cal-week-day { padding: 6px 3px; min-height: 56px; }
-  .ac-cal-week-day-label { font-size: 9px; }
+  .ac-cal-week-day-label { font-size: 11px; }
   .ac-cal-week-day-count { font-size: 16px; }
   .ac-cal-legend { font-size: 11px; gap: 10px; }
 }
@@ -4870,7 +4883,7 @@ html.dark .ac-maint-card:hover {
   padding: 0 4px;
   background: #DC2626;
   color: white;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: var(--font-weight-bold);
   line-height: 16px;
   border-radius: 999px;
@@ -4919,7 +4932,7 @@ html.dark .ac-bottom-nav-tab.is-active {
 }
 
 .ac-bottom-nav-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -5249,7 +5262,7 @@ html.dark .ac-field.has-error textarea {
 }
 .ac-field-error::before {
   content: "⚠";
-  font-size: 10px;
+  font-size: 11px;
 }
 html.dark .ac-field-error { color: #F87171; }
 
@@ -5273,7 +5286,7 @@ html.dark .ac-field-error { color: #F87171; }
   border: 1px solid #E2E8F0;
   border-radius: 3px;
   font-family: ui-monospace, "SF Mono", monospace;
-  font-size: 10px;
+  font-size: 11px;
   color: #475569;
   margin: 0 1px;
 }
@@ -5523,7 +5536,7 @@ html.dark .ac-maint-today-brand { color: #CBD5E1; }
 }
 .ac-maint-today-kind {
   color: #94A3B8;
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -5643,7 +5656,7 @@ html.dark .ac-task-urgency-overdue.is-cancelled {
 /* ----- Inline urgency badge next to date ----- */
 .ac-task-urgency-badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 999px;
@@ -6127,7 +6140,8 @@ html.dark .ac-room-modal-chip.is-ready {
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: zoom-in;
-  background: var(--color-bg, #f1f5f9);
+  /* เดิม fallback #f1f5f9 แฟลชสีขาวบนธีมมืดระหว่างรูป lazy-load */
+  background: var(--color-surface-2, #f1f5f9);
   aspect-ratio: 1 / 1;
 }
 .ac-pets-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -6367,7 +6381,7 @@ html.dark .ac-room-history-problem { color: #94A3B8; }
 html.dark .ac-room-history-fix { color: #CBD5E1; }
 html.dark .ac-room-history-fix-date { color: #C4B5FD; }
 .ac-room-history-status {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   padding: 1px 7px;
   border-radius: 999px;
@@ -6395,10 +6409,10 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
 
 @media (max-width: 480px) {
   .ac-room-modal-chips { gap: 4px; }
-  .ac-room-modal-chip { font-size: 10px; padding: 2px 7px; }
+  .ac-room-modal-chip { font-size: 11px; padding: 2px 7px; }
   .ac-room-upcoming-line1 { font-size: 12px; }
   .ac-room-history-item { font-size: 12px; padding: 5px 8px; }
-  .ac-room-history-status { font-size: 9px; }
+  .ac-room-history-status { font-size: 11px; }
 }
 
 /* ====================================================================
@@ -6535,7 +6549,7 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
 @media (max-width: 600px) {
   .ac-mode-badge {
     padding: 3px 8px;
-    font-size: 10px;
+    font-size: 11px;
   }
 }
 
@@ -8213,7 +8227,7 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
 }
 .ac-repair-log-date {
   flex: none;
-  font-family: var(--font-num, monospace);
+  font-family: var(--font-mono);
   font-weight: var(--font-weight-bold);
   color: var(--color-accent);
 }
@@ -8429,7 +8443,7 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
 .ac-vehicles-th-sort-btn:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
 .ac-vehicles-th-sort-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-accent) inset; }
 .ac-vehicles-th-sort-arrow {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-faint, #94A3B8);
   flex-shrink: 0;
 }
@@ -8463,7 +8477,7 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   font-weight: var(--font-weight-medium);
 }
 .ac-vehicles-plate {
-  font-family: var(--font-family-mono, monospace);
+  font-family: var(--font-mono);
   font-weight: var(--font-weight-semibold);
   color: var(--color-accent);
 }
@@ -8515,7 +8529,7 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
 }
 .ac-room-vehicles-main { flex: 1; min-width: 0; }
 .ac-room-vehicles-plate {
-  font-family: var(--font-family-mono, monospace);
+  font-family: var(--font-mono);
   font-weight: var(--font-weight-bold);
   font-size: var(--text-base);
   color: var(--color-accent);
@@ -9170,7 +9184,7 @@ html.dark .ac-lead-card-age.is-stale { color: #FCA5A5; background: color-mix(in 
 .ac-lead-funnel::-webkit-scrollbar { display: none; }
 .ac-lead-funnel-stage { display: flex; align-items: center; gap: 4px; flex: 1 0 auto; }
 .ac-lead-funnel-conv {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-faint, #94A3B8);
   white-space: nowrap;
   flex-shrink: 0;
@@ -9185,7 +9199,7 @@ html.dark .ac-lead-card-age.is-stale { color: #FCA5A5; background: color-mix(in 
   border-radius: var(--radius-md);
 }
 .ac-lead-funnel-count { font-size: 18px; font-weight: 800; line-height: 1; color: var(--color-text); }
-.ac-lead-funnel-label { font-size: 10px; color: var(--color-text-muted); margin-top: 3px; white-space: nowrap; }
+.ac-lead-funnel-label { font-size: 11px; color: var(--color-text-muted); margin-top: 3px; white-space: nowrap; }
 
 .ac-lead-card-actions {
   display: flex;
@@ -9667,7 +9681,7 @@ textarea:focus-visible,
     right: 4px;
     min-width: 16px;
     padding: 0 4px;
-    font-size: 9px;
+    font-size: 11px;
     line-height: 14px;
   }
   .ac-side.is-collapsed .ac-side-item {
@@ -9708,7 +9722,7 @@ textarea:focus-visible,
   background: #EF4444;
   color: #fff;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -10251,7 +10265,7 @@ html.dark .ac-booking-vaccine-hint { color: #fb923c; }
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 .ac-journey-step-label {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-muted);
   white-space: nowrap;
   text-align: center;
@@ -10674,7 +10688,7 @@ html.dark .ac-mlog-room-name { color: #F1F5F9; }
   flex-shrink: 0; min-width: 38px;
 }
 .ac-mlog-type {
-  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
   flex-shrink: 0; white-space: nowrap;
 }
 .ac-mlog-note { color: #334155; min-width: 0; overflow-wrap: anywhere; }
@@ -10772,7 +10786,7 @@ html.dark .ac-task-timer-stale {
 
 /* Single urgency pill (replaces ด่วน pill + red age + SLA row). */
 .ac-kanban-card-badge {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import {
-  computeOccupancy, computeTodayTaskCount,
+  computeOccupancy, computeTodayTaskCount, computeOverdueTaskCount,
   computeExpiringThisMonth, computeMonthlyIncome,
   priceNum,
 } from "./useOverviewStats";
@@ -127,6 +127,32 @@ describe("computeTodayTaskCount", () => {
 
   it("returns 0 for empty list", () => {
     expect(computeTodayTaskCount([])).toBe(0);
+  });
+
+  it("counts ISO-dated rows too (Apps Script emits yyyy-MM-dd)", () => {
+    // UI audit r20: เดิมเทียบ string dd/MM/yyyy ตรงๆ แถว ISO เลยหลุดเงียบๆ
+    expect(computeTodayTaskCount([
+      mkTask({ date: "2026-05-18", status: "pending" }),
+    ])).toBe(1);
+  });
+});
+
+describe("computeOverdueTaskCount", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-18T10:00:00+07:00"));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("counts open tasks dated before today — same story as the sidebar ⚠", () => {
+    const tasks = [
+      mkTask({ date: "17/05/2026", status: "pending" }),  // overdue
+      mkTask({ date: "2026-05-10", status: "กำลังทำ" }),  // overdue (ISO)
+      mkTask({ date: "17/05/2026", status: "เสร็จ" }),    // closed → excluded
+      mkTask({ date: "18/05/2026", status: "pending" }),  // today, not overdue
+      mkTask({ date: "19/05/2026", status: "pending" }),  // future
+    ];
+    expect(computeOverdueTaskCount(tasks)).toBe(2);
   });
 });
 
