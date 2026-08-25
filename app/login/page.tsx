@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import { auth, signIn } from "@/auth";
+
+// title หลุดจาก layout กลาง (แดชบอร์ดตั้ง <title> ต่อหน้าเอง) — หน้า login
+// ตั้งของตัวเองที่นี่.
+export const metadata: Metadata = { title: "เข้าสู่ระบบ · APARTCLOUD" };
 import { redirect } from "next/navigation";
 
 interface PageProps {

@@ -25,6 +25,7 @@ import type { Role } from "@/auth";
 import type { RoomStatus } from "@/types";
 import { usePersistedString } from "@/lib/usePersistedString";
 import { canAccess, getDefaultRoute, type Route } from "@/lib/permissions";
+import { parseUrlState } from "@/lib/urlState";
 import { toast } from "@/lib/toast";
 
 export type ActiveView =
@@ -77,6 +78,15 @@ export function useViewRouting({
   // from sales → engineer would leave activeView on a sales-only route
   // and trigger the "ไม่มีสิทธิ์เข้าถึงหน้านี้" toast incorrectly.
   const lastLandedModeRef = useRef<string | null>(null);
+  // Deep link ?view=... ต้องชนะ mode landing รอบแรก (UI audit r21) —
+  // ไม่งั้นลิงก์ที่แชร์มาเปิดแล้วโดนเด้งไปหน้า landing ของโหมดทันที.
+  // อ่านครั้งเดียวตอน mount แล้วใช้หมดไป (View-as switch ครั้งถัดไป
+  // land ตามปกติ).
+  const deepLinkViewRef = useRef<string | null>(
+    typeof window !== "undefined"
+      ? (parseUrlState(window.location.search).view ?? null)
+      : null
+  );
   useEffect(() => {
     if (!effectiveRoles || effectiveRoles.length === 0) {
       // Sign-out / role-loss: reset the ref so a NEW user who signs in
@@ -87,6 +97,16 @@ export function useViewRouting({
     }
     if (lastLandedModeRef.current === mode) return;
     lastLandedModeRef.current = mode;
+    const deepLink = deepLinkViewRef.current;
+    if (deepLink) {
+      deepLinkViewRef.current = null;
+      if ((VALID_VIEWS as string[]).includes(deepLink) && canAccess(roles, deepLink as Route)) {
+        if (deepLink !== activeView) setActiveView(deepLink as ActiveView);
+        return; // ลิงก์ที่ตั้งใจเปิดมา — ไม่ต้อง land ทับ
+      }
+      // ลิงก์เข้าหน้าที่ไม่มีสิทธิ์/ไม่รู้จัก → ปล่อยไหลไป landing ตามปกติ
+      // (route guard จะไม่ toast เพราะนับเป็น mode switch)
+    }
     const target = defaultLandingView as ActiveView;
     if (target && target !== activeView && canAccess(roles, target as Route)) {
       setActiveView(target);
