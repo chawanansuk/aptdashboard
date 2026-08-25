@@ -5,6 +5,7 @@ import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import { useEffectiveRoles, VIEW_AS_ALL, type ViewAsValue } from "@/lib/useEffectiveRoles";
 import { Icon } from "@/lib/icons";
+import { useModKey } from "@/lib/platform";
 import { toast } from "@/lib/toast";
 import type { Role } from "@/auth";
 import { isManagement } from "@/lib/permissions";
@@ -112,6 +113,8 @@ export default function AppHeader({
     else onAddTask();
   }
   const { data: session } = useSession();
+  // ป้ายคีย์ลัดตามเครื่องจริง (Ctrl บน Windows) — hook เพื่อกัน hydration mismatch
+  const mod = useModKey();
   const user = session?.user;
   const roles = user?.roles;
   // Primary role for the mode badge in the header — use first role
@@ -237,7 +240,7 @@ export default function AppHeader({
           >
             <Icon name="search" size={14} />
             <span className="ac-cmdk-btn-text">ค้นหา</span>
-            <kbd className="ac-cmdk-btn-kbd" aria-hidden>⌘K</kbd>
+            <kbd className="ac-cmdk-btn-kbd" aria-hidden>{mod === "⌘" ? "⌘K" : "Ctrl+K"}</kbd>
           </button>
         )}
         {onOpenSearch && (

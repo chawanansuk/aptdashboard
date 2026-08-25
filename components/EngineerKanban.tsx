@@ -74,7 +74,8 @@ type ColumnKey = "pending" | "in_progress" | "blocked" | "done";
 // agree across the whole app (รอเริ่ม=indigo, กำลังทำ=เขียว, ติดขัด=coral,
 // เสร็จ=เขียวเข้ม).
 const COLUMNS: { key: ColumnKey; label: string; emoji: string; accent: string }[] = [
-  { key: "pending",     label: "รอเริ่ม",     emoji: "🆕", accent: "var(--primary)" },
+  // 🆕 เดิมเรนเดอร์เป็นกล่องคำว่า "NEW" ภาษาอังกฤษ — อ่านเป็น badge แปลกๆ
+  { key: "pending",     label: "รอเริ่ม",     emoji: "📋", accent: "var(--primary)" },
   { key: "in_progress", label: "กำลังทำ",     emoji: "🔧", accent: "var(--st-green)" },
   { key: "blocked",     label: "ติดขัด",      emoji: "⏸",  accent: "var(--st-coral)" },
   { key: "done",        label: "เสร็จวันนี้",   emoji: "✅", accent: "var(--st-green-deep)" },

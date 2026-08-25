@@ -598,12 +598,23 @@ export default function Home() {
       && (allBuildings || t.building === activeBuilding)
     ).length;
 
+    // Overdue open tasks (same definition as the sidebar ⚠ badge) —
+    // without this the hero said "ระบบเรียบร้อย" while 10 tasks sat
+    // overdue one panel away (UI audit r20).
+    const todayMs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const tasksOverdue = (tasks || []).filter((t) => {
+      if (isClosedStatus(t.status)) return false;
+      if (!allBuildings && t.building !== activeBuilding) return false;
+      const td = parseThaiDate(t.date);
+      return !!td && new Date(td.getFullYear(), td.getMonth(), td.getDate()).getTime() < todayMs;
+    }).length;
+
     // maintenanceOverdue / DueSoon are owned by the (lazy) maintenance
     // module — left at 0 here so the greeting falls back gracefully; can
     // be wired in once a lightweight summary endpoint exists.
     return {
       vacant, occupied, total, occupancyRate,
-      tasksToday, expiringContractsThisMonth, moveoutCount,
+      tasksToday, tasksOverdue, expiringContractsThisMonth, moveoutCount,
       maintenanceOverdue: 0, maintenanceDueSoon: 0,
       monthlyIncome,
     };

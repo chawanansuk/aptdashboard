@@ -66,12 +66,34 @@ export function computeOccupancy(rooms: RoomView[]): OccupancyStats {
 }
 
 export function computeTodayTaskCount(tasks: SheetRow[]): number {
+  // Parse-based (UI audit r20) — เดิมเทียบ string dd/MM/yyyy ตรงๆ
+  // แถวที่ชีทเก็บเป็น ISO yyyy-MM-dd เลยหลุดจากการ์ด "งานวันนี้" เงียบๆ
   const today = todayDDMMYYYY();
+  const todayDate = parseThaiDate(today);
+  const todayMs = todayDate ? todayDate.getTime() : 0;
   let n = 0;
   for (const t of tasks) {
-    if (t.date !== today) continue;
     if (isClosedStatus(t.status)) continue;
+    const d = parseThaiDate(t.date);
+    if (!d) continue;
+    if (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() !== todayMs) continue;
     n++;
+  }
+  return n;
+}
+
+/** งานที่ยังไม่ปิดและเลยวันนัดมาแล้ว — นิยามเดียวกับ ⚠ badge ใน sidebar
+ *  (lib/sidebarCounts) เพื่อให้การ์ด "งานวันนี้" กับ sidebar เล่าเรื่อง
+ *  ตรงกัน (UI audit r20: การ์ดบอก "ไม่มีงานค้าง" ทั้งที่เลยกำหนด 10). */
+export function computeOverdueTaskCount(tasks: SheetRow[]): number {
+  const now = new Date();
+  const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  let n = 0;
+  for (const t of tasks) {
+    if (isClosedStatus(t.status)) continue;
+    const d = parseThaiDate(t.date);
+    if (!d) continue;
+    if (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() < todayMs) n++;
   }
   return n;
 }
@@ -185,6 +207,7 @@ export function useMaintenanceCounts(enabled: boolean): MaintenanceCounts {
 export interface OverviewStats {
   occupancy: OccupancyStats;
   todayTaskCount: number;
+  overdueTaskCount: number;
   expiringThisMonth: number;
   monthlyIncome: number;
   maintenance: MaintenanceCounts;
@@ -197,8 +220,9 @@ export function useOverviewStats(
 ): OverviewStats {
   const occupancy = useMemo(() => computeOccupancy(rooms), [rooms]);
   const todayTaskCount = useMemo(() => computeTodayTaskCount(tasks), [tasks]);
+  const overdueTaskCount = useMemo(() => computeOverdueTaskCount(tasks), [tasks]);
   const expiringThisMonth = useMemo(() => computeExpiringThisMonth(rooms), [rooms]);
   const monthlyIncome = useMemo(() => computeMonthlyIncome(rooms), [rooms]);
   const maintenance = useMaintenanceCounts(options.canSeeMaintenance);
-  return { occupancy, todayTaskCount, expiringThisMonth, monthlyIncome, maintenance };
+  return { occupancy, todayTaskCount, overdueTaskCount, expiringThisMonth, monthlyIncome, maintenance };
 }

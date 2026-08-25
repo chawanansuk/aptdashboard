@@ -87,7 +87,7 @@ describe("MODE_CONFIG", () => {
 describe("greetingSubtitle outputs", () => {
   const baseStats = {
     vacant: 0, occupied: 0, total: 0, occupancyRate: 0,
-    tasksToday: 0, moveoutCount: 0, expiringContractsThisMonth: 0,
+    tasksToday: 0, tasksOverdue: 0, moveoutCount: 0, expiringContractsThisMonth: 0,
     maintenanceOverdue: 0, maintenanceDueSoon: 0, monthlyIncome: 0,
   };
 
@@ -128,6 +128,17 @@ describe("greetingSubtitle outputs", () => {
   it("sales returns fallback when nothing urgent", () => {
     const out = MODE_CONFIG.sales.greetingSubtitle(baseStats);
     expect(out.length).toBeGreaterThan(0);
+  });
+
+  // UI audit r20: hero เคยบอก "ระบบเรียบร้อย ไม่มีงานเร่งด่วน" ทั้งที่
+  // งานเลยกำหนดกอง 10 รายการ — ทุกโหมดต้องขึ้นเตือนก่อนเสมอ
+  it("every mode surfaces overdue tasks FIRST, never the all-clear fallback", () => {
+    for (const mode of ["sales", "engineer", "management"] as const) {
+      const out = MODE_CONFIG[mode].greetingSubtitle({ ...baseStats, tasksOverdue: 10 });
+      expect(out).toContain("งานเลยกำหนด 10");
+      expect(out.indexOf("งานเลยกำหนด")).toBe(out.indexOf("⚠") + 2);
+      expect(out).not.toContain("ไม่มีงานเร่งด่วน");
+    }
   });
 });
 

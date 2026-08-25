@@ -22,6 +22,9 @@ export interface GreetingStats {
   total: number;
   occupancyRate: number;     // 0..1
   tasksToday: number;
+  /** งานที่ยังไม่ปิดและเลยวันนัดมาแล้ว (UI audit r20) — เดิม hero บอก
+   *  "ระบบเรียบร้อย ไม่มีงานเร่งด่วน" ทั้งที่ sidebar เตือน ⚠ งานเลยกำหนด. */
+  tasksOverdue: number;
   /** Rooms with moveout notice — re-sell pipeline signal for sales. */
   moveoutCount: number;
   /**
@@ -82,6 +85,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
     tagline: "ขายห้อง · ดูแลผู้เช่า",
     greetingSubtitle: (s) => {
       const parts: string[] = [];
+      if (s.tasksOverdue > 0) parts.push(`⚠ งานเลยกำหนด ${s.tasksOverdue} รายการ`);
       if (s.vacant > 0) parts.push(`ห้องว่าง ${s.vacant} ห้อง`);
       if (s.moveoutCount > 0) {
         parts.push(`รอย้ายออก ${s.moveoutCount} ห้อง`);
@@ -105,6 +109,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
     tagline: "งานซ่อม · บำรุงรักษา",
     greetingSubtitle: (s) => {
       const parts: string[] = [];
+      if (s.tasksOverdue > 0) parts.push(`⚠ งานเลยกำหนด ${s.tasksOverdue} รายการ`);
       if (s.maintenanceOverdue > 0) {
         parts.push(`บำรุงเลยกำหนด ${s.maintenanceOverdue} ชิ้น`);
       }
@@ -130,6 +135,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
     tagline: "ภาพรวม · การเงิน",
     greetingSubtitle: (s) => {
       const parts: string[] = [];
+      if (s.tasksOverdue > 0) parts.push(`⚠ งานเลยกำหนด ${s.tasksOverdue} รายการ`);
       const rate = Math.round(s.occupancyRate * 100);
       parts.push(`อัตราเช่า ${rate}%`);
       if (s.monthlyIncome > 0) {

@@ -139,7 +139,7 @@ function OverviewCards({
 
   const stats = useOverviewStats(scopedRooms, scopedTasks, { canSeeMaintenance });
 
-  const { occupancy, todayTaskCount, expiringThisMonth, monthlyIncome, maintenance } = stats;
+  const { occupancy, todayTaskCount, overdueTaskCount, expiringThisMonth, monthlyIncome, maintenance } = stats;
 
   // Don't render cards if there's literally no data yet (first paint)
   if (rooms.length === 0) return null;
@@ -153,11 +153,16 @@ function OverviewCards({
         breakdown={occupancy.breakdown}
         onClick={() => onNavigate("ready")}
       />
+      {/* เดิมการ์ดนี้บอก "ไม่มีงานค้าง" ทั้งที่มีงานเลยกำหนดกองอยู่ —
+          เลยกำหนดต้องดังกว่างานวันนี้ (UI audit r20) */}
       <StatCard
         label="งานวันนี้"
         value={String(todayTaskCount)}
-        sub={todayTaskCount === 0 ? "ไม่มีงานค้าง" : "รายการที่ยังไม่ปิด"}
-        tone={todayTaskCount === 0 ? "good" : todayTaskCount > 5 ? "warn" : "info"}
+        sub={
+          overdueTaskCount > 0 ? `⚠ เลยกำหนด ${overdueTaskCount} รายการ` :
+          todayTaskCount === 0 ? "ไม่มีงานค้าง" : "รายการที่ยังไม่ปิด"
+        }
+        tone={overdueTaskCount > 0 ? "warn" : todayTaskCount === 0 ? "good" : todayTaskCount > 5 ? "warn" : "info"}
         onClick={() => onNavigate("today")}
       />
       {canAccess(roles, "tenants") && (
