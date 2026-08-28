@@ -31,7 +31,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export const metadata: Metadata = {
-  title: "Dashboard หอพัก",
+  // title ไม่ตั้งที่นี่ — หน้าแดชบอร์ดเรนเดอร์ <title> ต่อหน้าเอง (React 19
+  // hoisting, ดู lib/useUrlSync + app/page.tsx) เพราะ metadata แบบ streamed
+  // จะเขียนทับ document.title ที่ client ตั้งไว้ (UI audit r21).
   description: "ระบบจัดการห้อง 5 ตึก v2",
   manifest: "/manifest.json",
   applicationName: "ApartCloud",

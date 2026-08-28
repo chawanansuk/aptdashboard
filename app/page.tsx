@@ -9,6 +9,8 @@ import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
 import { useAssetAlertCounts } from "@/lib/useAssetAlertCounts";
 import { usePersistedString } from "@/lib/usePersistedString";
 import { useViewRouting, VALID_VIEWS, type ActiveView } from "@/lib/useViewRouting";
+import { useUrlSync } from "@/lib/useUrlSync";
+import { pageTitle } from "@/lib/urlState";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
 import { computeVacancyByBuilding, isSupplyRelevantView } from "@/lib/headerVacancy";
 import { computeSidebarCounts } from "@/lib/sidebarCounts";
@@ -246,6 +248,20 @@ export default function Home() {
       : null,
     [selectedRoom, rooms],
   );
+  // URL ⇄ state (UI audit r21): ?view=&building=&room= — back/forward/
+  // refresh/แชร์ลิงก์ทำงานจริง + document.title ต่อหน้า. Deep link ของ
+  // view จัดการใน useViewRouting (ต้องชนะ mode landing).
+  useUrlSync({
+    view: activeView,
+    building: activeBuilding,
+    selectedRoom,
+    rooms,
+    setView: setActiveView,
+    setBuilding: setActiveBuilding,
+    openRoom: setSelectedRoom,
+    closeRoom: () => setSelectedRoom(null),
+  });
+
   // Recent + pinned room bookmarks (#17) — persisted to localStorage.
   const roomBookmarks = useRoomBookmarks();
   // Booking-confirmation flow target (null = closed).
@@ -1091,6 +1107,9 @@ export default function Home() {
 
   return (
     <>
+    {/* React 19 hoisted <title> — ชนะ streamed metadata ที่เคยทับ
+        document.title (ชื่อแท็บต่อหน้า, UI audit r21) */}
+    <title>{pageTitle(activeView, activeBuilding)}</title>
     <AppShell
       header={
         <AppHeader
