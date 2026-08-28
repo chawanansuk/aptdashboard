@@ -21,14 +21,15 @@ describe("bookingConfig", () => {
 
   it("each building resolves its own real account (owner data 2026-07)", () => {
     expect(bankFor("มีทอง")).toMatchObject({ bank: "กรุงไทย", accountNo: "017-0-46047-9" });
-    expect(bankFor("มั่งมี")).toMatchObject({ bank: "กสิกร", accountNo: "051-1-88802-6", accountName: "นายชวนันท์ สุขพรชัยรัก" });
+    // มั่งมี: ย้ายบัญชีเป็นกรุงไทย (เจ้าของแจ้ง 2026-08-31 — เลขดิบ 0430241232)
+    expect(bankFor("มั่งมี")).toMatchObject({ bank: "กรุงไทย", accountNo: "043-0-24123-2", accountName: "นายชวนันท์ สุขพรชัยรัก" });
     expect(bankFor("มายทรี48")).toMatchObject({ bank: "ไทยพาณิชย์", accountNo: "039-232971-2" });
     expect(bankFor("บ้านคุณหลวง")).toMatchObject({ bank: "ออมสิน", accountNo: "020-2-2690349-8" });
     expect(bankFor("บ้านมีทรัพย์")).toMatchObject({ bank: "อาคารสงเคราะห์", accountNo: "206-1-1000754-2", accountName: "CHAWANAN SUKPORNCHAIRAK" });
   });
 
   it("matches flexibly when the sheet name is longer/shorter than the key", () => {
-    expect(bankFor("หอพักมั่งมีทวีสุข").bank).toBe("กสิกร"); // sheet longer than key
+    expect(bankFor("หอพักมั่งมีทวีสุข").bank).toBe("กรุงไทย"); // sheet longer than key
     expect(bankFor("มายทรี").bank).toBe("ไทยพาณิชย์");        // sheet shorter than key
   });
 
