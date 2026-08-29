@@ -20,7 +20,7 @@
 
 import { useEffect, useRef } from "react";
 import type { RoomView } from "@/types";
-import { buildSearch, parseUrlState, roomKey, splitRoomKey } from "@/lib/urlState";
+import { buildSearch, consumeProgrammaticNav, parseUrlState, roomKey, splitRoomKey } from "@/lib/urlState";
 import { VALID_VIEWS, type ActiveView } from "@/lib/useViewRouting";
 
 export interface UrlSyncOptions {
@@ -49,6 +49,9 @@ export function useUrlSync({
     const s = parseUrlState(window.location.search);
     if (s.building) setBuilding(s.building);
     if (s.room) pendingRoomRef.current = s.room;
+    if (s.view && (VALID_VIEWS as string[]).includes(s.view) && s.view !== view) {
+      pendingViewRef.current = s.view;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,30 +68,58 @@ export function useUrlSync({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rooms]);
 
-  // ---- state → URL + document.title ----
+  // ---- state → URL ----
   const lastViewRef = useRef(view);
   const lastRoomRef = useRef<string | null>(currentRoomKey);
-  // ช่วงเปิดแอป (canonicalize URL + mode landing + โหลด role) ใช้ replace
-  // เสมอ — ไม่งั้น landing ของโหมดขาย/ช่างดัน entry เพิ่ม กด back แล้ว
-  // เด้งกลับหน้า overview ที่ไม่ได้ตั้งใจเปิด
-  const mountedAtRef = useRef(Date.now());
+  // Deep link ?view= ยัง "รอ apply" อยู่ (useViewRouting จะ apply เมื่อ
+  // role มาถึง) — ระหว่างนั้นห้ามเขียน URL ทับ ไม่งั้นลิงก์ที่แชร์มาถูก
+  // canonicalize เป็น view เก่าจาก localStorage ชั่วขณะ (audit r22).
+  // เคลียร์เมื่อ view ขยับครั้งแรก (จะไปทาง deep link หรือ landing ก็ตาม).
+  const pendingViewRef = useRef<string | null>(null);
+  const initialViewRef = useRef(view);
+  // เราเป็นคน push entry ของ room modal เองหรือเปล่า — ปิดผ่าน UI จะได้
+  // history.back() แทน replace (ไม่ทิ้ง entry ซ้ำให้กด back สองที).
+  const pushedRoomRef = useRef(false);
   // document.title ไม่ตั้งที่นี่ — Next streamed metadata ชอบเขียนทับหลัง
   // hydration; page.tsx เรนเดอร์ <title> (React 19 hoisting) แทน.
   useEffect(() => {
-    // ห้องที่รอ apply จาก deep link ยังไม่อยู่ใน state — อย่าเพิ่งเขียน URL
-    // ทับ ไม่งั้น param room หายก่อนโมดัลได้เปิด
+    // consume ก่อน early-return เสมอ — ธง programmatic ของ change ที่
+    // URL บังเอิญตรงอยู่แล้ว ห้ามค้างไปกดทับ navigation ครั้งถัดไป
+    const programmatic = consumeProgrammaticNav();
+
+    if (pendingViewRef.current) {
+      if (view !== initialViewRef.current || view === pendingViewRef.current) {
+        pendingViewRef.current = null; // deep link/landing ตัดสินแล้ว
+      } else {
+        return; // ยังรอ role — อย่าเขียน URL ทับลิงก์ที่แชร์มา
+      }
+    }
+
+    // ห้องที่รอ apply จาก deep link ยังไม่อยู่ใน state — คง param ไว้ก่อน
     const target = buildSearch({ view, building, room: currentRoomKey ?? pendingRoomRef.current });
     if (window.location.search === target || (target === "" && window.location.search === "")) {
       lastViewRef.current = view;
       lastRoomRef.current = currentRoomKey;
       return;
     }
+
+    // ปิด room modal ผ่าน UI (✕/Esc) หลังจากที่เรา push entry ตอนเปิด —
+    // ถอย history กลับแทนการ replace: ไม่เหลือ entry ซ้ำสองอัน (audit r22)
+    const roomClosed = currentRoomKey === null && lastRoomRef.current !== null;
+    if (roomClosed && pushedRoomRef.current) {
+      pushedRoomRef.current = false;
+      lastViewRef.current = view;
+      lastRoomRef.current = null;
+      window.history.back();
+      return;
+    }
+
     const url = `${window.location.pathname}${target}`;
-    const settling = Date.now() - mountedAtRef.current < 500;
-    const viewChanged = view !== lastViewRef.current && !settling;
+    const viewChanged = view !== lastViewRef.current && !programmatic;
     const roomOpened = currentRoomKey !== null && lastRoomRef.current === null;
     if (viewChanged || roomOpened) {
       window.history.pushState(null, "", url);
+      if (roomOpened) pushedRoomRef.current = true;
     } else {
       window.history.replaceState(null, "", url);
     }
@@ -103,6 +134,9 @@ export function useUrlSync({
   useEffect(() => {
     const onPop = () => {
       const c = stateRef.current;
+      // history เดินเอง → bookkeeping การ push ของเราใช้ไม่ได้แล้ว
+      // (กัน history.back() ซ้ำตอน popstate เป็นคนปิดโมดัลเอง)
+      pushedRoomRef.current = false;
       const s = parseUrlState(window.location.search);
       const nextView = s.view && (VALID_VIEWS as string[]).includes(s.view) ? s.view : "overview";
       if (nextView !== c.view) c.setView(nextView as ActiveView);
@@ -116,6 +150,9 @@ export function useUrlSync({
           const parts = splitRoomKey(nextRoom);
           const r = parts ? c.rooms.find((x) => x.building === parts.building && x.room === parts.room) : undefined;
           if (r) c.openRoom(r);
+          // rooms ยังไม่โหลด (เช่น forward ทันทีหลัง reload) → เข้าคิวรอ
+          // เหมือน deep link ตอน mount — ไม่ปล่อยให้ URL กับจอขัดกัน
+          else if (c.rooms.length === 0 && parts) pendingRoomRef.current = nextRoom;
         }
       }
     };

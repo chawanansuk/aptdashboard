@@ -89,7 +89,9 @@ export default function TodayTasks({ rows }: Props) {
 
                 {row.status && (
                   <span className={`shrink-0 text-xs rounded-full px-2 py-0.5 ${
-                    row.status === "เสร็จ"
+                    // เทียบกับ label ไม่ใช่ค่าดิบ — แถว legacy "done"/"เสร็็จ"
+                    // จะได้ป้ายเขียวเหมือนกัน (audit r22)
+                    taskStatusLabel(row.status) === "เสร็จ"
                       ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
                       : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
                   }`}>

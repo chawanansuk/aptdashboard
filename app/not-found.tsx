@@ -19,6 +19,8 @@ import { Icon } from "@/lib/icons";
 export default function NotFound() {
   const router = useRouter();
   return (
+    <>
+    <title>ไม่พบหน้า · APARTCLOUD</title>
     <main className="ac-notfound" role="main" aria-labelledby="ac-notfound-title">
       <div className="ac-notfound-card">
         <div className="ac-notfound-icon" aria-hidden>
@@ -47,5 +49,6 @@ export default function NotFound() {
         </div>
       </div>
     </main>
+    </>
   );
 }

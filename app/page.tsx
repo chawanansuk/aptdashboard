@@ -54,7 +54,7 @@ const EditTaskModal = lazy(() => import("@/components/EditTaskModal"));
 import { buildNotifications } from "@/lib/notifications";
 import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
-import { parseThaiDate, isTaskDatedToday, bangkokTodayYmd } from "@/lib/dateUtils";
+import { parseThaiDate, isTaskDatedToday, isTaskOverdue, bangkokTodayYmd } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { VIEW_LABEL, VIEW_TO_TASK_TYPE, isClosedStatus } from "@/lib/constants";
 import { hasOpenPrepTask } from "@/lib/moveoutTasks";
@@ -302,7 +302,10 @@ export default function Home() {
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [bulkAddType, setBulkAddType] = useState("ทำสะอาด");
-  const [bulkAddDate, setBulkAddDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  // bangkokTodayYmd ไม่ใช่ toISOString — ก่อนตี 7 (UTC+7) ค่า UTC ยังเป็น
+  // เมื่อวาน ทำให้ prefill วันที่ bulk-add ผิดวัน (audit r22, จุดสุดท้าย
+  // ของบั๊กตระกูลนี้หลัง r16 กวาดไป 4 จุด)
+  const [bulkAddDate, setBulkAddDate] = useState<string>(() => bangkokTodayYmd());
   const [bulkAddNote, setBulkAddNote] = useState("");
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkStatusBusy, setBulkStatusBusy] = useState(false);
@@ -616,14 +619,12 @@ export default function Home() {
 
     // Overdue open tasks (same definition as the sidebar ⚠ badge) —
     // without this the hero said "ระบบเรียบร้อย" while 10 tasks sat
-    // overdue one panel away (UI audit r20).
-    const todayMs = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    const tasksOverdue = (tasks || []).filter((t) => {
-      if (isClosedStatus(t.status)) return false;
-      if (!allBuildings && t.building !== activeBuilding) return false;
-      const td = parseThaiDate(t.date);
-      return !!td && new Date(td.getFullYear(), td.getMonth(), td.getDate()).getTime() < todayMs;
-    }).length;
+    // overdue one panel away (UI audit r20; r22 → Bangkok-aware helper).
+    const tasksOverdue = (tasks || []).filter((t) =>
+      !isClosedStatus(t.status)
+      && (allBuildings || t.building === activeBuilding)
+      && isTaskOverdue(t.date)
+    ).length;
 
     // maintenanceOverdue / DueSoon are owned by the (lazy) maintenance
     // module — left at 0 here so the greeting falls back gracefully; can
@@ -951,6 +952,7 @@ export default function Home() {
       // ย้ายเข้า on a room that already has one open. Mirrors the
       // autoCreateMoveoutPrep guard.
       const moveInExists = hasOpenPrepTask(tasks, data.building, data.room, "ย้ายเข้า");
+      let moveInFailed = false;
       if (!moveInExists) {
         try {
           await resilientPost("/api/sheet/update", {
@@ -971,14 +973,25 @@ export default function Home() {
               data.message,
             ].join("\n"),
           });
-        } catch { /* surfaced via refresh; room booking already saved */ }
+        } catch {
+          // ห้องจองสำเร็จแล้ว แต่นัดย้ายเข้า (พร้อมโน้ตสรุปยอด) ไม่ได้ถูก
+          // สร้าง — เดิมโชว์ "สร้างนัดย้ายเข้าแล้ว" ทั้งที่ไม่จริง (audit r22)
+          moveInFailed = true;
+        }
       }
 
-      toast.success(
-        moveInExists
-          ? "บันทึกการจองแล้ว (มีนัดย้ายเข้าอยู่แล้ว)"
-          : "บันทึกการจอง + สร้างนัดย้ายเข้าแล้ว"
-      );
+      if (moveInFailed) {
+        toast.warning("บันทึกการจองแล้ว แต่สร้างนัดย้ายเข้าไม่สำเร็จ", {
+          description: "กรุณาเพิ่มงาน 'ย้ายเข้า' ของห้องนี้เองอีกครั้ง (ยอดเงินอยู่ในข้อความที่คัดลอกไว้)",
+          duration: 10000,
+        });
+      } else {
+        toast.success(
+          moveInExists
+            ? "บันทึกการจองแล้ว (มีนัดย้ายเข้าอยู่แล้ว)"
+            : "บันทึกการจอง + สร้างนัดย้ายเข้าแล้ว"
+        );
+      }
       publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
       // P2: prospect paid → the sales pipeline should say ทำสัญญา without
       // re-entry. Fire-and-forget (phone match; never regresses ปิดดีล).
@@ -1028,7 +1041,16 @@ export default function Home() {
       if (process.env.NODE_ENV === "development") {
         console.log("[write] addTask response", res.status, data);
       }
-      if (data.ok) {
+      if (data.ok && (data as { skipped?: string }).skipped === "duplicate-open") {
+        // เซิร์ฟเวอร์กันงานซ้ำ (วันที่+ประเภท+ตึก+ห้อง เดิมยังเปิดอยู่) —
+        // เดิมโชว์ "เพิ่มงานแล้ว" ทั้งที่แถวไม่ได้ถูกเพิ่มและโน้ตหายเงียบๆ
+        // (audit r22). บอกตรงๆ และไม่ optimistic-insert แถวผี.
+        toast.info("มีงานแบบเดียวกันเปิดอยู่แล้ว — ไม่ได้เพิ่มซ้ำ", {
+          description: "ถ้าเป็นงานคนละเรื่อง แก้หมายเหตุ/วันที่ให้ต่างกันแล้วลองใหม่",
+        });
+        setShowAddTask(false);
+        refresh();
+      } else if (data.ok) {
         toast.success("เพิ่มงานแล้ว — รีเฟรชข้อมูล");
         publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
         // Show the new task immediately — the dashboard cache can lag the

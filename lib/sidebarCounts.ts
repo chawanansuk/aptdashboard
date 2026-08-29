@@ -12,7 +12,7 @@
 
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_KEYS, isClosedStatus } from "@/lib/constants";
-import { parseThaiDate } from "@/lib/dateUtils";
+import { getBangkokNow, isTaskOverdue } from "@/lib/dateUtils";
 import { detectTurnoverStep } from "@/lib/moveoutTasks";
 
 export type SidebarCounts = {
@@ -31,14 +31,14 @@ export function computeSidebarCounts(
   rooms: RoomView[],
   tasks: SheetRow[],
   activeBuilding: string,
-  now: Date = new Date(),
+  // Bangkok-aware (audit r22) — เดิม midnight ของ device ผิดวันถ้าเครื่องไม่ใช่ TZ ไทย
+  now: Date = getBangkokNow(),
 ): SidebarCounts {
   const scope = activeBuilding === "ทั้งหมด" ? rooms : rooms.filter((r) => r.building === activeBuilding);
   const c: Record<string, number> = { today: 0 };
   STATUS_KEYS.forEach((k) => (c[k] = 0));
   scope.forEach((r) => { c[r.status]++; if (r.today) c.today++; });
 
-  const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const tasksScope = activeBuilding === "ทั้งหมด"
     ? tasks
     : tasks.filter((t) => t.building === activeBuilding);
@@ -46,8 +46,7 @@ export function computeSidebarCounts(
   let engTurnover = 0;
   for (const t of tasksScope) {
     if (isClosedStatus(t.status)) continue;
-    const d = parseThaiDate(t.date);
-    if (d && d.getTime() < todayMs) overdue++;
+    if (isTaskOverdue(t.date, now)) overdue++;
     if (detectTurnoverStep(t)) engTurnover++;
   }
   return { ...c, total: scope.length, overdue, engTurnover } as SidebarCounts;

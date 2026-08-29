@@ -41,6 +41,22 @@ export function splitRoomKey(key: string): { building: string; room: string } | 
   return { building: key.slice(0, i), room: key.slice(i + 1) };
 }
 
+/* ---- Programmatic-navigation intent (audit r22) ----
+ * เดิม useUrlSync เดา push/replace จากเวลา 500ms หลัง mount ("settling")
+ * ซึ่งแพ้ session ที่โหลดช้า: mode landing/redirect ที่มาช้ากว่านั้นถูก
+ * push เป็น history entry ผี กด back แล้วเจอหน้าที่ไม่เคยเปิด. แก้เป็น
+ * สัญญาณตรงๆ — useViewRouting เรียก markProgrammaticNav() ก่อน
+ * setActiveView ภายใน (landing / deep link / route guard) แล้ว
+ * useUrlSync consume: เปลี่ยนหน้าแบบ programmatic = replaceState เสมอ.
+ * Module singleton พอ — แดชบอร์ดมี instance เดียวต่อแท็บ. */
+let programmaticNav = false;
+export function markProgrammaticNav(): void { programmaticNav = true; }
+export function consumeProgrammaticNav(): boolean {
+  const v = programmaticNav;
+  programmaticNav = false;
+  return v;
+}
+
 /** ประกอบ query string จาก state ปัจจุบัน — ค่า default ไม่ใส่ให้ URL สั้น. */
 export function buildSearch(state: { view: string; building?: string; room?: string | null }): string {
   const p = new URLSearchParams();

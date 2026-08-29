@@ -1,4 +1,8 @@
+import type { Metadata } from "next";
 import { signOut } from "@/auth";
+
+// title หลุดจาก layout กลาง (แดชบอร์ดตั้ง <title> ต่อหน้าเอง — audit r22)
+export const metadata: Metadata = { title: "ไม่มีสิทธิ์เข้าใช้งาน · APARTCLOUD" };
 
 export default function DeniedPage() {
   return (
