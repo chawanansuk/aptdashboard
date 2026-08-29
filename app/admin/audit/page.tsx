@@ -1,4 +1,8 @@
+import type { Metadata } from "next";
 import { auth } from "@/auth";
+
+// title หลุดจาก layout กลาง (แดชบอร์ดตั้ง <title> ต่อหน้าเอง — audit r22)
+export const metadata: Metadata = { title: "บันทึกการแก้ไข · APARTCLOUD" };
 import { redirect } from "next/navigation";
 import { isManagement } from "@/lib/permissions";
 import AuditViewer from "@/components/AuditViewer";

@@ -45,6 +45,15 @@ export const toast = {
     });
   },
 
+  /** เหลือง — งานสำเร็จบางส่วน/ต้องทำอะไรต่อเอง. duration ยาวกว่า info
+   *  เพราะผู้ใช้ต้องอ่านคำสั่งถัดไป (override ได้). */
+  warning(message: string, opts?: { description?: string; duration?: number }) {
+    return sonner.warning(message, {
+      description: opts?.description,
+      duration: opts?.duration ?? 8_000,
+    });
+  },
+
   info(message: string, opts?: { description?: string; action?: ToastAction }) {
     return sonner.info(message, {
       description: opts?.description,

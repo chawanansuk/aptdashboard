@@ -20,10 +20,6 @@ async function open(page: import("@playwright/test").Page, path = "/") {
   await mockDashboard(page, { rooms: ROOMS, tasks: [] });
   await page.goto(path);
   await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
-  // useUrlSync ใช้ replaceState ตลอด 500ms แรก (ช่วง canonicalize/mode
-  // landing) — เทสคลิกเร็วกว่าคนจริง ต้องรอพ้นหน้าต่างนั้นก่อน history
-  // ถึงจะ push ตามที่เทสคาด
-  await page.waitForTimeout(600);
 }
 
 function clickNav(page: import("@playwright/test").Page, label: string) {

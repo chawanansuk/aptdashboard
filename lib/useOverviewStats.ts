@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Facility, RoomEquipment, RoomView, SheetRow } from "@/types";
-import { parseThaiDate } from "@/lib/dateUtils";
+import { parseThaiDate, isTaskDatedToday, isTaskOverdue } from "@/lib/dateUtils";
 import { getMaintenanceStatus } from "@/lib/maintenanceUtils";
 import { isClosedStatus } from "@/lib/constants";
 import { cachedFetchJson } from "@/lib/cachedFetchJson";
@@ -15,13 +15,6 @@ import { parsePriceOr0 } from "@/lib/money";
 /** Re-export of lib/money.parsePriceOr0 to keep this hook's existing
  *  consumers (and their tests) importing `priceNum` unchanged. */
 export const priceNum = parsePriceOr0;
-
-function todayDDMMYYYY(): string {
-  const d = new Date();
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}/${d.getFullYear()}`;
-}
 
 // isClosedStatus moved to lib/constants for shared use
 
@@ -66,34 +59,26 @@ export function computeOccupancy(rooms: RoomView[]): OccupancyStats {
 }
 
 export function computeTodayTaskCount(tasks: SheetRow[]): number {
-  // Parse-based (UI audit r20) — เดิมเทียบ string dd/MM/yyyy ตรงๆ
-  // แถวที่ชีทเก็บเป็น ISO yyyy-MM-dd เลยหลุดจากการ์ด "งานวันนี้" เงียบๆ
-  const today = todayDDMMYYYY();
-  const todayDate = parseThaiDate(today);
-  const todayMs = todayDate ? todayDate.getTime() : 0;
+  // Bangkok-aware ผ่าน helper กลาง (audit r22) — เดิมเทียบ string แถว ISO
+  // หลุด (r20) และเทียบกับ midnight ของ device ซึ่งผิดวันเมื่อเครื่อง
+  // ไม่ได้ตั้ง TZ ไทย. ใช้ตัวเดียวกับ hero เพื่อไม่ให้สองจุดบนจอเดียว
+  // เล่าเรื่องคนละวัน.
   let n = 0;
   for (const t of tasks) {
     if (isClosedStatus(t.status)) continue;
-    const d = parseThaiDate(t.date);
-    if (!d) continue;
-    if (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() !== todayMs) continue;
-    n++;
+    if (isTaskDatedToday(t.date)) n++;
   }
   return n;
 }
 
 /** งานที่ยังไม่ปิดและเลยวันนัดมาแล้ว — นิยามเดียวกับ ⚠ badge ใน sidebar
  *  (lib/sidebarCounts) เพื่อให้การ์ด "งานวันนี้" กับ sidebar เล่าเรื่อง
- *  ตรงกัน (UI audit r20: การ์ดบอก "ไม่มีงานค้าง" ทั้งที่เลยกำหนด 10). */
+ *  ตรงกัน (UI audit r20; r22 ย้ายไป Bangkok-aware helper กลาง). */
 export function computeOverdueTaskCount(tasks: SheetRow[]): number {
-  const now = new Date();
-  const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   let n = 0;
   for (const t of tasks) {
     if (isClosedStatus(t.status)) continue;
-    const d = parseThaiDate(t.date);
-    if (!d) continue;
-    if (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() < todayMs) n++;
+    if (isTaskOverdue(t.date)) n++;
   }
   return n;
 }

@@ -126,6 +126,18 @@ export function isTaskDatedToday(dateStr: string, now: Date = getBangkokNow()): 
   return d ? isSameDay(d, now) : false;
 }
 
+/** งานลงวันที่ก่อน "วันนี้" (เทียบเที่ยงคืนตามเวลากรุงเทพ) — นิยามกลาง
+ *  ที่ sidebar ⚠ / การ์ดงานวันนี้ / hero ใช้ร่วมกัน (audit r22: เดิม
+ *  แต่ละจุดเทียบกับ midnight ของ device ทำให้ตัวเลขไม่ตรงกันได้ถ้า
+ *  เครื่องไม่ได้ตั้ง TZ ไทย). */
+export function isTaskOverdue(dateStr: string, now: Date = getBangkokNow()): boolean {
+  const d = parseThaiDate(dateStr);
+  if (!d) return false;
+  const dMid = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const nowMid = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return dMid < nowMid;
+}
+
 export function isThisWeek(date: Date): boolean {
   const now = getBangkokNow();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // จันทร์

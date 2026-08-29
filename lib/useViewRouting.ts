@@ -25,7 +25,7 @@ import type { Role } from "@/auth";
 import type { RoomStatus } from "@/types";
 import { usePersistedString } from "@/lib/usePersistedString";
 import { canAccess, getDefaultRoute, type Route } from "@/lib/permissions";
-import { parseUrlState } from "@/lib/urlState";
+import { markProgrammaticNav, parseUrlState } from "@/lib/urlState";
 import { toast } from "@/lib/toast";
 
 export type ActiveView =
@@ -101,7 +101,7 @@ export function useViewRouting({
     if (deepLink) {
       deepLinkViewRef.current = null;
       if ((VALID_VIEWS as string[]).includes(deepLink) && canAccess(roles, deepLink as Route)) {
-        if (deepLink !== activeView) setActiveView(deepLink as ActiveView);
+        if (deepLink !== activeView) { markProgrammaticNav(); setActiveView(deepLink as ActiveView); }
         return; // ลิงก์ที่ตั้งใจเปิดมา — ไม่ต้อง land ทับ
       }
       // ลิงก์เข้าหน้าที่ไม่มีสิทธิ์/ไม่รู้จัก → ปล่อยไหลไป landing ตามปกติ
@@ -109,6 +109,7 @@ export function useViewRouting({
     }
     const target = defaultLandingView as ActiveView;
     if (target && target !== activeView && canAccess(roles, target as Route)) {
+      markProgrammaticNav();
       setActiveView(target);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -136,6 +137,10 @@ export function useViewRouting({
       const fallback: Route = canAccess(roles, modeLanding)
         ? modeLanding
         : getDefaultRoute(roles);
+      // Redirect = programmatic → useUrlSync replaces the history entry
+      // instead of pushing (audit r22: back เข้าหน้าต้องห้ามเดิมเคย push
+      // entry ใหม่ทุกครั้ง — กด back กี่ทีก็ไม่หลุด + toast รัว).
+      markProgrammaticNav();
       setActiveView(fallback as ActiveView);
       // Only surface the error toast when the redirect is NOT caused by a
       // mode switch (e.g. user navigated to a forbidden view via cmdk).

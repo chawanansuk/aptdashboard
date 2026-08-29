@@ -9,7 +9,7 @@ import {
   tryBeginRevalidation,
 } from "@/lib/dashboardCache";
 import { appsScriptCall } from "@/lib/appsScriptFetch";
-import { canViewTenant } from "@/lib/permissions";
+import { canViewTenant, canViewTaskCustomer } from "@/lib/permissions";
 import type { RoomRow, SheetRow } from "@/types";
 import { setRoomsCache, setTasksCache } from "@/lib/dashboardCache";
 import {
@@ -190,6 +190,12 @@ export async function GET() {
   const authMs = Date.now() - handlerStart;
   const canTenant = canViewTenant(session.user.roles);
   const projectRooms = (rs: RoomRow[]) => (canTenant ? rs : stripTenantPii(rs));
+  // Tasks ก็ต้อง strip PII ต่อ role เหมือน /api/dashboard/tasks — เดิม
+  // endpoint รวมนี้ส่ง customer+phone ดิบให้ทุก role (audit r22, MED-HIGH):
+  // ช่างที่ curl ตรงมาที่นี่อ่านชื่อ/เบอร์ลูกค้าได้ทั้งที่ endpoint แยก strip
+  const canSeeCustomer = canViewTaskCustomer(session.user.roles);
+  const projectTasks = (ts: SheetRow[]): SheetRow[] =>
+    canSeeCustomer ? ts : ts.map((t) => ({ ...t, customer: "", phone: "" }));
 
   let cacheLookup = getDashboardCacheState();
   if (cacheLookup.state === "missing") {
@@ -204,7 +210,7 @@ export async function GET() {
     return NextResponse.json(
       {
         rooms: projectRooms(cacheLookup.data.rooms),
-        tasks: cacheLookup.data.tasks,
+        tasks: projectTasks(cacheLookup.data.tasks),
         cached: true,
         cacheState: "fresh",
         ageMs: cacheLookup.ageMs,
@@ -235,7 +241,7 @@ export async function GET() {
     return NextResponse.json(
       {
         rooms: projectRooms(cacheLookup.data.rooms),
-        tasks: cacheLookup.data.tasks,
+        tasks: projectTasks(cacheLookup.data.tasks),
         cached: true,
         cacheState: "stale",
         ageMs: cacheLookup.ageMs,
@@ -271,7 +277,7 @@ export async function GET() {
   return NextResponse.json(
     {
       rooms: projectRooms(fetchOut.rooms),
-      tasks: fetchOut.tasks,
+      tasks: projectTasks(fetchOut.tasks),
       cached: false,
       cacheState: "missing",
       errors: fetchOut.errors.length ? fetchOut.errors : undefined,
