@@ -400,7 +400,7 @@ function doPost(e) {
       // status/note only (PII stripped) so the status path can't write PII.
       case 'updateRoomStatus': return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
       case 'updateRoomData':   return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
-      case 'bookRoom':         return ok_(withWriteLock_(function () { return updateRoomStatus_(body); }));
+      case 'bookRoom':         return ok_(withWriteLock_(function () { return updateRoomStatus_(body, { forBooking: true }); }));
       // releaseRoom (v3.19.0): ปล่อยขาย — status → ว่าง AND blank the old
       // tenant identity. Sales can't send PII through updateRoomStatus
       // (the Next.js route strips it — by design), so the blanking is
@@ -464,7 +464,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.26.0';
+var BACKEND_VERSION = '3.27.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -565,9 +565,17 @@ var EMAIL_DUE_SOON_DAYS = 14; // ให้ตรงกับป้ายเต�
 
 /** strict 'yyyy-MM-dd' → Date (null เมื่อว่าง/รูปแบบผิด). */
 function ymdToDate_(s) {
-  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const str = String(s || '').trim();
+  let y, mo, d;
+  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) { y = Number(m[1]); mo = Number(m[2]); d = Number(m[3]); }
+  else {
+    // v3.27 (audit r22): ช่างพิมพ์วันที่เองเป็น dd/MM/yyyy บ่อย — เดิม
+    // parser รับแต่ ISO ทำให้แถวนั้นหลุดจากอีเมลแจ้งเตือนเงียบๆ
+    m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return null;
+    d = Number(m[1]); mo = Number(m[2]); y = Number(m[3]);
+  }
   const date = new Date(y, mo - 1, d);
   if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
   return date;
@@ -1294,6 +1302,10 @@ function updateTask_(b) {
   autoBackfillTaskIds_();
   let row = findTaskRowById_(b.id);
   if (row < 0) {
+    // v3.27: client ส่ง id มาแต่หาไม่เจอ (แถวถูกลบ/แก้ไปแล้ว) ห้าม
+    // fallback ไป composite key — เพราะ key นั้นประกอบจาก "ค่าใหม่"
+    // ที่กำลังจะเขียน อาจไปทับงานคนละงานที่บังเอิญตรงกัน (audit r22).
+    if (b.id) throw new Error('task not found (id หมดอายุ — รีเฟรชหน้าแล้วลองใหม่)');
     row = findTaskRow_({
       date: b.matchDate || b.date,
       type: b.matchType || b.type,
@@ -1335,10 +1347,9 @@ function updateTaskStatus_(b) {
   // and the daily done-KPI under-counted. Only past dates move — closing
   // a future-dated task early keeps its scheduled date.
   const isDoneWrite = status === 'เสร็จ' || status === 'done' || status === 'ปิดแล้ว';
-  const todayTs = (function () {
-    const n = new Date();
-    return new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
-  })();
+  // v3.27: เที่ยงคืน "วันนี้" อิงกรุงเทพ (เดิมใช้ TZ ของ host — ผิดวัน
+  // ทันทีถ้า script timezone ไม่ใช่ไทย)
+  const todayTs = bkkToday_().getTime();
   const todayStr = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy');
   // Flip every duplicate sharing this key, not just the first — see
   // findAllTaskRows_. Prevents the "close → pops back open" bounce.
@@ -1379,7 +1390,7 @@ function deleteTask_(b) {
 }
 
 /* ========== ROOM MUTATE ========== */
-function updateRoomStatus_(b) {
+function updateRoomStatus_(b, opts) {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.ROOM);
   if (!sh) throw new Error('sheet "ห้อง" not found');
   const data = sh.getDataRange().getValues();
@@ -1399,6 +1410,13 @@ function updateRoomStatus_(b) {
       // v3.20 adds price — which the UI sent all along but the backend
       // silently dropped (room price edits reverted on refresh).
       const oldStatus = norm(data[i][idxStatus]);
+      // v3.27 (audit r22): bookRoom เขียน tenant/phone/price ทั้งชุด —
+      // ห้ามยิงทับห้องที่มีผู้เช่าอยู่ (กันทั้งกดพลาดและ POST ตรง).
+      // เปลี่ยนสถานะห้อง occupied ผ่าน updateRoomStatus ปกติยังทำได้.
+      if (opts && opts.forBooking &&
+          (oldStatus === 'มีผู้เช่า' || oldStatus === 'มีคนอยู่' || oldStatus === 'อยู่')) {
+        throw new Error('ห้องนี้มีผู้เช่าอยู่ — จองทับไม่ได้ (ย้ายผู้เช่าออกก่อน)');
+      }
       const oldTenant = idxTenant >= 0 ? norm(data[i][idxTenant]) : '';
       const oldPhone  = idxPhone  >= 0 ? norm(data[i][idxPhone])  : '';
       const oldCntr   = idxCntr   >= 0 ? norm(data[i][idxCntr])   : '';
@@ -2604,10 +2622,10 @@ function runRecurringCheck_(b) {
   const lastRow = recurringSh.getLastRow();
   if (lastRow < 2) return { created: 0, skipped: 0 };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // v3.27: อิงกรุงเทพเหมือน updateTaskStatus_ (audit r22)
+  const today = bkkToday_();
   const todayMs = today.getTime();
-  const todayStr = Utilities.formatDate(today, 'Asia/Bangkok', 'yyyy-MM-dd');
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
   // Task DATE column uses ISO yyyy-MM-dd everywhere else (addTask + the
   // app's <input type="date"> writes ISO). The previous Thai dd/MM/yyyy
   // string here put recurring-generated tasks in a different date
