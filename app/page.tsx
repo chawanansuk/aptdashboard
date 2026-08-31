@@ -1404,6 +1404,7 @@ export default function Home() {
                   tasks={tasks}
                   rooms={rooms}
                   roles={roles}
+                  activeBuilding={activeBuilding}
                   refresh={refresh}
                   optimisticAddTask={optimisticAddTask}
                 />

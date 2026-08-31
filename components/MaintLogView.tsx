@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { parseThaiDate } from "@/lib/dateUtils";
+import { parseThaiDate, bangkokTodayYmd } from "@/lib/dateUtils";
 import type { Role } from "@/auth";
 import type { Part, Requisition, RoomView, SheetRow } from "@/types";
 import {
@@ -15,7 +15,6 @@ import { parseCostInput } from "@/lib/taskCost";
 import { resilientPost } from "@/lib/resilientWrite";
 import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
-import { todayThaiDate } from "@/lib/moveoutTasks";
 import { formatCommonArea } from "@/lib/taskLocation";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { RepairPartsPicker, type RepairPartLine } from "@/components/RoomRepairParts";
@@ -35,15 +34,27 @@ interface Props {
   tasks: SheetRow[];
   rooms: RoomView[];
   roles: Role[] | undefined;
+  /** ฟิลเตอร์ตึกจากแถบบน (r23) — เดิมหน้านี้เป็นหน้าเดียวในแอปที่เมิน
+   *  แถบเลือกตึก กดแล้วไม่มีอะไรเกิดขึ้น. */
+  activeBuilding?: string;
   refresh: () => void;
   optimisticAddTask: (t: SheetRow) => void;
 }
 
-export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticAddTask }: Props) {
+export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "ทั้งหมด", refresh, optimisticAddTask }: Props) {
   const periods = useMemo(() => buildPeriods(), []);
   const [periodKey, setPeriodKey] = useState(periods[0].key);
   const period: Period = periods.find((p) => p.key === periodKey) ?? periods[0];
   const [logOpen, setLogOpen] = useState(false);
+  // r23: กดการ์ดสถิติเพื่อกรองรายการข้างล่าง (ประเภท / เฉพาะยังค้าง)
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [openOnly, setOpenOnly] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const scopedTasks = useMemo(
+    () => activeBuilding === "ทั้งหมด" ? tasks : tasks.filter((t) => t.building === activeBuilding),
+    [tasks, activeBuilding],
+  );
 
   const canCost = canViewFinancials(roles);
   // ค่าอะไหล่ที่เบิกในช่วง (r9) — requisitions × part price. Loaded once
@@ -91,7 +102,35 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
   // task.add.eng hid the button from sales, contradicting ทิศ B
   // (sales operates the app for engineers). Audit r8 bug #1.
   const canLog = canAccess(roles, "maintlog");
-  const digest = useMemo(() => buildMaintDigest(tasks, period), [tasks, period]);
+  const digest = useMemo(() => buildMaintDigest(scopedTasks, period), [scopedTasks, period]);
+
+  // รายการที่โชว์ = digest กรองตามการ์ดสถิติ + ช่องค้นหา. สถิติด้านบนคง
+  // ตัวเลขรวมของช่วงเสมอ (การ์ดคือ "ปุ่มกรอง" ไม่ใช่ผลลัพธ์ของตัวกรอง);
+  // export/print ใช้ digest เต็มเช่นกัน — ไฟล์รายงานไม่ควรหายตามฟิลเตอร์.
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filterGroup = (g: (typeof digest.rooms)[number]) => {
+      const entries = g.entries.filter((e) => {
+        if (typeFilter && e.task.type !== typeFilter) return false;
+        if (openOnly && e.done) return false;
+        if (q) {
+          const hay = `${g.building} ${g.room} ${e.task.note || ""} ${e.task.type}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+      if (!entries.length) return null;
+      // ยอดเงินหัวกลุ่มต้องตามรายการที่โชว์จริง ไม่ใช่ยอดเต็มช่วง
+      const cost = entries.reduce(
+        (s, e) => s + (e.done && typeof e.task.cost === "number" ? e.task.cost : 0), 0);
+      return { ...g, entries, cost };
+    };
+    const notNull = <T,>(x: T | null): x is T => x !== null;
+    return {
+      rooms: digest.rooms.map(filterGroup).filter(notNull),
+      common: digest.common.map(filterGroup).filter(notNull),
+    };
+  }, [digest, typeFilter, openOnly, search]);
 
   function exportMd() {
     const md = digestToMarkdown(digest, period.label, { includeCost: canCost });
@@ -139,7 +178,7 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
     <section className="ac-mlog">
       <header className="ac-page-head ac-mlog-head">
         <div>
-          <h2 className="ac-h2">🔧 บันทึกซ่อมบำรุง</h2>
+          <h2 className="ac-h2">🔧 บันทึกซ่อมบำรุง{activeBuilding !== "ทั้งหมด" && ` · ${activeBuilding}`}</h2>
           <p className="ac-text-muted ac-mlog-sub">
             งานซ่อม · ทำสะอาด · งานส่วนกลาง — ย้อนดูได้ ~4 เดือน (เก่ากว่านั้นดูในชีตรายงาน)
           </p>
@@ -150,8 +189,8 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
               + ลงบันทึกงาน
             </button>
           )}
-          <button className="ac-btn ac-btn-ghost" onClick={exportMd} title="ดาวน์โหลดสรุปช่วงนี้เป็นไฟล์ .md">
-            ⬇ .md
+          <button className="ac-btn ac-btn-ghost" onClick={exportMd} title="ดาวน์โหลดสรุปช่วงนี้เป็นไฟล์ Markdown (เปิดใน LINE/Notes ได้)">
+            ⬇ ส่งออก
           </button>
           <button className="ac-btn ac-btn-ghost" onClick={() => window.print()}>🖨 พิมพ์</button>
         </div>
@@ -170,23 +209,41 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
         ))}
       </div>
 
-      {/* Summary strip */}
+      {/* Summary strip — การ์ดประเภท/ยังค้าง กดเพื่อกรองรายการข้างล่างได้ (r23) */}
       <div className="ac-mlog-summary">
-        <div className="ac-mlog-stat">
+        <button
+          type="button"
+          className="ac-mlog-stat ac-mlog-stat-btn"
+          onClick={() => { setTypeFilter(null); setOpenOnly(false); }}
+          title="ดูทั้งหมด"
+        >
           <span className="ac-mlog-stat-num">{digest.doneCount}</span>
           <span className="ac-mlog-stat-label">งานเสร็จ</span>
-        </div>
+        </button>
         {digest.countsByType.map(([t, n]) => (
-          <div key={t} className="ac-mlog-stat">
+          <button
+            key={t}
+            type="button"
+            className={`ac-mlog-stat ac-mlog-stat-btn ${typeFilter === t ? "is-active" : ""}`}
+            onClick={() => { setTypeFilter((cur) => (cur === t ? null : t)); setOpenOnly(false); }}
+            title={typeFilter === t ? "กดอีกครั้งเพื่อเลิกกรอง" : `ดูเฉพาะ${t}`}
+            aria-pressed={typeFilter === t}
+          >
             <span className="ac-mlog-stat-num" style={{ color: TASK_TYPE_COLOR[t] || undefined }}>{n}</span>
             <span className="ac-mlog-stat-label">{t}</span>
-          </div>
+          </button>
         ))}
         {digest.openCount > 0 && (
-          <div className="ac-mlog-stat is-warn">
+          <button
+            type="button"
+            className={`ac-mlog-stat ac-mlog-stat-btn is-warn ${openOnly ? "is-active" : ""}`}
+            onClick={() => { setOpenOnly((v) => !v); setTypeFilter(null); }}
+            title={openOnly ? "กดอีกครั้งเพื่อเลิกกรอง" : "ดูเฉพาะงานที่ยังค้าง"}
+            aria-pressed={openOnly}
+          >
             <span className="ac-mlog-stat-num">{digest.openCount}</span>
             <span className="ac-mlog-stat-label">ยังค้าง</span>
-          </div>
+          </button>
         )}
         {canCost && digest.totalCost > 0 && (
           <div className="ac-mlog-stat is-cost">
@@ -202,28 +259,48 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
         )}
       </div>
 
+      {/* ค้นหาในบันทึก (r23) — 4 เดือน × 5 ตึก ไล่หาด้วยตายาก */}
+      <div className="ac-search ac-search-full ac-no-print ac-mlog-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input
+          type="text"
+          placeholder="ค้นหาในบันทึก เช่น หลอดไฟ / แอร์ / เลขห้อง..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
       {digest.rooms.length === 0 && digest.common.length === 0 ? (
         <div className="ac-empty">
           <div className="ac-empty-icon">🧰</div>
-          <p>ยังไม่มีงานซ่อมบำรุงใน{period.label}</p>
+          <p>ยังไม่มีงานซ่อมบำรุงใน{period.label}{activeBuilding !== "ทั้งหมด" && ` ของ${activeBuilding}`}</p>
           {canLog && (
             <button className="ac-btn ac-btn-primary" onClick={() => setLogOpen(true)}>
               + ลงบันทึกงานแรก
             </button>
           )}
         </div>
+      ) : shown.rooms.length === 0 && shown.common.length === 0 ? (
+        <div className="ac-empty">
+          <div className="ac-empty-icon">🔍</div>
+          <p>ไม่พบรายการตามเงื่อนไขที่กรอง</p>
+          <button
+            className="ac-btn ac-btn-ghost"
+            onClick={() => { setTypeFilter(null); setOpenOnly(false); setSearch(""); }}
+          >ล้างตัวกรอง</button>
+        </div>
       ) : (
         <>
-          {digest.rooms.length > 0 && (
+          {shown.rooms.length > 0 && (
             <div className="ac-fs ac-mlog-section">
               <header className="ac-fs-head"><div className="ac-fs-title">🏠 รายห้อง</div></header>
-              <div className="ac-mlog-rooms">{digest.rooms.map(renderGroup)}</div>
+              <div className="ac-mlog-rooms">{shown.rooms.map(renderGroup)}</div>
             </div>
           )}
-          {digest.common.length > 0 && (
+          {shown.common.length > 0 && (
             <div className="ac-fs ac-mlog-section">
               <header className="ac-fs-head"><div className="ac-fs-title">🏢 พื้นที่ส่วนกลาง</div></header>
-              <div className="ac-mlog-rooms">{digest.common.map(renderGroup)}</div>
+              <div className="ac-mlog-rooms">{shown.common.map(renderGroup)}</div>
             </div>
           )}
         </>
@@ -232,6 +309,7 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
       {logOpen && (
         <LogModal
           rooms={rooms}
+          initialBuilding={activeBuilding !== "ทั้งหมด" ? activeBuilding : undefined}
           onClose={() => setLogOpen(false)}
           refresh={refresh}
           optimisticAddTask={optimisticAddTask}
@@ -247,8 +325,10 @@ export default function MaintLogView({ tasks, rooms, roles, refresh, optimisticA
  * the head of the note ("[โถงชั้น 1] เปลี่ยนหลอดไฟ").
  * ==================================================================== */
 
-function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
+function LogModal({ rooms, initialBuilding, onClose, refresh, optimisticAddTask }: {
   rooms: RoomView[];
+  /** Prefill จากฟิลเตอร์ตึกบน header (r23). */
+  initialBuilding?: string;
   onClose: () => void;
   refresh: () => void;
   optimisticAddTask: (t: SheetRow) => void;
@@ -258,7 +338,12 @@ function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
     [rooms],
   );
   const [area, setArea] = useState<"room" | "common">("room");
-  const [building, setBuilding] = useState(buildings[0] || "");
+  const [building, setBuilding] = useState(
+    initialBuilding && buildings.includes(initialBuilding) ? initialBuilding : (buildings[0] || "")
+  );
+  // r23: ลงบันทึกย้อนหลังได้ — ช่างชอบมาลงงานของเมื่อวานตอนเช้า เดิม
+  // ระบบประทับ "วันนี้" เสมอ ทำให้วันที่ในรายงานผิด. ค่าเริ่มต้นวันนี้.
+  const [workDate, setWorkDate] = useState<string>(() => bangkokTodayYmd());
   const [room, setRoom] = useState("");
   const [spot, setSpot] = useState("");
   const [type, setType] = useState<string>("ซ่อม");
@@ -296,9 +381,10 @@ function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
       : (spot.trim() ? formatCommonArea(spot.trim()) : COMMON_AREA_ROOM);
     const finalNote = detail;
     const costNum = cost ? parseCostInput(cost) : 0;
+    const dateOut = workDate || bangkokTodayYmd();
     const body = {
       action: "addTask",
-      date: todayThaiDate(),
+      date: dateOut,
       type,
       building,
       room: finalRoom,
@@ -311,11 +397,11 @@ function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
       const { data } = await resilientPost("/api/sheet/update", body);
       if (!data.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
       if (data.skipped) {
-        toast.info("มีงานแบบเดียวกันของวันนี้อยู่แล้ว — ไม่บันทึกซ้ำ");
+        toast.info("มีงานแบบเดียวกันของวันนั้นอยู่แล้ว — ไม่บันทึกซ้ำ");
       } else {
         toast.success("ลงบันทึกแล้ว ✓");
         optimisticAddTask({
-          date: todayThaiDate(), type, building, room: finalRoom,
+          date: dateOut, type, building, room: finalRoom,
           customer: "", phone: "", note: finalNote,
           status: doneAlready ? "เสร็จ" : "",
           ...(costNum > 0 ? { cost: costNum } : {}),
@@ -389,6 +475,15 @@ function LogModal({ rooms, onClose, refresh, optimisticAddTask }: {
               />
             </div>
           )}
+
+          <div className="ac-field">
+            <label htmlFor="mlog-date">วันที่ทำ</label>
+            <input
+              id="mlog-date" type="date" value={workDate}
+              max={bangkokTodayYmd()}
+              onChange={(e) => setWorkDate(e.target.value)}
+            />
+          </div>
 
           <div className="ac-field">
             <label htmlFor="mlog-type">ประเภท</label>
