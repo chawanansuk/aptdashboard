@@ -23,9 +23,27 @@ export function photoThumbUrl(fileId: string, width = 400): string {
   return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w${width}`;
 }
 
-/** Full-size view for the lightbox. */
+/**
+ * Full-size view for the lightbox (bug r25: "เปิดดูรูปไม่ได้").
+ *
+ * ใช้ endpoint เดียวกับ thumbnail (drive.google.com/thumbnail) ที่ w1600 —
+ * รูปถูกบีบไว้ที่ขอบยาว 1600px ตอนอัปโหลดอยู่แล้ว (MAX_EDGE) ดังนั้น
+ * w1600 = คุณภาพเต็ม. เดิมใช้ lh3.googleusercontent.com/d/ ซึ่งเป็นคนละ
+ * โฮสต์กับรูปเล็ก — บางบัญชี/บางเครือข่ายโดนบล็อกเงียบๆ ทำให้ lightbox
+ * เปิดมาเป็นจอดำว่างเปล่า ("กดแล้วไม่มีอะไรเกิดขึ้น") ทั้งที่รูปเล็กโหลดปกติ.
+ */
 export function photoFullUrl(fileId: string): string {
+  return photoThumbUrl(fileId, 1600);
+}
+
+/** สำรองเมื่อ photoFullUrl พัง (img.onError สลับมาใช้ตัวนี้ก่อนยอมแพ้). */
+export function photoFullUrlFallback(fileId: string): string {
   return `https://lh3.googleusercontent.com/d/${encodeURIComponent(fileId)}`;
+}
+
+/** เปิดไฟล์ตรงใน Google Drive — ทางหนีสุดท้ายเมื่อรูปในแอปโหลดไม่ขึ้น. */
+export function photoDriveViewUrl(fileId: string): string {
+  return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
 }
 
 /** Scale factor that fits (w,h) inside maxEdge without upscaling. */

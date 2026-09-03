@@ -10865,3 +10865,9 @@ html.dark .ac-fac-due-broken { color: #f87171; }
 .ac-buy-down { color: #16A34A; font-weight: 700; font-size: 11px; }
 html.dark .ac-buy-up { color: #F87171; }
 html.dark .ac-buy-down { color: #4ADE80; }
+
+/* ===== Lightbox fallback (bug r25) — รูปเต็มโหลดพังต้องบอก ไม่ใช่จอดำเปล่า ===== */
+.ac-lightbox-fail {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  color: #F1F5F9; font-size: 15px; text-align: center; padding: 24px;
+}
