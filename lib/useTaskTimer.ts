@@ -77,6 +77,12 @@ export function useTaskTimer(taskKey: string | null): UseTaskTimerResult {
         fetch(`/api/time-logs?taskKey=${encodeURIComponent(taskKey)}`, { cache: "no-store" }),
         fetch(`/api/time-logs?active=1`, { cache: "no-store" }),
       ]);
+      // audit r27: 502/403 เดิมกลายเป็น active:null → บังคับ idle ทับ timer
+      // ที่กำลังวิ่งอยู่ (ปุ่ม ▶ โผล่ซ้อน) — ถือเป็น error แทน
+      // เทียบ === false (ไม่ใช่ !ok) — Response จริงมี ok เสมอ ส่วน mock ในเทสอาจไม่มี
+      if (logsRes.ok === false || activeRes.ok === false) {
+        throw new Error(`โหลดข้อมูลเวลาไม่สำเร็จ (HTTP ${logsRes.ok === false ? logsRes.status : activeRes.status})`);
+      }
       const logsData = await logsRes.json().catch(() => ({ rows: [] }));
       const activeData = await activeRes.json().catch(() => ({ active: null }));
       setLogs((logsData.rows || []) as TimeLog[]);

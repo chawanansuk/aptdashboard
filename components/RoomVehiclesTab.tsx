@@ -112,12 +112,15 @@ export default function RoomVehiclesTab({ building, room }: Props) {
       {err && (
         <div className="ac-banner ac-banner-warn" role="alert">
           <strong>⚠ </strong>{err}{" "}
+          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => void load()}>ลองใหม่</button>{" "}
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setErr(null)}>ปิด</button>
         </div>
       )}
 
       {loading && !rows ? (
         <LoadingState />
+      ) : !rows ? (
+        null /* โหลดพัง — แบนเนอร์บอกแล้ว ไม่โชว์ "ยังไม่มียานพาหนะ" ที่โกหก */
       ) : forThisRoom.length === 0 ? (
         <EmptyState
           icon="equipment"

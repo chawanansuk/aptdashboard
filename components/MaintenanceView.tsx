@@ -12,6 +12,7 @@ import {
   maintenanceGroup, type MaintenanceGroup,
 } from "@/lib/maintenanceUtils";
 import EmptyState from "./EmptyState";
+import ErrorBanner from "./ErrorBanner";
 import LoadingState from "./LoadingState";
 import { exportCsv } from "@/lib/csvExport";
 import { getCachedView, setCachedView } from "@/lib/viewCache";
@@ -307,7 +308,7 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
         })}
       </div>
 
-      {err && <div className="ac-banner ac-banner-warn">{err}</div>}
+      <ErrorBanner message={err} onRetry={() => void load()} onDismiss={() => setErr(null)} />
 
       {loading && !rows && (
         <LoadingState label="กำลังโหลดแผนบำรุง..." />

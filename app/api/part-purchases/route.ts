@@ -45,7 +45,11 @@ export async function GET(req: Request) {
       "getPurchases", { partId }, { idempotent: true },
     );
     if (!json.ok) return bad(json.error || "backend error", 502);
-    const rows = (json.result?.rows || []) as Purchase[];
+    // Code.gs คืน ok_({rows}) = rows อยู่ระดับบน (ไม่ห่อ result เหมือน
+    // getRequisitions) — อ่านได้ทั้งสองแบบ (audit r27 HIGH: เดิมอ่านแต่
+    // result.rows → ประวัติซื้อว่างตลอด ▲▼ ไม่เคยโชว์)
+    const j = json as { result?: { rows?: Purchase[] }; rows?: Purchase[] };
+    const rows = (j.result?.rows ?? j.rows ?? []) as Purchase[];
     return etagJsonResponse({ rows }, req, { tag: "purchases" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";

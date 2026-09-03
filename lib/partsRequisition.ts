@@ -19,7 +19,7 @@ import type { RepairPartLine } from "@/components/RoomRepairParts";
  */
 export async function fileRequisitionLines(
   parts: RepairPartLine[] | undefined,
-  ctx: { building: string; room: string; jobNote: string },
+  ctx: { building: string; room: string; jobNote: string; taskKey?: string },
 ): Promise<void> {
   const lines = (parts || []).filter((p) => p.partId && p.quantity > 0);
   if (lines.length === 0) return;
@@ -37,6 +37,7 @@ export async function fileRequisitionLines(
           quantity: line.quantity,
           building: ctx.building,
           room: ctx.room,
+          ...(ctx.taskKey ? { taskKey: ctx.taskKey } : {}),
           note: `งานซ่อม: ${ctx.jobNote.slice(0, 80)}`,
         }),
       });

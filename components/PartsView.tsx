@@ -304,6 +304,8 @@ export default function PartsView({ rooms = [] }: Props) {
 
       {loading && !rows ? (
         <LoadingState />
+      ) : !rows ? (
+        null /* โหลดพัง — ErrorBanner พูดแทน ไม่โชว์ "ไม่พบรายการ" ที่โกหก (audit r27) */
       ) : filtered.length === 0 ? (
         <EmptyState
           icon="equipment"

@@ -56,7 +56,9 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
     // Stale-while-revalidate (perf r13): revisiting the view paints the
     // last-known grid instantly; the fresh fetch replaces it silently.
     const cached = getCachedPetPhotos();
-    if (cached) setPets(cached);
+    // ไม่มีแคช → กลับไปสถานะกำลังโหลด (กดลองใหม่หลัง error เดิมโชว์
+    // "ยังไม่มีรูปสัตว์เลี้ยง" ค้าง 20-40 วิระหว่างรอ — audit r27)
+    setPets(cached ?? null);
     try {
       const rows = await fetchPetPhotos();
       setPets(rows);

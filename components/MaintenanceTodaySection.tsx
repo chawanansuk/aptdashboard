@@ -63,14 +63,18 @@ export default function MaintenanceTodaySection({
       // by useMaintenanceCounts / useAssetAlertCounts / ServiceDueBanner) into
       // one round-trip per URL; AbortSignal is honoured at the consumer level
       // via the `aborted` checks below.
+      // audit r27: เดิม .catch(() => []) ทั้งคู่ → โหลดพัง = "ไม่มีงานถึงรอบ"
+      // เงียบๆ ช่างอ่านว่าไม่มีงาน ทั้งที่แค่ Google ตอบช้า
+      let fetchFailed: string | null = null;
       const [equipRes, facRes] = await Promise.all([
         cachedFetchJson<{ rows: RoomEquipment[] }>("/api/maintenance-plan")
           .then((j) => (j.rows || []) as RoomEquipment[])
-          .catch(() => [] as RoomEquipment[]),
+          .catch((e) => { fetchFailed = e instanceof Error ? e.message : "โหลดไม่สำเร็จ"; return [] as RoomEquipment[]; }),
         cachedFetchJson<{ rows: Facility[] }>("/api/facilities")
           .then((j) => (j.rows || []) as Facility[])
-          .catch(() => [] as Facility[]),
+          .catch((e) => { fetchFailed = e instanceof Error ? e.message : "โหลดไม่สำเร็จ"; return [] as Facility[]; }),
       ]);
+      if (fetchFailed) setErr(`โหลดรายการบำรุงไม่ครบ: ${fetchFailed}`);
       if (opts?.signal?.aborted) return;
 
       const out: BriefingItem[] = [];

@@ -3,8 +3,10 @@ import { parseRoomsCSV } from "@/lib/parseSheet";
 import { auth } from "@/auth";
 import { canViewTenant } from "@/lib/permissions";
 import type { RoomRow } from "@/types";
+import { appsScriptCall } from "@/lib/appsScriptFetch";
 
 export const dynamic = "force-dynamic"; // CSV cache อยู่ที่ Google ฝั่ง publish; เราไม่ cache ซ้ำ
+export const maxDuration = 60;
 
 /**
  * Try Apps Script `getRooms` first (real-time, requires Code.gs v3.4.3+).
@@ -12,22 +14,14 @@ export const dynamic = "force-dynamic"; // CSV cache อยู่ที่ Googl
  * Apps Script deployments still work without redeployment.
  */
 async function tryAppsScriptRooms(): Promise<RoomRow[] | null> {
-  const url = process.env.SHEET_WRITE_URL;
-  if (!url) return null;
+  if (!process.env.SHEET_WRITE_URL) return null;
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "getRooms" }),
-      cache: "no-store",
-      redirect: "follow",
-    });
-    if (!res.ok) return null;
-    const json = await res.json().catch(() => null);
-    if (!json || !json.ok) return null;
+    // audit r27: fetch ตรงไม่ส่ง secret → หลัง SHARED_SECRET เปิด path นี้
+    // ล้มเงียบทุกครั้ง แล้วไหลไป CSV ที่ค้าง 5 นาทีเสมอ
+    const json = await appsScriptCall<{ rows?: RoomRow[] }>("getRooms", {}, { idempotent: true });
+    if (!json.ok) return null;
     const rows = json.result?.rows;
-    if (!Array.isArray(rows)) return null;
-    return rows as RoomRow[];
+    return Array.isArray(rows) ? (rows as RoomRow[]) : null;
   } catch {
     return null;
   }

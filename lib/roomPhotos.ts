@@ -190,18 +190,20 @@ export function setCachedPetPhotos(rows: RoomPhoto[]): void {
   photoCache.set(PETS_CACHE_KEY, { rows, at: Date.now() });
 }
 
-/** GET this room's photos. Returns [] on old backend / network failure —
- *  the gallery just shows its add button. */
+/** GET this room's photos. Throws with a Thai message on failure (audit
+ *  r27 HIGH): เดิมคืน [] เงียบๆ → แกลเลอรีเขียนทับแคช 5 นาทีด้วยค่าว่าง
+ *  แถมแบนเนอร์ "มีรูปตำหนิ N รูป — เปิดเทียบก่อนคืนมัดจำ" หายไปเฉยๆ
+ *  ผู้ตรวจห้องอาจคืนมัดจำโดยคิดว่าไม่มีรูป. */
 export async function fetchRoomPhotos(building: string, room: string): Promise<RoomPhoto[]> {
-  try {
-    const qs = new URLSearchParams({ building, room });
-    const res = await fetch(`/api/room-photos?${qs}`, { cache: "no-store" });
-    const data = (await res.json()) as { ok?: boolean; rows?: RoomPhoto[] };
-    if (data?.ok && Array.isArray(data.rows)) return data.rows;
-    return [];
-  } catch {
-    return [];
+  const qs = new URLSearchParams({ building, room });
+  const res = await fetch(`/api/room-photos?${qs}`, { cache: "no-store" });
+  const data = (await res.json().catch(() => null)) as
+    | { ok?: boolean; error?: string; rows?: RoomPhoto[] }
+    | null;
+  if (!res.ok || !data?.ok || !Array.isArray(data.rows)) {
+    throw new Error(data?.error || `โหลดรูปไม่สำเร็จ (HTTP ${res.status})`);
   }
+  return data.rows;
 }
 
 /** GET every pet photo across the property (หน้ารวมสัตว์เลี้ยง).

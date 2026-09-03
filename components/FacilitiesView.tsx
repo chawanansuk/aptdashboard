@@ -17,6 +17,7 @@ import {
   computeNextService, getMaintenanceStatus, daysUntilService, formatDateLabel,
 } from "@/lib/maintenanceUtils";
 import AddFacilityModal from "./AddFacilityModal";
+import ErrorBanner from "./ErrorBanner";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import { exportCsv } from "@/lib/csvExport";
@@ -336,7 +337,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
         </div>
       </div>
 
-      {err && <div className="ac-banner ac-banner-warn">{err}</div>}
+      <ErrorBanner message={err} onRetry={() => void load()} onDismiss={() => setErr(null)} />
 
       {loading && !rows && (
         <LoadingState label="กำลังโหลดสาธารณูปโภค..." />
