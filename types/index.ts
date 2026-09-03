@@ -172,7 +172,9 @@ export interface Facility {
  * unit defaults to "ชิ้น" but can be any unit ("ม.", "ลิตร", "ลูก").
  */
 export const PART_CATEGORIES = [
-  "ประปา", "ไฟฟ้า", "แอร์", "ของใช้ในห้องน้ำ", "ของใช้แม่บ้าน", "ทั่วไป", "อื่นๆ",
+  // "ของสิ้นเปลือง" (v3.28) — ของฟุ่มเฟือยที่ซื้อประจำทุกเดือน (ทิชชู่/
+  // น้ำยา/ถุงขยะ จากแมคโคร ฯลฯ) — คู่กับบันทึกการซื้อเพื่อดูแนวโน้มต้นทุน
+  "ประปา", "ไฟฟ้า", "แอร์", "ของใช้ในห้องน้ำ", "ของใช้แม่บ้าน", "ของสิ้นเปลือง", "ทั่วไป", "อื่นๆ",
 ] as const;
 export type PartCategory = typeof PART_CATEGORIES[number];
 
@@ -306,6 +308,22 @@ export function groupLeadsByStage(leads: Lead[]): Map<LeadStage, Lead[]> {
  * `taskKey` (optional) links the requisition to a specific task
  * row using the same composite key as time-tracking.
  */
+/** บันทึกการซื้อของเข้าสต๊อก (v3.28) — 1 แถวต่อการซื้อ 1 รายการ 1 ครั้ง.
+ *  unitPrice = totalPrice/quantity ณ ตอนซื้อ → เทียบครั้งก่อนได้ว่า
+ *  ต้นทุนขึ้นหรือลง. */
+export interface Purchase {
+  id: string;
+  partId: string;
+  partName: string;
+  quantity: number;
+  totalPrice: number;
+  unitPrice: number;
+  store: string;
+  creator: string;
+  date: string;      // yyyy-MM-dd วันที่ซื้อจริง
+  createdAt: string;
+}
+
 export interface Requisition {
   id: string;
   partId: string;
