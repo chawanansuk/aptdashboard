@@ -10658,6 +10658,25 @@ html.dark .ac-fs-stat-dot {
   box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
 }
 html.dark .ac-mlog-stat { background: var(--card-grad), #1E293B; border-color: #334155; }
+
+/* r23: การ์ดสถิติกดกรองได้ — คง look เดิม เพิ่ม affordance ปุ่ม + สถานะเลือก */
+.ac-mlog-stat-btn {
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+.ac-mlog-stat-btn:hover { border-color: var(--color-accent, #2563EB); transform: translateY(-1px); }
+.ac-mlog-stat-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus, 0 0 0 3px rgba(37,99,235,.4)); }
+.ac-mlog-stat-btn.is-active {
+  border-color: var(--color-accent, #2563EB);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent, #2563EB) 35%, transparent);
+}
+.ac-mlog-stat-btn.is-warn.is-active {
+  border-color: #D97706;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #D97706 35%, transparent);
+}
+.ac-mlog-search { margin: 0 0 12px; max-width: 440px; }
 .ac-mlog-stat-num { font-size: 20px; font-weight: 800; color: #0F172A; font-variant-numeric: tabular-nums; }
 html.dark .ac-mlog-stat-num { color: #F1F5F9; }
 .ac-mlog-stat-label { font-size: 11px; color: #64748B; }
