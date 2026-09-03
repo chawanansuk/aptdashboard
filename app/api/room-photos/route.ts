@@ -49,8 +49,11 @@ export async function GET(req: Request) {
   // rooms one by one). No PII in the payload; any authenticated user.
   if (url.searchParams.get("scope") === "pets") {
     try {
+      // r26: timeout 15s เดิมสั้นไปสำหรับ Apps Script ตอน cold start —
+      // ผู้ใช้เจอ "This operation was aborted" ทั้งที่รออีกนิดก็มา. ขยาย
+      // เป็น 25s × 2 attempts (~52s หน่วง backoff แล้ว) ยังใต้ maxDuration 60.
       const json = await appsScriptCall<{ rows?: RoomPhoto[] }>(
-        "getPetPhotos", {}, { idempotent: true }
+        "getPetPhotos", {}, { idempotent: true, timeoutMs: 25_000, maxRetries: 1 }
       );
       if (!json.ok) {
         const err = json.error || "backend error";
@@ -63,7 +66,11 @@ export async function GET(req: Request) {
       }
       return NextResponse.json({ ok: true, rows: json.result?.rows || [] });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "unknown";
+      const raw = e instanceof Error ? e.message : "unknown";
+      // แปล AbortError เป็นภาษาคน — "This operation was aborted" อ่านแล้วงง
+      const msg = /abort/i.test(raw)
+        ? "หลังบ้าน Google ตอบช้าเกินไป — กดลองอีกครั้งได้เลย"
+        : raw;
       const status = e instanceof AppsScriptError ? e.status : 502;
       return bad(`ดึงรูปสัตว์เลี้ยงไม่สำเร็จ: ${msg}`, status);
     }

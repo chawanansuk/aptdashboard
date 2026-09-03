@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomPhoto, RoomView } from "@/types";
 import { canViewTenant } from "@/lib/permissions";
@@ -49,27 +49,25 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
   const [lightbox, setLightbox] = useState<RoomPhoto | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  // โหลดใหม่ได้จากปุ่ม "ลองอีกครั้ง" ด้วย (r26: Apps Script ช้าเป็นครั้งคราว
+  // — timeout แล้วเดิมผู้ใช้ติดหน้า error ต้องออกแล้วเข้าใหม่เอง)
+  const load = useCallback(async () => {
     setError(null);
     // Stale-while-revalidate (perf r13): revisiting the view paints the
     // last-known grid instantly; the fresh fetch replaces it silently.
     const cached = getCachedPetPhotos();
     if (cached) setPets(cached);
-    fetchPetPhotos()
-      .then((rows) => {
-        if (!cancelled) setPets(rows);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setPets([]);
-          setError(e instanceof Error ? e.message : "โหลดรูปสัตว์เลี้ยงไม่สำเร็จ");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const rows = await fetchPetPhotos();
+      setPets(rows);
+    } catch (e) {
+      // มีของเก่าในแคช → โชว์ต่อ อย่าล้างทิ้ง (r26: เดิม error ล้างกริด
+      // ที่เพิ่งวาดจากแคชไปด้วย ทั้งที่ข้อมูลยังใช้ได้)
+      setPets((cur) => cur ?? []);
+      setError(e instanceof Error ? e.message : "โหลดรูปสัตว์เลี้ยงไม่สำเร็จ");
+    }
   }, []);
+  useEffect(() => { void load(); }, [load]);
 
   // Escape closes the lightbox (capture — same pattern as the room
   // modal gallery so muscle memory carries over).
@@ -159,7 +157,7 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
         </div>
       </div>
 
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner message={error} onRetry={() => void load()} />}
 
       {!error && shown.length === 0 && (
         <EmptyState
