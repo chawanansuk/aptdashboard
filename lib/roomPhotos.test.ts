@@ -8,6 +8,8 @@ import {
   extractImageFiles,
   fitScale,
   photoFullUrl,
+  photoFullUrlFallback,
+  photoDriveViewUrl,
   photoThumbUrl,
   stripDataUrlPrefix,
 } from "./roomPhotos";
@@ -46,8 +48,12 @@ describe("photo URLs", () => {
     );
     expect(photoThumbUrl("abc123", 800)).toContain("sz=w800");
   });
-  it("builds the full-view URL and escapes the id", () => {
-    expect(photoFullUrl("a/b")).toBe("https://lh3.googleusercontent.com/d/a%2Fb");
+  it("full-view uses the SAME host as thumbnails at w1600 (bug r25)", () => {
+    // lightbox เดิมใช้ lh3 คนละโฮสต์กับรูปเล็ก — บางเครือข่ายโหลดไม่ขึ้น
+    // ทั้งที่รูปเล็กปกติ. w1600 = คุณภาพเต็มเพราะอัปโหลดบีบที่ MAX_EDGE 1600.
+    expect(photoFullUrl("a/b")).toBe("https://drive.google.com/thumbnail?id=a%2Fb&sz=w1600");
+    expect(photoFullUrlFallback("a/b")).toBe("https://lh3.googleusercontent.com/d/a%2Fb");
+    expect(photoDriveViewUrl("a/b")).toBe("https://drive.google.com/file/d/a%2Fb/view");
   });
 });
 

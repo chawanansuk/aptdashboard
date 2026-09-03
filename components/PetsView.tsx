@@ -5,7 +5,8 @@ import { useSession } from "next-auth/react";
 import type { RoomPhoto, RoomView } from "@/types";
 import { canViewTenant } from "@/lib/permissions";
 import { formatSheetPhone, sheetPhoneDigits } from "@/lib/phoneFormat";
-import { deleteRoomPhoto, fetchPetPhotos, getCachedPetPhotos, setCachedPetPhotos, photoFullUrl, photoThumbUrl } from "@/lib/roomPhotos";
+import { deleteRoomPhoto, fetchPetPhotos, getCachedPetPhotos, setCachedPetPhotos, photoThumbUrl } from "@/lib/roomPhotos";
+import LightboxImage from "./LightboxImage";
 import { toast } from "@/lib/toast";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
@@ -207,10 +208,9 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
           <button type="button" className="ac-room-lightbox-close" onClick={() => setLightbox(null)} aria-label="ปิด">
             ✕
           </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <LightboxImage
             className="ac-room-lightbox-img"
-            src={photoFullUrl(lightbox.fileId)}
+            fileId={lightbox.fileId}
             alt={lightbox.note || "สัตว์เลี้ยง"}
             onClick={(e) => e.stopPropagation()}
           />

@@ -13,11 +13,11 @@ import {
   getCachedRoomPhotos,
   setCachedRoomPhotos,
   isPetPhoto,
-  photoFullUrl,
   photoThumbUrl,
   setPhotoNote,
   uploadRoomPhoto,
 } from "@/lib/roomPhotos";
+import LightboxImage from "./LightboxImage";
 
 /**
  * รูปตำหนิสภาพห้อง (v3.25) — capture + gallery for the RoomModal.
@@ -479,10 +479,9 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
           <button type="button" className="ac-room-lightbox-close" onClick={() => setLightbox(null)} aria-label="ปิด">
             ✕
           </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <LightboxImage
             className="ac-room-lightbox-img"
-            src={photoFullUrl(lightbox.fileId)}
+            fileId={lightbox.fileId}
             alt={lightbox.note || "รูป"}
             onClick={(e) => e.stopPropagation()}
           />
