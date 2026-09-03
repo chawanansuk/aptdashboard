@@ -10859,3 +10859,9 @@ html.dark .ac-kanban-card-badge.is-warn { background: #78350F; color: #FDE68A; }
   white-space: nowrap;
 }
 html.dark .ac-fac-due-broken { color: #f87171; }
+
+/* ===== Purchase log (v3.28) — แนวโน้มราคาซื้อ ===== */
+.ac-buy-up { color: #DC2626; font-weight: 700; font-size: 11px; }
+.ac-buy-down { color: #16A34A; font-weight: 700; font-size: 11px; }
+html.dark .ac-buy-up { color: #F87171; }
+html.dark .ac-buy-down { color: #4ADE80; }

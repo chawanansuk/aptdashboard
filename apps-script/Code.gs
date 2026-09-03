@@ -134,6 +134,7 @@ const SHEET_NAMES = {
   VEHICLE: 'ยานพาหนะ', // v3.13.0 — vehicles per room
   LEAD: 'ลูกค้าสนใจ', // v3.15.0 — Lead CRM (Task 26)
   REQUISITION: 'เบิกอะไหล่', // v3.16.0 — parts requisition log
+  PURCHASE: 'ซื้อของ', // v3.28.0 — purchase log (ราคาซื้อจริงต่อครั้ง เห็นแนวโน้มต้นทุน)
   AUDIT: 'audit_log', // v3.17.0 — Task 18 audit log
   PHOTO: 'รูปตำหนิ', // v3.25.0 — defect-photo log (append-only)
   RECURRING: 'งานประจำ', // v3.17.0 — recurring task templates
@@ -424,6 +425,8 @@ function doPost(e) {
       case 'addPart':          return ok_(loggedWrite_('addPart', 'part', body.id || body.name || '', body, addPart_));
       case 'updatePart':       return ok_(loggedWrite_('updatePart', 'part', body.id || body.name || '', body, updatePart_));
       case 'adjustStockPart':  return ok_(loggedWrite_('adjustStockPart', 'part', body.id || body.partId || '', body, adjustStockPart_));
+      case 'addPurchase':      return ok_(withWriteLock_(function () { return addPurchase_(body); }));
+      case 'getPurchases':     return ok_(getPurchases_(body));
       // v3.12.0 — Time tracking (Task 35). Reads not cached — fresh
       // state needed so a parallel tab sees "running" within seconds.
       case 'getTimeLogs':      return ok_({ result: getTimeLogs_(body) });
@@ -464,7 +467,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.27.0';
+var BACKEND_VERSION = '3.28.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -1872,6 +1875,110 @@ function adjustStockPart_(b) {
   sh.getRange(found, 10).setValue(now);
   clearPartCache_();
   return { adjusted: true, row: found, stock: clamped };
+}
+
+
+/* ========== PURCHASE LOG (v3.28.0) ==========
+ * บันทึกการซื้อของเข้าสต๊อก — จดราคาที่จ่ายจริง "ต่อครั้ง" เพื่อดูแนวโน้ม
+ * ต้นทุน (ของสิ้นเปลืองรายเดือน เช่น ทิชชู่/น้ำยา ที่ซื้อแมคโครทุกเดือน).
+ * addPurchase ทำ 3 อย่างใต้ write lock เดียว: บวกสต๊อก + จดบันทึกซื้อ +
+ * อัปเดตราคา/หน่วยล่าสุดของ SKU. คืน prevUnitPrice ให้แอปโชว์ ▲▼ ทันที.
+ */
+function getOrCreatePurchaseSheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.PURCHASE);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_NAMES.PURCHASE);
+    sh.appendRow([
+      'id', 'partId', 'partName', 'จำนวน', 'ราคารวม', 'ราคา/หน่วย',
+      'ร้าน', 'ผู้บันทึก', 'วันที่ซื้อ', 'createdAt',
+    ]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#DCFCE7');
+    sh.setColumnWidth(3, 220); // partName
+    sh.setColumnWidth(7, 140); // store
+  }
+  return sh;
+}
+
+function addPurchase_(b) {
+  if (!b.partId) throw new Error('partId required');
+  const qty = parseFloat(b.quantity);
+  if (!isFinite(qty) || qty <= 0) throw new Error('quantity must be a positive number');
+  const total = parseFloat(b.totalPrice);
+  const hasPrice = isFinite(total) && total > 0;
+  // วันที่ซื้อ: yyyy-MM-dd (ปล่อยว่าง = วันนี้ตามเวลาไทย); รับ dd/MM/yyyy ด้วย
+  let dateStr = String(b.date || '').trim();
+  const parsed = dateStr ? ymdToDate_(dateStr) : null;
+  const dateOut = parsed
+    ? Utilities.formatDate(parsed, 'Asia/Bangkok', 'yyyy-MM-dd')
+    : Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
+
+  // 1. บวกสต๊อก + อ่าน/อัปเดตราคาใน อะไหล่ (คอลัมน์: 2 ชื่อ, 4 สต๊อก, 10 updatedAt, 11 ราคา/หน่วย)
+  const partsSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PART);
+  if (!partsSh) throw new Error('sheet "อะไหล่" not found — เพิ่มรายการของก่อนบันทึกซื้อ');
+  const row = findRowById_(partsSh, b.partId);
+  if (row < 0) throw new Error('part not found: ' + b.partId);
+  const partName = norm(partsSh.getRange(row, 2).getValue());
+  const stockCell = partsSh.getRange(row, 4);
+  const cur = parseFloat(stockCell.getValue());
+  const newStock = (isFinite(cur) ? cur : 0) + qty;
+  stockCell.setValue(newStock);
+  const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  partsSh.getRange(row, 10).setValue(now);
+
+  let unitPrice = 0;
+  let prevUnitPrice = 0;
+  if (hasPrice) {
+    unitPrice = Math.round((total / qty) * 100) / 100;
+    const priceCell = partsSh.getRange(row, 11);
+    const prev = parseFloat(priceCell.getValue());
+    prevUnitPrice = isFinite(prev) ? prev : 0;
+    priceCell.setValue(unitPrice); // ราคา/หน่วยล่าสุด = ราคาซื้อครั้งนี้
+  }
+  clearPartCache_();
+
+  // 2. จดบันทึกซื้อ
+  const sh = getOrCreatePurchaseSheet_();
+  const id = Utilities.getUuid();
+  sh.appendRow([
+    id, b.partId, partName, qty,
+    hasPrice ? total : '',
+    hasPrice ? unitPrice : '',
+    b.store || '', b.user || '', dateOut, now,
+  ]);
+
+  logAudit_('addPurchase', 'part', b.partId,
+    partName + ' x' + qty + (hasPrice ? ' = ' + total + ' บาท' : '') + (b.store ? ' @' + b.store : ''),
+    b.user);
+
+  return {
+    appended: true, id: id, newStock: newStock,
+    unitPrice: unitPrice, prevUnitPrice: prevUnitPrice,
+  };
+}
+
+function getPurchases_(b) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PURCHASE);
+  if (!sh) return { rows: [] };
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { rows: [] };
+  const partFilter = b && b.partId ? norm(b.partId) : '';
+  const data = sh.getRange(2, 1, lastRow - 1, 10).getValues();
+  const rows = [];
+  for (let i = data.length - 1; i >= 0; i--) { // ใหม่สุดก่อน
+    const r = data[i];
+    if (partFilter && norm(r[1]) !== partFilter) continue;
+    rows.push({
+      id: norm(r[0]), partId: norm(r[1]), partName: norm(r[2]),
+      quantity: parseFloat(r[3]) || 0,
+      totalPrice: parseFloat(r[4]) || 0,
+      unitPrice: parseFloat(r[5]) || 0,
+      store: norm(r[6]), creator: norm(r[7]),
+      date: fmtDate_(r[8]), createdAt: fmtDate_(r[9]),
+    });
+  }
+  return { rows: rows };
 }
 
 /* ========== TIME LOG (NEW v3.12.0 — Task 35) ========== */

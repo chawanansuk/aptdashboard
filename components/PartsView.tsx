@@ -7,6 +7,7 @@ import {
   isLowStock,
   type Part,
   type PartCategory,
+  type Purchase,
 } from "@/types";
 import { canAddEngTask } from "@/lib/permissions";
 import { Icon } from "@/lib/icons";
@@ -14,6 +15,7 @@ import { exportCsv } from "@/lib/csvExport";
 import { getCachedView, setCachedView, bustView } from "@/lib/viewCache";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import AddPartModal from "./AddPartModal";
+import PurchaseModal from "./PurchaseModal";
 import RequisitionModal from "./RequisitionModal";
 import RequisitionHistoryModal from "./RequisitionHistoryModal";
 import EmptyState from "./EmptyState";
@@ -48,6 +50,47 @@ const PARTS_CACHE_KEY = "parts";
 export default function PartsView({ rooms = [] }: Props) {
   const [reqTarget, setReqTarget] = useState<Part | null>(null);
   const [historyTarget, setHistoryTarget] = useState<Part | null>(null);
+  // v3.28 — "เติม" เปิดโมดัลบันทึกซื้อ (จำนวน+ราคา+ร้าน) แทน adjust เงียบๆ
+  const [purchaseTarget, setPurchaseTarget] = useState<Part | null>(null);
+  const [purchaseQty, setPurchaseQty] = useState("");
+  // บันทึกซื้อทั้งหมด — ใช้คำนวณ ▲▼ ข้างราคา/หน่วย + ยอดซื้อเดือนนี้
+  const [purchases, setPurchases] = useState<Purchase[] | null>(null);
+  const loadPurchases = useCallback(async () => {
+    try {
+      const res = await fetch("/api/part-purchases", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setPurchases((data.rows || []) as Purchase[]);
+    } catch { /* trend เฉยๆ — พังก็แค่ไม่โชว์ลูกศร */ }
+  }, []);
+  useEffect(() => { void loadPurchases(); }, [loadPurchases]);
+
+  // ต่อ part: [ล่าสุด, ก่อนหน้า] ของราคาที่มีจริง → เปอร์เซ็นต์ขึ้น/ลง
+  const trendByPart = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!purchases) return m;
+    const seen = new Map<string, number>(); // partId -> latest unitPrice
+    for (const r of purchases) { // ใหม่สุดก่อน (server เรียงมาแล้ว)
+      if (!(r.unitPrice > 0)) continue;
+      const latest = seen.get(r.partId);
+      if (latest === undefined) { seen.set(r.partId, r.unitPrice); continue; }
+      if (!m.has(r.partId)) {
+        m.set(r.partId, Math.round(((latest - r.unitPrice) / r.unitPrice) * 100));
+      }
+    }
+    return m;
+  }, [purchases]);
+
+  const monthSpend = useMemo(() => {
+    if (!purchases) return 0;
+    const ym = new Date();
+    const prefix = `${ym.getFullYear()}-${String(ym.getMonth() + 1).padStart(2, "0")}`;
+    let sum = 0;
+    for (const r of purchases) {
+      if ((r.date || "").startsWith(prefix)) sum += r.totalPrice || 0;
+    }
+    return sum;
+  }, [purchases]);
   const { data: session } = useSession();
   const canWrite = canAddEngTask(session?.user?.roles);
 
@@ -197,6 +240,11 @@ export default function PartsView({ rooms = [] }: Props) {
           {lowCount > 0 && (
             <div className="ac-parts-low-banner" role="status">
               ⚠ {lowCount} รายการ ใกล้หมด/ต้องสั่งซื้อ
+            </div>
+          )}
+          {monthSpend > 0 && (
+            <div className="ac-parts-value-banner">
+              🛒 ซื้อเข้าเดือนนี้ {monthSpend.toLocaleString("th-TH")} บาท
             </div>
           )}
           {stockValue > 0 && (
@@ -361,11 +409,13 @@ export default function PartsView({ rooms = [] }: Props) {
                             <button
                               type="button"
                               className="ac-parts-quick-btn ac-parts-quick-add"
-                              disabled={busy || !valid}
-                              title={valid ? `เติมสต๊อก ${n} ${p.unit}` : "กรอกจำนวน"}
-                              onClick={async () => {
-                                if (!valid) return;
-                                await adjust(p, +n);
+                              disabled={busy}
+                              title="บันทึกซื้อเข้า — จดจำนวน + ราคาที่จ่าย เห็นแนวโน้มต้นทุน"
+                              onClick={() => {
+                                // v3.28: เติม = ซื้อเข้า → เปิดโมดัลจดราคา
+                                // (แก้สต๊อกเฉยๆ เพราะนับผิด ใช้ปุ่ม +/− ทีละชิ้น)
+                                setPurchaseQty(valid ? String(n) : "");
+                                setPurchaseTarget(p);
                                 setVal("");
                               }}
                             >เติม</button>
@@ -376,6 +426,16 @@ export default function PartsView({ rooms = [] }: Props) {
                     <td className="ac-parts-num">{p.threshold || "—"}</td>
                     <td className="ac-parts-num">
                       {p.price && p.price > 0 ? p.price.toLocaleString("th-TH") : "—"}
+                      {(() => {
+                        const pct = trendByPart.get(p.id);
+                        if (!pct) return null;
+                        return (
+                          <span
+                            className={pct > 0 ? "ac-buy-up" : "ac-buy-down"}
+                            title={`เทียบการซื้อครั้งก่อน ${pct > 0 ? "แพงขึ้น" : "ถูกลง"} ${Math.abs(pct)}%`}
+                          > {pct > 0 ? `▲${pct}%` : `▼${Math.abs(pct)}%`}</span>
+                        );
+                      })()}
                     </td>
                     <td className="ac-parts-num ac-parts-value">
                       {p.price && p.price > 0
@@ -434,6 +494,13 @@ export default function PartsView({ rooms = [] }: Props) {
         open={!!historyTarget}
         part={historyTarget}
         onClose={() => setHistoryTarget(null)}
+      />
+      <PurchaseModal
+        open={!!purchaseTarget}
+        part={purchaseTarget}
+        initialQty={purchaseQty}
+        onClose={() => setPurchaseTarget(null)}
+        onSaved={() => { bustView(PARTS_CACHE_KEY); void load(); void loadPurchases(); }}
       />
     </section>
   );

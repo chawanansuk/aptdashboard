@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Part, Requisition } from "@/types";
+import type { Part, Purchase, Requisition } from "@/types";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { relativeTimeLabel } from "@/lib/relativeTime";
 
 /**
- * Lazy-loaded "ประวัติการเบิก" modal for a single part — fetches
- * /api/part-requisitions?partId=X on open, shows newest-first list
- * with who/when/where/quantity/note.
+ * Lazy-loaded "ประวัติ" modal for a single part — สองแท็บ (v3.28):
+ *   เบิกออก: /api/part-requisitions?partId=X (who/when/where/quantity)
+ *   ซื้อเข้า: /api/part-purchases?partId=X — ราคาที่จ่ายจริงต่อครั้ง
+ *            พร้อม ▲▼ เทียบครั้งก่อน (เห็นเลยว่าต้นทุนขึ้นหรือลง)
  *
  * Read-only; deletions/edits not supported (audit-style log).
  */
@@ -24,17 +25,27 @@ export default function RequisitionHistoryModal({ open, part, onClose }: Props) 
   useFocusTrap(open, ref);
 
   const [rows, setRows] = useState<Requisition[] | null>(null);
+  const [purchases, setPurchases] = useState<Purchase[] | null>(null);
+  const [tab, setTab] = useState<"req" | "buy">("req");
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !part) {
       setRows(null);
+      setPurchases(null);
       setErr(null);
       return;
     }
     let cancelled = false;
     setRows(null);
+    setPurchases(null);
     setErr(null);
+    fetch(`/api/part-purchases?partId=${encodeURIComponent(part.id)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setPurchases((data?.rows || []) as Purchase[]);
+      })
+      .catch(() => { if (!cancelled) setPurchases([]); });
     fetch(`/api/part-requisitions?partId=${encodeURIComponent(part.id)}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
@@ -77,7 +88,7 @@ export default function RequisitionHistoryModal({ open, part, onClose }: Props) 
         onClick={(e) => e.stopPropagation()}
       >
         <header className="ac-modal-head">
-          <h2 id="ac-reqhist-modal-title">ประวัติเบิก: {part.name}</h2>
+          <h2 id="ac-reqhist-modal-title">ประวัติ: {part.name}</h2>
           <button
             type="button"
             className="ac-modal-close"
@@ -87,8 +98,58 @@ export default function RequisitionHistoryModal({ open, part, onClose }: Props) 
         </header>
 
         <div className="ac-modal-body">
-          {err && <div className="ac-form-error" role="alert">{err}</div>}
-          {rows === null ? (
+          <div className="ac-chips" role="tablist" aria-label="เลือกประวัติ" style={{ marginBottom: 10 }}>
+            <button type="button" role="tab" aria-selected={tab === "req"}
+              className={`ac-chip ${tab === "req" ? "is-active" : ""}`}
+              onClick={() => setTab("req")}>📤 เบิกออก</button>
+            <button type="button" role="tab" aria-selected={tab === "buy"}
+              className={`ac-chip ${tab === "buy" ? "is-active" : ""}`}
+              onClick={() => setTab("buy")}>🛒 ซื้อเข้า{purchases && purchases.length > 0 ? ` (${purchases.length})` : ""}</button>
+          </div>
+          {tab === "buy" ? (
+            purchases === null ? (
+              <div className="ac-req-history-empty">กำลังโหลด…</div>
+            ) : purchases.length === 0 ? (
+              <div className="ac-req-history-empty">
+                ยังไม่มีบันทึกการซื้อ — กดปุ่ม &quot;เติม&quot; ในตารางแล้วใส่ราคา
+                ครั้งถัดไปจะเริ่มเห็นแนวโน้มต้นทุน
+              </div>
+            ) : (
+              <ul className="ac-req-history-list">
+                {purchases.map((r, i) => {
+                  // แถวมาใหม่สุดก่อน — เทียบกับ "ครั้งก่อนหน้า" คือ index ถัดไป
+                  const prev = purchases.slice(i + 1).find((x) => x.unitPrice > 0);
+                  const pct = r.unitPrice > 0 && prev
+                    ? Math.round(((r.unitPrice - prev.unitPrice) / prev.unitPrice) * 100)
+                    : 0;
+                  return (
+                    <li key={r.id} className="ac-req-history-item">
+                      <div className="ac-req-history-row1">
+                        <span className="ac-req-history-qty">×{r.quantity}</span>
+                        <span className="ac-req-history-loc">
+                          {r.totalPrice > 0
+                            ? `${r.totalPrice.toLocaleString("th-TH")} ฿ (${r.unitPrice.toLocaleString("th-TH", { maximumFractionDigits: 2 })} ฿/หน่วย)`
+                            : "ไม่ได้ระบุราคา"}
+                          {pct !== 0 && (
+                            <strong className={pct > 0 ? "ac-buy-up" : "ac-buy-down"}>
+                              {" "}{pct > 0 ? `▲ +${pct}%` : `▼ ${pct}%`}
+                            </strong>
+                          )}
+                        </span>
+                        <span className="ac-req-history-time" title={r.createdAt}>{r.date}</span>
+                      </div>
+                      <div className="ac-req-history-row2">
+                        <span className="ac-req-history-user">👤 {(r.creator || "").split("@")[0] || "—"}</span>
+                        {r.store && <span className="ac-req-history-note">· 🏪 {r.store}</span>}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )
+          ) : err ? (
+            <div className="ac-form-error" role="alert">{err}</div>
+          ) : rows === null ? (
             <div className="ac-req-history-empty">กำลังโหลด…</div>
           ) : rows.length === 0 ? (
             <div className="ac-req-history-empty">ยังไม่มีการเบิกอะไหล่ชิ้นนี้</div>
