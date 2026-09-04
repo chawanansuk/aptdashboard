@@ -12,6 +12,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "@hookform/resolvers": "^5.2.2",
     "date-fns": "^3.6.0",
     "date-fns-tz": "^3.1.3",

@@ -16,6 +16,7 @@ import { getCachedView, setCachedView, bustView } from "@/lib/viewCache";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import AddPartModal from "./AddPartModal";
 import PurchaseModal from "./PurchaseModal";
+import ReceiptScanModal from "./ReceiptScanModal";
 import RequisitionModal from "./RequisitionModal";
 import RequisitionHistoryModal from "./RequisitionHistoryModal";
 import EmptyState from "./EmptyState";
@@ -52,6 +53,8 @@ export default function PartsView({ rooms = [] }: Props) {
   const [historyTarget, setHistoryTarget] = useState<Part | null>(null);
   // v3.28 — "เติม" เปิดโมดัลบันทึกซื้อ (จำนวน+ราคา+ร้าน) แทน adjust เงียบๆ
   const [purchaseTarget, setPurchaseTarget] = useState<Part | null>(null);
+  // r28: สแกนใบเสร็จ → บันทึกซื้อหลายรายการทีเดียว
+  const [scanOpen, setScanOpen] = useState(false);
   const [purchaseQty, setPurchaseQty] = useState("");
   // บันทึกซื้อทั้งหมด — ใช้คำนวณ ▲▼ ข้างราคา/หน่วย + ยอดซื้อเดือนนี้
   const [purchases, setPurchases] = useState<Purchase[] | null>(null);
@@ -263,6 +266,14 @@ export default function PartsView({ rooms = [] }: Props) {
             disabled={!rows || filtered.length === 0}
             title={filtered.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${filtered.length} รายการ`}
           >⬇ ดาวน์โหลด CSV</button>
+          {canWrite && (
+            <button
+              type="button"
+              className="ac-btn ac-btn-secondary"
+              onClick={() => setScanOpen(true)}
+              title="ถ่ายรูปใบเสร็จแมคโคร/โฮมโปร ให้ระบบอ่านรายการ+ราคา แล้วบันทึกซื้อทีเดียว"
+            >📷 สแกนใบเสร็จ</button>
+          )}
           {canWrite && (
             <button
               type="button"
@@ -496,6 +507,12 @@ export default function PartsView({ rooms = [] }: Props) {
         open={!!historyTarget}
         part={historyTarget}
         onClose={() => setHistoryTarget(null)}
+      />
+      <ReceiptScanModal
+        open={scanOpen}
+        parts={rows || []}
+        onClose={() => setScanOpen(false)}
+        onSaved={() => { bustView(PARTS_CACHE_KEY); void load(); void loadPurchases(); }}
       />
       <PurchaseModal
         open={!!purchaseTarget}
