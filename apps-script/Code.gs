@@ -467,7 +467,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.28.0';
+var BACKEND_VERSION = '3.29.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -1183,9 +1183,27 @@ function addTask_(b) {
     date: b.date, type: b.type, building: b.building, room: b.room,
   });
   if (existingRows.length > 0) {
+    // v3.29 (บั๊กจริง: "กดเอาลูกค้าเข้าแล้วไม่เซฟ"): key เดิมไม่ดูตัวลูกค้า —
+    // ลูกค้า 2 คนนัดชมห้องเดียวกันวันเดียวกัน คนที่สองถูกปัดทิ้งเงียบๆ.
+    // นับเป็นซ้ำเฉพาะเมื่อ "ตัวตน" ตรงกันด้วย: เบอร์ (เฉพาะตัวเลข) หรือชื่อ
+    // ลูกค้าตรงกัน และหมายเหตุตรงกัน. งานที่ไม่มีลูกค้า/หมายเหตุทั้งคู่
+    // (กดซ้ำเร็วๆ ของเดิม) ยังกันได้เหมือนเดิม.
+    const digits = function (v) { return String(v || '').replace(/\D/g, ''); };
+    const inPhone = digits(b.phone);
+    const inCust  = norm(b.customer);
+    const inNote  = norm(b.note);
     for (let i = 0; i < existingRows.length; i++) {
-      const existingStatus = norm(sh.getRange(existingRows[i], TASK_COL.STATUS).getValue());
-      if (existingStatus !== 'เสร็จ' && existingStatus !== 'ยกเลิก') {
+      const rowVals = sh.getRange(existingRows[i], 1, 1, TASK_COL.STATUS).getValues()[0];
+      const existingStatus = norm(rowVals[TASK_COL.STATUS - 1]);
+      if (existingStatus === 'เสร็จ' || existingStatus === 'ยกเลิก') continue;
+      const exPhone = digits(rowVals[TASK_COL.PHONE - 1]);
+      const exCust  = norm(rowVals[TASK_COL.CUSTOMER - 1]);
+      const exNote  = norm(rowVals[TASK_COL.NOTE - 1]);
+      const sameIdentity =
+        (inPhone && exPhone) ? inPhone === exPhone
+        : (inCust || exCust) ? inCust === exCust
+        : true; // ทั้งคู่ไม่มีลูกค้า → เทียบต่อด้วยหมายเหตุ
+      if (sameIdentity && inNote === exNote) {
         return { appended: false, skipped: 'duplicate-open', row: existingRows[i] };
       }
     }
