@@ -425,8 +425,16 @@ export default function AppHeader({
                       try {
                         toast.info("กำลังสร้าง backup…");
                         const { downloadBackupZip } = await import("@/lib/backupZip");
-                        await downloadBackupZip();
-                        toast.success("ดาวน์โหลด backup สำเร็จ");
+                        const failed = await downloadBackupZip();
+                        if (failed.length) {
+                          // audit r27: เดิม "สำเร็จ" ทั้งที่ tasks.csv ว่าง
+                          toast.warning(`Backup ดาวน์โหลดแล้ว แต่ ${failed.length} ไฟล์ดึงข้อมูลไม่สำเร็จ`, {
+                            description: failed.map((f) => `${f.name}: ${f.error}`).join(" · "),
+                            duration: 12000,
+                          });
+                        } else {
+                          toast.success("ดาวน์โหลด backup สำเร็จ");
+                        }
                       } catch (e) {
                         toast.error(e instanceof Error ? e.message : "Backup ล้มเหลว");
                       }

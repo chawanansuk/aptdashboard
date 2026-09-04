@@ -14,6 +14,7 @@ import { invalidateEquipmentCache } from "@/lib/equipmentCache";
 import { toast } from "@/lib/toast";
 import { FacilitiesSkeleton, MaintenanceSkeleton } from "@/components/skeletons/ViewSkeletons";
 import LoadingState from "./LoadingState";
+import ErrorBanner from "./ErrorBanner";
 import EmptyState from "./EmptyState";
 
 const FacilitiesView = lazy(() => import("./FacilitiesView"));
@@ -223,7 +224,7 @@ export default function MaintenanceHub({
             ทำเสร็จแล้วกด <strong>✓ ทำแล้ววันนี้</strong> ระบบเริ่มนับรอบใหม่ให้เอง
             (เตือนซ้ำทางอีเมลทุกเช้าด้วย)
           </p>
-          {err && <div className="ac-banner ac-banner-warn">{err}</div>}
+          <ErrorBanner message={err} onRetry={() => void loadDue()} onDismiss={() => setErr(null)} />
           {loadingDue && <LoadingState label="กำลังรวมรายการถึงรอบ..." />}
           {!loadingDue && !err && dueItems.length === 0 && (
             <EmptyState

@@ -23,14 +23,18 @@ interface BackupEntity<T> {
   columns: CsvColumn<T>[];
 }
 
-async function fetchRows<T>(url: string, key = "rows"): Promise<T[]> {
+/** audit r27 HIGH: เดิมล้มเงียบเป็น [] → ZIP มี tasks.csv ว่าง แต่ toast บอก
+ *  "สำเร็จ" — ต้องรายงานว่า entity ไหนดึงไม่สำเร็จ */
+async function fetchRows<T>(url: string, key = "rows"): Promise<{ rows: T[]; error: string | null }> {
   try {
     const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return ((data?.[key] as T[] | undefined) || []) as T[];
-  } catch {
-    return [];
+    const data = await res.json().catch(() => null);
+    if (!res.ok) return { rows: [], error: data?.error || `HTTP ${res.status}` };
+    const arr = data?.[key];
+    if (!Array.isArray(arr)) return { rows: [], error: data?.error || "รูปแบบข้อมูลไม่ถูกต้อง" };
+    return { rows: arr as T[], error: null };
+  } catch (e) {
+    return { rows: [], error: e instanceof Error ? e.message : "network error" };
   }
 }
 
@@ -76,7 +80,13 @@ interface MinimalTimeLog {
  * Run all fetches in parallel + assemble ZIP. Returns blob ready to
  * download. Each CSV file uses UTF-8 BOM so Excel opens Thai correctly.
  */
-export async function buildBackupZip(): Promise<Blob> {
+export interface BackupResult {
+  blob: Blob;
+  /** entity ที่ดึงข้อมูลไม่สำเร็จ (CSV ในไฟล์มีแต่หัวตาราง) */
+  failed: { name: string; error: string }[];
+}
+
+export async function buildBackupZip(): Promise<BackupResult> {
   const entities: BackupEntity<unknown>[] = [
     {
       name: "rooms",
@@ -203,13 +213,14 @@ export async function buildBackupZip(): Promise<Blob> {
   const today = new Date().toISOString().slice(0, 10);
   const folder = zip.folder(`apartcloud-backup-${today}`)!;
 
-  // Fetch all in parallel; failures → empty CSV (with header only)
+  // Fetch all in parallel; failures → header-only CSV + รายงานกลับให้ผู้ใช้
   const results = await Promise.all(
     entities.map(async (e) => {
-      const rows = await fetchRows<unknown>(e.url, e.responseKey);
-      return { name: e.name, csv: toCsv(rows, e.columns) };
+      const { rows, error } = await fetchRows<unknown>(e.url, e.responseKey);
+      return { name: e.name, csv: toCsv(rows, e.columns), error };
     }),
   );
+  const failed = results.filter((r) => r.error).map((r) => ({ name: r.name, error: r.error as string }));
   for (const r of results) {
     // UTF-8 BOM for Excel Thai support — same as csvExport.downloadCsv
     folder.file(`${r.name}.csv`, "﻿" + r.csv);
@@ -221,15 +232,21 @@ export async function buildBackupZip(): Promise<Blob> {
     `ApartCloud Backup — ${today}\n\n` +
       `Entities included:\n` +
       entities.map((e) => `  - ${e.name}.csv`).join("\n") +
+      (failed.length
+        ? `\n\n⚠ ดึงข้อมูลไม่สำเร็จ (ไฟล์มีแต่หัวตาราง):\n` +
+          failed.map((f) => `  - ${f.name}.csv: ${f.error}`).join("\n")
+        : "") +
       `\n\nEach CSV is UTF-8 with BOM (opens correctly in Excel).\n`,
   );
 
-  return zip.generateAsync({ type: "blob" });
+  const blob = await zip.generateAsync({ type: "blob" });
+  return { blob, failed };
 }
 
 /** Trigger browser download of the backup ZIP. */
-export async function downloadBackupZip(): Promise<void> {
-  const blob = await buildBackupZip();
+/** คืนรายชื่อ entity ที่ดึงไม่สำเร็จ — ผู้เรียกใช้เตือนผู้ใช้ (ว่าง = ครบ) */
+export async function downloadBackupZip(): Promise<BackupResult["failed"]> {
+  const { blob, failed } = await buildBackupZip();
   const today = new Date().toISOString().slice(0, 10);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -239,4 +256,5 @@ export async function downloadBackupZip(): Promise<void> {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return failed;
 }

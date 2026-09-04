@@ -91,7 +91,7 @@ export default function SalesPipelineV2({
         <div className={styles.titleWrap}>
           <h2 className={styles.title}>ภาพรวมขาย</h2>
           <span className={styles.subtitle}>
-            สถานะห้องและงานขายทั้ง 5 ตึก{lastUpdated ? ` · อัปเดต ${lastUpdated}` : ""}
+            สถานะห้องและงานขายทุกตึก{lastUpdated ? ` · อัปเดต ${lastUpdated}` : ""}
           </span>
         </div>
         <Legend />

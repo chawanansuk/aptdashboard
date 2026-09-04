@@ -94,19 +94,30 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
   // Stale-while-revalidate (perf r13): paint instantly from the session
   // cache — reopening a room no longer waits 0.6-2s on Apps Script —
   // then let the fresh fetch replace it.
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const loadPhotos = useCallback(async () => {
+    setLoadErr(null);
+    try {
+      const rows = await fetchRoomPhotos(building, room);
+      setPhotos(rows);
+    } catch (e) {
+      // มีแคชอยู่ → โชว์ต่อ ห้ามทับด้วย [] (audit r27: เดิมค่าว่างถูก
+      // write-through ลงแคช 5 นาที รูปตำหนิ "หาย" ทั้งที่มี)
+      setPhotos((cur) => cur ?? []);
+      setLoadErr(e instanceof Error ? e.message : "โหลดรูปไม่สำเร็จ");
+    }
+  }, [building, room]);
   useEffect(() => {
     let cancelled = false;
     setPhotos(getCachedRoomPhotos(building, room));
     itemsRef.current.forEach((q) => URL.revokeObjectURL(q.previewUrl));
     itemsRef.current = [];
     setQueue([]);
-    fetchRoomPhotos(building, room).then((rows) => {
-      if (!cancelled) setPhotos(rows);
-    });
+    void loadPhotos().then(() => { if (cancelled) return; });
     return () => {
       cancelled = true;
     };
-  }, [building, room]);
+  }, [building, room, loadPhotos]);
 
   // Write-through: whatever the gallery currently shows (fresh fetch or
   // an optimistic upload/note/delete update) IS the cache.
@@ -372,6 +383,13 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
 
   return (
     <>
+    {loadErr && (
+      <div className="ac-banner ac-banner-warn" role="alert">
+        <strong>⚠ </strong>โหลดรูปไม่สำเร็จ: {loadErr}{" "}
+        <button type="button" className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => void loadPhotos()}>ลองใหม่</button>
+        {photos && photos.length > 0 && <span className="ac-text-muted"> — กำลังแสดงรูปชุดที่โหลดไว้ก่อน</span>}
+      </div>
+    )}
     <section
       className={`ac-form-section ac-defect-photos ${dragOver ? "is-dragover" : ""}`}
       aria-label="รูปตำหนิสภาพห้อง"

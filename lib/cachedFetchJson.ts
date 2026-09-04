@@ -52,7 +52,12 @@ export async function cachedFetchJson<T>(url: string, signal?: AbortSignal): Pro
   // ETags here. `no-store` would have stripped that path entirely.
   const p = existing ?? fetch(url, { cache: "no-cache" })
     .then(async (r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        // ดึงข้อความไทยจาก body ({error}) ก่อน — เดิมโชว์ "HTTP 504" ทั้งที่
+        // เซิร์ฟเวอร์ส่ง "หลังบ้าน Google ตอบช้าเกินไป…" มาให้แล้ว (audit r27)
+        const body = (await r.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || `HTTP ${r.status}`);
+      }
       return (await r.json()) as T;
     })
     .then((data) => {

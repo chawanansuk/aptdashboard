@@ -75,8 +75,11 @@ export default function RecurringView({ buildings }: Props) {
       });
       const data = await res.json().catch(() => ({ ok: false }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      const created = data.result?.created ?? 0;
-      const skipped = data.result?.skipped ?? 0;
+      // Code.gs คืน ok_({created, skipped}) ระดับบน — อ่านทั้งสองแบบ
+      // (audit r27: เดิมโชว์ "ตรวจ 0 เทมเพลต" ทั้งที่สร้างงานจริง)
+      const r = (data.result ?? data) as { created?: number; skipped?: number };
+      const created = r.created ?? 0;
+      const skipped = r.skipped ?? 0;
       if (created > 0) {
         toast.success(`สร้างงาน ${created} รายการแล้ว (ข้าม ${skipped})`);
       } else {
@@ -272,7 +275,9 @@ export default function RecurringView({ buildings }: Props) {
 
       {loading && !rows ? (
         <LoadingState />
-      ) : !rows || rows.length === 0 ? (
+      ) : !rows ? (
+        null /* โหลดพัง — ErrorBanner ข้างบนพูดแทน ไม่โชว์ empty state ที่โกหก */
+      ) : rows.length === 0 ? (
         <EmptyState
           icon="calendar"
           title="ยังไม่มีงานประจำ"

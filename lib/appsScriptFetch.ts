@@ -31,7 +31,24 @@ export class AppsScriptError extends Error {
 }
 
 const RETRY_DELAYS_MS = [300, 600, 1200];
-const DEFAULT_TIMEOUT_MS = 15_000;
+/**
+ * r27 (บั๊ก "This operation was aborted" ที่หน้าสัตว์เลี้ยง): Apps Script cold
+ * start กินได้ 15-25s เป็นปกติ. เดิม 15s ตัดก่อน Google ตอบ.
+ *  - reads (idempotent): 20s × 2 attempts (~40s) — ใต้ maxDuration 60 ทุก route
+ *  - writes: 30s × 1 attempt (ไม่ retry อยู่แล้ว — ยืดเวลาคือลด false-fail
+ *    ที่ทำให้คนกดซ้ำแล้วได้แถวซ้ำ)
+ * ผู้เรียกที่ตั้ง timeoutMs เองยังใช้ค่าตัวเองตามเดิม.
+ */
+const DEFAULT_READ_TIMEOUT_MS = 20_000;
+const DEFAULT_WRITE_TIMEOUT_MS = 30_000;
+const DEFAULT_READ_MAX_RETRIES = 1;
+
+/** แปล AbortError ให้เป็นภาษาคน + สถานะ 504 ทุก route ในที่เดียว —
+ *  เดิม "This operation was aborted" หลุดไปโชว์ผู้ใช้ตรงๆ. */
+export function isAbortLike(e: unknown): boolean {
+  return e instanceof Error && (e.name === "AbortError" || /abort/i.test(e.message));
+}
+export const UPSTREAM_SLOW_MESSAGE = "หลังบ้าน Google ตอบช้าเกินไป — กดลองอีกครั้งได้เลย";
 
 interface CallOptions {
   /** Reads can safely retry on any error; writes only on network-level. */
@@ -120,7 +137,7 @@ async function runCall<T>(
 ): Promise<AppsScriptResult<T>> {
   const url = getUrl();
   const idempotent = opts.idempotent ?? false;
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = opts.timeoutMs ?? (idempotent ? DEFAULT_READ_TIMEOUT_MS : DEFAULT_WRITE_TIMEOUT_MS);
   // Explicit `action` parameter must always win — earlier spread of
   // body keys can include a stale `action` field (e.g. from /api/room-equipment
   // forwarding the client's `action: "add"` while we want to upstream
@@ -136,7 +153,10 @@ async function runCall<T>(
 
   let lastErr: Error | null = null;
 
-  const maxAttempts = 1 + Math.min(opts.maxRetries ?? RETRY_DELAYS_MS.length, RETRY_DELAYS_MS.length);
+  const maxAttempts = 1 + Math.min(
+    opts.maxRetries ?? (idempotent ? DEFAULT_READ_MAX_RETRIES : 0),
+    RETRY_DELAYS_MS.length,
+  );
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -195,5 +215,8 @@ async function runCall<T>(
     await new Promise((r) => setTimeout(r, delay));
   }
 
+  if (lastErr && isAbortLike(lastErr)) {
+    throw new AppsScriptError(UPSTREAM_SLOW_MESSAGE, 504);
+  }
   throw lastErr || new AppsScriptError("upstream call failed", 502);
 }

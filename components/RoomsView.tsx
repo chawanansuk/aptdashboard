@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import EmptyState from "./EmptyState";
 import type { Role } from "@/auth";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
@@ -450,6 +451,16 @@ function RoomsView({
       </section>
 
       <div ref={gridRef}>
+      {floorGroups.length === 0 && (
+        /* QA r27: หน้าสถานะห้อง (เช่น รอตรวจ/QC = 0 ห้อง) เดิมว่างเปล่าใต้
+           แถบฟิลเตอร์ ไม่มีข้อความอะไรเลย */
+        <EmptyState
+          icon="search"
+          title="ไม่มีห้องตามเงื่อนไขนี้ตอนนี้"
+          description="ลองเปลี่ยนตัวกรองสถานะด้านบน หรือเลือกตึกอื่นจากแถบบนสุด"
+          action={activeFilter !== "all" ? { label: "ดูทุกสถานะ", onClick: () => onChangeFilter("all") } : undefined}
+        />
+      )}
       {floorGroups.map((g, idx) => {
         const counts: Record<RoomStatus, number> = { occupied: 0, ready: 0, pending: 0, moveout: 0, qc: 0, repair: 0, inactive: 0 };
         g.list.forEach((r) => counts[r.status]++);

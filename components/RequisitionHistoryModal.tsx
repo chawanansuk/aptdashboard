@@ -41,11 +41,19 @@ export default function RequisitionHistoryModal({ open, part, onClose }: Props) 
     setPurchases(null);
     setErr(null);
     fetch(`/api/part-purchases?partId=${encodeURIComponent(part.id)}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled) setPurchases((data?.rows || []) as Purchase[]);
+      .then(async (r) => {
+        const data = await r.json().catch(() => null);
+        // 403/502 ไม่มี rows → เดิมกลายเป็น "ยังไม่มีบันทึกการซื้อ" (โกหก)
+        if (!r.ok || !Array.isArray(data?.rows)) throw new Error(data?.error || `HTTP ${r.status}`);
+        return data.rows as Purchase[];
       })
-      .catch(() => { if (!cancelled) setPurchases([]); });
+      .then((rows) => { if (!cancelled) setPurchases(rows); })
+      .catch((e) => {
+        if (!cancelled) {
+          setPurchases([]);
+          setErr(e instanceof Error ? e.message : "โหลดประวัติซื้อไม่สำเร็จ");
+        }
+      });
     fetch(`/api/part-requisitions?partId=${encodeURIComponent(part.id)}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {

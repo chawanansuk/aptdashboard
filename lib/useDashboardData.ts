@@ -555,6 +555,9 @@ export function useDashboardData(): DashboardState {
         if (j.error) {
           console.error(`[dashboard] slice ${url} returned error:`, j.error);
           errs.push(String(j.error));
+          // audit r27: body ที่เป็น error (401 session หมดอายุ / 403) ไม่มี
+          // rooms/tasks → เดิม onData แปลงเป็น [] ทับกริดที่ยังใช้ได้
+          if (!("rooms" in j) && !("tasks" in j)) return;
         }
         if (j.cached) anyCached = true;
         onData(j);

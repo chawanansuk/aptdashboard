@@ -9,6 +9,7 @@ import type { Role } from "@/auth";
 import { canAddSalesTask, canAddEngTask, canAddCleanTask } from "@/lib/permissions";
 import { modKey } from "@/lib/platform";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { fileRequisitionLines } from "@/lib/partsRequisition";
 import {
   makeTaskSchema,
   type TaskFormValues,
@@ -238,23 +239,12 @@ export default function AddTaskModal({
     const reqBuilding = values.building;
     const reqRoom = isCommon ? values.room : values.room;
     const taskKey = `${values.date}|${values.building}|${values.room}|${values.type}`;
-    for (const p of usedParts) {
-      try {
-        await fetch("/api/part-requisitions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "add",
-            partId: p.partId,
-            quantity: p.quantity,
-            building: reqBuilding,
-            room: reqRoom,
-            taskKey,
-            note: `ใช้ในงาน ${values.type}`,
-          }),
-        });
-      } catch { /* silent — task already saved */ }
-    }
+    // audit r27: เดิมยิง POST แล้วทิ้ง response — 403/ของไม่พอ/ไม่เจอ SKU
+    // ไม่มี toast สต๊อกไม่ลดทั้งที่ผู้ใช้คิดว่าเบิกแล้ว → ใช้ helper กลาง
+    // ตัวเดียวกับหน้าซ่อมบำรุง (นับ ok/clamped และ toast ตามจริง)
+    await fileRequisitionLines(usedParts, {
+      building: reqBuilding, room: reqRoom, taskKey, jobNote: `ใช้ในงาน ${values.type}`,
+    });
   }, [onSubmit, usedParts]);
 
   const currentRoom = watch("room");

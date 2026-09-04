@@ -9,6 +9,9 @@ import type { RecurringTemplate } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// r27: Vercel default (10-15s) สั้นกว่า timeout ของ appsScriptCall → function
+// ถูกฆ่าก่อนโค้ดจับ error ผู้ใช้เจอ 504 เปล่าๆ. 60s = เพดาน Hobby.
+export const maxDuration = 60;
 
 /**
  * Recurring task templates (v3.17.0). Engineer + management can

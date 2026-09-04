@@ -8,6 +8,9 @@ import type { Purchase } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// r27: Vercel default (10-15s) สั้นกว่า timeout ของ appsScriptCall → function
+// ถูกฆ่าก่อนโค้ดจับ error ผู้ใช้เจอ 504 เปล่าๆ. 60s = เพดาน Hobby.
+export const maxDuration = 60;
 
 /**
  * Purchase log (v3.28.0) — จดการซื้อของเข้าสต๊อกพร้อมราคาที่จ่ายจริง
@@ -42,7 +45,11 @@ export async function GET(req: Request) {
       "getPurchases", { partId }, { idempotent: true },
     );
     if (!json.ok) return bad(json.error || "backend error", 502);
-    const rows = (json.result?.rows || []) as Purchase[];
+    // Code.gs คืน ok_({rows}) = rows อยู่ระดับบน (ไม่ห่อ result เหมือน
+    // getRequisitions) — อ่านได้ทั้งสองแบบ (audit r27 HIGH: เดิมอ่านแต่
+    // result.rows → ประวัติซื้อว่างตลอด ▲▼ ไม่เคยโชว์)
+    const j = json as { result?: { rows?: Purchase[] }; rows?: Purchase[] };
+    const rows = (j.result?.rows ?? j.rows ?? []) as Purchase[];
     return etagJsonResponse({ rows }, req, { tag: "purchases" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
