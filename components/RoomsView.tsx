@@ -404,6 +404,23 @@ function RoomsView({
     setQuickFor({ room: r, anchor: rect });
   }
 
+  // r30 (Prom Design "disclosure for abundance"): ยุบ/ขยายรายตึก จำสถานะใน
+  // localStorage — 5 ตึก × หลายชั้น บนมือถือยาวมาก ยุบตึกที่ไม่ได้ดูได้
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem("collapsedBuildings") : null;
+      return new Set<string>(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch { return new Set<string>(); }
+  });
+  const toggleBuilding = (b: string) => {
+    setCollapsed((cur) => {
+      const next = new Set(cur);
+      if (next.has(b)) next.delete(b); else next.add(b);
+      try { window.localStorage.setItem("collapsedBuildings", JSON.stringify([...next])); } catch { /* private mode */ }
+      return next;
+    });
+  };
+
   return (
     <>
       <section className="ac-fb">
@@ -474,11 +491,21 @@ function RoomsView({
         return (
           <Fragment key={`${g.building}|${g.floor}`}>
           {showBuildingHeader && (
-            <header className="ac-bld-head">
+            <header
+              className={`ac-bld-head ${collapsed.has(g.building) ? "is-collapsed" : ""}`}
+              role="button"
+              tabIndex={0}
+              aria-expanded={!collapsed.has(g.building)}
+              onClick={() => toggleBuilding(g.building)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBuilding(g.building); } }}
+              title={collapsed.has(g.building) ? "ขยายตึกนี้" : "ยุบตึกนี้"}
+            >
               <span className="ac-bld-name">{g.building}</span>
               <span className="ac-bld-count">{buildingRoomCount} ห้อง</span>
+              <span className="ac-bld-chevron" aria-hidden>▾</span>
             </header>
           )}
+          {multiBuilding && collapsed.has(g.building) ? null : (
           <section className="ac-fs">
             <header className="ac-fs-head">
               <div className="ac-fs-title">ชั้น {g.floor}</div>
@@ -524,6 +551,7 @@ function RoomsView({
               })}
             </div>
           </section>
+          )}
           </Fragment>
         );
       })}

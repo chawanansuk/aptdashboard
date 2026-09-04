@@ -103,6 +103,21 @@ async function shot(page: Page, name: string, fullPage = false): Promise<void> {
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage });
 }
 
+/**
+ * Density budget (r30 — Prom Design webapp.md): screens = scrollHeight ÷
+ * viewport. หน้าแอปบนมือถือ 1-2 จอ = ดี, 2-3 = รายการ/browse รับได้,
+ * 3-4.5 = ยาว ต้องมีเหตุผล, >4.5 = "แลนดิ้งเพจปลอมตัวเป็นแอป" → fail.
+ * Log ทุกหน้าเพื่อดูแนวโน้ม; fail เฉพาะเกิน REJECT.
+ */
+const DENSITY_REJECT = 4.5;
+async function assertDensity(page: Page, name: string, max = DENSITY_REJECT): Promise<number> {
+  const screens = await page.evaluate(() =>
+    Math.round((document.documentElement.scrollHeight / window.innerHeight) * 100) / 100);
+  console.log(`[density] ${name}: ${screens} screens`);
+  expect(screens, `${name} is ${screens} screens tall (budget ${max})`).toBeLessThanOrEqual(max);
+  return screens;
+}
+
 /** Click a sidebar view item by its label; tolerate absence. */
 async function goView(page: Page, label: string): Promise<boolean> {
   const item = page.locator(".ac-side-item", { hasText: label }).first();
@@ -178,6 +193,7 @@ test.describe("UI review — mobile", () => {
   test("capture mobile light", async ({ page }) => {
     await prep(page);
     await shot(page, "mobile-light-overview", true);
+    await assertDensity(page, "mobile-light-overview");
     // Room modal (bottom-sheet style on mobile)
     const card = page.locator(".ac-rc", { hasText: "201" }).first();
     await card.click();
@@ -188,6 +204,7 @@ test.describe("UI review — mobile", () => {
   test("capture mobile dark", async ({ page }) => {
     await prep(page, { dark: true });
     await shot(page, "mobile-dark-overview", true);
+    await assertDensity(page, "mobile-dark-overview");
   });
 });
 
@@ -214,6 +231,7 @@ test.describe("UI review — sales & engineer modes", () => {
     const page = await ctx.newPage();
     await prep(page);
     await shot(page, "mobile-light-engineer-home", true);
+    await assertDensity(page, "mobile-light-engineer-home");
     if (await goView(page, "กระดานงานช่าง")) await shot(page, "mobile-light-engineer-kanban", true);
     await ctx.close();
   });
