@@ -10897,3 +10897,28 @@ html.dark .ac-buy-down { color: #4ADE80; }
   display: flex; flex-direction: column; align-items: center; gap: 14px;
   color: #F1F5F9; font-size: 15px; text-align: center; padding: 24px;
 }
+
+/* ===== สแกนใบเสร็จ (r28) ===== */
+.ac-receipt-modal { max-width: 760px; }
+.ac-receipt-drop {
+  border: 2px dashed var(--color-border-strong); border-radius: var(--radius-lg);
+  min-height: 220px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; background: var(--color-surface-2); overflow: hidden; padding: 12px;
+}
+.ac-receipt-drop.has-image { cursor: default; }
+.ac-receipt-drop-hint { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; max-width: 360px; }
+.ac-receipt-preview { max-height: 46vh; max-width: 100%; object-fit: contain; border-radius: var(--radius-md); }
+.ac-receipt-scanning { text-align: center; padding: 10px; font-weight: 600; color: var(--color-accent); }
+.ac-receipt-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ac-receipt-hint { font-size: 12px; margin: 0; }
+.ac-receipt-table td, .ac-receipt-table th { vertical-align: middle; }
+.ac-receipt-table select { max-width: 220px; width: 100%; }
+.ac-receipt-num { width: 76px; text-align: right; }
+.ac-receipt-name { font-weight: 600; }
+.ac-receipt-guess { font-size: 11px; color: #D97706; }
+.ac-receipt-table tr.is-skipped .ac-receipt-name { color: var(--color-text-muted); text-decoration: line-through; }
+.ac-receipt-sum { text-align: right; font-size: 13px; color: var(--color-text-muted); }
+@media (max-width: 640px) {
+  .ac-receipt-meta { grid-template-columns: 1fr; }
+  .ac-receipt-table select { max-width: 150px; }
+}
