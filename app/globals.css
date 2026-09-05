@@ -54,6 +54,11 @@
   --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Sukhumvit Set", Tahoma, Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", monospace;
 
+  /* App chrome (r30 — Prom Design 'app chrome as tokens'): ทุก scroll
+   * container/safe-area อ้างค่าเดียวกัน ไม่ hardcode 48/80 กระจาย */
+  --nav-h: 48px;
+  --tabbar-h: 64px;
+
   --text-xs: 12px;
   --text-sm: 12px;
   --text-base: 14px;
@@ -80,9 +85,10 @@
   --color-border: #E2E8F0;
   --color-border-strong: #CBD5E1;
   --color-text: #0F172A;
-  --color-text-muted: #64748B;
-  /* faint เดิม #94A3B8 = 2.9:1 บนพื้นขาว — ตก WCAG AA (UI audit r20) */
-  --color-text-faint: #64748B;
+  /* r30: contrast fixture ใน CI จับได้ว่า #64748B บน surface-3 (#F1F5F9)
+   * = 4.34:1 ตก AA → #5F6D84 (4.78 บน surface-3, 5.24 บนขาว) */
+  --color-text-muted: #5F6D84;
+  --color-text-faint: #5F6D84;
   --color-accent: #2563EB;
   /* Danger/urgent — several kanban-moveout rules already consumed this
    * token but it was never DEFINED, so those backgrounds/borders
@@ -164,9 +170,10 @@ html.dark {
   --color-border: #334155;
   --color-border-strong: #475569;
   --color-text: #F1F5F9;
-  --color-text-muted: #94A3B8;
-  /* faint เดิม #64748B = 3.75:1 บนพื้นมืด — ตก WCAG AA (UI audit r20) */
-  --color-text-faint: #94A3B8;
+  /* r30: #94A3B8 บน surface-3 (#334155) = 4.04:1 ตก AA → #A3B1C6
+   * (4.76 บน surface-3, 8.2 บนพื้นหลัก) */
+  --color-text-muted: #A3B1C6;
+  --color-text-faint: #A3B1C6;
   --color-accent: #3B82F6;
   --color-danger: #EF4444;
 }
@@ -284,7 +291,7 @@ h3, .ac-h3 {
     padding-right: max(12px, env(safe-area-inset-right));
     /* Clear the fixed bottom nav (~64px) — cards' action buttons used
        to hide behind it at the end of the list (UI r17). */
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    padding-bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom));
   }
 
   /* --- Filter chips horizontal scroll --- */
@@ -6503,20 +6510,21 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
 }
 
 @media (max-width: 600px) {
+  /* r30 (Prom Design "merge header into payload"): บนมือถือ hero ย่อเหลือ
+   * แถบบางบรรทัดเดียว — ไอคอน/สโลแกนไม่ใช่ข้อมูล ตัดออก ให้ KPI+งานขึ้นจอแรก */
   .ac-welcome-hero {
-    padding: 14px 16px;
-    gap: 12px;
+    padding: 10px 14px;
+    gap: 8px;
   }
-  .ac-welcome-hero-icon {
-    width: 44px;
-    height: 44px;
-    font-size: 26px;
-  }
+  .ac-welcome-hero::before { display: none; }
+  .ac-welcome-hero-icon { display: none; }
+  .ac-welcome-hero-tagline { display: none; }
   .ac-welcome-hero-line1 {
-    font-size: var(--text-lg);
+    font-size: var(--text-base);
   }
   .ac-welcome-hero-line2 {
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
+    line-height: 1.35;
   }
 }
 
@@ -10922,3 +10930,20 @@ html.dark .ac-buy-down { color: #4ADE80; }
   .ac-receipt-meta { grid-template-columns: 1fr; }
   .ac-receipt-table select { max-width: 150px; }
 }
+
+/* r30: การ์ด insight 3 ใบเดิมซ้อนกันสูง ~300px บนมือถือ → แถวเดียว 3 คอลัมน์
+ * (Prom Design density budget: หน้าแอปไม่ควรเกิน ~3 จอ) */
+@media (max-width: 640px) {
+  .ac-insights-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .ac-insights-card { padding: 8px 10px; }
+  .ac-insights-label { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-insights-value { font-size: 20px; }
+  .ac-insights-sub { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* r30: ยุบ/ขยายรายตึกในกริดห้อง (จำสถานะ) */
+.ac-bld-head { cursor: pointer; user-select: none; }
+.ac-bld-head:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.ac-bld-chevron { margin-left: auto; font-size: 12px; color: var(--color-text-muted); transition: transform 150ms ease; }
+.ac-bld-head.is-collapsed .ac-bld-chevron { transform: rotate(-90deg); }
+.ac-bld-head.is-collapsed { margin-bottom: 8px; }
