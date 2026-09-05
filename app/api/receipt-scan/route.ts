@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { canPerform } from "@/lib/permissions";
+import { AI_MODEL, describeAiError, getAnthropic, loadPattern } from "@/lib/ai/patterns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,13 +47,6 @@ export async function POST(req: Request) {
   if (!canPerform(session.user.roles, "part.edit")) {
     return bad("ไม่มีสิทธิ์บันทึกการซื้อ", 403);
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return bad(
-      "ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ใน Vercel (Settings → Environment Variables) — ตั้งแล้ว redeploy ครั้งเดียว",
-      503,
-    );
-  }
-
   let body: { imageBase64?: unknown; mimeType?: unknown };
   try {
     body = (await req.json()) as typeof body;
@@ -66,18 +59,13 @@ export async function POST(req: Request) {
   if (imageBase64.length > MAX_BASE64_CHARS) return bad("รูปใหญ่เกินไป — บีบรูปก่อนส่ง");
   if (!ALLOWED_MIME.has(mimeType)) return bad("รองรับเฉพาะ JPEG/PNG/WebP");
 
-  const client = new Anthropic();
   try {
+    // r31: prompt อยู่ใน lib/ai/patterns/receipt_scan.md (คลัง pattern แบบ Fabric)
+    const client = getAnthropic();
     const response = await client.messages.parse({
-      model: "claude-opus-5",
+      model: AI_MODEL,
       max_tokens: 4096,
-      system:
-        "คุณคืออ่านใบเสร็จร้านค้าไทย (แมคโคร โฮมโปร ไทวัสดุ ฯลฯ) ให้แม่นยำ " +
-        "ดึงทุกบรรทัดสินค้าที่ซื้อ: ชื่อตามที่พิมพ์ในบิล, จำนวน, ราคารวมของบรรทัด (บาท). " +
-        "ข้ามบรรทัดที่ไม่ใช่สินค้า (ยอดรวมย่อย ภาษี เงินทอน คะแนนสะสม โปรโมชั่นที่เป็นส่วนลดรวม). " +
-        "ถ้าบรรทัดมีส่วนลดเฉพาะรายการ ให้ใช้ราคาหลังหักส่วนลด. " +
-        "ถ้าอ่านตัวเลขไม่ชัดให้ประมาณจากยอดรวมท้ายบิล. วันที่ให้แปลงเป็น ค.ศ. yyyy-MM-dd " +
-        "(ใบเสร็จไทยมักพิมพ์ พ.ศ. — ลบ 543).",
+      system: loadPattern("receipt_scan"),
       messages: [
         {
           role: "user",
@@ -118,16 +106,7 @@ export async function POST(req: Request) {
       usage: { input: response.usage.input_tokens, output: response.usage.output_tokens },
     });
   } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) {
-      return bad("ANTHROPIC_API_KEY ไม่ถูกต้อง — ตรวจค่าที่ตั้งใน Vercel", 503);
-    }
-    if (e instanceof Anthropic.RateLimitError) {
-      return bad("ระบบอ่านใบเสร็จถูกใช้งานถี่เกินไป — รอสักครู่แล้วลองใหม่", 429);
-    }
-    if (e instanceof Anthropic.APIError) {
-      return bad(`อ่านใบเสร็จไม่สำเร็จ (${e.status}): ${e.message}`, 502);
-    }
-    const msg = e instanceof Error ? e.message : "unknown";
-    return bad(`อ่านใบเสร็จไม่สำเร็จ: ${msg}`, 502);
+    const { message, status } = describeAiError(e, "อ่านใบเสร็จ");
+    return bad(message, status);
   }
 }

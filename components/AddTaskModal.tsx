@@ -10,6 +10,8 @@ import { canAddSalesTask, canAddEngTask, canAddCleanTask } from "@/lib/permissio
 import { modKey } from "@/lib/platform";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { fileRequisitionLines } from "@/lib/partsRequisition";
+import { FIELD_LABELS, type CleanParsedTask } from "@/lib/ai/taskParse";
+import { toast } from "@/lib/toast";
 import {
   makeTaskSchema,
   type TaskFormValues,
@@ -147,6 +149,47 @@ export default function AddTaskModal({
   }, [roles]);
 
   const currentType = watch("type");
+
+  // ---- AI paste (r31) ----
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiText, setAiText] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiUnsure, setAiUnsure] = useState<string[]>([]);
+  async function runAiParse() {
+    const text = aiText.trim();
+    if (!text) return;
+    setAiBusy(true);
+    setAiUnsure([]);
+    try {
+      const res = await fetch("/api/ai/parse-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          buildings: buildings.filter((b) => b !== "ทั้งหมด"),
+          rooms: (rooms || []).map((r) => ({ building: r.building, room: r.room })),
+        }),
+      });
+      const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const t = data.task as CleanParsedTask;
+      // เติมเฉพาะช่องที่ AI ได้ค่ามา — ไม่ล้างค่าที่ผู้ใช้กรอกไว้แล้ว
+      setValue("type", t.type, { shouldValidate: true, shouldDirty: true });
+      if (t.building) setValue("building", t.building, { shouldValidate: true, shouldDirty: true });
+      if (t.room) setValue("room", t.room, { shouldValidate: true, shouldDirty: true });
+      if (t.date) setValue("date", t.date, { shouldValidate: true, shouldDirty: true });
+      if (t.customer) setValue("customer", t.customer, { shouldDirty: true });
+      if (t.phone) setValue("phone", t.phone, { shouldDirty: true });
+      const note = [t.time ? `เวลา ${t.time}` : "", t.note].filter(Boolean).join(" · ");
+      if (note) setValue("note", note, { shouldDirty: true });
+      setAiUnsure(t.unsure);
+      toast.success("AI เติมฟอร์มให้แล้ว — ตรวจแล้วกดบันทึก");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "อ่านข้อความไม่สำเร็จ");
+    } finally {
+      setAiBusy(false);
+    }
+  }
   const showCustomerSection = TYPES_WITH_CUSTOMER.has(currentType);
 
   // Common-area toggle (Task 38) — show only for engineer task types
@@ -359,6 +402,35 @@ export default function AddTaskModal({
 
         <form onSubmit={handleSubmit(wrappedSubmit)}>
           <div className="ac-modal-body">
+            {/* r31 (pattern line_to_task): แปะข้อความ LINE ให้ AI เติมฟอร์ม —
+                ผู้ใช้ยังตรวจทุกช่องก่อนกดบันทึก (ช่องที่ AI เดาโชว์เป็นป้ายเตือน) */}
+            <details className="ac-ai-paste" open={aiOpen} onToggle={(e) => setAiOpen((e.target as HTMLDetailsElement).open)}>
+              <summary>📋 แปะข้อความ LINE ให้ AI เติมฟอร์ม</summary>
+              <div className="ac-ai-paste-body">
+                <textarea
+                  rows={3}
+                  value={aiText}
+                  onChange={(e) => setAiText(e.target.value)}
+                  placeholder={'เช่น "ห้อง 204 มีทอง แอร์ไม่เย็น มาดูพรุ่งนี้บ่ายได้ไหม คุณนก 081-234-5678"'}
+                  aria-label="ข้อความ LINE"
+                  disabled={aiBusy}
+                />
+                <div className="ac-ai-paste-actions">
+                  <button
+                    type="button"
+                    className="ac-btn ac-btn-secondary ac-btn-sm"
+                    onClick={() => void runAiParse()}
+                    disabled={aiBusy || !aiText.trim()}
+                  >{aiBusy ? "กำลังอ่าน…" : "✨ ให้ AI อ่าน"}</button>
+                  {aiUnsure.length > 0 && (
+                    <span className="ac-ai-unsure">
+                      เติมให้แล้ว — เช็คช่อง: {aiUnsure.map((u) => FIELD_LABELS[u] || u).join(", ")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </details>
+
             {/* SECTION 1 — เมื่อไหร่ + ทำอะไร */}
             <div className="ac-form-section">
               <div className="ac-form-section-label">เมื่อไหร่ · ทำอะไร</div>

@@ -19,6 +19,7 @@ import { formatCommonArea } from "@/lib/taskLocation";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { RepairPartsPicker, type RepairPartLine } from "@/components/RoomRepairParts";
 import { fileRequisitionLines } from "@/lib/partsRequisition";
+import AiReportModal from "./AiReportModal";
 
 /**
  * บันทึกซ่อมบำรุง — the engineer section's week/month story:
@@ -46,6 +47,8 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
   const [periodKey, setPeriodKey] = useState(periods[0].key);
   const period: Period = periods.find((p) => p.key === periodKey) ?? periods[0];
   const [logOpen, setLogOpen] = useState(false);
+  // r31: AI สรุปช่วงนี้เป็นรายงาน LINE
+  const [reportOpen, setReportOpen] = useState(false);
   // r23: กดการ์ดสถิติเพื่อกรองรายการข้างล่าง (ประเภท / เฉพาะยังค้าง)
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [openOnly, setOpenOnly] = useState(false);
@@ -189,6 +192,12 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
               + ลงบันทึกงาน
             </button>
           )}
+          <button
+            className="ac-btn ac-btn-secondary"
+            onClick={() => setReportOpen(true)}
+            disabled={digest.rooms.length === 0 && digest.common.length === 0}
+            title="ให้ AI เขียนสรุปช่วงนี้เป็นข้อความอ่านง่าย คัดลอกส่งกลุ่ม LINE ได้เลย"
+          >✨ สรุปส่ง LINE</button>
           <button className="ac-btn ac-btn-ghost" onClick={exportMd} title="ดาวน์โหลดสรุปช่วงนี้เป็นไฟล์ Markdown (เปิดใน LINE/Notes ได้)">
             ⬇ ส่งออก
           </button>
@@ -306,6 +315,12 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
         </>
       )}
 
+      <AiReportModal
+        open={reportOpen}
+        periodLabel={period.label}
+        digestMarkdown={digestToMarkdown(digest, period.label, { includeCost: canCost })}
+        onClose={() => setReportOpen(false)}
+      />
       {logOpen && (
         <LogModal
           rooms={rooms}
