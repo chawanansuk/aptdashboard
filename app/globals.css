@@ -10947,3 +10947,16 @@ html.dark .ac-buy-down { color: #4ADE80; }
 .ac-bld-chevron { margin-left: auto; font-size: 12px; color: var(--color-text-muted); transition: transform 150ms ease; }
 .ac-bld-head.is-collapsed .ac-bld-chevron { transform: rotate(-90deg); }
 .ac-bld-head.is-collapsed { margin-bottom: 8px; }
+
+/* ===== AI patterns (r31) ===== */
+.ac-ai-paste { border: 1px dashed var(--color-border-strong); border-radius: var(--radius-md); padding: 6px 10px; background: var(--color-surface-2); }
+.ac-ai-paste > summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--color-accent); list-style: none; }
+.ac-ai-paste > summary::-webkit-details-marker { display: none; }
+.ac-ai-paste-body { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+.ac-ai-paste-body textarea { width: 100%; resize: vertical; }
+.ac-ai-paste-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ac-ai-unsure { font-size: 12px; color: #B45309; }
+.ac-ai-report { max-width: 560px; }
+.ac-ai-report-text { width: 100%; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
+.ac-ai-loading { text-align: center; padding: 20px; color: var(--color-accent); font-weight: 600; }
+.ac-ai-hint { font-size: 12px; margin: 0 0 6px; }
