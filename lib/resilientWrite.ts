@@ -76,7 +76,10 @@ export async function resilientPost(
         signal: opts.signal,
       });
       // Transient server error → retry (unless this was the last attempt).
-      if (res.status >= 500 && attempt < extra) {
+      // r32: 504 = เซิร์ฟเวอร์รอ Google เต็มงบแล้ว (45s) — ลองซ้ำอีก 3 รอบคือ
+      // ให้พนักงานรอเป็นนาทีโดยไม่รู้อะไร และรายการอาจเข้าไปแล้ว. ส่งคืนให้
+      // ผู้เรียกไปเช็ค/รีเฟรชแทน (page.handleAddTask ตรวจให้อัตโนมัติ).
+      if (res.status >= 500 && res.status !== 504 && attempt < extra) {
         lastErr = new Error(`HTTP ${res.status}`);
         continue;
       }

@@ -246,6 +246,12 @@ export default function RoomModalHost({
         }
         onClose();
         refresh();
+      } else if (res.status === 504) {
+        // r32: หมดเวลารอ Google — ค่าอาจเข้าแล้ว. รีเฟรชให้ทันที (route ล้างแคช
+        // แล้ว) และคงโมดัลไว้ให้ดูว่าสถานะเปลี่ยนหรือยัง ก่อนตัดสินใจกดซ้ำ.
+        toast.warning(String(data.error || "หลังบ้าน Google ตอบช้า — รีเฟรชดูก่อนกดซ้ำ"), { duration: 8000 });
+        publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
+        refresh();
       } else {
         const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
         toast.error(`บันทึกไม่สำเร็จ${statusSuffix}: ${data.error || "unknown error"}`);

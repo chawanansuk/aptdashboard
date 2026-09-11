@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, lazy, Suspense } from "react";
 import { quickSetRoomStatus, executeJourneyAction } from "@/lib/journeyActions";
 import { resilientPost } from "@/lib/resilientWrite";
+import { fetchFreshTasks, findLandedTask, WRITE_TIMEOUT_STATUS } from "@/lib/writeVerify";
 import { useSession } from "next-auth/react";
 import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
@@ -1041,7 +1042,34 @@ export default function Home() {
       if (process.env.NODE_ENV === "development") {
         console.log("[write] addTask response", res.status, data);
       }
-      if (data.ok && (data as { skipped?: string }).skipped === "duplicate-open") {
+      if (res.status === WRITE_TIMEOUT_STATUS) {
+        // r32: Vercel หมดเวลารอ Google (45s) — บ่อยครั้งแถวเข้าไปแล้วแต่ตอบช้า.
+        // เดิมโชว์ "write failed: ตอบช้าเกินไป" แล้วให้คนเดา/กดซ้ำ. ตอนนี้ดึง
+        // รายการสดมาเช็คเองว่างานนี้เข้าแล้วหรือยัง แล้วบอกให้ชัดทางเดียว.
+        const checking = toast.info("Google ตอบช้า — กำลังเช็คว่าบันทึกแล้วหรือยัง…", {
+          description: "รอสักครู่ ไม่ต้องกดซ้ำ",
+        });
+        let landed: SheetRow | null = null;
+        try {
+          landed = findLandedTask(await fetchFreshTasks(), {
+            date: values.date, type: values.type, building: values.building, room: values.room,
+            customer: values.customer, phone: values.phone, note: values.note,
+          });
+        } catch { /* เช็คไม่ได้ → ถือว่ายังไม่เข้า ให้คนกดใหม่ (กันซ้ำฝั่ง Google อยู่แล้ว) */ }
+        toast.dismiss(checking);
+        if (landed) {
+          toast.success("บันทึกแล้ว ✓ — Google ตอบช้าแต่รายการเข้าแล้ว");
+          publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+          setShowAddTask(false);
+          setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");
+          refresh();
+          void linkLeadOnViewingScheduled(values);
+        } else {
+          toast.error("ยังไม่ได้บันทึก — หลังบ้าน Google ตอบช้าเกินไป", {
+            description: "ข้อมูลในฟอร์มยังอยู่ กดบันทึกอีกครั้งได้เลย (ระบบกันงานซ้ำให้)",
+          });
+        }
+      } else if (data.ok && (data as { skipped?: string }).skipped === "duplicate-open") {
         // เซิร์ฟเวอร์กันงานซ้ำ (วันที่+ประเภท+ตึก+ห้อง เดิมยังเปิดอยู่) —
         // เดิมโชว์ "เพิ่มงานแล้ว" ทั้งที่แถวไม่ได้ถูกเพิ่มและโน้ตหายเงียบๆ
         // (audit r22). บอกตรงๆ และไม่ optimistic-insert แถวผี.
