@@ -67,9 +67,10 @@ export function findLandedTask(
   return null;
 }
 
-/** ดึงรายการงานสดจากเซิร์ฟเวอร์ (ข้ามแคชเบราว์เซอร์) เพื่อเช็คหลัง timeout */
+/** ดึงรายการงานสดจากเซิร์ฟเวอร์เพื่อเช็คหลัง timeout — `?fresh=1` ข้ามแคชทุกชั้น
+ *  ของ Vercel (ไม่ใช่แค่เบราว์เซอร์) ไม่งั้นอาจไปเจอแคชอุ่นของเครื่องอื่นแล้วตอบผิด */
 export async function fetchFreshTasks(): Promise<SheetRow[]> {
-  const res = await fetch("/api/dashboard/tasks", { cache: "no-store", headers: { "Cache-Control": "no-cache" } });
+  const res = await fetch("/api/dashboard/tasks?fresh=1", { cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const j = (await res.json()) as { tasks?: SheetRow[] };
   return Array.isArray(j.tasks) ? j.tasks : [];

@@ -206,6 +206,11 @@ export async function POST(req: Request) {
     if (data && data.ok !== false) {
       invalidateDashboardCache();
       void redisDel(REDIS_ROOMS_KEY, REDIS_TASKS_KEY);
+    } else if (data && /^busy/i.test(String(data.error || ""))) {
+      // audit r33: Apps Script ล็อกชนกัน (สองคนบันทึกพร้อมกัน) ตอบ ok:false ที่
+      // HTTP 200 → ฝั่งเว็บถือเป็น "ถูกปฏิเสธ" ไม่ลองซ้ำ ทั้งที่ลองซ้ำได้และปลอดภัย
+      // (ยังไม่ได้เขียนอะไร). ส่งเป็น 503 ให้ resilientPost ลองใหม่เอง.
+      return NextResponse.json(data, { status: 503 });
     }
     return NextResponse.json(data);
   } catch (err) {

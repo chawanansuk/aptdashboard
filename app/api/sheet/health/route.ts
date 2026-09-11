@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { EXPECTED_BACKEND_VERSION, isBackendOutdated } from "@/lib/backendVersion";
+import { isAbortLike } from "@/lib/appsScriptFetch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// audit r33: ตัววินิจฉัย "ค้าง" ต้องไม่ค้างเสียเอง — เดิมไม่มี timeout/maxDuration
+export const maxDuration = 60;
+const HEALTH_TIMEOUT_MS = 20_000;
 
 /**
  * Probes the Apps Script Web App with a GET request and reports the
@@ -58,12 +62,16 @@ export async function GET(): Promise<NextResponse<HealthOK | HealthFail | { erro
       method: "GET",
       cache: "no-store",
       redirect: "follow",
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     });
   } catch (e) {
     const body: HealthFail = {
       ok: false,
       error: "network_error",
-      message: e instanceof Error ? e.message : "unknown network error",
+      message: isAbortLike(e)
+        ? `Apps Script ไม่ตอบใน ${HEALTH_TIMEOUT_MS / 1000} วินาที (cold start นานผิดปกติ หรือ URL ผิด)`
+        : e instanceof Error ? e.message : "unknown network error",
+      latencyMs: Date.now() - t0,
     };
     return NextResponse.json(body);
   }

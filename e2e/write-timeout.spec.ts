@@ -23,9 +23,13 @@ function todayDmy(): string {
 async function setup(page: import("@playwright/test").Page, landsAfterTimeout: boolean) {
   let posts = 0;
   let timedOut = false;
+  let freshChecks = 0;
   await mockDashboard(page, { rooms: [room({ building: "มีทอง", room: "204", status: "ว่าง" })], tasks: [] });
   await page.route("**/api/dashboard/tasks**", (r) => {
-    const tasks = timedOut && landsAfterTimeout
+    // การเช็คหลัง timeout ต้องข้ามแคชทุกชั้น (?fresh=1) — ไม่งั้นอาจเจอแคชอุ่นเครื่องอื่น
+    const fresh = new URL(r.request().url()).searchParams.get("fresh") === "1";
+    if (fresh) freshChecks++;
+    const tasks = timedOut && landsAfterTimeout && fresh
       ? [{ date: todayDmy(), type: "ซ่อม", building: "มีทอง", room: "204", customer: "", phone: "", note: "แอร์ไม่เย็น", status: "" }]
       : [];
     return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ tasks }) });
@@ -45,14 +49,15 @@ async function setup(page: import("@playwright/test").Page, landsAfterTimeout: b
   await modal.locator("#ac-addtask-room").fill("204");
   await modal.locator("#ac-addtask-note").fill("แอร์ไม่เย็น");
   await modal.locator('button[type="submit"]').click();
-  return { modal, getPosts: () => posts };
+  return { modal, getPosts: () => posts, getFreshChecks: () => freshChecks };
 }
 
 test("timeout but the row landed → verified success, form closes, no client re-post", async ({ page }) => {
-  const { modal, getPosts } = await setup(page, true);
+  const { modal, getPosts, getFreshChecks } = await setup(page, true);
   await expect(page.locator("[data-sonner-toast]").filter({ hasText: "รายการเข้าแล้ว" })).toBeVisible({ timeout: 15_000 });
   await expect(modal).toBeHidden();
   expect(getPosts()).toBe(1); // 504 ไม่ถูก retry ฝั่งเบราว์เซอร์
+  expect(getFreshChecks()).toBe(1); // เช็คผ่าน ?fresh=1 เท่านั้น
 });
 
 test("timeout and nothing landed → clear 'not saved' message, form stays for one deliberate retry", async ({ page }) => {
