@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { parseRoomsCSV } from "@/lib/parseSheet";
+import { isAbortLike, UPSTREAM_SLOW_MESSAGE } from "@/lib/appsScriptFetch";
 import {
   endRoomsRevalidation,
   getRoomsCacheState,
@@ -30,6 +31,10 @@ function stripTenantPii(rows: RoomRow[]): RoomRow[] {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// audit r33: route เดียวที่ตกหล่นจาก r27 — ไม่มี maxDuration และ fetch CSV ไม่มี
+// timeout → Google publish ค้างที Vercel ฆ่า function ผู้ใช้เจอ 504 เปล่าๆ ไม่ใช่ JSON
+export const maxDuration = 60;
+const ROOMS_CSV_TIMEOUT_MS = 20_000;
 
 /**
  * GET /api/dashboard/rooms — slice endpoint for room data.
@@ -49,7 +54,13 @@ async function fetchRooms(): Promise<RoomRow[]> {
   // the Vercel var to SHEET_ROOMS_CSV_URL when convenient (.env.example).
   const url = process.env.SHEET_ROOMS_CSV_URL || process.env.NEXT_PUBLIC_SHEET_ROOMS_CSV_URL;
   if (!url) throw new Error("ยังไม่ได้ตั้งค่า NEXT_PUBLIC_SHEET_ROOMS_CSV_URL");
-  const res = await fetch(url, { cache: "no-store" });
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(ROOMS_CSV_TIMEOUT_MS) });
+  } catch (e) {
+    if (isAbortLike(e)) throw new Error(UPSTREAM_SLOW_MESSAGE);
+    throw e;
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const csv = await res.text();
   return parseRoomsCSV(csv);
@@ -79,7 +90,8 @@ function scheduleRevalidate(): void {
 const ROOMS_CACHE_CONTROL = "private, max-age=60, stale-while-revalidate=300";
 
 interface BuildOpts {
-  body: { rooms: RoomRow[]; cached: boolean; cacheState: string; ageMs?: number; error?: string };
+  // `rooms` ต้องไม่มีใน body ตอน error (audit r33) — ฝั่งเว็บถือว่ามี key = ข้อมูลจริง
+  body: { rooms?: RoomRow[]; cached: boolean; cacheState: string; ageMs?: number; error?: string };
   etag?: string;
   status?: number;
   timings: { name: string; ms: number; desc?: string }[];
@@ -87,7 +99,7 @@ interface BuildOpts {
 }
 function buildResponse({ body, etag, status, timings, ifNoneMatch }: BuildOpts): NextResponse {
   const headers: Record<string, string> = {
-    "Cache-Control": ROOMS_CACHE_CONTROL,
+    "Cache-Control": status && status >= 400 ? "no-store" : ROOMS_CACHE_CONTROL,
     "Server-Timing": timings.map((t) => timing(t.name, t.ms, t.desc)).join(", "),
   };
   if (etag) {
@@ -184,7 +196,7 @@ export async function GET(req: Request) {
     const totalMs = Date.now() - handlerStart;
     console.error("[dashboard/rooms] miss fetch failed", { error, totalMs });
     return buildResponse({
-      body: { rooms: [], cached: false, cacheState: "missing", error },
+      body: { cached: false, cacheState: "missing", error },
       status: 502,
       ifNoneMatch,
       timings: [

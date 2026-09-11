@@ -1,9 +1,13 @@
 /**
- * Code.gs v3.26.0 — Dashboard หอพัก
+ * Code.gs v3.30.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.30.0:
+ *   - findAllTaskRows_ อ่านเฉพาะคอลัมน์วันที่ก่อน แล้วค่อยอ่านแถวที่วันตรง
+ *     (เพิ่ม/แก้/ปิดงานเร็วขึ้นเมื่อชีทงานยาว — ลดเคส "ตอบช้าเกินไป")
  *
  * NEW v3.26.0:
  *   - แจ้งเตือนรอบซ่อมบำรุงเข้าอีเมลทุกเช้า (setupDailyEmailReminder —
@@ -467,7 +471,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.29.0';
+var BACKEND_VERSION = '3.30.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -1143,20 +1147,19 @@ function findAllTaskRows_(q) {
   if (!sh) throw new Error('sheet "งาน" not found');
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
-  const data = sh.getRange(2, 1, lastRow - 1, 8).getValues();
   const qDate = norm(q.date);
   const qType = norm(q.type);
   const qBld  = norm(q.building);
   const qRoom = norm(q.room);
+  // v3.30 (r32 — "ตอบช้าเกินไป"): เดิมอ่าน 8 คอลัมน์ทุกแถวทุกครั้งที่เพิ่ม/
+  // แก้/ปิดงาน — ชีทยาวขึ้นทุกวัน. อ่านเฉพาะคอลัมน์วันที่ก่อน (1/8 ของ
+  // เซลล์) แล้วค่อยอ่านเต็มเฉพาะแถวที่วันตรง (ปกติไม่กี่แถว).
+  const dates = sh.getRange(2, TASK_COL.DATE, lastRow - 1, 1).getValues();
   const out = [];
-  for (let i = 0; i < data.length; i++) {
-    const r = data[i];
-    if (
-      fmtDate_(r[0]) === qDate &&
-      norm(r[1]) === qType &&
-      norm(r[2]) === qBld &&
-      norm(r[3]) === qRoom
-    ) {
+  for (let i = 0; i < dates.length; i++) {
+    if (fmtDate_(dates[i][0]) !== qDate) continue;
+    const r = sh.getRange(i + 2, TASK_COL.TYPE, 1, 3).getValues()[0]; // type, building, room
+    if (norm(r[0]) === qType && norm(r[1]) === qBld && norm(r[2]) === qRoom) {
       out.push(i + 2); // 1-based row
     }
   }

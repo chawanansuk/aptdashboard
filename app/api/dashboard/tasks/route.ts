@@ -41,10 +41,12 @@ export const maxDuration = 60;
  */
 
 const TASKS_TIMEOUT_MS = 8_000;
+// r32 (?fresh=1): ใช้เช็คหลัง Google ตอบช้า — Google เพิ่งช้ามา ให้เวลามากกว่าปกติ
+const FRESH_TIMEOUT_MS = 20_000;
 
-async function fetchTasks(): Promise<SheetRow[]> {
+async function fetchTasks(timeoutMs: number = TASKS_TIMEOUT_MS): Promise<SheetRow[]> {
   const j = await appsScriptCall<{ rows?: SheetRow[] }>(
-    "getTasks", {}, { idempotent: true, timeoutMs: TASKS_TIMEOUT_MS }
+    "getTasks", {}, { idempotent: true, timeoutMs }
   );
   if (!j.ok) throw new Error(j.error || "backend error");
   return (j.result?.rows || []) as SheetRow[];
@@ -71,7 +73,9 @@ function scheduleRevalidate(): void {
 
 
 interface BuildOpts {
-  body: { tasks: SheetRow[]; cached: boolean; cacheState: string; ageMs?: number; error?: string };
+  // `tasks` ต้องไม่มีใน body ตอน error (audit r33): ฝั่งเว็บถือว่า "มี key tasks"
+  // = ข้อมูลจริง แล้วเอา [] ทับรายการที่ยังใช้ได้ทั้งหน้า
+  body: { tasks?: SheetRow[]; cached: boolean; cacheState: string; ageMs?: number; error?: string };
   etag?: string;
   status?: number;
   timings: { name: string; ms: number; desc?: string }[];
@@ -84,7 +88,8 @@ function buildResponse({ body, etag, status, timings, ifNoneMatch }: BuildOpts):
     // varies by user role (PR #61 strips tenant PII per role). A shared
     // CDN cache would risk serving an admin's full response to a sales
     // user. 15s fresh + 60s SWR matches the data's natural change rate.
-    "Cache-Control": "private, max-age=15, stale-while-revalidate=60",
+    // Error bodies must never be cached by the browser (audit r33).
+    "Cache-Control": status && status >= 400 ? "no-store" : "private, max-age=15, stale-while-revalidate=60",
   };
   if (etag) {
     headers["ETag"] = etag;
@@ -114,6 +119,31 @@ export async function GET(req: Request) {
   const canSeeCustomer = canViewTaskCustomer(session.user.roles);
   const project = (rows: SheetRow[]): SheetRow[] =>
     canSeeCustomer ? rows : rows.map((t) => ({ ...t, customer: "", phone: "" }));
+
+  // ---- ?fresh=1 — ข้าม L1/L2/emergency ทุกชั้น (r32) ----
+  // ใช้ตอน "Google ตอบช้าจนหมดเวลา" แล้วฝั่งเว็บอยากรู้ความจริงว่างานเข้าแล้วหรือยัง.
+  // เส้นทางปกติตอบจากแคช และการล้างแคชตอน 504 ถึงแค่เครื่อง Vercel ที่หมดเวลา —
+  // ถ้าคำขอเช็คไปตกเครื่องอื่นที่แคชยังอุ่น จะตอบผิดว่า "ยังไม่ได้บันทึก" (audit r33).
+  if (new URL(req.url).searchParams.get("fresh") === "1") {
+    const fetchStart = Date.now();
+    try {
+      const tasks = await fetchTasks(FRESH_TIMEOUT_MS);
+      setTasksCache(tasks);
+      void redisSetJson(REDIS_TASKS_KEY, { at: Date.now(), rows: tasks }, REDIS_SLICE_TTL_SEC);
+      console.info("[dashboard/tasks] fresh bypass", { fetchMs: Date.now() - fetchStart });
+      return NextResponse.json(
+        { tasks: project(tasks), cached: false, cacheState: "fresh-bypass" },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    } catch (e) {
+      const error = e instanceof Error ? e.message : "unknown";
+      console.error("[dashboard/tasks] fresh bypass failed", { error, fetchMs: Date.now() - fetchStart });
+      return NextResponse.json(
+        { cached: false, cacheState: "missing", error },
+        { status: 502, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+  }
 
   // -------- Cache lookup --------
   // L1 = this instance's memory. On an L1 miss (cold start / other
@@ -224,11 +254,12 @@ export async function GET(req: Request) {
       });
     }
 
-    // No cache at all — return 502 like before.
+    // No cache at all — return 502 like before. ไม่ใส่ key `tasks` (audit r33):
+    // ฝั่งเว็บถือว่ามี key = ข้อมูลจริง แล้วเอา [] ทับรายการที่ยังใช้ได้.
     const totalMs = Date.now() - handlerStart;
     console.error("[dashboard/tasks] miss fetch failed (no cache)", { error, fetchMs, totalMs });
     return buildResponse({
-      body: { tasks: [], cached: false, cacheState: "missing", error },
+      body: { cached: false, cacheState: "missing", error },
       status: 502,
       ifNoneMatch,
       timings: [

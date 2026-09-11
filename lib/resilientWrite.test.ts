@@ -79,6 +79,25 @@ describe("resilientPost", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3); // 1 + 2 retries
   });
 
+  it("retries a 503 (Apps Script lock 'busy' re-emitted by the route) then succeeds", async () => {
+    const busy = { ok: false, status: 503, json: async () => ({ ok: false, error: "busy — มีการบันทึกจากผู้ใช้รายอื่น" }) } as Response;
+    fetchMock.mockResolvedValueOnce(busy).mockResolvedValueOnce(ok({ ok: true }));
+    const { data } = await resilientPost("/api/x", {});
+    expect(data.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does NOT retry a 504 — server already waited its full budget (r32)", async () => {
+    const slow = { ok: false, status: 504, json: async () => ({ ok: false, error: "หลังบ้าน Google ตอบช้า", timedOut: true }) } as Response;
+    fetchMock.mockResolvedValueOnce(slow);
+    const onRetry = vi.fn();
+    const { res, data } = await resilientPost("/api/x", {}, { onRetry });
+    expect(res.status).toBe(504);
+    expect(data.timedOut).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
   it("throws when EVERY attempt is a network error (no response at all)", async () => {
     fetchMock.mockRejectedValue(new Error("ECONNRESET"));
     await expect(resilientPost("/api/x", {}, { retries: 2 })).rejects.toThrow(/ECONNRESET/);

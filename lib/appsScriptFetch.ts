@@ -35,12 +35,13 @@ const RETRY_DELAYS_MS = [300, 600, 1200];
  * r27 (บั๊ก "This operation was aborted" ที่หน้าสัตว์เลี้ยง): Apps Script cold
  * start กินได้ 15-25s เป็นปกติ. เดิม 15s ตัดก่อน Google ตอบ.
  *  - reads (idempotent): 20s × 2 attempts (~40s) — ใต้ maxDuration 60 ทุก route
- *  - writes: 30s × 1 attempt (ไม่ retry อยู่แล้ว — ยืดเวลาคือลด false-fail
- *    ที่ทำให้คนกดซ้ำแล้วได้แถวซ้ำ)
+ *  - writes: 45s × 1 attempt (r32 — เดิม 30s ยังเจอ "ตอบช้าเกินไป" ตอน Google
+ *    สะดุด; ไม่ retry อยู่แล้ว — ยืดเวลาคือลด false-fail ที่ทำให้คนกดซ้ำ
+ *    แล้วได้แถวซ้ำ. ยังใต้ maxDuration 60 ของ route)
  * ผู้เรียกที่ตั้ง timeoutMs เองยังใช้ค่าตัวเองตามเดิม.
  */
 const DEFAULT_READ_TIMEOUT_MS = 20_000;
-const DEFAULT_WRITE_TIMEOUT_MS = 30_000;
+const DEFAULT_WRITE_TIMEOUT_MS = 45_000;
 const DEFAULT_READ_MAX_RETRIES = 1;
 
 /** แปล AbortError ให้เป็นภาษาคน + สถานะ 504 ทุก route ในที่เดียว —

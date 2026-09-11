@@ -30,6 +30,10 @@ const IDEMPOTENT_WRITE_ACTIONS = new Set([
   "updateRoomStatus", "updateRoomData", "bookRoom", "releaseRoom",
 ]);
 
+/** r32: ข้อความตอน Google ตอบช้าจนหมดเวลา — บอกตรงๆ ว่าอาจเข้าแล้ว ไม่ใช่ "write failed" */
+const WRITE_TIMEOUT_MESSAGE =
+  "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว รีเฟรชดูก่อน ถ้ายังไม่ขึ้นค่อยกดใหม่";
+
 const SALES_TYPES = new Set(["ย้ายเข้า", "ย้ายออก", "ชมห้อง"]);
 const CLEAN_TYPES = new Set(["ทำสะอาด"]);
 const ENG_TYPES   = new Set(["ซ่อม"]);
@@ -202,10 +206,26 @@ export async function POST(req: Request) {
     if (data && data.ok !== false) {
       invalidateDashboardCache();
       void redisDel(REDIS_ROOMS_KEY, REDIS_TASKS_KEY);
+    } else if (data && /^busy/i.test(String(data.error || ""))) {
+      // audit r33: Apps Script ล็อกชนกัน (สองคนบันทึกพร้อมกัน) ตอบ ok:false ที่
+      // HTTP 200 → ฝั่งเว็บถือเป็น "ถูกปฏิเสธ" ไม่ลองซ้ำ ทั้งที่ลองซ้ำได้และปลอดภัย
+      // (ยังไม่ได้เขียนอะไร). ส่งเป็น 503 ให้ resilientPost ลองใหม่เอง.
+      return NextResponse.json(data, { status: 503 });
     }
     return NextResponse.json(data);
   } catch (err) {
     if (err instanceof AppsScriptError) {
+      if (err.status === 504) {
+        // r32: หมดเวลารอ ≠ ไม่ได้เขียน — Google มักเขียนเสร็จแล้วแต่ตอบช้า.
+        // ล้างแคชทุกชั้นเหมือนเขียนสำเร็จ เพื่อให้การเช็ค/รีเฟรชถัดไปเห็นของจริง
+        // (เดิมแคชค้างจนหมดอายุ → ดูเหมือน "ไม่เซฟ" ทั้งที่เข้าแล้ว).
+        invalidateDashboardCache();
+        void redisDel(REDIS_ROOMS_KEY, REDIS_TASKS_KEY);
+        return NextResponse.json(
+          { ok: false, timedOut: true, error: WRITE_TIMEOUT_MESSAGE },
+          { status: 504 }
+        );
+      }
       return NextResponse.json(
         { ok: false, error: `write failed: ${err.message}` },
         { status: err.status }
