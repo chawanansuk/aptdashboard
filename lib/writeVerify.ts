@@ -10,6 +10,21 @@ import { parseSheetDate } from "@/lib/dateUtils";
 
 export const WRITE_TIMEOUT_STATUS = 504;
 
+/** r34: ตัวช่วยกลาง — ทุกจุดบันทึกใช้ตัวเดียวกันตัดสินว่า "Google ตอบช้าจนหมดเวลา"
+ *  (= อาจเข้าแล้ว ต้องรีเฟรชแล้วดู ไม่ใช่ล้มเหลว) จะได้ไม่ต้องไล่แก้ทีละจุดอีก */
+export function isWriteTimeout(res: { status: number }): boolean {
+  return res.status === WRITE_TIMEOUT_STATUS;
+}
+
+export const MAYBE_SAVED_FALLBACK =
+  "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว รีเฟรชดูก่อน ถ้ายังไม่ขึ้นค่อยกดใหม่";
+
+/** ข้อความสำหรับโชว์ผู้ใช้เมื่อหมดเวลารอ (ใช้ของเซิร์ฟเวอร์ถ้ามี) */
+export function maybeSavedMessage(data: { error?: unknown } | null | undefined): string {
+  const e = data && typeof data.error === "string" ? data.error.trim() : "";
+  return e || MAYBE_SAVED_FALLBACK;
+}
+
 export interface PendingTaskWrite {
   date: string;
   type: string;

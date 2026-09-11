@@ -11,6 +11,7 @@ import {
 } from "@/lib/taskUrgency";
 import { TASK_STATUS } from "@/lib/taskStatus";
 import { resilientPost } from "@/lib/resilientWrite";
+import { isWriteTimeout, maybeSavedMessage } from "@/lib/writeVerify";
 import { TASK_TYPES } from "@/lib/taskConstants";
 import { TASK_TYPE_COLOR } from "@/lib/constants";
 import { taskKey as taskKeyOf } from "@/lib/taskKey";
@@ -106,23 +107,32 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
     setBulkRunning(true);
     setErr(null);
     const selected = tasks.filter((t) => bulkSel.has(taskKeyOf(t)));
+    // r34 (audit): เดิมหยุดที่รายการแรกที่พัง — งานที่เหลือไม่ถูกส่ง และไม่บอกว่าไปถึงไหน.
+    // ตอนนี้ทำต่อจนครบ นับที่พัง แล้วสรุปตรงๆ
+    const failed: string[] = [];
     try {
       // Serial — Apps Script writes are lock-protected; parallel would
       // contend on the same row range anyway. Visible progress is OK.
       for (const t of selected) {
-        await postUpdate({
-          action: "updateTaskStatus",
-          id: t.id || undefined, // v3.21 — pin the exact row when known
-          date: t.date, building: t.building, room: t.room, type: t.type,
-          status: newStatus,
-        });
-        onOptimisticStatus?.(t, newStatus);
-        publishTurnoverStepDone(t, newStatus);
+        try {
+          await postUpdate({
+            action: "updateTaskStatus",
+            id: t.id || undefined, // v3.21 — pin the exact row when known
+            date: t.date, building: t.building, room: t.room, type: t.type,
+            status: newStatus,
+          });
+          onOptimisticStatus?.(t, newStatus);
+          publishTurnoverStepDone(t, newStatus);
+        } catch (e) {
+          failed.push(`${t.building} ${t.room}: ${e instanceof Error ? e.message : "ไม่สำเร็จ"}`);
+        }
       }
-      clearBulk();
+      if (failed.length === 0) {
+        clearBulk();
+      } else {
+        setErr(`Bulk: สำเร็จ ${selected.length - failed.length}/${selected.length} — ${failed.join(" · ")}`);
+      }
       onChanged?.();
-    } catch (e) {
-      setErr(e instanceof Error ? `Bulk: ${e.message}` : "Bulk update failed");
     } finally {
       setBulkRunning(false);
     }
@@ -172,6 +182,13 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
     // must never re-fire; updateTaskStatus retries server-side already).
     const { res, data } = await resilientPost("/api/sheet/update", payload, { retries: 0 });
     console.log("[write] task action", payload.action, res.status, data);
+    if (isWriteTimeout(res)) {
+      // r34: Google ตอบช้าจนหมดเวลา = อาจเข้าแล้ว — รีเฟรชให้ดูของจริง แล้วแจ้ง
+      // ด้วยข้อความของเซิร์ฟเวอร์ ("อาจบันทึกไปแล้ว…") ไม่ใช่ "ไม่สำเร็จ (HTTP 504)"
+      publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+      onChanged?.();
+      throw new Error(maybeSavedMessage(data));
+    }
     if (!data.ok) {
       const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
       throw new Error(`${data.error || "ไม่สำเร็จ"}${statusSuffix}`);

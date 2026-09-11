@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
+import { redisBumpEpoch } from "@/lib/redisCache";
 import type { Lead } from "@/types";
 
 export const runtime = "nodejs";
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
   if (!canPerform(session.user.roles, "lead.edit")) {
     return bad("ไม่มีสิทธิ์เข้าถึงผู้สนใจเช่า", 403);
   }
-  return serveCachedRows(leadSlot, fetchLeads, "ดึงข้อมูล Lead ไม่สำเร็จ", { req, etagTag: "leads" });
+  return serveCachedRows(leadSlot, fetchLeads, "ดึงข้อมูล Lead ไม่สำเร็จ", { req, etagTag: "leads", epoch: "leads" });
 }
 
 export async function POST(req: Request) {
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
   try {
     const json = await appsScriptCall(upstream, body);
     leadSlot.invalidate(); // next GET refetches the just-written data
+    void redisBumpEpoch("leads"); // r34: เครื่อง Vercel อื่นทิ้งแคชของตัวเองด้วย
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";

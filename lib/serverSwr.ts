@@ -24,6 +24,8 @@
 
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
+import { AppsScriptError } from "@/lib/appsScriptFetch";
+import { redisGetEpoch, type EpochName } from "@/lib/redisCache";
 
 export type CacheState = "fresh" | "stale" | "missing";
 
@@ -50,10 +52,30 @@ export class SwrSlot<T> {
   private value: T | null = null;
   private savedAt = 0;
   private revalidating = false;
+  private gen = 0; // r34 — see setIfCurrent
   private readonly ttls: SwrTtls;
 
   constructor(ttls: SwrTtls = DEFAULT_SWR_TTLS) {
     this.ttls = ttls;
+  }
+
+  generation(): number { return this.gen; }
+
+  /** r34: set only if no invalidate() happened since `gen` was captured —
+   *  a background fetch that started before a write must not overwrite
+   *  the post-write invalidation with pre-write rows. */
+  setIfCurrent(v: T, gen: number, now: number = Date.now()): boolean {
+    if (gen !== this.gen) return false;
+    this.set(v, now);
+    return true;
+  }
+
+  /** r34: drop the entry when it was fetched before the last write
+   *  (cross-instance epoch from Redis). */
+  dropIfOlderThan(epochMs: number): boolean {
+    if (this.value === null || this.savedAt >= epochMs) return false;
+    this.invalidate();
+    return true;
   }
 
   get(now: number = Date.now()): CacheLookup<T> {
@@ -82,6 +104,7 @@ export class SwrSlot<T> {
   invalidate(): void {
     this.value = null;
     this.savedAt = 0;
+    this.gen++;
   }
 
   tryBeginRevalidation(): boolean {
@@ -137,13 +160,20 @@ export async function serveCachedRows<T>(
   slot: SwrSlot<T[]>,
   fetchFresh: () => Promise<T[]>,
   errorPrefix: string,
-  opts: { req?: Request; etagTag?: string } = {},
+  opts: { req?: Request; etagTag?: string; epoch?: EpochName } = {},
 ): Promise<NextResponse> {
   const cacheHeaders = {
     "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
   };
-  const { req, etagTag = "rows" } = opts;
+  const { req, etagTag = "rows", epoch } = opts;
   const ifNoneMatch = req?.headers.get("if-none-match") ?? null;
+
+  // r34: a write on ANOTHER instance stamps the family's epoch in Redis;
+  // drop our L1 when it predates that write (no-op without Redis).
+  if (epoch) {
+    const lastWrite = await redisGetEpoch(epoch);
+    if (lastWrite !== null) slot.dropIfOlderThan(lastWrite);
+  }
 
   const c = slot.get();
 
@@ -158,9 +188,13 @@ export async function serveCachedRows<T>(
     // Background revalidate — don't await, don't block the response.
     if (slot.tryBeginRevalidation()) {
       (async () => {
+        // r34: capture generation + start time so rows fetched before a
+        // concurrent write can't repopulate the slot after it.
+        const gen = slot.generation();
+        const startedAt = Date.now();
         try {
           const rows = await fetchFresh();
-          slot.set(rows);
+          slot.setIfCurrent(rows, gen, startedAt);
         } catch {
           // keep previous value; next miss will retry
         } finally {
@@ -175,9 +209,11 @@ export async function serveCachedRows<T>(
   }
 
   // Missing — block on upstream, with emergency-stale fallback.
+  const gen = slot.generation();
+  const startedAt = Date.now();
   try {
     const rows = await fetchFresh();
-    slot.set(rows);
+    slot.setIfCurrent(rows, gen, startedAt);
     return jsonWithEtag(
       { rows, cached: false, cacheState: "missing" },
       rows, etagTag, ifNoneMatch, cacheHeaders,
@@ -191,9 +227,11 @@ export async function serveCachedRows<T>(
         emergency, etagTag, ifNoneMatch, cacheHeaders,
       );
     }
+    // audit r33: keep AppsScriptError's status (504 = "Google ตอบช้า", which the
+    // client can phrase honestly) instead of flattening everything to 502.
     return NextResponse.json(
       { ok: false, error: `${errorPrefix}: ${error}` },
-      { status: 502 },
+      { status: e instanceof AppsScriptError ? e.status : 502 },
     );
   }
 }

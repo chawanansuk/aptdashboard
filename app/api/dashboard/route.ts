@@ -5,7 +5,10 @@ import {
   endRevalidation,
   FRESH_TTL_MS,
   getDashboardCacheState,
-  setDashboardCache,
+  roomsCacheGeneration,
+  setRoomsCacheIfCurrent,
+  setTasksCacheIfCurrent,
+  tasksCacheGeneration,
   tryBeginRevalidation,
 } from "@/lib/dashboardCache";
 import { appsScriptCall } from "@/lib/appsScriptFetch";
@@ -18,10 +21,20 @@ import {
 } from "@/lib/redisCache";
 
 /** Push a successful origin fetch into the shared L2 (fire-and-forget). */
-function persistToRedis(rooms: RoomRow[], tasks: SheetRow[]): void {
-  const at = Date.now();
+function persistToRedis(rooms: RoomRow[], tasks: SheetRow[], at: number = Date.now()): void {
   void redisSetJson(REDIS_ROOMS_KEY, { at, rows: rooms }, REDIS_SLICE_TTL_SEC);
   void redisSetJson(REDIS_TASKS_KEY, { at, rows: tasks }, REDIS_SLICE_TTL_SEC);
+}
+
+/** r34: store both slots only if no write invalidated them since `gens`
+ *  were captured (a fetch that straddles a write must not resurrect
+ *  pre-write rows). Returns whether BOTH were applied. */
+function storeIfCurrent(
+  rooms: RoomRow[], tasks: SheetRow[], gens: { rooms: number; tasks: number }, at: number,
+): boolean {
+  const r = setRoomsCacheIfCurrent(rooms, gens.rooms, at);
+  const t = setTasksCacheIfCurrent(tasks, gens.tasks, at);
+  return r && t;
 }
 
 /** On an L1 miss, hydrate both slots from the shared L2 (see the split
@@ -161,11 +174,11 @@ function scheduleRevalidate(): void {
   // their stale response in hand.
   (async () => {
     const start = Date.now();
+    const gens = { rooms: roomsCacheGeneration(), tasks: tasksCacheGeneration() };
     try {
       const out = await fetchAllUpstream();
       if (out.errors.length === 0) {
-        setDashboardCache(out.rooms, out.tasks);
-        persistToRedis(out.rooms, out.tasks);
+        if (storeIfCurrent(out.rooms, out.tasks, gens, start)) persistToRedis(out.rooms, out.tasks, start);
         console.info("[dashboard] revalidate ok", {
           totalMs: Date.now() - start,
           timings: out.timings,
@@ -265,10 +278,13 @@ export async function GET() {
   }
 
   // ----- missing: block on upstream -----
+  const fetchStart = Date.now();
+  const gens = { rooms: roomsCacheGeneration(), tasks: tasksCacheGeneration() };
   const fetchOut = await fetchAllUpstream();
   if (fetchOut.errors.length === 0) {
-    setDashboardCache(fetchOut.rooms, fetchOut.tasks);
-    persistToRedis(fetchOut.rooms, fetchOut.tasks);
+    if (storeIfCurrent(fetchOut.rooms, fetchOut.tasks, gens, fetchStart)) {
+      persistToRedis(fetchOut.rooms, fetchOut.tasks, fetchStart);
+    }
   }
   const totalMs = Date.now() - handlerStart;
   console.info("[dashboard] cache miss", {

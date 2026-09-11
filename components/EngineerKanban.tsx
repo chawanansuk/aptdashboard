@@ -22,6 +22,7 @@ import { appendRepairLog } from "@/lib/repairLog";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { toast } from "@/lib/toast";
 import { resilientPost } from "@/lib/resilientWrite";
+import { isWriteTimeout, maybeSavedMessage } from "@/lib/writeVerify";
 import { MOVEOUT_PREP_KINDS, findOpenPrepTask, todayThaiDate } from "@/lib/moveoutTasks";
 
 interface Props {
@@ -214,6 +215,13 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
         date: t.date, building: t.building, room: t.room, type: t.type,
         status: newStatus,
       }, { retries: 0 });
+      if (isWriteTimeout(res)) {
+        // r34: Google ตอบช้าจนหมดเวลา = สถานะอาจเปลี่ยนแล้ว — รีเฟรชให้ดูของจริง
+        // แทนขึ้นแถบแดง "ไม่สำเร็จ" แล้วปล่อยการ์ดค้างจนกดรีเฟรชเอง
+        setErr(maybeSavedMessage(data));
+        onChanged?.();
+        return;
+      }
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       // Card jumps columns NOW; the poll/refresh reconciles later.
       onOptimisticStatus?.(t, newStatus);
@@ -261,6 +269,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
         match: { date: t.date, type: t.type, building: t.building, room: t.room },
         note: newNote,
       }, { retries: 0 });
+      if (isWriteTimeout(res)) { setErr(maybeSavedMessage(data)); onChanged?.(); return; } // r34
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
       // Keep the drawer in sync without waiting for the refetch round-trip.
@@ -318,6 +327,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
         date: todayStr, type: kind.type,
         building, room, note: kind.note,
       });
+      if (isWriteTimeout(res)) { setErr(maybeSavedMessage(data)); onChanged?.(); return; } // r34
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       onChanged?.();
     } catch (e: unknown) {
