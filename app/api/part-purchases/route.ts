@@ -97,8 +97,13 @@ export async function POST(req: Request) {
     partsSlot.invalidate();
     return NextResponse.json(json);
   } catch (e) {
+    // audit r33: หมดเวลารอ ≠ ไม่ได้บวกสต๊อก — ล้างแคชด้วย (เหมือน requisition)
+    partsSlot.invalidate();
     const msg = e instanceof Error ? e.message : "unknown";
     const status = e instanceof AppsScriptError ? e.status : 502;
+    if (status === 504) {
+      return bad("หลังบ้าน Google ตอบช้า — การซื้อนี้อาจบันทึกไปแล้ว เช็คประวัติซื้อก่อนกดซ้ำ", 504);
+    }
     return bad(`บันทึกการซื้อไม่สำเร็จ: ${msg}`, status);
   }
 }

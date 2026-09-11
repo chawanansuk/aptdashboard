@@ -90,6 +90,17 @@ export default function RequisitionModal({ open, part, rooms, onClose, onSaved }
         }),
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+      if (res.status === 504) {
+        // audit r33: หมดเวลารอ Google — สต๊อกอาจถูกตัดไปแล้ว. เดิมบอก "ไม่สำเร็จ
+        // กดลองอีกครั้ง" → กดซ้ำ = ตัดสต๊อกสองครั้ง (เบิกไม่มีตัวกันซ้ำฝั่ง Google)
+        toast.warning("หลังบ้าน Google ตอบช้า — การเบิกอาจบันทึกไปแล้ว", {
+          description: "เช็คประวัติการเบิก/สต๊อกคงเหลือก่อน ถ้ายังไม่ตัดค่อยเบิกใหม่",
+          duration: 12000,
+        });
+        onSaved?.();
+        onClose();
+        return;
+      }
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       // Server clamps a withdrawal at remaining stock (another user may
       // have drained it since our cached stock number). Surface that —

@@ -944,6 +944,17 @@ export default function Home() {
         phone: data.phone,
         price: String(data.monthlyRent),
       }, { retries: 0 });
+      if (roomRes.status === WRITE_TIMEOUT_STATUS) {
+        // audit r33: Google ตอบช้า — การจองอาจเข้าแล้ว. เดิมโยนเป็น "บันทึกไม่สำเร็จ"
+        // เซลส์กดจองซ้ำ → ถูกกันว่า "ห้องมีผู้เช่าแล้ว" งง และไม่มีนัดย้ายเข้า.
+        toast.warning(String(roomData.error || "หลังบ้าน Google ตอบช้า — การจองอาจบันทึกไปแล้ว"), {
+          description: "รีเฟรชแล้วดูสถานะห้องก่อน ถ้าเป็น 'รอสัญญา' แล้ว ให้เพิ่มนัดย้ายเข้าเอง (ยอดเงินอยู่ในข้อความที่คัดลอกไว้)",
+          duration: 12000,
+        });
+        publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
+        refresh();
+        return;
+      }
       if (!roomData.ok) throw new Error(roomData.error || `HTTP ${roomRes.status}`);
 
       // Create the move-in appointment (best-effort; don't fail the
@@ -956,7 +967,9 @@ export default function Home() {
       let moveInFailed = false;
       if (!moveInExists) {
         try {
-          await resilientPost("/api/sheet/update", {
+          // audit r33: เดิมไม่ดูผล — resilientPost คืน ok:false (504/สิทธิ์/ถูกปฏิเสธ)
+          // โดยไม่ throw → toast บอก "สร้างนัดย้ายเข้าแล้ว" ทั้งที่ไม่มีนัด
+          const { data: mv } = await resilientPost("/api/sheet/update", {
             action: "addTask",
             date: data.moveInDateIso,
             type: "ย้ายเข้า",
@@ -974,6 +987,7 @@ export default function Home() {
               data.message,
             ].join("\n"),
           });
+          if (!mv.ok) moveInFailed = true;
         } catch {
           // ห้องจองสำเร็จแล้ว แต่นัดย้ายเข้า (พร้อมโน้ตสรุปยอด) ไม่ได้ถูก
           // สร้าง — เดิมโชว์ "สร้างนัดย้ายเข้าแล้ว" ทั้งที่ไม่จริง (audit r22)

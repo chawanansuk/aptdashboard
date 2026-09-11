@@ -92,8 +92,12 @@ export default function AddPartModal({ open, initial, onClose, onSaved }: Props)
 
     setSubmitting(true);
     try {
+      // audit r33: ตอนแก้ ส่ง stock เฉพาะเมื่อผู้ใช้เปลี่ยนจริง — ค่าที่โชว์มาจากรายการ
+      // ที่แคชไว้ได้ถึง 4 นาที ถ้าส่งทับทุกครั้ง การแก้แค่ชื่อจะเอาสต๊อกเก่ามาทับ
+      // ของที่เพิ่งเบิกไป (updatePart_ เขียนค่าเต็ม ไม่ใช่ส่วนต่าง)
+      const stockChanged = !isEdit || stockNum !== Number(initial!.stock);
       const body = isEdit
-        ? { action: "update", id: initial!.id, name: trimmedName, category, stock: stockNum, threshold: threshNum, unit: unit.trim() || "ชิ้น", price: priceNum, note: note.trim() }
+        ? { action: "update", id: initial!.id, name: trimmedName, category, ...(stockChanged ? { stock: stockNum } : {}), threshold: threshNum, unit: unit.trim() || "ชิ้น", price: priceNum, note: note.trim() }
         : { action: "add",                       name: trimmedName, category, stock: stockNum, threshold: threshNum, unit: unit.trim() || "ชิ้น", price: priceNum, note: note.trim() };
       const res = await fetch("/api/parts", {
         method: "POST",

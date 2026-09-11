@@ -90,3 +90,22 @@ test("log modal: prefills header building and can backdate the work date", async
   const add = posted.find((p) => p.action === "addTask");
   expect(add).toMatchObject({ building: "กลางเมือง", room: "201", date: yesterday });
 });
+
+test("log modal: Google timeout (504) warns 'may be saved', posts once, keeps the form", async ({ page }) => {
+  // audit r33: งานที่ส่งเป็น "เสร็จ" อยู่นอกตัวกันซ้ำ → ห้าม retry อัตโนมัติ
+  let posts = 0;
+  await openMaintlog(page);
+  await page.route("**/api/sheet/update", (r) => {
+    posts++;
+    return r.fulfill({ status: 504, contentType: "application/json", body: JSON.stringify({ ok: false, timedOut: true, error: "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว" }) });
+  });
+  await page.locator('.ac-nav button:has-text("กลางเมือง")').first().evaluate((el) => (el as HTMLElement).click());
+  await page.locator(".ac-mlog").getByRole("button", { name: "+ ลงบันทึกงาน", exact: true }).click();
+  const modal = page.locator(".ac-modal");
+  await modal.locator("#mlog-room").fill("201");
+  await modal.locator("#mlog-note").fill("งานที่ Google ตอบช้า");
+  await modal.getByRole("button", { name: "บันทึก" }).click();
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "อาจบันทึกไปแล้ว" })).toBeVisible();
+  await expect(modal.locator("#mlog-note")).toHaveValue("งานที่ Google ตอบช้า"); // ฟอร์มยังอยู่
+  expect(posts).toBe(1); // ไม่ยิงซ้ำ
+});

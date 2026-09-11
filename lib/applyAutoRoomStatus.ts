@@ -67,8 +67,14 @@ export async function applyAutoRoomStatus(opts: {
     }, { retries: 0 });
     if (data.ok) {
       toast.success(`อัปเดตห้อง ${task.room} → ${suggestion.label}`);
+    } else {
+      // audit r33: เดิมเงียบสนิทเมื่อ ok:false (504/สิทธิ์/ถูกปฏิเสธ) — ห้องค้าง
+      // สถานะเก่าบนกระดานเซลส์เป็นวันๆ โดยไม่มีใครรู้ว่าระบบพยายามเปลี่ยนแล้ว
+      toast.info(`ห้อง ${task.room} ยังไม่ถูกอัปเดตเป็น "${suggestion.label}" — เปลี่ยนเองในหน้าห้อง`, {
+        description: String(data.error || ""),
+      });
     }
   } catch {
-    // Silent — non-critical side effect
+    toast.info(`ห้อง ${task.room} ยังไม่ถูกอัปเดตเป็น "${suggestion.label}" — เปลี่ยนเองในหน้าห้อง`);
   }
 }

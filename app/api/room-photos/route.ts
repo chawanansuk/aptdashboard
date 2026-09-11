@@ -209,9 +209,10 @@ export async function POST(req: Request) {
     // first cut read json.result here, got undefined, and the client
     // declared "อัปโหลดไม่สำเร็จ (HTTP 200)" on every SUCCESSFUL upload.
     // Accept both shapes so a future backend normalization can't re-break it.
-    const r = (json.result ?? json) as { id?: string; fileId?: string; createdAt?: string };
+    const r = (json.result ?? json) as { id?: string; fileId?: string; createdAt?: string; warning?: string };
     if (!r.fileId) return bad("backend ตอบกลับไม่มี fileId (ตรวจเวอร์ชัน Apps Script)", 502);
-    return NextResponse.json({ ok: true, id: r.id || "", fileId: r.fileId, createdAt: r.createdAt || "" });
+    // v3.31: `warning` = อัปโหลดแล้วแต่แชร์ลิงก์ไม่ได้ (รูปอาจไม่แสดง) — ส่งต่อให้ผู้ใช้เห็น
+    return NextResponse.json({ ok: true, id: r.id || "", fileId: r.fileId, createdAt: r.createdAt || "", ...(r.warning ? { warning: r.warning } : {}) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
     const status = e instanceof AppsScriptError ? e.status : 502;

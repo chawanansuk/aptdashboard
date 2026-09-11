@@ -356,8 +356,15 @@ export async function executeJourneyAction(
           "ยืนยันหรือไม่?",
         );
       if (!ok) return "done";
+      // audit r33: เปลี่ยนสถานะห้องก่อน แล้วค่อยกวาดงาน — เดิมกวาดก่อน ถ้าขั้น
+      // เปลี่ยนสถานะพัง (504/busy/สิทธิ์) งานเตรียมห้องของช่างถูกยกเลิกหมด
+      // แต่ห้องยังค้าง "แจ้งย้ายออก" โดยไม่มีงานเหลือให้ทำ. ตอนนี้ถ้าขั้นแรกพัง
+      // ไม่มีอะไรเปลี่ยน กดใหม่ได้เลย; ตัวกวาดทนงานล้มเหลวรายตัวอยู่แล้ว.
+      await quickSetRoomStatus(room, "ว่าง", deps, { clearTenant: true, silent: true });
       const sweep = await sweepTurnoverTasks(room, deps);
-      await quickSetRoomStatus(room, "ว่าง", deps, { clearTenant: true });
+      toast.success("อัปเดตสถานะห้อง → ว่าง");
+      publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
+      deps.refresh();
       if (sweep.failed > 0) warnSweepLeftovers(sweep.failed);
       return "done";
     }
