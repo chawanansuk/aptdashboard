@@ -47,6 +47,10 @@ export async function POST(req: Request) {
   if (!canPerform(session.user.roles, "part.edit")) {
     return bad("ไม่มีสิทธิ์บันทึกการซื้อ", 403);
   }
+  // audit r35: reject oversized uploads BEFORE buffering the body — the
+  // post-parse guard below only runs after the whole payload is in memory.
+  const declared = Number(req.headers.get("content-length") || 0);
+  if (declared > MAX_BASE64_CHARS + 4096) return bad("รูปใหญ่เกินไป — บีบรูปก่อนส่ง", 413);
   let body: { imageBase64?: unknown; mimeType?: unknown };
   try {
     body = (await req.json()) as typeof body;

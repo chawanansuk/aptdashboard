@@ -97,6 +97,11 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
 
+  // audit r35: reject oversized uploads BEFORE buffering the body — the
+  // MAX_BASE64_CHARS guard below only runs after the whole payload is parsed.
+  const declared = Number(req.headers.get("content-length") || 0);
+  if (declared > MAX_BASE64_CHARS + 4096) return bad("รูปใหญ่เกินไป — ลองถ่าย/เลือกใหม่อีกครั้ง", 413);
+
   let body: Record<string, unknown>;
   try {
     body = (await req.json()) as Record<string, unknown>;

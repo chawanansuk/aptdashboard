@@ -7,6 +7,7 @@ import {
 } from "@/types";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { findLeadByPhone } from "@/lib/leadLink";
+import { toast } from "@/lib/toast";
 
 interface Props {
   open: boolean;
@@ -89,6 +90,10 @@ export default function AddLeadModal({ open, initial, initialStage, onClose, onS
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (data.duplicate) {
+        // v3.32: เซิร์ฟเวอร์กันซ้ำด้วยเบอร์ — ใช้รายการเดิม ไม่เพิ่มแถวใหม่
+        toast.info(`มีลูกค้าเบอร์นี้อยู่แล้ว (${data.name || "รายการเดิม"}) — ไม่เพิ่มซ้ำ`);
+      }
       onSaved?.();
       onClose();
     } catch (e) {

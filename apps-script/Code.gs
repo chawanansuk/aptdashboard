@@ -1,9 +1,15 @@
 /**
- * Code.gs v3.31.0 — Dashboard หอพัก
+ * Code.gs v3.32.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.32.0 (audit r35):
+ *   - action 'ping' (หลังด่าน secret) ให้แบนเนอร์สุขภาพ; doGet ไม่บอกเวอร์ชันเมื่อเปิด secret
+ *   - อัปโหลดรูป: งาน Drive อยู่นอกล็อก ล็อกเฉพาะตอนลงบัญชี (คนอื่นไม่โดน "busy")
+ *   - onEdit ล้างแคชทุกการแก้ในชีทงาน/ห้อง + เมนูปิดงาน/คัดลอก template ล้างแคชด้วย
+ *   - addLead_ กันลูกค้าซ้ำด้วยเบอร์ (คืนรายการเดิม ไม่เพิ่มแถว)
  *
  * NEW v3.31.0 (audit r33):
  *   - updateTaskStatus_/deleteTask_: id ที่หาไม่เจอ → error แทนถอยไปใช้ key รวม
@@ -387,11 +393,16 @@ function doPost(e) {
 
     switch (body.action) {
       // ----- reads (no lock) -----
+      case 'ping':             return ok_({ version: BACKEND_VERSION, message: 'aptdashboard backend alive' }); // v3.32 — health probe behind the secret
       case 'getTasks':         return ok_({ result: { rows: getTasksCached_() } });
       case 'getRoomTasks':     return ok_({ result: getRoomTasks_(body) }); // v3.22 — full per-room history
       case 'getRoomPhotos':    return ok_({ result: getRoomPhotos_(body) }); // v3.25 — defect photos per room
       case 'getPetPhotos':     return ok_({ result: getPetPhotos_() }); // v3.25.4 — all pet photos (แมวหลุด lookup)
-      case 'uploadRoomPhoto':  return ok_(withWriteLock_(function () { return uploadRoomPhoto_(body); })); // v3.25
+      // v3.32 (audit r35): Drive I/O (decode + createFile + setSharing) runs
+      // OUTSIDE the script lock — only the ledger append is locked inside
+      // uploadRoomPhoto_. Holding the global lock for several seconds per
+      // photo made every other writer hit "busy" during a walkthrough upload.
+      case 'uploadRoomPhoto':  return ok_(uploadRoomPhoto_(body)); // v3.25
       case 'updatePhotoNote':  return ok_(withWriteLock_(function () { return updatePhotoNote_(body); })); // v3.25.1 — fill-once
       case 'deletePhoto':      return ok_(withWriteLock_(function () { return deletePhoto_(body); })); // v3.25.3 — mgmt-only (gated at the Vercel route)
       case 'getRooms':         return ok_({ result: { rows: getRoomsCached_() } });
@@ -478,10 +489,16 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.31.0';
+var BACKEND_VERSION = '3.32.0';
 
 function doGet() {
-  return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
+  // v3.32 (audit r35): เมื่อเปิด SHARED_SECRET แล้ว GET ไม่ผ่านด่านลับ — ไม่ควรบอก
+  // เวอร์ชันให้ใครก็ได้ที่ถือ URL (ใช้เดาช่องโหว่รายเวอร์ชันได้). แบนเนอร์สุขภาพ
+  // ใช้ action 'ping' ผ่าน doPost (มี secret) แทน; GET ยังตอบ "alive" ให้ตรวจ URL ได้
+  const gated = !!PropertiesService.getScriptProperties().getProperty('SHARED_SECRET');
+  return jsonOut_(gated
+    ? { ok: true, message: 'aptdashboard backend alive' }
+    : { ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
 }
 
 /* ========== TASK READ ========== */
@@ -813,10 +830,14 @@ function uploadRoomPhoto_(b) {
   } catch (e) {
     shared = false;
   }
-  const sh = getOrCreatePhotoSheet_();
   const id = Utilities.getUuid();
   const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
-  sh.appendRow([id, building, room, file.getId(), norm(b.note), norm(b.creator), createdAt, category]);
+  // v3.32: lock only the ledger append (append-only sheet — nothing to
+  // read-modify-write; the lock just serialises row appends with other writers)
+  withWriteLock_(function () {
+    const sh = getOrCreatePhotoSheet_();
+    sh.appendRow([id, building, room, file.getId(), norm(b.note), norm(b.creator), createdAt, category]);
+  });
   logAudit_('uploadRoomPhoto', 'photo', building + ' ' + room, norm(b.note) + (shared ? '' : ' (แชร์ลิงก์ไม่ได้)'), b.creator);
   return { id: id, fileId: file.getId(), createdAt: createdAt, shared: shared,
            warning: shared ? '' : 'อัปโหลดแล้วแต่แชร์ลิงก์ไม่ได้ — รูปอาจไม่แสดงในแอปจนกว่าผู้ดูแล Drive จะเปิดแชร์' };
@@ -2430,6 +2451,21 @@ function getAllLeads_() {
 function addLead_(b) {
   if (!b.name) throw new Error('name required');
   const sh = getOrCreateLeadSheet_();
+  // v3.32 (audit r35): กันลูกค้าซ้ำด้วยเบอร์ที่นี่ (ใต้ล็อก) — ฝั่งเว็บเช็คจากรายการ
+  // ที่แคชไว้ 90s สองนัดชมเบอร์เดียวกันในช่วงนั้นได้ 2 แถว แล้วขั้นตอน "จอง/ชมแล้ว"
+  // ไปอัปเดตผิดแถว. เจอเบอร์เดิม → คืนรายการเดิม ไม่เพิ่ม
+  const inDigits = String(b.phone || '').replace(/\D/g, '');
+  if (inDigits.length >= 9) {
+    const lastRow = sh.getLastRow();
+    if (lastRow >= 2) {
+      const rows = sh.getRange(2, 1, lastRow - 1, 3).getValues(); // id, name, phone
+      for (let i = 0; i < rows.length; i++) {
+        if (String(rows[i][2] || '').replace(/\D/g, '') === inDigits) {
+          return { appended: false, duplicate: true, id: norm(rows[i][0]), name: norm(rows[i][1]), row: i + 2 };
+        }
+      }
+    }
+  }
   const id = Utilities.getUuid();
   const now = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
   sh.appendRow([
@@ -3083,7 +3119,13 @@ function setupFilterViews_(ss) {
 function onEdit(e) {
   if (!e || !e.range) return;
   const sh = e.range.getSheet();
-  if (sh.getName() !== SHEET_NAMES.TASK) return;
+  // v3.32 (audit r35): แก้เซลล์ตรงในชีท "งาน"/"ห้อง" (วันที่ ห้อง โน้ต สถานะใดๆ) ต้อง
+  // ล้างแคช ไม่งั้นแอปโชว์ของเก่าต่อได้ถึง 4 นาที (+90s ฝั่ง Vercel) — เดิมล้าง
+  // เฉพาะตอนเปลี่ยนสถานะเป็น "เสร็จ" เท่านั้น
+  const name = sh.getName();
+  if (name === SHEET_NAMES.TASK) clearTasksCache_();
+  if (name === SHEET_NAMES.ROOM) clearRoomsCache_();
+  if (name !== SHEET_NAMES.TASK) return;
   if (e.range.getColumn() !== TASK_COL.STATUS) return;
   if (e.value !== 'เสร็จ') return;
   const row = e.range.getRow();
@@ -3157,6 +3199,7 @@ function markSelectedDone() {
   const numRows = sel.getNumRows();
   if (startRow < 2) return;
   sh.getRange(startRow, TASK_COL.STATUS, numRows, 1).setValue('เสร็จ');
+  clearTasksCache_(); // v3.32: setValue จากเมนูไม่ยิง onEdit — ล้างเอง
 }
 
 function copyTemplateToToday() {
@@ -3173,6 +3216,7 @@ function copyTemplateToToday() {
   const today = new Date();
   data.forEach(function (r) { r[0] = today; });
   task.getRange(task.getLastRow()+1, 1, data.length, 8).setValues(data);
+  clearTasksCache_(); // v3.32: setValues จากเมนูไม่ยิง onEdit — ล้างเอง
   SpreadsheetApp.getActive().toast('คัดลอก ' + data.length + ' รายการแล้ว ✅', 'หอพัก', 5);
 }
 

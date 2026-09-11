@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { EXPECTED_BACKEND_VERSION, isBackendOutdated } from "@/lib/backendVersion";
-import { isAbortLike } from "@/lib/appsScriptFetch";
+import { appsScriptCall, isAbortLike } from "@/lib/appsScriptFetch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +56,41 @@ export async function GET(): Promise<NextResponse<HealthOK | HealthFail | { erro
   }
 
   const t0 = Date.now();
+
+  // audit r35: once SHARED_SECRET is on, doGet no longer reveals the version
+  // (anyone with the URL could read it). Probe through the gated `ping`
+  // action instead; an older backend (unknown action) falls through to GET.
+  if (process.env.APPS_SCRIPT_SECRET) {
+    try {
+      const j = await appsScriptCall<never>("ping", {}, { idempotent: true, timeoutMs: HEALTH_TIMEOUT_MS, maxRetries: 0 });
+      const pinged = j as { ok: boolean; version?: string; message?: string; error?: string };
+      if (pinged.ok && pinged.version) {
+        const body: HealthOK = {
+          ok: true,
+          version: pinged.version,
+          expectedVersion: EXPECTED_BACKEND_VERSION,
+          outdated: isBackendOutdated(pinged.version),
+          message: pinged.message || "",
+          latencyMs: Date.now() - t0,
+        };
+        return NextResponse.json(body);
+      }
+      if (pinged.error && !/unknown action/i.test(pinged.error)) {
+        const body: HealthFail = { ok: false, error: "upstream_not_ok", message: pinged.error, latencyMs: Date.now() - t0 };
+        return NextResponse.json(body);
+      }
+      // unknown action → pre-3.32 backend: fall through to the GET probe
+    } catch (e) {
+      const body: HealthFail = {
+        ok: false,
+        error: "network_error",
+        message: e instanceof Error ? e.message : "unknown network error",
+        latencyMs: Date.now() - t0,
+      };
+      return NextResponse.json(body);
+    }
+  }
+
   let res: Response;
   try {
     res = await fetch(url, {

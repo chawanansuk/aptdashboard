@@ -120,14 +120,14 @@ export class SwrSlot<T> {
 
 /** md5-prefix ETag over the rows JSON — same shape as the dashboard
  *  endpoints. Collisions are harmless: a miss just sends the body anyway. */
-function makeRowsEtag<T>(rows: T[], tag: string): string {
+function makeRowsEtag(rows: unknown, tag: string): string {
   const hash = createHash("md5").update(JSON.stringify(rows)).digest("hex");
   return `W/"${tag}-${hash.slice(0, 16)}"`;
 }
 
 function jsonWithEtag<T>(
   body: T,
-  rows: unknown[],
+  rows: unknown,
   etagTag: string,
   ifNoneMatch: string | null,
   cacheHeaders: Record<string, string>,
@@ -160,12 +160,20 @@ export async function serveCachedRows<T>(
   slot: SwrSlot<T[]>,
   fetchFresh: () => Promise<T[]>,
   errorPrefix: string,
-  opts: { req?: Request; etagTag?: string; epoch?: EpochName } = {},
+  opts: {
+    req?: Request;
+    etagTag?: string;
+    epoch?: EpochName;
+    /** r35: per-role projection applied to every response body (and the
+     *  ETag) — the slot keeps FULL rows, the caller strips what this
+     *  requester may not see (e.g. part cost for sales). */
+    project?: (rows: T[]) => T[];
+  } = {},
 ): Promise<NextResponse> {
   const cacheHeaders = {
     "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
   };
-  const { req, etagTag = "rows", epoch } = opts;
+  const { req, etagTag = "rows", epoch, project = (r: T[]) => r } = opts;
   const ifNoneMatch = req?.headers.get("if-none-match") ?? null;
 
   // r34: a write on ANOTHER instance stamps the family's epoch in Redis;
@@ -178,9 +186,10 @@ export async function serveCachedRows<T>(
   const c = slot.get();
 
   if (c.state === "fresh" && c.data) {
+    const out = project(c.data);
     return jsonWithEtag(
-      { rows: c.data, cached: true, cacheState: "fresh", ageMs: c.ageMs },
-      c.data, etagTag, ifNoneMatch, cacheHeaders,
+      { rows: out, cached: true, cacheState: "fresh", ageMs: c.ageMs },
+      out, etagTag, ifNoneMatch, cacheHeaders,
     );
   }
 
@@ -202,9 +211,10 @@ export async function serveCachedRows<T>(
         }
       })();
     }
+    const out = project(c.data);
     return jsonWithEtag(
-      { rows: c.data, cached: true, cacheState: "stale", ageMs: c.ageMs },
-      c.data, etagTag, ifNoneMatch, cacheHeaders,
+      { rows: out, cached: true, cacheState: "stale", ageMs: c.ageMs },
+      out, etagTag, ifNoneMatch, cacheHeaders,
     );
   }
 
@@ -214,17 +224,20 @@ export async function serveCachedRows<T>(
   try {
     const rows = await fetchFresh();
     slot.setIfCurrent(rows, gen, startedAt);
+    const out = project(rows);
     return jsonWithEtag(
-      { rows, cached: false, cacheState: "missing" },
-      rows, etagTag, ifNoneMatch, cacheHeaders,
+      { rows: out, cached: false, cacheState: "missing" },
+      out, etagTag, ifNoneMatch, cacheHeaders,
     );
   } catch (e) {
     const error = e instanceof Error ? e.message : "unknown";
     const emergency = slot.peekEmergency();
     if (emergency) {
+      const out = project(emergency);
       return jsonWithEtag(
-        { rows: emergency, cached: true, cacheState: "emergency-stale", error },
-        emergency, etagTag, ifNoneMatch, cacheHeaders,
+        { rows: out, cached: true, cacheState: "emergency-stale", error },
+        // r34: fold the degraded state into the ETag so a 304 can't hide it
+        { state: "emergency-stale", rows: out }, etagTag, ifNoneMatch, cacheHeaders,
       );
     }
     // audit r33: keep AppsScriptError's status (504 = "Google ตอบช้า", which the

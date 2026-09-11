@@ -47,9 +47,13 @@ export async function GET(req: Request) {
       "getRoomTasks", { building, room }, { idempotent: true, timeoutMs: 10_000 },
     );
     if (!json.ok) {
-      // Old backend (unknown action) or upstream error — the client
-      // falls back to feed data, so a 200 with ok:false keeps it quiet.
-      return NextResponse.json({ ok: false, error: json.error || "backend error" });
+      // Old backend (unknown action) — the client falls back to feed data,
+      // so a 200 with ok:false keeps it quiet. audit r35: any OTHER upstream
+      // error (quota, lock timeout) is a real failure → 502, otherwise the
+      // room history and cost totals silently under-report with no signal.
+      const msg = json.error || "backend error";
+      if (/unknown action/i.test(msg)) return NextResponse.json({ ok: false, error: msg });
+      return bad(msg, 502);
     }
     const rows = (json.result?.rows || []) as SheetRow[];
     const out = canSeeCustomer

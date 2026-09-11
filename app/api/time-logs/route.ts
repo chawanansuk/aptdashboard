@@ -90,6 +90,9 @@ export async function POST(req: Request) {
   const payload: Record<string, unknown> = {
     taskKey,
     user: session.user.email,
+    // audit r35: Code.gs audits timer writes via body.creator — without it every
+    // startTimer/stopTimer row in the audit sheet had a blank actor
+    creator: session.user.email,
   };
   if (typeof body.note === "string") payload.note = body.note;
 

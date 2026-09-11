@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { canAddEngTask } from "@/lib/permissions";
+import { canAddEngTask, canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { serveCachedRows } from "@/lib/serverSwr";
 import { partsSlot } from "@/lib/partsCache";
@@ -52,7 +52,14 @@ export async function GET(req: Request) {
   // list — a role gate here would silently remove parts logging from
   // the sales flow. The inventory carries no PII; the requisition LOG
   // (/api/part-requisitions) stays gated to part.view.
-  return serveCachedRows(partsSlot, fetchParts, "ดึงข้อมูลอะไหล่ไม่สำเร็จ", { req, etagTag: "parts", epoch: "parts" });
+  //
+  // audit r35: the picker only needs id/name/stock/unit — unit COST is
+  // part.view (engineer/management) data; strip it for everyone else so a
+  // direct GET from a sales session can't read the whole price list.
+  const canSeeCost = canPerform(session.user.roles, "part.view");
+  const project = (rows: Part[]): Part[] =>
+    canSeeCost ? rows : rows.map((p) => ({ ...p, price: undefined }));
+  return serveCachedRows(partsSlot, fetchParts, "ดึงข้อมูลอะไหล่ไม่สำเร็จ", { req, etagTag: "parts", epoch: "parts", project });
 }
 
 export async function POST(req: Request) {
