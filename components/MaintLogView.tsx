@@ -409,7 +409,17 @@ function LogModal({ rooms, initialBuilding, onClose, refresh, optimisticAddTask 
     };
     setSaving(true);
     try {
-      const { data } = await resilientPost("/api/sheet/update", body);
+      // audit r33: งานที่ส่งเป็น "เสร็จ" อยู่นอกตัวกันซ้ำของ Apps Script (กันเฉพาะงาน
+      // ที่ยังเปิด) → ห้าม retry อัตโนมัติ ไม่งั้นเน็ตสะดุดได้ 2 แถว ต้นทุนนับซ้ำ
+      const { res, data } = await resilientPost("/api/sheet/update", body, { retries: doneAlready ? 0 : 3 });
+      if (res.status === 504) {
+        toast.warning(String(data.error || "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว"), {
+          description: "รีเฟรชแล้วดูในบันทึกก่อน ถ้ายังไม่ขึ้นค่อยลงใหม่",
+          duration: 10000,
+        });
+        refresh();
+        return;
+      }
       if (!data.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
       if (data.skipped) {
         toast.info("มีงานแบบเดียวกันของวันนั้นอยู่แล้ว — ไม่บันทึกซ้ำ");

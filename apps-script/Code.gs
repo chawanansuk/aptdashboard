@@ -1,9 +1,16 @@
 /**
- * Code.gs v3.30.0 — Dashboard หอพัก
+ * Code.gs v3.31.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.31.0 (audit r33):
+ *   - updateTaskStatus_/deleteTask_: id ที่หาไม่เจอ → error แทนถอยไปใช้ key รวม
+ *     (กันปิด/ลบงานแฝดของลูกค้าอีกคน) + ปิดงานค้างเก่าที่ retry แล้ววันถูกย้าย = สำเร็จ
+ *   - updateTaskStatus_ เขียนวันที่เป็น yyyy-MM-dd (เดิม dd/MM/yyyy จุดเดียวในไฟล์)
+ *   - runRecurringCheck_ ล้างแคชงานหลังสร้าง + ไม่ถือว่าทุกห้องกำพร้าเมื่ออ่านชีทห้องไม่ได้
+ *   - รูปตำหนิ: ไม่อัปโหลดลงโฟลเดอร์ที่อยู่ในถังขยะ + แชร์ลิงก์ไม่ได้ก็ยังลงบัญชีครบ
  *
  * NEW v3.30.0:
  *   - findAllTaskRows_ อ่านเฉพาะคอลัมน์วันที่ก่อน แล้วค่อยอ่านแถวที่วันตรง
@@ -471,7 +478,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.30.0';
+var BACKEND_VERSION = '3.31.0';
 
 function doGet() {
   return jsonOut_({ ok: true, message: 'aptdashboard backend alive', version: BACKEND_VERSION });
@@ -714,6 +721,9 @@ function getOrCreatePhotoFolder_(building, category) {
   const savedId = props.getProperty('PHOTO_FOLDER_ID');
   if (savedId) {
     try { root = DriveApp.getFolderById(savedId); } catch (e) { root = null; }
+    // v3.31 (audit r33): โฟลเดอร์ที่ถูกลบลงถังขยะยัง getFolderById ได้ → รูปตำหนิ
+    // ใหม่ถูกอัปโหลด "สำเร็จ" เข้าถังขยะ แล้ว Drive ล้างทิ้งใน 30 วัน หลักฐานหาย
+    if (root && root.isTrashed()) root = null;
   }
   if (!root) {
     const it = DriveApp.getFoldersByName('รูปตำหนิหอพัก');
@@ -794,13 +804,22 @@ function uploadRoomPhoto_(b) {
   const folder = getOrCreatePhotoFolder_(building, category);
   const file = folder.createFile(blob);
   // anyone-with-link VIEW — required for <img> rendering in the app.
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  // v3.31 (audit r33): ถ้าโดเมนห้ามแชร์ลิงก์ setSharing จะ throw — เดิมไฟล์ค้างใน
+  // Drive โดยไม่มีแถวในชีท และกดซ้ำได้ไฟล์ซ้ำอีก. ลงบัญชีให้ครบก่อน แล้วบอกว่า
+  // รูปอาจไม่แสดง (ผู้ดูแลตั้งค่าแชร์ทีหลังได้)
+  let shared = true;
+  try {
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (e) {
+    shared = false;
+  }
   const sh = getOrCreatePhotoSheet_();
   const id = Utilities.getUuid();
   const createdAt = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
   sh.appendRow([id, building, room, file.getId(), norm(b.note), norm(b.creator), createdAt, category]);
-  logAudit_('uploadRoomPhoto', 'photo', building + ' ' + room, norm(b.note), b.creator);
-  return { id: id, fileId: file.getId(), createdAt: createdAt };
+  logAudit_('uploadRoomPhoto', 'photo', building + ' ' + room, norm(b.note) + (shared ? '' : ' (แชร์ลิงก์ไม่ได้)'), b.creator);
+  return { id: id, fileId: file.getId(), createdAt: createdAt, shared: shared,
+           warning: shared ? '' : 'อัปโหลดแล้วแต่แชร์ลิงก์ไม่ได้ — รูปอาจไม่แสดงในแอปจนกว่าผู้ดูแล Drive จะเปิดแชร์' };
 }
 
 /**
@@ -1360,9 +1379,6 @@ function updateTaskStatus_(b) {
   // v3.21: with an id, flip ONLY that row. Composite fallback keeps the
   // old flip-every-duplicate behaviour for pre-backfill rows.
   autoBackfillTaskIds_();
-  const idRow = findTaskRowById_(b.id);
-  const rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
-  if (rows.length === 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   const status = b.status || 'เสร็จ';
   // v3.23 (audit r8 bug #3): closing an OVERDUE task also moves its date
@@ -1374,7 +1390,26 @@ function updateTaskStatus_(b) {
   // v3.27: เที่ยงคืน "วันนี้" อิงกรุงเทพ (เดิมใช้ TZ ของ host — ผิดวัน
   // ทันทีถ้า script timezone ไม่ใช่ไทย)
   const todayTs = bkkToday_().getTime();
-  const todayStr = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy');
+  // v3.31 (audit r33): เดิม dd/MM/yyyy — จุดเดียวในไฟล์ที่ไม่ใช่ ISO; ชีทที่ locale
+  // ไม่ใช่วัน-เดือน-ปี ตีความ 11/09 เป็น 9 พ.ย. งานกระโดดไปสองเดือน
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
+  const idRow = findTaskRowById_(b.id);
+  // v3.31 (audit r33): id ที่ส่งมาแต่หาไม่เจอ (แถวถูกลบ/รวมไปแล้ว) ห้ามถอยไปใช้
+  // key รวม — จะไปปิดงาน "แฝด" ของลูกค้าอีกคน (updateTask_ กันไว้แล้ว ที่นี่ยังไม่)
+  if (b.id && idRow < 0) throw new Error('task not found (id หมดอายุ — รีเฟรชแล้วลองใหม่)');
+  let rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
+  if (rows.length === 0 && isDoneWrite && !b.id) {
+    // v3.31 (audit r33): ปิดงานค้างเก่า → รอบแรกอาจสำเร็จและ "ย้ายวันเป็นวันนี้"
+    // แล้ว Vercel retry ด้วยวันเดิม → หาไม่เจอ → error ทั้งที่ปิดไปแล้ว. ลองหา
+    // ด้วยวันนี้ ถ้าเจอและปิดแล้ว = สำเร็จ
+    const movedRows = findAllTaskRows_({ date: todayStr, type: b.type, building: b.building, room: b.room });
+    const allDone = movedRows.length > 0 && movedRows.every(function (r) {
+      const s = norm(sh.getRange(r, TASK_COL.STATUS).getValue());
+      return s === 'เสร็จ' || s === 'done' || s === 'ปิดแล้ว';
+    });
+    if (allDone) return { updated: true, rows: movedRows, count: movedRows.length, alreadyDone: true };
+  }
+  if (rows.length === 0) throw new Error('task not found');
   // Flip every duplicate sharing this key, not just the first — see
   // findAllTaskRows_. Prevents the "close → pops back open" bounce.
   for (let i = 0; i < rows.length; i++) {
@@ -1394,6 +1429,8 @@ function deleteTask_(b) {
   // v3.21: with an id, delete ONLY that row (composite fallback below).
   autoBackfillTaskIds_();
   const idRow = findTaskRowById_(b.id);
+  // v3.31 (audit r33): id ส่งมาแต่หาไม่เจอ → ห้ามถอยไปลบทุกแถวที่ key รวมตรงกัน
+  if (b.id && idRow < 0) throw new Error('task not found (id หมดอายุ — รีเฟรชแล้วลองใหม่)');
   const rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
   if (rows.length === 0) throw new Error('task not found');
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
@@ -2838,7 +2875,11 @@ function runRecurringCheck_(b) {
     }
     // Orphan-target guard (v3.24) — skip + advance + audit so a dead
     // template self-flags in the audit log instead of spawning forever.
-    if (!isCommonTarget(room) && !roomSet[building + '|' + room]) {
+    // v3.31 (audit r33): ถ้าอ่านชีทห้องไม่ได้เลย (แท็บถูกเปลี่ยนชื่อ/ว่างชั่วคราว)
+    // roomSet ว่าง → เดิมถือว่า "ทุกห้องเป็นกำพร้า" ข้ามทุก template แล้วเลื่อนรอบ
+    // งานทำสะอาดประจำหยุดเงียบทั้งหอ. ไม่มีข้อมูลห้อง = ไม่ตรวจ (fail open)
+    const roomSetUsable = Object.keys(roomSet).length > 0;
+    if (roomSetUsable && !isCommonTarget(room) && !roomSet[building + '|' + room]) {
       const orphanNext = new Date(today.getTime() + interval * 24 * 60 * 60 * 1000);
       recurringSh.getRange(i + 2, 7).setValue(todayStr);
       recurringSh.getRange(i + 2, 8).setValue(
@@ -2863,6 +2904,9 @@ function runRecurringCheck_(b) {
     logAudit_('run', 'recurring', id, name + ' → task ' + taskDateStr, user);
     created++;
   }
+  // v3.31 (audit r33): ตัวเขียนงานตัวเดียวที่ลืมล้างแคช — งานประจำที่เพิ่งสร้าง
+  // ไม่โผล่บนกระดาน 4 นาที คนกดรันซ้ำ (รอบถัดไปเลื่อนไปแล้ว → สร้าง 0) งง
+  if (created > 0) clearTasksCache_();
   return { created: created, skipped: skipped };
 }
 

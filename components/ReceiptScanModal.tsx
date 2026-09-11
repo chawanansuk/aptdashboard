@@ -118,7 +118,11 @@ export default function ReceiptScanModal({ open, parts, onClose, onSaved }: Prop
     setStage("saving");
     let okCount = 0;
     const failed: string[] = [];
+    // audit r33: บรรทัดที่ Google ตอบช้าจนหมดเวลา (504) "อาจเข้าแล้ว" — ห้ามเก็บไว้
+    // ให้กดบันทึกซ้ำอัตโนมัติ ไม่งั้นสต๊อกบวกสองครั้ง (ซื้อเข้าไม่มีตัวกันซ้ำ)
+    const unsure: string[] = [];
     for (const l of toSave) {
+      const label = partById.get(l.partId)?.name || l.name;
       try {
         const res = await fetch("/api/part-purchases", {
           method: "POST",
@@ -133,22 +137,29 @@ export default function ReceiptScanModal({ open, parts, onClose, onSaved }: Prop
           }),
         });
         const data = await res.json().catch(() => ({ ok: false }));
+        if (res.status === 504) { unsure.push(label); continue; }
         if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
         okCount++;
       } catch (e) {
-        failed.push(`${partById.get(l.partId)?.name || l.name}: ${e instanceof Error ? e.message : "พัง"}`);
+        failed.push(`${label}: ${e instanceof Error ? e.message : "พัง"}`);
       }
     }
-    if (okCount > 0) onSaved();
+    if (okCount > 0 || unsure.length > 0) onSaved();
+    if (unsure.length > 0) {
+      toast.warning(`Google ตอบช้า — ${unsure.length} รายการอาจบันทึกไปแล้ว: ${unsure.join(", ")}`, {
+        description: "เช็คแท็บประวัติซื้อก่อน ถ้ายังไม่มีค่อยบันทึกเฉพาะรายการนั้นใหม่",
+        duration: 15000,
+      });
+    }
     if (failed.length === 0) {
-      toast.success(`บันทึกซื้อจากใบเสร็จแล้ว ${okCount} รายการ ✓`);
+      if (okCount > 0) toast.success(`บันทึกซื้อจากใบเสร็จแล้ว ${okCount} รายการ ✓`);
       onClose();
     } else {
       toast.warning(`บันทึกได้ ${okCount}/${toSave.length} รายการ`, {
         description: failed.join(" · "),
         duration: 12000,
       });
-      // เก็บเฉพาะบรรทัดที่พังไว้ให้ลองใหม่
+      // เก็บเฉพาะบรรทัดที่พังจริงไว้ให้ลองใหม่ (ไม่รวมที่ "อาจเข้าแล้ว")
       setLines((cur) => cur.filter((l) => !l.partId || failed.some((f) => f.startsWith(partById.get(l.partId)?.name || l.name))));
       setStage("review");
     }

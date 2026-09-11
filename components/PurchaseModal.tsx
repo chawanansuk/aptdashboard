@@ -77,6 +77,17 @@ export default function PurchaseModal({ open, part, initialQty, onClose, onSaved
         }),
       });
       const data = await res.json().catch(() => ({ ok: false, error: "invalid JSON" }));
+      if (res.status === 504) {
+        // audit r33: หมดเวลารอ Google — สต๊อกอาจถูกบวกไปแล้ว. กดซ้ำ = บวกสองครั้ง
+        // และประวัติราคาซ้ำ (ซื้อเข้าไม่มีตัวกันซ้ำฝั่ง Google)
+        toast.warning("หลังบ้าน Google ตอบช้า — การซื้อนี้อาจบันทึกไปแล้ว", {
+          description: "เช็คแท็บประวัติซื้อก่อน ถ้ายังไม่มีค่อยบันทึกใหม่",
+          duration: 12000,
+        });
+        onSaved();
+        onClose();
+        return;
+      }
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       const r = (data.result ?? data) as { unitPrice?: number; prevUnitPrice?: number; newStock?: number };
       // บอกแนวโน้มทันทีตอนบันทึก — จุดที่คนซื้อยังจำราคาครั้งก่อนได้ลางๆ

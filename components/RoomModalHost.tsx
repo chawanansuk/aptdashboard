@@ -113,7 +113,8 @@ export default function RoomModalHost({
     setRepairing(true);
     try {
       const today = todayThaiDate();
-      // Shared POST (r11): addTask is server-deduped → auto-retry safe.
+      // audit r33: งานที่ส่งเป็น "เสร็จ" อยู่นอกตัวกันซ้ำของ Apps Script (กันเฉพาะ
+      // งานที่ยังเปิด) → ห้าม retry อัตโนมัติ ไม่งั้นเน็ตสะดุดได้ซ่อม 2 รายการ.
       // `data.skipped` must stay visible — the duplicate-open branch
       // below turns it into a note-append instead of a drop.
       const { res, data } = await resilientPost("/api/sheet/update", {
@@ -124,7 +125,15 @@ export default function RoomModalHost({
         room: room.room,
         note,
         status: "เสร็จ",
-      });
+      }, { retries: 0 });
+      if (res.status === 504) {
+        toast.warning(String(data.error || "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว"), {
+          description: "รีเฟรชแล้วดูประวัติงานของห้องก่อน ถ้ายังไม่ขึ้นค่อยบันทึกใหม่",
+          duration: 10000,
+        });
+        refresh();
+        return;
+      }
       if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
       if (data.skipped === "duplicate-open") {

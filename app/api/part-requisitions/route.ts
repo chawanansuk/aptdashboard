@@ -89,8 +89,14 @@ export async function POST(req: Request) {
     partsSlot.invalidate();
     return NextResponse.json(json);
   } catch (e) {
+    // audit r33: หมดเวลารอ ≠ ไม่ได้ตัดสต๊อก — ล้างแคชด้วย ไม่งั้น /api/parts โชว์
+    // สต๊อกก่อนตัดต่อไป ผู้ใช้เห็น "ไม่เปลี่ยน" แล้วเบิกซ้ำ
+    partsSlot.invalidate();
     const msg = e instanceof Error ? e.message : "unknown";
     const status = e instanceof AppsScriptError ? e.status : 502;
+    if (status === 504) {
+      return bad("หลังบ้าน Google ตอบช้า — การเบิกอาจบันทึกไปแล้ว เช็คประวัติการเบิกก่อนกดซ้ำ", 504);
+    }
     return bad(`บันทึกการเบิกไม่สำเร็จ: ${msg}`, status);
   }
 }

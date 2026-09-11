@@ -211,6 +211,9 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
     try {
       await postUpdate({
         action: "deleteTask",
+        // audit r33: ไม่ส่ง id = Apps Script ลบทุกแถวที่ key เดียวกัน (วัน/ตึก/ห้อง/
+        // ประเภท) — ลูกค้าอีกคนที่นัดห้องเดียวกันวันเดียวกันหายไปด้วย
+        id: t.id || undefined,
         match: { date: t.date, building: t.building, room: t.room, type: t.type },
       });
       setConfirmDel(null);

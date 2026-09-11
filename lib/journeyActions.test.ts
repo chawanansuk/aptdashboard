@@ -179,7 +179,9 @@ describe("executeJourneyAction — dup guard", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("releaseNow cancels open prep, closes the moveout notice, then releases", async () => {
+  it("releaseNow releases FIRST, then cancels open prep and closes the moveout notice", async () => {
+    // audit r33: เดิมกวาดงานก่อนแล้วค่อยเปลี่ยนสถานะ — ถ้าขั้นหลังพัง งานช่างหายหมด
+    // แต่ห้องยังค้าง. ตอนนี้เปลี่ยนสถานะก่อน ล้มเหลว = ไม่มีอะไรเปลี่ยน
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const refresh = vi.fn();
     const room = mkRoom({
@@ -190,48 +192,65 @@ describe("executeJourneyAction — dup guard", () => {
     const bodies = fetchMock.mock.calls.map(
       (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)),
     );
+    // the release itself goes first, tenant blanked server-side
+    expect(bodies[0]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
     // open clean marker → ยกเลิก (skipped work, not done)
     expect(bodies.filter((b) => b.action === "updateTaskStatus" && b.status === "ยกเลิก")).toHaveLength(1);
     // the ย้ายออก notice → เสร็จ (the move-out factually happened)
     expect(bodies.filter(
       (b) => b.action === "updateTaskStatus" && b.type === "ย้ายออก" && b.status === "เสร็จ",
     )).toHaveLength(1);
-    // finally the release itself, tenant blanked server-side
-    expect(bodies[bodies.length - 1]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
   });
 
-  it("releaseNow still releases when a stale marker is already gone server-side", async () => {
+  it("releaseNow: when the release itself fails, prep tasks are left untouched", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fetchMock.mockResolvedValueOnce({
+      ok: false, status: 504,
+      json: async () => ({ ok: false, timedOut: true, error: "หลังบ้าน Google ตอบช้า" }),
+    } as Response); // the releaseRoom write times out
+    const refresh = vi.fn();
+    const room = mkRoom({ todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE })] });
+    await expect(executeJourneyAction("releaseNow", room, { refresh })).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // ไม่แตะงานเตรียมห้องเลย
+  });
+
+  it("releaseNow still completes when a stale marker is already gone server-side", async () => {
     // The sweep hits 'task not found' (someone deleted the task; stale
-    // panel). That IS the goal state of a cancel — the release must
-    // proceed instead of aborting mid-sweep.
+    // panel). That IS the goal state of a cancel — the sweep must
+    // proceed instead of aborting.
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    fetchMock.mockResolvedValueOnce({
-      ok: true, status: 200,
-      json: async () => ({ ok: false, error: "task not found" }),
-    } as Response); // cancel of the clean marker → row already gone
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) } as Response) // releaseRoom
+      .mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: async () => ({ ok: false, error: "task not found" }),
+      } as Response); // cancel of the clean marker → row already gone
     const refresh = vi.fn();
     const room = mkRoom({ todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE })] });
     await executeJourneyAction("releaseNow", room, { refresh });
     const bodies = fetchMock.mock.calls.map(
       (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)),
     );
-    expect(bodies[bodies.length - 1]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
+    expect(bodies[0]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
+    expect(bodies.filter((b) => b.action === "updateTaskStatus")).toHaveLength(1);
   });
 
-  it("releaseNow still releases when a cancel fails for a REAL reason (counted, warned)", async () => {
+  it("releaseNow still completes when a cancel fails for a REAL reason (counted, warned)", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    fetchMock.mockResolvedValueOnce({
-      ok: true, status: 200,
-      json: async () => ({ ok: false, error: "quota exceeded" }),
-    } as Response); // cancel fails hard — sweep records it and moves on
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) } as Response) // releaseRoom
+      .mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: async () => ({ ok: false, error: "quota exceeded" }),
+      } as Response); // cancel fails hard — sweep records it and moves on
     const refresh = vi.fn();
     const room = mkRoom({ todayTasks: [mkTask({ note: MOVEOUT_CLEAN_NOTE })] });
     await executeJourneyAction("releaseNow", room, { refresh });
     const bodies = fetchMock.mock.calls.map(
       (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)),
     );
-    // The user's intent (release) still happened…
-    expect(bodies[bodies.length - 1]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
+    // The user's intent (release) happened first…
+    expect(bodies[0]).toMatchObject({ action: "releaseRoom", status: "ว่าง" });
     // …and the partial failure is surfaced honestly.
     const { toast } = await import("@/lib/toast");
     expect(toast.info).toHaveBeenCalledWith(
