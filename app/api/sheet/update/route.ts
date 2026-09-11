@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import type { Role } from "@/auth";
 import { canPerform, type Action } from "@/lib/permissions";
 import { invalidateDashboardCache } from "@/lib/dashboardCache";
-import { redisDel, REDIS_ROOMS_KEY, REDIS_TASKS_KEY } from "@/lib/redisCache";
+import { redisBumpEpoch, redisDel, REDIS_ROOMS_KEY, REDIS_TASKS_KEY } from "@/lib/redisCache";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import {
   SheetUpdateBodySchema,
@@ -206,6 +206,7 @@ export async function POST(req: Request) {
     if (data && data.ok !== false) {
       invalidateDashboardCache();
       void redisDel(REDIS_ROOMS_KEY, REDIS_TASKS_KEY);
+      void redisBumpEpoch("rooms", "tasks"); // r34: sibling instances drop their L1 too
     } else if (data && /^busy/i.test(String(data.error || ""))) {
       // audit r33: Apps Script ล็อกชนกัน (สองคนบันทึกพร้อมกัน) ตอบ ok:false ที่
       // HTTP 200 → ฝั่งเว็บถือเป็น "ถูกปฏิเสธ" ไม่ลองซ้ำ ทั้งที่ลองซ้ำได้และปลอดภัย
@@ -221,6 +222,7 @@ export async function POST(req: Request) {
         // (เดิมแคชค้างจนหมดอายุ → ดูเหมือน "ไม่เซฟ" ทั้งที่เข้าแล้ว).
         invalidateDashboardCache();
         void redisDel(REDIS_ROOMS_KEY, REDIS_TASKS_KEY);
+        void redisBumpEpoch("rooms", "tasks");
         return NextResponse.json(
           { ok: false, timedOut: true, error: WRITE_TIMEOUT_MESSAGE },
           { status: 504 }

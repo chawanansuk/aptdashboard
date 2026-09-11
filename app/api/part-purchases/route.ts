@@ -4,6 +4,7 @@ import { canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { etagJsonResponse } from "@/lib/etagJsonResponse";
 import { partsSlot } from "@/lib/partsCache";
+import { redisBumpEpoch } from "@/lib/redisCache";
 import type { Purchase } from "@/types";
 
 export const runtime = "nodejs";
@@ -95,10 +96,12 @@ export async function POST(req: Request) {
     const json = await appsScriptCall("addPurchase", body);
     // สต๊อกเปลี่ยนแล้ว — บัสต์ cache ของ /api/parts เหมือน requisition
     partsSlot.invalidate();
+    void redisBumpEpoch("parts"); // r34
     return NextResponse.json(json);
   } catch (e) {
     // audit r33: หมดเวลารอ ≠ ไม่ได้บวกสต๊อก — ล้างแคชด้วย (เหมือน requisition)
     partsSlot.invalidate();
+    void redisBumpEpoch("parts");
     const msg = e instanceof Error ? e.message : "unknown";
     const status = e instanceof AppsScriptError ? e.status : 502;
     if (status === 504) {

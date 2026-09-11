@@ -159,6 +159,38 @@ export const REDIS_TASKS_KEY = "apt:v1:tasks";
  *  precisely what powers serve-stale-on-origin-failure across instances. */
 export const REDIS_SLICE_TTL_SEC = 60 * 60;
 
+/* ====================================================================
+ * Write epochs (r34 — audit: "บันทึกจากเครื่องหนึ่ง เครื่องอื่นยังตอบของเก่า")
+ *
+ * `redisDel` on a write only clears L2; a SIBLING instance whose L1 is
+ * still "fresh" (≤90s) never looks at L2 and keeps serving pre-write
+ * rows. The epoch is the timestamp of the last write per data family:
+ * every read compares its L1 entry's fetch time against it and drops the
+ * entry when it predates the write (one tiny GET, ~50ms; a no-op when
+ * Redis isn't configured — single-instance behaviour is unchanged).
+ * ==================================================================== */
+
+export type EpochName =
+  | "rooms" | "tasks" | "parts" | "leads" | "vehicles" | "facilities" | "recurring";
+
+const EPOCH_PREFIX = "apt:v1:epoch:";
+
+/** Stamp "a write just happened" for these families. Fire-and-forget. */
+export async function redisBumpEpoch(...names: EpochName[]): Promise<void> {
+  if (!redisEnabled() || names.length === 0) return;
+  const now = Date.now();
+  const args: (string | number)[] = ["MSET"];
+  for (const n of names) args.push(EPOCH_PREFIX + n, now);
+  await command(args);
+}
+
+/** Timestamp (ms) of the last write for this family, or null. */
+export async function redisGetEpoch(name: EpochName): Promise<number | null> {
+  const raw = await command<string | null>(["GET", EPOCH_PREFIX + name]);
+  const n = typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** True when the envelope looks sane (guards against schema drift). */
 export function isCachedSlice<T>(v: unknown): v is CachedSlice<T> {
   return (

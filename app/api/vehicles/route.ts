@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
+import { redisBumpEpoch } from "@/lib/redisCache";
 import type { Vehicle } from "@/types";
 
 export const runtime = "nodejs";
@@ -44,7 +45,7 @@ function bad(msg: string, status = 400) {
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
-  return serveCachedRows(vehicleSlot, fetchVehicles, "ดึงข้อมูลยานพาหนะไม่สำเร็จ", { req, etagTag: "vehicles" });
+  return serveCachedRows(vehicleSlot, fetchVehicles, "ดึงข้อมูลยานพาหนะไม่สำเร็จ", { req, etagTag: "vehicles", epoch: "vehicles" });
 }
 
 export async function POST(req: Request) {
@@ -92,6 +93,7 @@ export async function POST(req: Request) {
   try {
     const json = await appsScriptCall(upstreamAction, body);
     vehicleSlot.invalidate(); // next GET refetches the just-written data
+    void redisBumpEpoch("vehicles"); // r34: เครื่อง Vercel อื่นทิ้งแคชของตัวเองด้วย
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";

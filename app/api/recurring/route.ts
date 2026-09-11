@@ -4,7 +4,7 @@ import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
 import { invalidateTasksCache } from "@/lib/dashboardCache";
-import { redisDel, REDIS_TASKS_KEY } from "@/lib/redisCache";
+import { redisBumpEpoch, redisDel, REDIS_TASKS_KEY } from "@/lib/redisCache";
 import type { RecurringTemplate } from "@/types";
 
 export const runtime = "nodejs";
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
   if (!canAddEngTask(session.user.roles)) {
     return bad("ไม่มีสิทธิ์ดูงานประจำ", 403);
   }
-  return serveCachedRows(recurringSlot, fetchRecurring, "ดึงงานประจำไม่สำเร็จ", { req, etagTag: "recurring" });
+  return serveCachedRows(recurringSlot, fetchRecurring, "ดึงงานประจำไม่สำเร็จ", { req, etagTag: "recurring", epoch: "recurring" });
 }
 
 export async function POST(req: Request) {
@@ -102,6 +102,7 @@ export async function POST(req: Request) {
     // add/delete change the list; run advances each fired template's
     // nextRunDate — all three mutate it, so drop the cache.
     recurringSlot.invalidate();
+    void redisBumpEpoch("recurring"); // r34
     // "run" also appends brand-new task rows to the งาน sheet; bust the
     // dashboard tasks slot too or the created tasks don't surface on the
     // dashboard / Today / Kanban until the 90s fresh-TTL expires.
@@ -109,6 +110,7 @@ export async function POST(req: Request) {
       invalidateTasksCache();
       // Bust the shared L2 too — "run" appended task rows in the sheet.
       void redisDel(REDIS_TASKS_KEY);
+      void redisBumpEpoch("tasks"); // r34: sibling instances drop their L1 too
     }
     return NextResponse.json(json);
   } catch (e) {

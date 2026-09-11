@@ -1,18 +1,21 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { parseRoomsCSV } from "@/lib/parseSheet";
-import { isAbortLike, UPSTREAM_SLOW_MESSAGE } from "@/lib/appsScriptFetch";
+import { appsScriptCall, isAbortLike, UPSTREAM_SLOW_MESSAGE } from "@/lib/appsScriptFetch";
 import {
+  dropRoomsCacheIfOlderThan,
   endRoomsRevalidation,
   getRoomsCacheState,
+  roomsCacheGeneration,
   setRoomsCache,
+  setRoomsCacheIfCurrent,
   tryBeginRoomsRevalidation,
 } from "@/lib/dashboardCache";
 import { canViewTenant } from "@/lib/permissions";
 import type { RoomRow } from "@/types";
 import { makeEtag, timing } from "@/lib/apiTiming";
 import {
-  redisGetJson, redisSetJson, isCachedSlice,
+  redisGetJson, redisSetJson, redisGetEpoch, isCachedSlice,
   REDIS_ROOMS_KEY, REDIS_SLICE_TTL_SEC, type CachedSlice,
 } from "@/lib/redisCache";
 
@@ -47,7 +50,32 @@ const ROOMS_CSV_TIMEOUT_MS = 20_000;
  * SWR semantics inherited from lib/dashboardCache (independent rooms slot).
  */
 
-async function fetchRooms(): Promise<RoomRow[]> {
+/**
+ * r34 (audit): the publish-to-web CSV lags a write by up to ~5 min — longer
+ * than the client's optimistic patch, so a just-edited room could visibly
+ * revert. Inside a "recent write" window (last room write per Redis epoch)
+ * read the sheet live through Apps Script `getRooms` instead (its cache is
+ * busted by every room writer); outside the window keep the fast CSV.
+ * Falls back to CSV on any Apps Script failure, and is a no-op without
+ * Redis (epoch unknown → CSV as before).
+ */
+const RECENT_WRITE_WINDOW_MS = 6 * 60_000;
+
+async function fetchRooms(lastWriteAt: number | null = null): Promise<RoomRow[]> {
+  const recentWrite = lastWriteAt !== null && Date.now() - lastWriteAt < RECENT_WRITE_WINDOW_MS;
+  if (recentWrite && process.env.SHEET_WRITE_URL) {
+    try {
+      const json = await appsScriptCall<{ rows?: RoomRow[] }>("getRooms", {}, { idempotent: true });
+      const rows = json.ok ? json.result?.rows : undefined;
+      if (Array.isArray(rows) && rows.length > 0) return rows as RoomRow[];
+    } catch (e) {
+      console.warn("[dashboard/rooms] live getRooms failed, falling back to CSV", e instanceof Error ? e.message : e);
+    }
+  }
+  return fetchCsvRooms();
+}
+
+async function fetchCsvRooms(): Promise<RoomRow[]> {
   // Prefer the server-only name; NEXT_PUBLIC_* fallback kept for existing
   // deployments. The publish-to-web CSV carries tenant PII, so the env
   // must never actually be NEXT_PUBLIC-exposed in client code — rename
@@ -66,15 +94,21 @@ async function fetchRooms(): Promise<RoomRow[]> {
   return parseRoomsCSV(csv);
 }
 
-function scheduleRevalidate(): void {
+function scheduleRevalidate(lastWriteAt: number | null): void {
   if (!tryBeginRoomsRevalidation()) return;
   (async () => {
     const start = Date.now();
+    // r34: capture generation + start time — rows fetched before a concurrent
+    // write must not repopulate L1/L2 after the write invalidated them.
+    const gen = roomsCacheGeneration();
     try {
-      const rooms = await fetchRooms();
-      setRoomsCache(rooms);
-      // Share with every other instance (L2) — fire-and-forget.
-      void redisSetJson(REDIS_ROOMS_KEY, { at: Date.now(), rows: rooms }, REDIS_SLICE_TTL_SEC);
+      const rooms = await fetchRooms(lastWriteAt);
+      if (setRoomsCacheIfCurrent(rooms, gen, start)) {
+        // Share with every other instance (L2) — fire-and-forget.
+        void redisSetJson(REDIS_ROOMS_KEY, { at: start, rows: rooms }, REDIS_SLICE_TTL_SEC);
+      } else {
+        console.info("[dashboard/rooms] revalidate discarded (write happened mid-fetch)");
+      }
       console.info("[dashboard/rooms] revalidate ok", { ms: Date.now() - start });
     } catch (e) {
       console.warn("[dashboard/rooms] revalidate failed (keeping prev cache)", e);
@@ -129,10 +163,15 @@ export async function GET(req: Request) {
   // L1 miss (cold start / cross-instance invalidation) → try the shared
   // Redis L2 before the origin CSV. Seeded with the origin timestamp so
   // the normal fresh/stale machinery applies (see tasks route).
+  // r34: drop L1 that predates the last room write on ANY instance (epoch
+  // stamped by the write route). No-op without Redis.
+  const lastWriteAt = await redisGetEpoch("rooms");
+  if (lastWriteAt !== null) dropRoomsCacheIfOlderThan(lastWriteAt);
   let c = getRoomsCacheState();
   if (c.state === "missing") {
     const l2 = await redisGetJson<CachedSlice<RoomRow>>(REDIS_ROOMS_KEY);
-    if (isCachedSlice<RoomRow>(l2)) {
+    // L2 entry that predates the last write is stale too — skip it.
+    if (isCachedSlice<RoomRow>(l2) && (lastWriteAt === null || l2.at >= lastWriteAt)) {
       setRoomsCache(l2.rows, l2.at);
       c = getRoomsCacheState();
     }
@@ -155,7 +194,7 @@ export async function GET(req: Request) {
   }
 
   if (c.state === "stale" && c.data) {
-    scheduleRevalidate();
+    scheduleRevalidate(lastWriteAt);
     const out = project(c.data);
     const totalMs = Date.now() - handlerStart;
     console.info("[dashboard/rooms] stale + bg revalidate", { ageMs: c.ageMs, totalMs });
@@ -173,10 +212,13 @@ export async function GET(req: Request) {
 
   // Missing — block on upstream
   const fetchStart = Date.now();
+  const gen = roomsCacheGeneration();
   try {
-    const rooms = await fetchRooms();
-    setRoomsCache(rooms);
-    void redisSetJson(REDIS_ROOMS_KEY, { at: Date.now(), rows: rooms }, REDIS_SLICE_TTL_SEC);
+    const rooms = await fetchRooms(lastWriteAt);
+    // r34: only cache when no write landed while we were fetching.
+    if (setRoomsCacheIfCurrent(rooms, gen, fetchStart)) {
+      void redisSetJson(REDIS_ROOMS_KEY, { at: fetchStart, rows: rooms }, REDIS_SLICE_TTL_SEC);
+    }
     const out = project(rooms);
     const fetchMs = Date.now() - fetchStart;
     const totalMs = Date.now() - handlerStart;

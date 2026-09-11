@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { SheetRow } from "@/types";
 import { resilientPost } from "@/lib/resilientWrite";
+import { isWriteTimeout, maybeSavedMessage } from "@/lib/writeVerify";
 
 interface Props {
   /** Task to edit — null hides the modal. Identity is the composite
@@ -81,6 +82,12 @@ export default function EditTaskModal({ task, onClose, onSaved }: Props) {
         phone,
         note,
       }, { retries: 0 });
+      if (isWriteTimeout(res)) {
+        // r34: อาจบันทึกแล้ว — รีเฟรชแล้วคงฟอร์มไว้ให้ดูก่อนกดซ้ำ
+        onSaved?.();
+        setErr(maybeSavedMessage(data));
+        return;
+      }
       if (!data.ok) {
         const statusSuffix = res.status !== 200 ? ` (HTTP ${res.status})` : "";
         throw new Error(`${data.error || "ไม่สำเร็จ"}${statusSuffix}`);

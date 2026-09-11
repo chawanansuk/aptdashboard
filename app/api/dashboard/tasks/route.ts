@@ -2,17 +2,20 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { appsScriptCall } from "@/lib/appsScriptFetch";
 import {
+  dropTasksCacheIfOlderThan,
   endTasksRevalidation,
   getTasksCacheState,
   peekEmergencyTasksCache,
   setTasksCache,
+  setTasksCacheIfCurrent,
+  tasksCacheGeneration,
   tryBeginTasksRevalidation,
 } from "@/lib/dashboardCache";
 import type { SheetRow } from "@/types";
 import { canViewTaskCustomer } from "@/lib/permissions";
 import { makeEtag, timing } from "@/lib/apiTiming";
 import {
-  redisGetJson, redisSetJson, isCachedSlice,
+  redisGetJson, redisSetJson, redisGetEpoch, isCachedSlice,
   REDIS_TASKS_KEY, REDIS_SLICE_TTL_SEC, type CachedSlice,
 } from "@/lib/redisCache";
 
@@ -56,12 +59,19 @@ function scheduleRevalidate(): void {
   if (!tryBeginTasksRevalidation()) return;
   (async () => {
     const start = Date.now();
+    // r34: capture generation + start time — rows fetched before a concurrent
+    // write must not repopulate L1/L2 after the write invalidated them
+    // (audit: this re-poisoned Redis for an hour → "ปิดงานแล้วเด้งกลับ").
+    const gen = tasksCacheGeneration();
     try {
       const tasks = await fetchTasks();
-      setTasksCache(tasks);
-      // Share with every other instance (L2). Fire-and-forget: a Redis
-      // hiccup must not fail the revalidation that already succeeded.
-      void redisSetJson(REDIS_TASKS_KEY, { at: Date.now(), rows: tasks }, REDIS_SLICE_TTL_SEC);
+      if (setTasksCacheIfCurrent(tasks, gen, start)) {
+        // Share with every other instance (L2). Fire-and-forget: a Redis
+        // hiccup must not fail the revalidation that already succeeded.
+        void redisSetJson(REDIS_TASKS_KEY, { at: start, rows: tasks }, REDIS_SLICE_TTL_SEC);
+      } else {
+        console.info("[dashboard/tasks] revalidate discarded (write happened mid-fetch)");
+      }
       console.info("[dashboard/tasks] revalidate ok", { ms: Date.now() - start });
     } catch (e) {
       console.warn("[dashboard/tasks] revalidate failed (keeping prev cache)", e);
@@ -151,10 +161,15 @@ export async function GET(req: Request) {
   // paying the slow Apps Script fetch. The entry is seeded with its
   // ORIGIN timestamp so the normal fresh/stale machinery applies.
   const cacheStart = Date.now();
+  // r34: drop L1 that predates the last task write on ANY instance (epoch
+  // stamped by every write route). No-op without Redis.
+  const lastWriteAt = await redisGetEpoch("tasks");
+  if (lastWriteAt !== null) dropTasksCacheIfOlderThan(lastWriteAt);
   let c = getTasksCacheState();
   if (c.state === "missing") {
     const l2 = await redisGetJson<CachedSlice<SheetRow>>(REDIS_TASKS_KEY);
-    if (isCachedSlice<SheetRow>(l2)) {
+    // L2 entry that predates the last write is stale too — skip it.
+    if (isCachedSlice<SheetRow>(l2) && (lastWriteAt === null || l2.at >= lastWriteAt)) {
       setTasksCache(l2.rows, l2.at);
       c = getTasksCacheState();
     }
@@ -200,13 +215,17 @@ export async function GET(req: Request) {
 
   // ---- Missing — block on upstream, with emergency-stale fallback ----
   const fetchStart = Date.now();
+  const gen = tasksCacheGeneration();
   try {
     const tasks = await fetchTasks();
     const fetchMs = Date.now() - fetchStart;
 
     const parseStart = Date.now();
-    setTasksCache(tasks); // cache the FULL rows; project only the response
-    void redisSetJson(REDIS_TASKS_KEY, { at: Date.now(), rows: tasks }, REDIS_SLICE_TTL_SEC);
+    // cache the FULL rows; project only the response. r34: only when no
+    // write landed while we were fetching.
+    if (setTasksCacheIfCurrent(tasks, gen, fetchStart)) {
+      void redisSetJson(REDIS_TASKS_KEY, { at: fetchStart, rows: tasks }, REDIS_SLICE_TTL_SEC);
+    }
     const out = project(tasks);
     const parseMs = Date.now() - parseStart;
 
@@ -238,7 +257,11 @@ export async function GET(req: Request) {
     const emergency = peekEmergencyTasksCache();
     if (emergency) {
       const out = project(emergency);
-      const etag = makeEtag("tasks", out);
+      // r34 (audit): the emergency body has the SAME rows as the last good
+      // 200 → same ETag → 304 → the browser replays its old body with
+      // cacheState:"fresh" and the "ข้อมูลเก่า" warning never shows. Fold the
+      // state into the ETag so a degraded reply is always sent in full.
+      const etag = makeEtag("tasks", { state: "emergency-stale", rows: out });
       const totalMs = Date.now() - handlerStart;
       console.warn("[dashboard/tasks] miss-fail → emergency stale served", { error, fetchMs, totalMs });
       return buildResponse({

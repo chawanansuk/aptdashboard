@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
+import { redisBumpEpoch } from "@/lib/redisCache";
 import type { Facility } from "@/types";
 
 export const runtime = "nodejs";
@@ -43,7 +44,7 @@ function bad(msg: string, status = 400) {
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
-  return serveCachedRows(facilitySlot, fetchFacilities, "ดึงข้อมูลสาธารณูปโภคไม่สำเร็จ", { req, etagTag: "facilities" });
+  return serveCachedRows(facilitySlot, fetchFacilities, "ดึงข้อมูลสาธารณูปโภคไม่สำเร็จ", { req, etagTag: "facilities", epoch: "facilities" });
 }
 
 export async function POST(req: Request) {
@@ -85,6 +86,7 @@ export async function POST(req: Request) {
   try {
     const json = await appsScriptCall(upstreamAction, body);
     facilitySlot.invalidate(); // next GET refetches the just-written data
+    void redisBumpEpoch("facilities"); // r34: เครื่อง Vercel อื่นทิ้งแคชของตัวเองด้วย
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";

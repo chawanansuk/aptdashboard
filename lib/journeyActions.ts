@@ -18,6 +18,7 @@
 import type { RoomView, SheetRow } from "@/types";
 import { toast } from "@/lib/toast";
 import { resilientPost } from "@/lib/resilientWrite";
+import { isWriteTimeout, maybeSavedMessage } from "@/lib/writeVerify";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { autoCreateMoveoutPrep } from "@/lib/dashboardActions";
 import { isClosedStatus } from "@/lib/constants";
@@ -129,6 +130,13 @@ export async function quickSetRoomStatus(
       action: "updateRoomStatus", building: room.building, room: room.room, status: rawStatus,
     }, { retries: 0 }));
   }
+  if (isWriteTimeout(res)) {
+    // r34: สถานะอาจเปลี่ยนแล้ว — รีเฟรชให้เห็นของจริงก่อนโยน error (ผู้เรียกโชว์
+    // ข้อความ "อาจบันทึกไปแล้ว…" ของเซิร์ฟเวอร์) ไม่ใช่ปล่อยให้เดาแล้วกดซ้ำ
+    publishBusEvent({ kind: "data-changed", source: "room", ts: Date.now() });
+    deps.refresh();
+    throw new Error(maybeSavedMessage(data));
+  }
   if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
   // Optimistic patch always — every card must flip live, bulk or not.
   deps.optimisticUpdateRoom?.(room.building, room.room, {
@@ -152,6 +160,10 @@ export async function createJourneyTask(
     building: room.building, room: room.room,
     note: spec.note,
   });
+  if (isWriteTimeout(res)) {
+    publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+    throw new Error(maybeSavedMessage(data)); // r34
+  }
   if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
   toast.success(`สร้างงาน${spec.label}แล้ว — ดูในกระดานงานช่าง`);
   publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
@@ -182,6 +194,10 @@ export function hasOpenJourneyTask(
 
 async function postSheetUpdate(body: Record<string, unknown>): Promise<void> {
   const { res, data } = await resilientPost("/api/sheet/update", body, { retries: 0 });
+  if (isWriteTimeout(res)) {
+    publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
+    throw new Error(maybeSavedMessage(data)); // r34
+  }
   if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
 }
 

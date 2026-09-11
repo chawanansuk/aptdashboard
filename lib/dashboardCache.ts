@@ -51,6 +51,27 @@ class SwrSlot<T> {
   private value: T | null = null;
   private savedAt = 0;
   private revalidating = false;
+  /** r34: bumped on every invalidate() — a fetch that STARTED before a
+   *  write must not repopulate the slot after it (see setIfCurrent). */
+  private gen = 0;
+
+  generation(): number { return this.gen; }
+
+  /** Set only if no invalidate() happened since `gen` was captured.
+   *  Returns whether the value was applied. */
+  setIfCurrent(v: T, gen: number, now: number = Date.now()): boolean {
+    if (gen !== this.gen) return false;
+    this.set(v, now);
+    return true;
+  }
+
+  /** r34: drop the entry when it was fetched BEFORE the last write
+   *  (epoch = write timestamp from Redis). Returns true when dropped. */
+  dropIfOlderThan(epochMs: number): boolean {
+    if (this.value === null || this.savedAt >= epochMs) return false;
+    this.invalidate();
+    return true;
+  }
 
   get(now: number = Date.now()): CacheLookup<T> {
     if (this.value === null) return { state: "missing", data: null, ageMs: 0 };
@@ -86,6 +107,7 @@ class SwrSlot<T> {
   invalidate(): void {
     this.value = null;
     this.savedAt = 0;
+    this.gen++;
   }
 
   tryBeginRevalidation(): boolean {
@@ -101,6 +123,18 @@ class SwrSlot<T> {
 
 const roomsSlot = new SwrSlot<RoomRow[]>();
 const tasksSlot = new SwrSlot<SheetRow[]>();
+
+/* r34 — generation / epoch helpers (see SwrSlot) */
+export function roomsCacheGeneration(): number { return roomsSlot.generation(); }
+export function tasksCacheGeneration(): number { return tasksSlot.generation(); }
+export function setRoomsCacheIfCurrent(rooms: RoomRow[], gen: number, at?: number): boolean {
+  return roomsSlot.setIfCurrent(rooms, gen, at);
+}
+export function setTasksCacheIfCurrent(tasks: SheetRow[], gen: number, at?: number): boolean {
+  return tasksSlot.setIfCurrent(tasks, gen, at);
+}
+export function dropRoomsCacheIfOlderThan(epochMs: number): boolean { return roomsSlot.dropIfOlderThan(epochMs); }
+export function dropTasksCacheIfOlderThan(epochMs: number): boolean { return tasksSlot.dropIfOlderThan(epochMs); }
 
 /* ====================================================================
  * Per-slice API (used by the split endpoints)

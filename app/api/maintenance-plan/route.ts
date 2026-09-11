@@ -177,7 +177,8 @@ export async function GET(req: Request) {
 
     const emergency = peekEmergencyEquipmentCache();
     if (emergency) {
-      const etag = makeEtag("maint", emergency);
+      // r34: fold the degraded state into the ETag (see dashboard/tasks)
+      const etag = makeEtag("maint", { state: "emergency-stale", rows: emergency });
       const totalMs = Date.now() - handlerStart;
       console.warn("[maintenance-plan] miss-fail → emergency stale served", { error, fetchMs, totalMs });
       return buildResponse({

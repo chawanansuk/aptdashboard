@@ -4,6 +4,7 @@ import { canAddEngTask } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { serveCachedRows } from "@/lib/serverSwr";
 import { partsSlot } from "@/lib/partsCache";
+import { redisBumpEpoch } from "@/lib/redisCache";
 import type { Part } from "@/types";
 
 export const runtime = "nodejs";
@@ -51,7 +52,7 @@ export async function GET(req: Request) {
   // list — a role gate here would silently remove parts logging from
   // the sales flow. The inventory carries no PII; the requisition LOG
   // (/api/part-requisitions) stays gated to part.view.
-  return serveCachedRows(partsSlot, fetchParts, "ดึงข้อมูลอะไหล่ไม่สำเร็จ", { req, etagTag: "parts" });
+  return serveCachedRows(partsSlot, fetchParts, "ดึงข้อมูลอะไหล่ไม่สำเร็จ", { req, etagTag: "parts", epoch: "parts" });
 }
 
 export async function POST(req: Request) {
@@ -101,6 +102,7 @@ export async function POST(req: Request) {
   try {
     const json = await appsScriptCall(upstreamAction, body);
     partsSlot.invalidate(); // next GET refetches the just-written data
+    void redisBumpEpoch("parts"); // r34: เครื่อง Vercel อื่นทิ้งแคชของตัวเองด้วย
     return NextResponse.json(json);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";

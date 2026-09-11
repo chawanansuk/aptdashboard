@@ -686,9 +686,17 @@ export function useDashboardData(): DashboardState {
       if (timer) return;
       timer = setInterval(() => {
         if (document.visibilityState !== "visible") return;
-        // Skip this tick if user just wrote — let optimistic value settle
+        // Pause right after a write — let the optimistic value settle.
+        // r34 (audit): DEFER the tick instead of skipping it. Skipping meant a
+        // write at +59s pushed reconciliation to +120s, so an optimistic value
+        // could sit unverified ~2 min instead of the intended 30s.
         const sinceWrite = Date.now() - lastOptimisticAtRef.current;
-        if (sinceWrite < 30_000) return;
+        if (sinceWrite < 30_000) {
+          setTimeout(() => {
+            if (document.visibilityState === "visible") setTick((t) => t + 1);
+          }, 30_000 - sinceWrite);
+          return;
+        }
         setTick((t) => t + 1);
       }, 60_000);
     }

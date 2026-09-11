@@ -4,6 +4,7 @@ import { canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { etagJsonResponse } from "@/lib/etagJsonResponse";
 import { partsSlot } from "@/lib/partsCache";
+import { redisBumpEpoch } from "@/lib/redisCache";
 import type { Requisition } from "@/types";
 
 export const runtime = "nodejs";
@@ -87,6 +88,7 @@ export async function POST(req: Request) {
     // higher stock until its fresh-TTL expires and an engineer can
     // over-requisition against a number already spent.
     partsSlot.invalidate();
+    void redisBumpEpoch("parts"); // r34
     return NextResponse.json(json);
   } catch (e) {
     // audit r33: หมดเวลารอ ≠ ไม่ได้ตัดสต๊อก — ล้างแคชด้วย ไม่งั้น /api/parts โชว์
