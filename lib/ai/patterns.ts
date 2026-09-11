@@ -55,8 +55,12 @@ export function describeAiError(e: unknown, what = "ประมวลผล"): 
   if (e instanceof Anthropic.RateLimitError) {
     return { message: `ระบบ AI ถูกใช้งานถี่เกินไป — รอสักครู่แล้วลอง${what}ใหม่`, status: 429 };
   }
+  // audit r35: ข้อความดิบจาก SDK อาจสะท้อน prompt (ชื่อ/เบอร์ผู้เช่าที่อยู่ในข้อความ
+  // LINE) และ request id กลับไปที่เบราว์เซอร์ — เก็บไว้ใน log ฝั่งเซิร์ฟเวอร์เท่านั้น
   if (e instanceof Anthropic.APIError) {
-    return { message: `${what}ไม่สำเร็จ (${e.status}): ${e.message}`, status: 502 };
+    console.error("[ai] APIError", e.status, e.message);
+    return { message: `${what}ไม่สำเร็จ (ระบบ AI ตอบ ${e.status}) — ลองใหม่อีกครั้ง`, status: 502 };
   }
-  return { message: `${what}ไม่สำเร็จ: ${e instanceof Error ? e.message : "unknown"}`, status: 502 };
+  console.error("[ai] error", e instanceof Error ? e.message : e);
+  return { message: `${what}ไม่สำเร็จ — ลองใหม่อีกครั้ง`, status: 502 };
 }
