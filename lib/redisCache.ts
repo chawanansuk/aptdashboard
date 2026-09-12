@@ -65,12 +65,17 @@ export async function redisPing(): Promise<{
 /** A hung cache lookup must never stall the dashboard — fail fast and
  *  fall through to origin. Upstash p99 is ~50ms from Vercel regions. */
 const CMD_TIMEOUT_MS = 1_500;
+/** r36: SETs of the tasks/rooms slices carry 100-400KB and are fire-and-
+ *  forget (never on a response's critical path) — production logs showed
+ *  them aborting at 1.5s ("SET failed: aborted due to timeout"), so L2 was
+ *  silently never populated. Give uploads a longer, separate budget. */
+const SET_TIMEOUT_MS = 8_000;
 
 /** Upstash REST caps request bodies around 1MB — skip oversized SETs
  *  instead of erroring (the L1 + origin path still works without L2). */
 const MAX_VALUE_BYTES = 900_000;
 
-async function command<T>(cmd: (string | number)[]): Promise<T | null> {
+async function command<T>(cmd: (string | number)[], timeoutMs: number = CMD_TIMEOUT_MS): Promise<T | null> {
   const env = redisEnv();
   if (!env) return null;
   try {
@@ -84,7 +89,7 @@ async function command<T>(cmd: (string | number)[]): Promise<T | null> {
       cache: "no-store",
       signal:
         typeof AbortSignal.timeout === "function"
-          ? AbortSignal.timeout(CMD_TIMEOUT_MS)
+          ? AbortSignal.timeout(timeoutMs)
           : undefined,
     });
     if (!res.ok) {
@@ -127,7 +132,9 @@ export async function redisSetJson(
     console.warn("[redis] value too large, skipping SET", key, raw.length);
     return;
   }
-  await command(["SET", key, raw, "EX", Math.max(1, Math.round(ttlSec))]);
+  const t0 = Date.now();
+  const r = await command(["SET", key, raw, "EX", Math.max(1, Math.round(ttlSec))], SET_TIMEOUT_MS);
+  if (r === null) console.warn("[redis] SET not stored", key, { bytes: raw.length, ms: Date.now() - t0 });
 }
 
 /** DELETE keys — called on writes so every instance sees fresh data. */
