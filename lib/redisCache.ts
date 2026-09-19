@@ -23,6 +23,8 @@
  * caller falls through to the origin fetch.
  */
 
+import { runAfterResponse } from "@/lib/afterResponse";
+
 interface RedisEnv {
   url: string;
   token: string;
@@ -74,6 +76,22 @@ const SET_TIMEOUT_MS = 8_000;
 /** Upstash REST caps request bodies around 1MB — skip oversized SETs
  *  instead of erroring (the L1 + origin path still works without L2). */
 const MAX_VALUE_BYTES = 900_000;
+
+/**
+ * r37 — รากของ "SET failed" ที่ r36 ยังแก้ไม่ตรงจุด.
+ *
+ * log production ชี้ชัด: `[redis] SET not stored apt:v1:tasks { ms: 296607 }`
+ * — เวลาที่วัดได้ 100-300 วินาที ทั้งที่ตั้ง timeout ไว้ 8s. เป็นไปไม่ได้
+ * ถ้างานยังเดินอยู่จริง. คำอธิบายเดียวที่ตรงกับตัวเลขคือ Vercel "แช่แข็ง"
+ * instance ทันทีที่ response ถูกส่งออก แล้วปลุกอีกทีตอนมี request ถัดไป —
+ * นาฬิกาเดินต่อ แต่โค้ดไม่เดิน งาน fire-and-forget ที่ค้างอยู่จึงถูกตัด
+ * กลางคัน และ L2 ไม่เคยถูกเขียนจริงตั้งแต่เปิด Redis มา.
+ *
+ * runAfterResponse (lib/afterResponse) บอก Vercel ว่ายังมีงานค้าง อย่าเพิ่ง
+ * แช่แข็ง. วางไว้ที่นี่จุดเดียว ครอบทุกที่ที่เรียกแบบ `void redisSetJson(...)`
+ * โดยไม่ต้องแก้ทั้ง 23 จุด.
+ */
+const keepAlive = runAfterResponse;
 
 async function command<T>(cmd: (string | number)[], timeoutMs: number = CMD_TIMEOUT_MS): Promise<T | null> {
   const env = redisEnv();
@@ -133,14 +151,18 @@ export async function redisSetJson(
     return;
   }
   const t0 = Date.now();
-  const r = await command(["SET", key, raw, "EX", Math.max(1, Math.round(ttlSec))], SET_TIMEOUT_MS);
-  if (r === null) console.warn("[redis] SET not stored", key, { bytes: raw.length, ms: Date.now() - t0 });
+  // keepAlive: กัน Vercel แช่แข็ง instance ก่อนงานนี้จบ (ดูคำอธิบายด้านบน)
+  return keepAlive(
+    command(["SET", key, raw, "EX", Math.max(1, Math.round(ttlSec))], SET_TIMEOUT_MS).then((r) => {
+      if (r === null) console.warn("[redis] SET not stored", key, { bytes: raw.length, ms: Date.now() - t0 });
+    }),
+  );
 }
 
 /** DELETE keys — called on writes so every instance sees fresh data. */
 export async function redisDel(...keys: string[]): Promise<void> {
   if (keys.length === 0) return;
-  await command(["DEL", ...keys]);
+  await keepAlive(command(["DEL", ...keys]));
 }
 
 /* ====================================================================
@@ -188,7 +210,7 @@ export async function redisBumpEpoch(...names: EpochName[]): Promise<void> {
   const now = Date.now();
   const args: (string | number)[] = ["MSET"];
   for (const n of names) args.push(EPOCH_PREFIX + n, now);
-  await command(args);
+  await keepAlive(command(args));
 }
 
 /** Timestamp (ms) of the last write for this family, or null. */

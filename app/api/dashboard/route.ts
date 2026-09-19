@@ -1,3 +1,5 @@
+import { runAfterResponse } from "@/lib/afterResponse";
+import { timing } from "@/lib/apiTiming";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { parseRoomsCSV } from "@/lib/parseSheet";
@@ -154,14 +156,12 @@ async function fetchAllUpstream(): Promise<FetchAllResult> {
   };
 }
 
-/** Format timings into a Server-Timing header so DevTools can render it. */
+/** Format timings into a Server-Timing header so DevTools can render it.
+ *  r37: ใช้ timing() ตัวกลาง (lib/apiTiming) ที่กรองอักษรนอก ASCII ออก —
+ *  สำเนาในไฟล์นี้ไม่ได้กรอง ถ้ามี error ภาษาไทยหลุดเข้ามาจะทำให้ response
+ *  พังเป็น 500 แบบเดียวกับที่เจอใน /api/dashboard/tasks. */
 function buildServerTimingHeader(parts: { name: string; ms: number; desc?: string }[]): string {
-  return parts
-    .map((p) => {
-      const desc = p.desc ? `;desc="${p.desc.replace(/"/g, "'")}"` : "";
-      return `${p.name}${desc};dur=${p.ms.toFixed(0)}`;
-    })
-    .join(", ");
+  return parts.map((p) => timing(p.name, p.ms, p.desc)).join(", ");
 }
 
 /**
@@ -171,8 +171,9 @@ function buildServerTimingHeader(parts: { name: string; ms: number; desc?: strin
 function scheduleRevalidate(): void {
   if (!tryBeginRevalidation()) return;
   // Don't await — this runs in the background while the user already has
-  // their stale response in hand.
-  (async () => {
+  // their stale response in hand. r37: แต่ต้องบอก Vercel ให้รอจนงานจบก่อน
+  // แช่แข็ง instance ไม่งั้นถูกตัดกลางคัน (ดู lib/afterResponse)
+  runAfterResponse((async () => {
     const start = Date.now();
     const gens = { rooms: roomsCacheGeneration(), tasks: tasksCacheGeneration() };
     try {
@@ -194,7 +195,7 @@ function scheduleRevalidate(): void {
     } finally {
       endRevalidation();
     }
-  })();
+  })());
 }
 
 export async function GET() {
