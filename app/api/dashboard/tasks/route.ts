@@ -1,3 +1,4 @@
+import { runAfterResponse } from "@/lib/afterResponse";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { appsScriptCall } from "@/lib/appsScriptFetch";
@@ -57,7 +58,9 @@ async function fetchTasks(timeoutMs: number = TASKS_TIMEOUT_MS): Promise<SheetRo
 
 function scheduleRevalidate(): void {
   if (!tryBeginTasksRevalidation()) return;
-  (async () => {
+  // r37: บอก Vercel ว่ายังมีงานค้าง อย่าเพิ่งแช่แข็ง instance — เดิมงาน
+  // revalidate ถูกตัดกลางคันหลังส่ง response ทำให้แคชไม่เคยถูกเติมจริง
+  runAfterResponse((async () => {
     const start = Date.now();
     // r34: capture generation + start time — rows fetched before a concurrent
     // write must not repopulate L1/L2 after the write invalidated them
@@ -78,7 +81,7 @@ function scheduleRevalidate(): void {
     } finally {
       endTasksRevalidation();
     }
-  })();
+  })());
 }
 
 

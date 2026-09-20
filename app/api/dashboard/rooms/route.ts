@@ -1,3 +1,4 @@
+import { runAfterResponse } from "@/lib/afterResponse";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { parseRoomsCSV } from "@/lib/parseSheet";
@@ -96,7 +97,8 @@ async function fetchCsvRooms(): Promise<RoomRow[]> {
 
 function scheduleRevalidate(lastWriteAt: number | null): void {
   if (!tryBeginRoomsRevalidation()) return;
-  (async () => {
+  // r37: กัน Vercel แช่แข็ง instance ก่อน revalidate จบ (ดู lib/afterResponse)
+  runAfterResponse((async () => {
     const start = Date.now();
     // r34: capture generation + start time — rows fetched before a concurrent
     // write must not repopulate L1/L2 after the write invalidated them.
@@ -115,7 +117,7 @@ function scheduleRevalidate(lastWriteAt: number | null): void {
     } finally {
       endRoomsRevalidation();
     }
-  })();
+  })());
 }
 
 // Browser cache only (`private`) — never CDN. Rooms response varies by

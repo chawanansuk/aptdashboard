@@ -22,6 +22,7 @@
  *     for every existing consumer (they read `j.rows`).
  */
 
+import { runAfterResponse } from "@/lib/afterResponse";
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { AppsScriptError } from "@/lib/appsScriptFetch";
@@ -195,8 +196,9 @@ export async function serveCachedRows<T>(
 
   if (c.state === "stale" && c.data) {
     // Background revalidate — don't await, don't block the response.
+    // r37: runAfterResponse กัน Vercel แช่แข็ง instance ก่อนงานจบ
     if (slot.tryBeginRevalidation()) {
-      (async () => {
+      runAfterResponse((async () => {
         // r34: capture generation + start time so rows fetched before a
         // concurrent write can't repopulate the slot after it.
         const gen = slot.generation();
@@ -209,7 +211,7 @@ export async function serveCachedRows<T>(
         } finally {
           slot.endRevalidation();
         }
-      })();
+      })());
     }
     const out = project(c.data);
     return jsonWithEtag(
