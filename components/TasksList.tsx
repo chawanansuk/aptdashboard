@@ -569,6 +569,12 @@ function TaskCard({
         </div>
       </div>
       <div className="ac-task-actions">
+        {/* V2: the state pill used to sit AFTER the buttons, where it read
+            as one more thing to click at the end of a row of four. State
+            first, then what you can do about it. */}
+        <span className={`ac-task-status ${done ? "is-done" : ""} ${cancelled || notInterested ? "is-cancelled" : ""}`}>
+          {done ? "เสร็จแล้ว" : notInterested ? "ไม่สนใจ" : cancelled ? "ยกเลิก" : (t.status || "ว่าง")}
+        </span>
         {!closed && (
           <>
             <button className="ac-btn ac-btn-primary ac-btn-sm" disabled={busy}
@@ -596,9 +602,6 @@ function TaskCard({
           <button className="ac-btn ac-btn-danger ac-btn-sm" disabled={busy}
             onClick={() => onPickDelete(t)} title="ลบงานนี้ถาวร">ลบ</button>
         )}
-        <span className={`ac-task-status ${done ? "is-done" : ""} ${cancelled || notInterested ? "is-cancelled" : ""}`}>
-          {done ? "เสร็จแล้ว" : notInterested ? "ไม่สนใจ" : cancelled ? "ยกเลิก" : (t.status || "ว่าง")}
-        </span>
       </div>
     </div>
   );
