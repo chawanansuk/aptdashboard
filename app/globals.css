@@ -2905,77 +2905,25 @@ html.dark .ac-page-title { color: #F1F5F9; }
 html.dark .ac-page-sub { color: #94A3B8; }
 html.dark .ac-page-sub code { background: #334155; color: #E2E8F0; }
 
-/* ===== Income KPI cards ===== */
-.ac-income-kpi {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.ac-kpi-card {
-  /* Same premium recipe as the sales board / room cells: top sheen +
-   * glass inset + soft shadow, gentle lift on hover. */
-  background: var(--card-grad), #fff;
-  border: 1px solid #E8EAED;
-  border-radius: 14px;
-  padding: 16px 18px;
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
-  transition: transform var(--duration-normal) var(--ease),
-    box-shadow var(--duration-normal) var(--ease);
-}
-.ac-kpi-card:hover {
-  transform: translateY(-2px);
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-lift);
-}
-.ac-kpi-label {
-  font-size: 12px;
-  color: #6B7280;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-.ac-kpi-num {
-  font-size: 24px;
-  font-weight: 800;
-  color: #0F172A;
-  line-height: 1.1;
-  margin-bottom: 4px;
-}
-.ac-kpi-sub {
-  font-size: 11px;
-  color: #64748B;
-}
-.ac-kpi-actual { border-top: 3px solid #16A34A; }
-.ac-kpi-actual .ac-kpi-num { color: #15803D; }
-.ac-kpi-lost { border-top: 3px solid #DC2626; }
-.ac-kpi-lost .ac-kpi-num { color: #B91C1C; }
-.ac-kpi-potential { border-top: 3px solid #4F46E5; }
-.ac-kpi-rate { border-top: 3px solid #0891B2; }
-.ac-kpi-bar {
+/* ===== Income page bar ===== *
+ * V2: the income page's four .ac-kpi-card tiles are .ac-overview-card
+ * now (see IncomeView), so that whole card style — plus its dark pairs
+ * and its four coloured top borders — is gone. What survives is the
+ * progress bar, renamed to .ac-card-bar because any stat card can use it.
+ */
+.ac-card-bar {
   height: 8px;
-  background: #E2E8F0;
+  background: var(--color-surface-3);
   border-radius: 999px;
   overflow: hidden;
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
-.ac-kpi-bar-fill {
+.ac-card-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #06B6D4, #4F46E5);
+  background: var(--brand-gradient);
   border-radius: 999px;
   transition: width 0.4s ease;
 }
-html.dark .ac-kpi-card {
-  background: var(--card-grad), #1E293B;
-  border-color: #334155;
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
-}
-html.dark .ac-kpi-num { color: #F1F5F9; }
-html.dark .ac-kpi-label { color: #94A3B8; }
-html.dark .ac-kpi-sub { color: #64748B; }
-html.dark .ac-kpi-bar { background: #334155; }
-/* Variant number colors — the light-theme deep green/red disappear on
- * navy; brighten to their dark-safe pairs. */
-html.dark .ac-kpi-actual .ac-kpi-num { color: #4ADE80; }
-html.dark .ac-kpi-lost .ac-kpi-num { color: #F87171; }
 
 /* ===== Generic table ===== */
 .ac-table-wrap {
@@ -3445,9 +3393,10 @@ html.dark .ac-cal-task.is-clickable:hover { background: #1E1B4B; }
   }
   .ac-table th { background: #F0F0F0 !important; color: #000 !important; }
   .ac-table td, .ac-table th { border: 1px solid #ddd !important; }
-  /* KPI cards: keep on one row if possible */
-  .ac-income-kpi { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
-  .ac-kpi-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+  /* Stat cards: keep on one row if possible (income + overview + reports
+     all render .ac-overview-cards now) */
+  .ac-overview-cards { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
+  .ac-overview-card { box-shadow: none !important; border: 1px solid #ccc !important; }
   /* Calendar */
   .ac-cal-grid { box-shadow: none !important; border: 1px solid #ccc; padding: 6px !important; }
   .ac-cal-cell { border: 1px solid #eee !important; min-height: 70px !important; }
@@ -8871,61 +8820,13 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-3);
 }
-/* V2: matched to .ac-overview-card so the two stat rows read as one
-   system — they were radius-md vs radius-lg with different label sizes
-   and casing while doing exactly the same job. */
-.ac-insights-card {
-  padding: var(--space-4);
-  background: var(--card-grad), var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
-  transition: border-color 140ms var(--ease), transform 180ms var(--ease), box-shadow 180ms var(--ease);
-}
-.ac-insights-card:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-  transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-lift);
-}
-.ac-insights-label {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.01em;
-}
-.ac-insights-value {
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-  line-height: 1.1;
-}
-.ac-insights-sub {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-.ac-insights-bar {
-  margin-top: 4px;
-  height: 6px;
-  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-.ac-insights-bar-fill {
-  height: 100%;
-  background: var(--color-accent);
-  border-radius: var(--radius-full);
-  transition: width 300ms ease;
-}
-/* Tones — color the value + bar based on threshold */
-.ac-insights-card.is-good .ac-insights-value { color: #15803D; }
-.ac-insights-card.is-good .ac-insights-bar-fill { background: #22C55E; }
-.ac-insights-card.is-mid  .ac-insights-value { color: #B45309; }
-.ac-insights-card.is-mid  .ac-insights-bar-fill { background: #F59E0B; }
-.ac-insights-card.is-low  .ac-insights-value { color: #B91C1C; }
-.ac-insights-card.is-low  .ac-insights-bar-fill { background: #EF4444; }
+/* V2, second pass: matching .ac-overview-card was not enough — the two
+   rows still kept two sets of classes that had to be edited in parallel.
+   InsightsCards renders the shared card outright now, so everything that
+   used to live here is gone except the tone of its progress bar. */
+.ac-overview-card-good   .ac-card-bar-fill { background: var(--status-ready); }
+.ac-overview-card-warn   .ac-card-bar-fill { background: var(--status-repair); }
+.ac-overview-card-danger .ac-card-bar-fill { background: var(--color-danger); }
 
 /* ====================================================================
  * Keyboard help modal — `?` shortcut
@@ -10345,7 +10246,7 @@ html.dark .ac-booking-vaccine-hint { color: #fb923c; }
   .ac-chip, .ac-tab, .ac-btn, .ac-kanban-mobile-tab,
   button.ac-kanban-kpi, .ac-kanban-card.is-clickable,
   .ac-kanban-card.is-dragging,
-  .ac-overview-card, .ac-insights-card, .ac-task, .ac-rc {
+  .ac-overview-card, .ac-task, .ac-rc {
     transition: none !important;
     transform: none !important;
   }
@@ -11103,10 +11004,13 @@ html.dark .ac-buy-down { color: #4ADE80; }
  * (Prom Design density budget: หน้าแอปไม่ควรเกิน ~3 จอ) */
 @media (max-width: 640px) {
   .ac-insights-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .ac-insights-card { padding: 8px 10px; }
-  .ac-insights-label { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ac-insights-value { font-size: 20px; }
-  .ac-insights-sub { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-insights-grid .ac-overview-card { padding: 8px 10px; }
+  .ac-insights-grid .ac-overview-card-label,
+  .ac-insights-grid .ac-overview-card-sub {
+    font-size: var(--text-xs);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ac-insights-grid .ac-overview-card-value { font-size: var(--text-xl); }
 }
 
 /* r30: ยุบ/ขยายรายตึกในกริดห้อง (จำสถานะ) */

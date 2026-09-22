@@ -109,10 +109,13 @@ function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
     };
   }, [rooms, tasks, activeBuilding]);
 
+  // V2: tones are the shared stat-card tones now. "good" renders in plain
+  // ink (only a warning earns colour — see .ac-overview-card-*); the
+  // progress bar still carries the green/amber/red.
   const doneToneClass =
-    insights.doneRate >= 80 ? "is-good" :
-    insights.doneRate >= 50 ? "is-mid"  :
-    "is-low";
+    insights.doneRate >= 80 ? "ac-overview-card-good" :
+    insights.doneRate >= 50 ? "ac-overview-card-warn" :
+    "ac-overview-card-danger";
 
   return (
     <section className="ac-insights" aria-label="Insights">
@@ -123,30 +126,30 @@ function InsightsCards({ rooms, tasks, activeBuilding }: Props) {
           full 5-status breakdown in its stacked bar. */}
       <div className="ac-insights-grid">
         {canSeeIncome && (
-          <article className="ac-insights-card">
-            <div className="ac-insights-label">รายได้คงค้าง/เดือน</div>
-            <div className="ac-insights-value">{fmtBaht(insights.income)}</div>
-            <div className="ac-insights-sub">
+          <article className="ac-overview-card">
+            <div className="ac-overview-card-label">รายได้คงค้าง/เดือน</div>
+            <div className="ac-overview-card-value">{fmtBaht(insights.income)}</div>
+            <div className="ac-overview-card-sub">
               จากห้องมีผู้เช่า · estimate
             </div>
           </article>
         )}
 
-        <article className="ac-insights-card">
-          <div className="ac-insights-label">งาน 7 วัน</div>
-          <div className="ac-insights-value">{insights.tasksThisWeek}</div>
-          <div className="ac-insights-sub">งานในช่วง 7 วันล่าสุด</div>
+        <article className="ac-overview-card">
+          <div className="ac-overview-card-label">งาน 7 วัน</div>
+          <div className="ac-overview-card-value">{insights.tasksThisWeek}</div>
+          <div className="ac-overview-card-sub">งานในช่วง 7 วันล่าสุด</div>
         </article>
 
-        <article className={`ac-insights-card ${doneToneClass}`}>
-          <div className="ac-insights-label">เสร็จเดือนนี้</div>
-          <div className="ac-insights-value">{insights.doneRate}%</div>
-          <div className="ac-insights-sub">
+        <article className={`ac-overview-card ${doneToneClass}`}>
+          <div className="ac-overview-card-label">เสร็จเดือนนี้</div>
+          <div className="ac-overview-card-value">{insights.doneRate}%</div>
+          <div className="ac-overview-card-sub">
             {insights.doneCount}/{insights.totalThisMonth} งาน
           </div>
-          <div className="ac-insights-bar">
+          <div className="ac-card-bar">
             <div
-              className="ac-insights-bar-fill"
+              className="ac-card-bar-fill"
               style={{ width: `${insights.doneRate}%` }}
               aria-hidden
             />
