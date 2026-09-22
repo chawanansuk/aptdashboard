@@ -487,7 +487,12 @@ export default function Home() {
   const vacancyByBuilding = useMemo(() => computeVacancyByBuilding(rooms), [rooms]);
   const headerVacancy = isSupplyRelevantView(activeView) ? vacancyByBuilding : undefined;
 
-  const visibleRooms = useMemo(() => {
+  /** Rooms in scope for the current view + building tab, BEFORE the
+   *  status chips are applied. Split out of `visibleRooms` (V2) because
+   *  the merged filter/legend row shows a room count per status: counting
+   *  the already-filtered list would collapse every other chip to 0 the
+   *  moment one is selected, and the user could never switch chips. */
+  const roomsInScope = useMemo(() => {
     if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "pets" || activeView === "leads" || activeView === "recurring" || activeView === "maintlog" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
     // Note: room search was previously layered in here using the `search`
     // state — duplicated ⌘K's room/tenant/phone search. Removed in
@@ -497,10 +502,24 @@ export default function Home() {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
       if (activeView !== "overview" && activeView !== "today" && r.status !== activeView) return false;
-      if (activeFilter !== "all" && r.status !== activeFilter) return false;
       return true;
     });
-  }, [rooms, activeBuilding, activeView, activeFilter]);
+  }, [rooms, activeBuilding, activeView]);
+
+  const visibleRooms = useMemo(
+    () => (activeFilter === "all" ? roomsInScope : roomsInScope.filter((r) => r.status === activeFilter)),
+    [roomsInScope, activeFilter],
+  );
+
+  /** Room count per status within the current scope — feeds the chip
+   *  counts in RoomsView's filter bar. */
+  const roomStatusCounts = useMemo(() => {
+    const counts: Record<RoomStatus, number> = {
+      occupied: 0, ready: 0, pending: 0, moveout: 0, qc: 0, repair: 0, inactive: 0,
+    };
+    roomsInScope.forEach((r) => { counts[r.status]++; });
+    return counts;
+  }, [roomsInScope]);
 
   const dateBounds = useMemo<{ start: Date | null; end: Date | null }>(() => {
     if (activeView === "today" || dateRange === "all") return { start: null, end: null };
@@ -1285,6 +1304,7 @@ export default function Home() {
           {showRoomGrid && (
             <RoomsView
               visibleRooms={visibleRooms}
+              statusCounts={roomStatusCounts}
               activeFilter={activeFilter}
               onChangeFilter={setActiveFilter}
               bulkMode={bulkMode}

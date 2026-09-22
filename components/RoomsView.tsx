@@ -4,7 +4,7 @@ import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "./EmptyState";
 import type { Role } from "@/auth";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
-import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
+import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS } from "@/lib/constants";
 import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
@@ -249,6 +249,12 @@ const RoomCard = memo(function RoomCard({
 
 interface Props {
   visibleRooms: RoomView[];
+  /** Room count per status for the current view/building scope, counted
+   *  BEFORE `activeFilter` is applied (see app/page.tsx roomsInScope).
+   *  Drives the counts on the merged filter/legend chips. Optional —
+   *  falls back to counting `visibleRooms`, which is correct whenever no
+   *  status chip is active. */
+  statusCounts?: Record<RoomStatus, number>;
   activeFilter: "all" | RoomStatus;
   onChangeFilter: (f: "all" | RoomStatus) => void;
   // Note: the in-page search used to live here too but duplicated ⌘K's
@@ -287,11 +293,27 @@ const DENSITY_TITLE: Record<RoomDensity, string> = {
 };
 
 function RoomsView({
-  visibleRooms, activeFilter, onChangeFilter,
+  visibleRooms, statusCounts, activeFilter, onChangeFilter,
   bulkMode, bulkSelected, onToggleBulkMode, onToggleBulkRoom, onSelectRoom,
   roles, onRepairRoom, onQuickStatus, vehicleCountByRoom, equipmentCountByRoom,
 }: Props) {
   const { density, setDensity } = useRoomDensity();
+
+  /** Counts behind the status chips. `statusCounts` is the scope-wide
+   *  count from the page; without it, fall back to the rendered list. */
+  const counts = useMemo(() => {
+    if (statusCounts) return statusCounts;
+    const c: Record<RoomStatus, number> = {
+      occupied: 0, ready: 0, pending: 0, moveout: 0, qc: 0, repair: 0, inactive: 0,
+    };
+    visibleRooms.forEach((r) => { c[r.status]++; });
+    return c;
+  }, [statusCounts, visibleRooms]);
+  const totalCount = useMemo(
+    () => STATUS_KEYS.reduce((n, s) => n + counts[s], 0),
+    [counts],
+  );
+
   // Contract-expiring chip — only visible to roles that can see
   // tenant info (management). Contract date isn't strictly PII but
   // mirrors the gate to avoid sales/engineer seeing renewal cues.
@@ -424,10 +446,44 @@ function RoomsView({
   return (
     <>
       <section className="ac-fb">
-        <div className="ac-chips">
-          {FILTER_CHIPS.map((c) => (
-            <button key={c.key} className={`ac-chip ${activeFilter === c.key ? "is-active" : ""}`} onClick={() => onChangeFilter(c.key)}>{c.label}</button>
+        {/* V2: the colour legend used to be a whole second card below this
+            bar — seven swatches you could read but not click, while the
+            filter row offered only 4 of the 7 statuses. Merged into one
+            row: every status is a chip that carries its own legend dot
+            and its room count, so the legend IS the filter. */}
+        <div className="ac-chips ac-status-chips" role="group" aria-label="กรองตามสถานะห้อง">
+          <button
+            type="button"
+            className={`ac-chip ${activeFilter === "all" ? "is-active" : ""}`}
+            aria-pressed={activeFilter === "all"}
+            onClick={() => onChangeFilter("all")}
+          >
+            ทุกสถานะ
+            <span className="ac-chip-count">{totalCount}</span>
+          </button>
+          {STATUS_KEYS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`ac-chip ac-chip-status ac-chip-${s} ${activeFilter === s ? "is-active" : ""}`}
+              aria-pressed={activeFilter === s}
+              // Nothing to show → not a dead end the user can walk into;
+              // the chip stays visible so it still reads as a legend.
+              disabled={counts[s] === 0 && activeFilter !== s}
+              onClick={() => onChangeFilter(s)}
+              title={`แสดงเฉพาะห้อง${STATUS_LABEL[s]}`}
+            >
+              {/* Colour comes from .ac-chip-<status> in CSS, not an inline
+                  hex — see .ac-chip-status .ac-legend-dot. */}
+              <span className="ac-legend-dot" />
+              {STATUS_LABEL[s]}
+              <span className="ac-chip-count">{counts[s]}</span>
+            </button>
           ))}
+          {/* Not a status — explains the red corner dot on cards. */}
+          <span className="ac-legend-item ac-legend-hint">
+            <span className="ac-legend-dot ac-legend-today" />งานวันนี้
+          </span>
         </div>
         {/* Search moved to the top-nav ⌘K button — same scope (room/
             building/tenant/phone) with rank-based ordering and digit-
@@ -455,16 +511,6 @@ function RoomsView({
           onClick={() => window.print()}
           title="พิมพ์/บันทึก PDF (ใช้ปุ่ม Ctrl+P หรือ Cmd+P ก็ได้)"
         >🖨 พิมพ์</button>
-      </section>
-
-      <section className="ac-legend">
-        {STATUS_KEYS.map((s) => (
-          <div key={s} className="ac-legend-item">
-            <span className="ac-legend-dot" style={{ background: STATUS_DOT[s] }} />
-            <span>{STATUS_LABEL[s]}</span>
-          </div>
-        ))}
-        <div className="ac-legend-item"><span className="ac-legend-dot ac-legend-today" /><span>งานวันนี้</span></div>
       </section>
 
       <div ref={gridRef}>

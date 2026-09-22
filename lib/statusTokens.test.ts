@@ -36,7 +36,10 @@ describe("statusTokens: STATUS_DOT (rooms) preserves prior values", () => {
     expect(STATUS_DOT.moveout).toBe("#EF4444");
     expect(STATUS_DOT.qc).toBe("#F97316");
     expect(STATUS_DOT.repair).toBe("#EAB308");
-    expect(STATUS_DOT.inactive).toBe("#E2E8F0");
+    // V2 (deliberate): slate-200 → slate-400. The old dot was invisible on
+    // a white card and disagreed with the room card's status rail
+    // (--status-inactive). See lib/constants.ts.
+    expect(STATUS_DOT.inactive).toBe("#94A3B8");
   });
 });
 

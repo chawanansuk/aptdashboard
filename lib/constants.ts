@@ -33,19 +33,21 @@ export const STATUS_DOT: Record<RoomStatus, string> = {
   moveout:  TOKEN.alert,
   qc:       TOKEN.action,
   repair:   TOKEN.warn,
-  inactive: TOKEN.inactive,
+  // V2: was TOKEN.inactive (#E2E8F0 slate-200) — a dot that all but
+  // disappeared on a white card and no longer matched the room card's
+  // status rail. Moved to slate-400, the same value as --status-inactive
+  // in globals.css, so dot / rail / chip all agree.
+  inactive: TOKEN.neutral,
 };
 
 export const STATUS_KEYS: RoomStatus[] = [
   "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive",
 ];
 
-export const FILTER_CHIPS: { key: "all" | RoomStatus; label: string }[] = [
-  { key: "all", label: "ทุกสถานะ" },
-  { key: "ready", label: "ว่าง" },
-  { key: "moveout", label: "แจ้งย้ายออก" },
-  { key: "repair", label: "รอซ่อม" },
-];
+// FILTER_CHIPS (all / ว่าง / แจ้งย้ายออก / รอซ่อม) was removed in the V2
+// redesign: RoomsView's filter bar now renders a chip for EVERY entry in
+// STATUS_KEYS, carrying that status' legend dot and room count, so a
+// hand-picked subset of 4 would only contradict the legend.
 
 export const RAW_STATUS_OPTIONS = ["มีคนอยู่", "ว่าง", "รอสัญญา", "แจ้งย้ายออก", "ปรับปรุง", "ไม่ได้ใช้งาน"];
 
