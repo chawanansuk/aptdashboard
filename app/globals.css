@@ -695,20 +695,9 @@ html.dark .ac-banner-ok {
 }
 .ac-banner a { color: #4F46E5; text-decoration: underline; }
 
-.ac-empty {
-  background: #fff;
-  border: 1px dashed #E5E7EB;
-  border-radius: 12px;
-  padding: 32px;
-  text-align: center;
-  color: #6B7280;
-  font-size: 13px;
-}
-.ac-empty-error {
-  border-color: #FCA5A5;
-  background: #FEF2F2;
-  color: #991B1B;
-}
+/* (.ac-empty / .ac-empty-error removed in V2 — the dashed-box empty
+   state had two users left in MaintLogView and the error variant none.
+   Every view uses the EmptyState component / .ac-empty-state now.) */
 
 /* .ac-last-updated removed (#1 partial) — the "อัปเดต hh:mm" text was
    demoted to the refresh button's tooltip / aria-label since it ate
@@ -3307,32 +3296,34 @@ html.dark .ac-cal-task-line1 { color: #F1F5F9; }
 }
 
 /* ===== Empty state (with icon + CTA) ===== */
+/* V2: was five hardcoded greys. The description in particular was
+   #94A3B8 on white = 2.6:1 — the sentence that explains WHY the screen
+   is empty was the least readable text on it. Tokens now, so both
+   themes come from the same 4.5:1-tested pair. */
 .ac-empty-state {
   text-align: center;
   padding: 40px 20px;
-  color: #94A3B8;
+  color: var(--color-text-muted);
 }
 .ac-empty-icon {
   display: inline-flex;
-  margin-bottom: 12px;
-  color: #CBD5E1;
+  margin-bottom: var(--space-3);
+  /* Decorative outline behind the title — not carrying information. */
+  color: var(--color-border-strong);
 }
 .ac-empty-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #475569;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
   margin-bottom: 4px;
 }
 .ac-empty-desc {
-  font-size: 13px;
-  color: #94A3B8;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
   max-width: 340px;
   margin: 0 auto;
   line-height: 1.5;
 }
-html.dark .ac-empty-icon { color: #475569; }
-html.dark .ac-empty-title { color: #CBD5E1; }
-html.dark .ac-empty-desc { color: #64748B; }
 
 /* ===== Page head with action button ===== */
 .ac-page-head-row {
@@ -5064,9 +5055,12 @@ html.dark .ac-bottom-nav-tab.is-active {
 .ac-bottom-nav-tab.is-active .ac-bottom-nav-label { font-weight: 700; }
 
 /* Primary "+ เพิ่ม" tab — circular, lifted, accent fill */
+/* V2: the raised "+" is the mobile twin of the header's "+ เพิ่ม", so it
+   wears the same brand green — it was a fixed blue that matched neither
+   the header button nor any role accent. */
 .ac-bottom-nav-tab.is-primary {
-  color: #fff;
-  background: #2563EB;
+  color: var(--color-brand-on);
+  background: var(--color-brand);
   margin: 0 4px;
   align-self: center;
   height: 44px;
@@ -5074,18 +5068,18 @@ html.dark .ac-bottom-nav-tab.is-active {
   flex: 0 0 auto;
   border-radius: 50%;
   padding: 0;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-brand) 35%, transparent);
   position: relative;
   top: -8px;
 }
 .ac-bottom-nav-tab.is-primary .ac-bottom-nav-label { display: none; }
 .ac-bottom-nav-tab.is-primary .ac-bottom-nav-icon { height: auto; }
-.ac-bottom-nav-tab.is-primary:hover { background: #1D4ED8; }
+.ac-bottom-nav-tab.is-primary:hover { background: color-mix(in srgb, var(--color-brand) 86%, #000); }
 .ac-bottom-nav-tab.is-primary:active {
   transform: translateY(-8px) scale(0.92);
 }
-html.dark .ac-bottom-nav-tab.is-primary { background: #3B82F6; }
-html.dark .ac-bottom-nav-tab.is-primary:hover { background: #2563EB; }
+html.dark .ac-bottom-nav-tab.is-primary { background: var(--color-brand); }
+html.dark .ac-bottom-nav-tab.is-primary:hover { background: color-mix(in srgb, var(--color-brand) 82%, #fff); }
 
 /* Show only on mobile / small tablets */
 @media (max-width: 768px) {
@@ -10540,21 +10534,20 @@ html.dark .ac-bottom-nav {
 html.dark .ac-bottom-nav-tab.is-active {
   background: color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
-/* The raised "+" follows the role accent instead of fixed blue. */
+/* The raised "+" is the mobile twin of the header's "+ เพิ่ม" — same
+   brand green (V2; it followed the role accent here, which meant the
+   create button was one colour on desktop and another on the phone). */
 .ac-bottom-nav-tab.is-primary,
 html.dark .ac-bottom-nav-tab.is-primary {
-  background: linear-gradient(135deg,
-    var(--color-accent),
-    color-mix(in srgb, var(--color-accent) 55%, var(--aurora-violet)));
+  background: var(--brand-gradient);
+  color: var(--brand-gradient-on);
   box-shadow:
     var(--edge-light),
-    0 4px 16px color-mix(in srgb, var(--color-accent) 45%, transparent);
+    0 4px 16px color-mix(in srgb, var(--color-brand) 45%, transparent);
 }
 .ac-bottom-nav-tab.is-primary:hover,
 html.dark .ac-bottom-nav-tab.is-primary:hover {
-  background: linear-gradient(135deg,
-    var(--color-accent),
-    color-mix(in srgb, var(--color-accent) 55%, var(--aurora-violet)));
+  background: var(--brand-gradient);
   filter: brightness(1.08);
 }
 

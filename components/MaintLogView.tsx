@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseThaiDate, bangkokTodayYmd } from "@/lib/dateUtils";
 import type { Role } from "@/auth";
+import EmptyState from "./EmptyState";
 import type { Part, Requisition, RoomView, SheetRow } from "@/types";
 import {
   buildPeriods, buildMaintDigest, digestToMarkdown, shortDate, groupLabel,
@@ -279,25 +280,25 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
         />
       </div>
 
+      {/* V2: these two were the app's only remaining hand-rolled empty
+          states (.ac-empty — a dashed box with an emoji). They use the
+          shared EmptyState component like every other view now. */}
       {digest.rooms.length === 0 && digest.common.length === 0 ? (
-        <div className="ac-empty">
-          <div className="ac-empty-icon">🧰</div>
-          <p>ยังไม่มีงานซ่อมบำรุงใน{period.label}{activeBuilding !== "ทั้งหมด" && ` ของ${activeBuilding}`}</p>
-          {canLog && (
-            <button className="ac-btn ac-btn-primary" onClick={() => setLogOpen(true)}>
-              + ลงบันทึกงานแรก
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon="maintenance"
+          title={`ยังไม่มีงานซ่อมบำรุงใน${period.label}${activeBuilding !== "ทั้งหมด" ? ` ของ${activeBuilding}` : ""}`}
+          action={canLog ? { label: "+ ลงบันทึกงานแรก", onClick: () => setLogOpen(true) } : undefined}
+        />
       ) : shown.rooms.length === 0 && shown.common.length === 0 ? (
-        <div className="ac-empty">
-          <div className="ac-empty-icon">🔍</div>
-          <p>ไม่พบรายการตามเงื่อนไขที่กรอง</p>
-          <button
-            className="ac-btn ac-btn-ghost"
-            onClick={() => { setTypeFilter(null); setOpenOnly(false); setSearch(""); }}
-          >ล้างตัวกรอง</button>
-        </div>
+        <EmptyState
+          icon="search"
+          tone="warning"
+          title="ไม่พบรายการตามเงื่อนไขที่กรอง"
+          action={{
+            label: "ล้างตัวกรอง",
+            onClick: () => { setTypeFilter(null); setOpenOnly(false); setSearch(""); },
+          }}
+        />
       ) : (
         <>
           {shown.rooms.length > 0 && (
