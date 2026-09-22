@@ -38,6 +38,44 @@ describe("design tokens pass WCAG AA on every surface", () => {
     });
   }
 
+  /**
+   * V2: the brand green carries real text — the primary button's label
+   * and the page hero band — so it needs the same 4.5:1 floor the text
+   * tokens have. The gradient is checked at BOTH stops: the band it
+   * replaced ended in teal-600, which measured 3.74:1 against the white
+   * subtitle sitting on it.
+   */
+  it("brand green carries text at AA in both themes", () => {
+    const failures: string[] = [];
+    for (const selector of [":root", "html.dark"]) {
+      const tokens = readTokens(css, selector);
+      const brand = tokens.get("--color-brand")!;
+      const on = tokens.get("--color-brand-on")!;
+      expect(brand, `--color-brand missing in ${selector}`).toBeTruthy();
+      const btn = contrastRatio(on, brand);
+      if (btn < 4.5) failures.push(`${selector}: --color-brand-on on --color-brand = ${btn}:1`);
+
+    }
+
+    // --brand-gradient holds a linear-gradient(), which readTokens skips
+    // (it keeps plain hex only) — read every declaration of it straight
+    // out of the stylesheet and check each colour stop. The band's ink is
+    // white in BOTH themes, declared once in :root.
+    const bandInk = readTokens(css, ":root").get("--brand-gradient-on")!;
+    expect(bandInk, "--brand-gradient-on missing").toBeTruthy();
+    const declarations = css.match(/--brand-gradient:\s*[^;]+;/g) ?? [];
+    expect(declarations.length, "no --brand-gradient declarations").toBeGreaterThan(0);
+    for (const decl of declarations) {
+      const stops = decl.match(/#[0-9A-Fa-f]{3,6}\b/g) ?? [];
+      expect(stops.length, `no colour stops in: ${decl}`).toBeGreaterThan(1);
+      for (const stop of stops) {
+        const ratio = contrastRatio(bandInk, stop);
+        if (ratio < 4.5) failures.push(`band ink on ${stop} = ${ratio}:1`);
+      }
+    }
+    expect(failures, `brand contrast below 4.5:1:\n${failures.join("\n")}`).toEqual([]);
+  });
+
   it("accent (link/button text colour) is readable on the surface", () => {
     for (const selector of [":root", "html.dark"]) {
       const tokens = readTokens(css, selector);

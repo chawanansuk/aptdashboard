@@ -222,11 +222,13 @@ export default function ReportsView({ rooms, tasks }: Props) {
       </div>
 
       {/* KPI cards */}
-      <div className="ac-reports-kpis">
-        <KpiCard label="งานทั้งหมด" value={kpis.totalTasks.toString()} sub={`${days} วันล่าสุด`} accent="indigo" />
-        <KpiCard label="งานเสร็จแล้ว" value={kpis.doneTasks.toString()} sub={`${kpis.completion}% สำเร็จ`} accent="green" />
-        <KpiCard label="ค่าใช้จ่ายรวม" value={`฿ ${fmtBaht(kpis.totalCost)}`} sub="รวมทุกประเภท" accent="amber" />
-        <KpiCard label="ยกเลิก" value={kpis.cancelled.toString()} sub="ลด churn งาน" accent="red" />
+      <div className="ac-overview-cards">
+        <KpiCard label="งานทั้งหมด" value={kpis.totalTasks.toString()} sub={`${days} วันล่าสุด`} tone="neutral" />
+        <KpiCard label="งานเสร็จแล้ว" value={kpis.doneTasks.toString()} sub={`${kpis.completion}% สำเร็จ`} tone="good" />
+        {/* Tone follows the DATA, not the row position: a red "0 ยกเลิก"
+            used to shout at a number that is good news. */}
+        <KpiCard label="ค่าใช้จ่ายรวม" value={`฿ ${fmtBaht(kpis.totalCost)}`} sub="รวมทุกประเภท" tone="neutral" />
+        <KpiCard label="ยกเลิก" value={kpis.cancelled.toString()} sub="ลด churn งาน" tone={kpis.cancelled > 0 ? "danger" : "neutral"} />
       </div>
 
       {/* Charts row 1 — bar (per building) + pie (per type) */}
@@ -307,15 +309,23 @@ export default function ReportsView({ rooms, tasks }: Props) {
   );
 }
 
-function KpiCard({ label, value, sub, accent }: {
+/**
+ * V2: this used to be a third stat-card style (.ac-reports-kpi) with its
+ * own 3px coloured rail, its own type scale and value-above-label order —
+ * next to OverviewCards and InsightsCards that meant three cards saying
+ * the same kind of thing three different ways. It renders the shared
+ * .ac-overview-card now; only the tone class differs, and tone still
+ * tints the number when it is a warning.
+ */
+function KpiCard({ label, value, sub, tone }: {
   label: string; value: string; sub?: string;
-  accent: "indigo" | "green" | "amber" | "red";
+  tone: "neutral" | "good" | "warn" | "danger";
 }) {
   return (
-    <div className={`ac-reports-kpi ac-reports-kpi-${accent}`}>
-      <div className="ac-reports-kpi-value">{value}</div>
-      <div className="ac-reports-kpi-label">{label}</div>
-      {sub && <div className="ac-reports-kpi-sub">{sub}</div>}
+    <div className={`ac-overview-card ac-overview-card-${tone}`}>
+      <div className="ac-overview-card-label">{label}</div>
+      <div className="ac-overview-card-value">{value}</div>
+      {sub && <div className="ac-overview-card-sub">{sub}</div>}
     </div>
   );
 }

@@ -7937,50 +7937,9 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   color: var(--color-text);
 }
 
-/* KPI cards row */
-.ac-reports-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
-}
-@media (max-width: 900px) {
-  .ac-reports-kpis { grid-template-columns: repeat(2, 1fr); }
-}
-.ac-reports-kpi {
-  padding: var(--space-4);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  position: relative;
-  overflow: hidden;
-}
-.ac-reports-kpi::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-}
-.ac-reports-kpi-indigo::before { background: #6366F1; }
-.ac-reports-kpi-green::before  { background: #22C55E; }
-.ac-reports-kpi-amber::before  { background: #F59E0B; }
-.ac-reports-kpi-red::before    { background: #EF4444; }
-.ac-reports-kpi-value {
-  font-size: 28px;
-  font-weight: var(--font-weight-bold);
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.ac-reports-kpi-label {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  margin-top: 4px;
-}
-.ac-reports-kpi-sub {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  margin-top: 6px;
-  opacity: 0.85;
-}
+/* KPI cards row — V2: the reports page renders the shared
+   .ac-overview-card / .ac-overview-cards now (see ReportsView KpiCard),
+   so the .ac-reports-kpi* duplicate of that card is gone. */
 
 /* Charts */
 .ac-reports-row {
