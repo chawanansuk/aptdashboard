@@ -32,6 +32,23 @@ interface Props {
   /** Optimistically reflect a status change locally so a closed task
    *  doesn't pop back open while the dashboard cache catches up. */
   onOptimisticStatus?: (t: SheetRow, status: string) => void;
+  /**
+   * V2 (Direction B): the dashboard's "งานวันนี้" card. Same rows, same
+   * write path (changeStatus → /api/sheet/update, optimistic update, turn-
+   * over notification) as the full list — so the overview gains a one-tap
+   * "ปิดงาน" without a second copy of the task-write logic. Compact drops
+   * the list chrome (type chips, hide-done toggle, CSV/print, bulk select)
+   * and every row action except ปิดงาน, caps the rows at `limit`, and
+   * offers `onSeeAll` to jump to the full งานวันนี้ view.
+   *
+   * It also ignores the persisted type filter / hide-done switch: those
+   * are keyed by title, and the card's title ("งานวันนี้") is the same as
+   * the full view's, so a "ซ่อม only" filter set there would otherwise
+   * silently hide rows here.
+   */
+  compact?: boolean;
+  limit?: number;
+  onSeeAll?: () => void;
 }
 
 function isDone(status: string): boolean {
@@ -49,7 +66,7 @@ function isClosed(status: string): boolean {
   return isDone(status) || isCancelled(status) || isNotInterested(status);
 }
 
-function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: Props) {
+function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus, compact = false, limit, onSeeAll }: Props) {
   const { data: session } = useSession();
   const canDelete = canDeleteTask(session?.user?.roles);
   // Cost column in CSV exposed only to roles that can view financials
@@ -165,6 +182,7 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
 
   const visible = useMemo(() => {
     let out = tasks;
+    if (compact) return out;
     if (hideDone) {
       out = out.filter((t) => !isClosed(t.status));
     }
@@ -172,11 +190,21 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
       out = out.filter((t) => t.type === typeFilter);
     }
     return out;
-  }, [tasks, hideDone, typeFilter]);
+  }, [tasks, hideDone, typeFilter, compact]);
   const hiddenCount = tasks.length - visible.length;
 
   // Group remaining tasks into urgency buckets — drives sort + section headers
-  const buckets = useMemo(() => bucketTasks(visible), [visible]);
+  const allBuckets = useMemo(() => bucketTasks(visible), [visible]);
+  /** Compact card: keep the most urgent `limit` rows (buckets are already
+   *  in urgency order, overdue first), dropping emptied buckets. */
+  const buckets = useMemo(() => {
+    if (!compact || limit == null) return allBuckets;
+    let left = limit;
+    return allBuckets
+      .map((b) => { const take = b.tasks.slice(0, Math.max(0, left)); left -= take.length; return { ...b, tasks: take }; })
+      .filter((b) => b.tasks.length > 0);
+  }, [allBuckets, compact, limit]);
+  const shownCount = buckets.reduce((n, b) => n + b.tasks.length, 0);
 
   async function postUpdate(payload: Record<string, unknown>) {
     // Shared POST (r11): SET/delete actions — no client retry (deleteTask
@@ -243,22 +271,59 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
 
   if (!tasks.length) {
     return (
-      <section className="ac-tasks">
+      <section className={`ac-tasks ${compact ? "ac-tasks-compact" : ""}`}>
         <header className="ac-tasks-head">
           <h3 className="ac-tasks-title">{title}</h3>
         </header>
-        <EmptyState
-          icon="tasks"
-          title={emptyText || "ไม่มีงานในรายการนี้"}
-          description="ลองเปลี่ยนตัวกรองสถานะ/ช่วงวันที่ หรือสร้างงานใหม่ด้วยปุ่ม + ด้านล่าง"
-        />
+        {compact ? (
+          <EmptyState icon="celebration" tone="celebration" compact title={emptyText || "ไม่มีงานค้างวันนี้"} />
+        ) : (
+          <EmptyState
+            icon="tasks"
+            title={emptyText || "ไม่มีงานในรายการนี้"}
+            description="ลองเปลี่ยนตัวกรองสถานะ/ช่วงวันที่ หรือสร้างงานใหม่ด้วยปุ่ม + ด้านล่าง"
+          />
+        )}
       </section>
     );
   }
 
   // Computed before render — easy to scan from one place
-  const overdueCount = buckets.find((b) => b.urgency === "overdue")?.tasks.length ?? 0;
-  const todayCount   = buckets.find((b) => b.urgency === "today")?.tasks.length ?? 0;
+  const overdueCount = allBuckets.find((b) => b.urgency === "overdue")?.tasks.length ?? 0;
+  const todayCount   = allBuckets.find((b) => b.urgency === "today")?.tasks.length ?? 0;
+
+  if (compact) {
+    return (
+      <section className="ac-tasks ac-tasks-compact" aria-label={title}>
+        <header className="ac-tasks-head">
+          <h3 className="ac-tasks-title">
+            {title} <span className="ac-tasks-count">({visible.length})</span>
+          </h3>
+          {onSeeAll && (
+            <button type="button" className="ac-tasks-seeall" onClick={onSeeAll}>
+              {shownCount < visible.length ? `ดูทั้งหมด ${visible.length} งาน` : "ดูทั้งหมด"} <Icon name="next" />
+            </button>
+          )}
+        </header>
+        {err && <div className="ac-banner ac-banner-warn">{err}</div>}
+        {buckets.map((bucket) => (
+          <BucketSection
+            key={bucket.urgency}
+            urgency={bucket.urgency}
+            tasks={bucket.tasks}
+            busyKey={busyKey}
+            canDelete={false}
+            bulkSel={bulkSel}
+            onToggleSelect={toggleBulk}
+            onPickStatus={changeStatus}
+            onPickEdit={openEdit}
+            onPickDelete={() => {}}
+            compact
+          />
+        ))}
+      </section>
+    );
+  }
 
   return (
     <section className="ac-tasks">
@@ -464,11 +529,12 @@ interface BucketSectionProps {
   onPickStatus: (t: SheetRow, newStatus: string) => void;
   onPickEdit: (t: SheetRow) => void;
   onPickDelete: (t: SheetRow) => void;
+  compact?: boolean;
 }
 
 function BucketSection({
   urgency, tasks, busyKey, canDelete, bulkSel, onToggleSelect,
-  onPickStatus, onPickEdit, onPickDelete,
+  onPickStatus, onPickEdit, onPickDelete, compact = false,
 }: BucketSectionProps) {
   const meta = URGENCY_META[urgency];
   return (
@@ -493,6 +559,7 @@ function BucketSection({
               onPickStatus={onPickStatus}
               onPickEdit={onPickEdit}
               onPickDelete={onPickDelete}
+              compact={compact}
             />
           );
         })}
@@ -515,11 +582,13 @@ interface TaskCardProps {
   onPickStatus: (t: SheetRow, newStatus: string) => void;
   onPickEdit: (t: SheetRow) => void;
   onPickDelete: (t: SheetRow) => void;
+  /** Dashboard card: no bulk checkbox, no state pill, ปิดงาน only. */
+  compact?: boolean;
 }
 
 function TaskCard({
   task, urgency, busyKey, canDelete, selected, onToggleSelect,
-  onPickStatus, onPickEdit, onPickDelete,
+  onPickStatus, onPickEdit, onPickDelete, compact = false,
 }: TaskCardProps) {
   const t = task;
   const k = taskKeyOf(t);
@@ -535,14 +604,14 @@ function TaskCard({
     <div
       className={`ac-task ac-task-urgency-${urgency} ${done ? "is-done" : ""} ${cancelled || notInterested ? "is-cancelled" : ""} ${selected ? "is-bulk-selected" : ""}`}
     >
-      <input
+      {!compact && <input
         type="checkbox"
         className="ac-task-bulk-check"
         checked={selected}
         onChange={() => onToggleSelect(t)}
         onClick={(e) => e.stopPropagation()}
         aria-label="เลือกเพื่อแก้ไขรวม"
-      />
+      />}
       <div className="ac-task-dot" style={{ background: dot }} />
       <div className="ac-task-main">
         <div className="ac-task-line1">
@@ -569,6 +638,16 @@ function TaskCard({
           {t.creator && <span className="ac-task-creator">· โดย {t.creator}</span>}
         </div>
       </div>
+      {compact ? (
+        <div className="ac-task-actions">
+          {!closed && (
+            <button className="ac-btn ac-btn-primary ac-btn-sm" disabled={busy}
+              onClick={() => onPickStatus(t, "เสร็จ")}>
+              {busy ? "..." : <><Icon name="check" /> ปิดงาน</>}
+            </button>
+          )}
+        </div>
+      ) : (
       <div className="ac-task-actions">
         {/* V2: the state pill used to sit AFTER the buttons, where it read
             as one more thing to click at the end of a row of four. State
@@ -604,6 +683,7 @@ function TaskCard({
             onClick={() => onPickDelete(t)} title="ลบงานนี้ถาวร">ลบ</button>
         )}
       </div>
+      )}
     </div>
   );
 }

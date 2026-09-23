@@ -76,6 +76,62 @@ describe("design tokens pass WCAG AA on every surface", () => {
     expect(failures, `brand contrast below 4.5:1:\n${failures.join("\n")}`).toEqual([]);
   });
 
+  /* ---- V2 Direction B guards ------------------------------------ */
+
+  /** CSS color-mix(in srgb, A p%, B) — per-channel in gamma space, which
+   *  is exactly what the browser does for the srgb interpolation space. */
+  const mixHex = (a: string, b: string, p: number): string => {
+    const A = parseHex(a)!, B = parseHex(b)!;
+    return "#" + A.map((c, i) => Math.round(c * p + B[i] * (1 - p)).toString(16).padStart(2, "0")).join("");
+  };
+  const themeTokens = (theme: "light" | "dark") => {
+    const root = readTokens(css, ":root");
+    if (theme === "light") return root;
+    return new Map([...root, ...readTokens(css, "html.dark")]);
+  };
+  /** Resolve `var(--x)` / a hex / `color-mix(in srgb, var(--a) P%, var(--b))`. */
+  const resolve = (expr: string, t: Map<string, string>): string => {
+    expr = expr.trim();
+    const v = expr.match(/^var\((--[a-z0-9-]+)\)$/);
+    if (v) return t.get(v[1])!;
+    if (expr.startsWith("#")) return expr;
+    const m = expr.match(/^color-mix\(in srgb,\s*(var\(--[a-z0-9-]+\))\s+(\d+)%,\s*(var\(--[a-z0-9-]+\))\)$/);
+    if (!m) throw new Error(`unparsed colour: ${expr}`);
+    return mixHex(resolve(m[1], t), resolve(m[3], t), Number(m[2]) / 100);
+  };
+
+  it("room-status ink reads on its own tint (tiles, active chips) in both themes", () => {
+    const block = css.slice(css.indexOf(":root, html.dark {"));
+    const decl = (name: string) => block.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1];
+    const failures: string[] = [];
+    for (const theme of ["light", "dark"] as const) {
+      const t = themeTokens(theme);
+      for (const st of ["occupied", "ready", "pending", "moveout", "qc", "repair", "inactive"]) {
+        const ink = resolve(decl(`--status-${st}-ink`)!, t);
+        const soft = resolve(decl(`--status-${st}-soft`)!, t);
+        const ratio = contrastRatio(ink, soft);
+        if (ratio < 4.5) failures.push(`${theme} ${st}: ink ${ink} on ${soft} = ${ratio}:1`);
+      }
+    }
+    expect(failures, `status ink below 4.5:1:\n${failures.join("\n")}`).toEqual([]);
+  });
+
+  it("white text on the hero band's glass cards stays at AA", () => {
+    const glass = css.match(/--hero-glass:\s*rgba\(255,\s*255,\s*255,\s*([0-9.]+)\)/);
+    expect(glass, "--hero-glass missing").toBeTruthy();
+    const alpha = Number(glass![1]);
+    const ink = readTokens(css, ":root").get("--brand-gradient-on")!;
+    const failures: string[] = [];
+    for (const decl of css.match(/--brand-gradient:\s*[^;]+;/g) ?? []) {
+      for (const stop of decl.match(/#[0-9A-Fa-f]{3,6}\b/g) ?? []) {
+        const ground = mixHex("#ffffff", stop, alpha); // white glass over the band
+        const ratio = contrastRatio(ink, ground);
+        if (ratio < 4.5) failures.push(`${stop} + ${alpha} glass = ${ground}: ${ratio}:1`);
+      }
+    }
+    expect(failures, `band glass below 4.5:1:\n${failures.join("\n")}`).toEqual([]);
+  });
+
   it("accent (link/button text colour) is readable on the surface", () => {
     for (const selector of [":root", "html.dark"]) {
       const tokens = readTokens(css, selector);

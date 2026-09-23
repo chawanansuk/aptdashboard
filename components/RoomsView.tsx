@@ -10,7 +10,7 @@ import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
 import { roomKey as makeRoomKey } from "@/lib/taskKey";
-import { buildingSortIndex } from "@/lib/salesData";
+import { buildingSortIndex, floorSortKey } from "@/lib/salesData";
 import { useRoomDensity, ROOM_DENSITY_VALUES, type RoomDensity } from "@/lib/useRoomDensity";
 import { canViewTenant } from "@/lib/permissions";
 import RoomQuickActions from "./RoomQuickActions";
@@ -388,12 +388,21 @@ function RoomsView({
         ...g,
         list: g.list.sort((a, b) => a.room.localeCompare(b.room, undefined, { numeric: true })),
       }))
-      // Building order first (sales preference), then floor ascending. When
-      // only one building is present this collapses to a plain floor sort.
-      .sort((a, b) =>
-        buildingSortIndex(a.building) - buildingSortIndex(b.building) ||
-        a.building.localeCompare(b.building) ||
-        (a.floor || "").localeCompare(b.floor || "", undefined, { numeric: true }));
+      // Building order first (sales preference), then floors TOP-DOWN — the
+      // highest floor first, the way the building looks from the street
+      // (V2 Direction B). Same rule the sales board's elevation grid already
+      // uses (lib/salesData groupByBuildingFloor floorDesc), so the two room
+      // grids no longer disagree. floorSortKey: numeric floors by value,
+      // non-numeric ones ("-", "ดาดฟ้า") grouped together.
+      .sort((a, b) => {
+        const byBuilding =
+          buildingSortIndex(a.building) - buildingSortIndex(b.building) ||
+          a.building.localeCompare(b.building);
+        if (byBuilding) return byBuilding;
+        const [na, sa] = floorSortKey(a.floor || "");
+        const [nb, sb] = floorSortKey(b.floor || "");
+        return nb - na || sb.localeCompare(sa);
+      });
   }, [visibleRooms]);
 
   // Default tab stop = first card in render order (floor-sorted).

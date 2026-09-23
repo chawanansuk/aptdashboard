@@ -118,6 +118,10 @@
      themes — the dark theme's band is darker still, not lighter. */
   --brand-gradient: linear-gradient(135deg, #047857 0%, #0F766E 100%);
   --brand-gradient-on: #FFFFFF;
+  /* Glass for cards sitting ON the band. 8% white is the most the band's
+     lighter (teal) end can take before white text on it drops under
+     4.5:1 — 12% measured 4.33:1. Checked in lib/contrast.test.ts. */
+  --hero-glass: rgba(255, 255, 255, 0.08);
 
   /* ----- Room status surfaces (V2) -----
    * Base hex MIRRORS lib/statusTokens.ts TOKEN (pinned by
@@ -242,26 +246,32 @@ html.dark {
  * Defined after both theme blocks so it picks up whichever base is live.
  * ==================================================================== */
 :root, html.dark {
-  --status-occupied-soft:   color-mix(in srgb, var(--status-occupied) 8%,  var(--color-surface));
-  --status-occupied-border: color-mix(in srgb, var(--status-occupied) 24%, var(--color-surface));
+  /* V2 Direction B: tiles carry their status as a FILL now (14%, was a
+     10% wash + a coloured rail), and ink moved from 74–78% of the status
+     colour to 50%. At 74% the "พร้อมขาย"/"รอเข้าซ่อม" labels measured
+     ~3.4:1 on their own tint — under the 4.5:1 every other piece of text
+     here is held to. lib/contrast.test.ts now checks every ink-on-soft
+     pair in both themes, so a future tweak can't slide back. */
+  --status-occupied-soft:   color-mix(in srgb, var(--status-occupied) 10%, var(--color-surface));
+  --status-occupied-border: color-mix(in srgb, var(--status-occupied) 22%, var(--color-surface));
   --status-occupied-ink:    var(--color-text);
-  --status-ready-soft:      color-mix(in srgb, var(--status-ready) 10%, var(--color-surface));
-  --status-ready-border:    color-mix(in srgb, var(--status-ready) 32%, var(--color-surface));
-  --status-ready-ink:       color-mix(in srgb, var(--status-ready) 74%, var(--status-ink-mix));
-  --status-pending-soft:    color-mix(in srgb, var(--status-pending) 10%, var(--color-surface));
-  --status-pending-border:  color-mix(in srgb, var(--status-pending) 32%, var(--color-surface));
-  --status-pending-ink:     color-mix(in srgb, var(--status-pending) 74%, var(--status-ink-mix));
-  --status-moveout-soft:    color-mix(in srgb, var(--status-moveout) 10%, var(--color-surface));
-  --status-moveout-border:  color-mix(in srgb, var(--status-moveout) 32%, var(--color-surface));
-  --status-moveout-ink:     color-mix(in srgb, var(--status-moveout) 74%, var(--status-ink-mix));
-  --status-qc-soft:         color-mix(in srgb, var(--status-qc) 10%, var(--color-surface));
-  --status-qc-border:       color-mix(in srgb, var(--status-qc) 32%, var(--color-surface));
-  --status-qc-ink:          color-mix(in srgb, var(--status-qc) 76%, var(--status-ink-mix));
-  --status-repair-soft:     color-mix(in srgb, var(--status-repair) 12%, var(--color-surface));
-  --status-repair-border:   color-mix(in srgb, var(--status-repair) 34%, var(--color-surface));
-  --status-repair-ink:      color-mix(in srgb, var(--status-repair) 78%, var(--status-ink-mix));
-  --status-inactive-soft:   color-mix(in srgb, var(--status-inactive) 8%,  var(--color-surface));
-  --status-inactive-border: color-mix(in srgb, var(--status-inactive) 26%, var(--color-surface));
+  --status-ready-soft:      color-mix(in srgb, var(--status-ready) 14%, var(--color-surface));
+  --status-ready-border:    color-mix(in srgb, var(--status-ready) 26%, var(--color-surface));
+  --status-ready-ink:       color-mix(in srgb, var(--status-ready) 50%, var(--status-ink-mix));
+  --status-pending-soft:    color-mix(in srgb, var(--status-pending) 14%, var(--color-surface));
+  --status-pending-border:  color-mix(in srgb, var(--status-pending) 26%, var(--color-surface));
+  --status-pending-ink:     color-mix(in srgb, var(--status-pending) 50%, var(--status-ink-mix));
+  --status-moveout-soft:    color-mix(in srgb, var(--status-moveout) 14%, var(--color-surface));
+  --status-moveout-border:  color-mix(in srgb, var(--status-moveout) 26%, var(--color-surface));
+  --status-moveout-ink:     color-mix(in srgb, var(--status-moveout) 50%, var(--status-ink-mix));
+  --status-qc-soft:         color-mix(in srgb, var(--status-qc) 14%, var(--color-surface));
+  --status-qc-border:       color-mix(in srgb, var(--status-qc) 26%, var(--color-surface));
+  --status-qc-ink:          color-mix(in srgb, var(--status-qc) 50%, var(--status-ink-mix));
+  --status-repair-soft:     color-mix(in srgb, var(--status-repair) 16%, var(--color-surface));
+  --status-repair-border:   color-mix(in srgb, var(--status-repair) 30%, var(--color-surface));
+  --status-repair-ink:      color-mix(in srgb, var(--status-repair) 50%, var(--status-ink-mix));
+  --status-inactive-soft:   color-mix(in srgb, var(--status-inactive) 10%, var(--color-surface));
+  --status-inactive-border: color-mix(in srgb, var(--status-inactive) 22%, var(--color-surface));
   --status-inactive-ink:    var(--color-text-muted);
 }
 
@@ -541,6 +551,7 @@ html.dark .ac-search input { color: #E5E7EB; }
 html.dark .ac-rc {
   background: #26334A;
   border-color: #3A4761;
+  padding-left: 16px; /* room for the dark-mode status rail */
 }
 html.dark .ac-rc-status { color: #E2E8F0; }
 html.dark .ac-rc-occupied { --rc-ink: #E2E8F0; }
@@ -1518,11 +1529,14 @@ html.dark .ac-fs-stat.is-active {
   gap: 6px;
   transition: transform 0.15s, box-shadow 0.15s;
   text-align: left;
-  padding: 12px 12px 12px 16px;
+  padding: 12px 14px;
   overflow: hidden;
   cursor: pointer;
   user-select: none;
-  background: transparent;
+  /* (A leftover `background: transparent` used to sit here, AFTER the
+     --rc-soft background above — so the status tint never actually
+     rendered and every tile was plain white. Removed in Direction B,
+     where the tint is the whole point.) */
   /* Skip rendering cards scrolled out of view — the grid holds all 297
      rooms, but only ~20-40 are ever on screen. content-visibility: auto
      lets the browser bypass layout/paint for the off-screen ones, so
@@ -1534,39 +1548,39 @@ html.dark .ac-fs-stat.is-active {
   content-visibility: auto;
   contain-intrinsic-size: 144px 104px;
 }
-/* 4px status rail — replaces the old 3px top border */
+/* 4px status rail. Direction B carries status as the tile's FILL in
+   light mode, so the rail is dark-mode only — there the tiles stay one
+   neutral surface (a tinted ground swallowed the label) and the rail is
+   what says the status. */
 .ac-rc::before {
   content: "";
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 4px;
   background: var(--rc-accent, var(--color-border-strong));
+  display: none;
 }
+html.dark .ac-rc::before { display: block; }
 .ac-rc:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); transition: transform 180ms var(--ease), box-shadow 180ms var(--ease); }
 .ac-rc:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 .ac-rc-num {
   font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
   line-height: 1.1;
   color: var(--rc-ink, var(--color-text));
   letter-spacing: -0.01em;
 }
-/* full status label + its own colour dot (no markup change needed) */
+/* Full status label in the status' own ink (Direction B) — the tint
+   says which status, the label says it in words; no separate dot. The
+   ink/tint pair is held to 4.5:1 by lib/contrast.test.ts. */
 .ac-rc-status {
   font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   line-height: 1.25;
-  color: var(--color-text);
+  color: var(--rc-ink, var(--color-text));
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-.ac-rc-status::before {
-  content: "";
-  width: 8px; height: 8px;
-  border-radius: 9999px;
-  background: var(--rc-accent, var(--color-border-strong));
-  flex: 0 0 auto;
 }
 /* "วันเข้า" hint for pending rooms — small purple date pill under status */
 .ac-rc-movein {
@@ -2017,6 +2031,197 @@ html.dark .ac-rc-bldg { color: #64748B; }
   border-color: var(--color-border-strong);
   color: var(--color-text);
 }
+/* ====================================================================
+ * V2 Direction B — overview first screen
+ * ==================================================================== */
+
+/* One green band holding the greeting AND the headline numbers. It owns
+   the gradient; WelcomeHero and OverviewCards inside it are the same
+   components as before, restyled only by being inside the band. */
+.ac-hero-band {
+  position: relative;
+  overflow: hidden;
+  background: var(--brand-gradient);
+  color: var(--brand-gradient-on);
+  border-radius: var(--radius-xl);
+  padding: 0 var(--space-6, 24px) var(--space-6, 24px);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+.ac-hero-band::before {
+  content: "";
+  position: absolute;
+  top: -40%; right: -8%;
+  width: 520px; height: 520px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
+.ac-hero-band .ac-welcome-hero {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 22px 0 18px;
+  overflow: visible;
+}
+.ac-hero-band .ac-welcome-hero::before { display: none; }
+.ac-hero-band .ac-overview-cards { margin-bottom: 0; position: relative; }
+/* Glass cards: --hero-glass is the lightest the band can take and keep
+   white text at 4.5:1 (lib/contrast.test.ts). Text is full white — no
+   opacity on labels, which is what pushed the mock under AA. */
+.ac-hero-band .ac-overview-card,
+html.dark .ac-hero-band .ac-overview-card {
+  background: var(--hero-glass);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+  color: var(--brand-gradient-on);
+}
+.ac-hero-band .ac-overview-card.is-clickable:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.45);
+}
+.ac-hero-band .ac-overview-card:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6); }
+.ac-hero-band .ac-overview-card-label,
+.ac-hero-band .ac-overview-card-sub,
+.ac-hero-band .ac-overview-card-value,
+.ac-hero-band .ac-overview-card-warn .ac-overview-card-value,
+.ac-hero-band .ac-overview-card-danger .ac-overview-card-value { color: inherit; }
+/* On green, an amber or red NUMBER would fail contrast — so the band
+   moves the warning onto the sub line as a solid pill (white on amber-700
+   5.0:1, on red-700 6.5:1). Same meaning, readable. */
+.ac-hero-band .ac-overview-card-warn .ac-overview-card-sub,
+.ac-hero-band .ac-overview-card-danger .ac-overview-card-sub {
+  align-self: flex-start;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-weight: var(--font-weight-semibold);
+}
+.ac-hero-band .ac-overview-card-warn .ac-overview-card-sub { background: #B45309; }
+.ac-hero-band .ac-overview-card-danger .ac-overview-card-sub { background: #B91C1C; }
+.ac-hero-band .ac-occ-bar { background: rgba(255, 255, 255, 0.2); }
+.ac-hero-band .ac-overview-card-skeleton,
+html.dark .ac-hero-band .ac-overview-card-skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,.12) 25%, rgba(255,255,255,.28) 50%, rgba(255,255,255,.12) 75%);
+  background-size: 200% 100%;
+}
+@media (max-width: 600px) {
+  .ac-hero-band { padding: 0 14px 14px; }
+  .ac-hero-band .ac-welcome-hero { padding: 12px 0 10px; }
+}
+/* Phones: the KPI row inside the band is a swipe track (see the 560px
+   block) — its negative margins must line up with the band's padding. */
+@media (max-width: 560px) {
+  .ac-hero-band .ac-overview-cards {
+    margin-left: -14px; margin-right: -14px;
+    padding-left: 14px; padding-right: 14px;
+  }
+}
+
+/* Today + ready-to-rent side by side; stacked below 1024px. */
+.ac-overview-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  align-items: stretch;
+}
+@media (max-width: 1023px) {
+  .ac-overview-split { grid-template-columns: minmax(0, 1fr); }
+}
+.ac-overview-split > .ac-tasks { margin: 0; }
+.ac-tasks-compact,
+.ac-ready-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
+}
+html.dark .ac-tasks-compact,
+html.dark .ac-ready-card { background: var(--color-surface-2); }
+.ac-tasks-compact .ac-task-bucket { margin-top: 4px; }
+.ac-tasks-seeall {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-brand);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.ac-tasks-seeall:hover { background: var(--color-brand-soft); }
+.ac-tasks-seeall:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .ac-tasks-seeall { min-height: 44px; }
+}
+
+/* Phones: the full task list turns every row action into a full-width
+   button on its own line. In the compact card there is ONE action, so it
+   stays a normal button at the end of the row instead of adding a whole
+   extra line per task. */
+@media (max-width: 640px) {
+  .ac-tasks-compact .ac-task { padding: 10px 12px; flex-wrap: nowrap; align-items: center; }
+  .ac-tasks-compact .ac-task-main { flex: 1 1 auto; flex-basis: auto; min-width: 0; }
+  .ac-tasks-compact .ac-task-actions { flex: 0 0 auto; width: auto; justify-content: flex-end; }
+  .ac-tasks-compact .ac-task-actions .ac-btn-sm { flex: 0 0 auto; }
+  .ac-tasks-compact,
+  .ac-ready-card { padding: 14px; }
+}
+
+/* Ready-to-rent rows — tinted with the same status tokens as the tiles. */
+.ac-ready-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ac-ready-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--rr-soft, var(--color-surface-2));
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms var(--ease), transform 160ms var(--ease);
+}
+.ac-ready-row:hover { border-color: var(--rr-border, var(--color-border-strong)); transform: translateY(-1px); }
+.ac-ready-row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.ac-ready-row-ready   { --rr-soft: var(--status-ready-soft);   --rr-border: var(--status-ready-border);   --rr-ink: var(--status-ready-ink); }
+.ac-ready-row-moveout { --rr-soft: var(--status-moveout-soft); --rr-border: var(--status-moveout-border); --rr-ink: var(--status-moveout-ink); }
+.ac-ready-num {
+  flex: 0 0 auto;
+  min-width: 52px;
+  height: 40px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--rr-ink, var(--color-text));
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.ac-ready-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ac-ready-where { font-size: var(--text-sm); font-weight: var(--font-weight-semibold); }
+.ac-ready-note { font-size: var(--text-xs); color: var(--color-text-muted); }
+.ac-ready-end { flex: 0 0 auto; font-size: var(--text-sm); font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.ac-ready-sub {
+  margin: 16px 0 8px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+.ac-ready-sub span { font-weight: var(--font-weight-medium); }
+
 /* V2 icons — every icon is a lucide SVG from lib/icons (<Icon name=…>),
    stroke = currentColor, so it takes the colour of whatever text it sits
    in, exactly like the emoji it replaced but without the OS drawing its
