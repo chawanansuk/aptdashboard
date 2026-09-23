@@ -4046,18 +4046,30 @@ html.dark .ac-health-banner-warn {
   color: #DBEAFE;
   border-bottom-color: #3B82F6;
 }
+/* V2 — บั๊กจากหน้าจอจริงบนมือถือ: แถบนี้เคยเป็น flex แถวเดียว โดยหัวข้อ
+   ("⚠ Apps Script: Network ติดต่อไม่ได้") กับปุ่ม "ดูรายละเอียด"/"✕"
+   กินความกว้างไปเกือบหมด เหลือให้ข้อความอธิบาย (flex: 1 + min-width: 0
+   จึงหดได้ไม่จำกัด) แค่เศษเสี้ยว → ตัดบรรทัดเหลือบรรทัดละคำ
+   ("Apps / Script / ไม่ตอบ / ใน 20 / วินาที") อ่านไม่ออกเลย
+   หัวข้อกับคำอธิบายอยู่ในกล่องเดียวกัน (.ac-health-banner-text) แล้ว
+   ปุ่มอยู่นอกกล่อง — กล่องข้อความกินที่ที่เหลือทั้งหมดและตัดบรรทัดปกติ */
 .ac-health-banner-main {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  flex-wrap: wrap;
   max-width: 1400px;
   margin: 0 auto;
 }
-.ac-health-banner-msg {
-  flex: 1;
+.ac-health-banner-text {
+  flex: 1 1 0;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
+.ac-health-banner-msg { overflow-wrap: anywhere; }
+.ac-health-banner-link,
+.ac-health-banner-close { flex-shrink: 0; }
 .ac-health-banner-link {
   background: transparent;
   border: 0;
@@ -4079,6 +4091,12 @@ html.dark .ac-health-banner-warn {
   margin-left: 4px;
 }
 .ac-health-banner-close:hover { opacity: 0.7; }
+/* 44px tap floor on touch (WCAG 2.5.5) — these two sit at the very top of
+   the screen where mis-taps are easiest. */
+@media (pointer: coarse) {
+  .ac-health-banner-link,
+  .ac-health-banner-close { min-width: 44px; min-height: 44px; }
+}
 .ac-health-banner-details {
   margin-top: 8px;
   padding-top: 8px;
