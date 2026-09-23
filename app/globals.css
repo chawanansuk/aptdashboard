@@ -709,7 +709,10 @@ html.dark .ac-banner-ok {
 html, body {
   margin: 0;
   padding: 0;
-  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  /* font-family ถูกลบออกจากบล็อกนี้: มันอยู่หลัง `body { font-family:
+     var(--font-sans) }` ในไฟล์เดียวกัน specificity เท่ากัน ตัวหลังจึงชนะ
+     ทั้งแอปเลยเรนเดอร์ด้วย Segoe UI/ฟอนต์ระบบ ทั้งที่ next/font โหลด
+     IBM Plex Sans Thai มาครบ 4 น้ำหนักทุกครั้งที่เปิดหน้า */
   background: #F0F2F5;
   color: #111827;
   font-size: 14px;
