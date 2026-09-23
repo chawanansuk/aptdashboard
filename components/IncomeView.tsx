@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useMemo } from "react";
 import type { RoomView } from "@/types";
 import { formatBaht, parsePriceOr0 as priceNum } from "@/lib/money";
@@ -72,7 +73,7 @@ export default function IncomeView({ rooms, activeBuilding }: Props) {
           <h2 className="ac-page-title">สรุปรายได้ {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
           <p className="ac-page-sub">ตัวเลขนี้คือ <strong>ศักยภาพ</strong> (ค่าเช่าตามสถานะห้อง) ไม่ใช่ยอดที่จ่ายจริง — ดูยอดจริงในชีต <code>มิเตอร์</code></p>
         </div>
-        <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨 พิมพ์</button>
+        <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF"><Icon name="print" /> พิมพ์</button>
       </header>
 
       {/* V2: these four were a stat card of their own (.ac-kpi-card) —

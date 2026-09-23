@@ -1,10 +1,10 @@
 "use client";
 
+import { Icon, equipmentIcon, facilityIcon, type IconName } from "@/lib/icons";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { Facility, RoomEquipment } from "@/types";
 import { canAddEngTask } from "@/lib/permissions";
-import { FACILITY_TYPE_ICON, EQUIPMENT_TYPE_ICON } from "@/lib/constants";
 import { daysUntilService, getMaintenanceStatus, formatDateLabel } from "@/lib/maintenanceUtils";
 import { invalidateFacilityCache } from "@/lib/facilityCache";
 import { bustCachedFetch, cachedFetchJson } from "@/lib/cachedFetchJson";
@@ -50,7 +50,7 @@ interface DueItem {
   key: string;
   source: "facility" | "equipment";
   id: string;
-  icon: string;
+  icon: IconName;
   /** e.g. "มีทอง · ส่วนกลาง" or "มีทอง · ห้อง 204" */
   where: string;
   building: string;
@@ -65,11 +65,11 @@ interface DueItem {
   status: string;
 }
 
-const TABS: { key: HubTab; label: string }[] = [
-  { key: "due", label: "🔔 ถึงรอบ" },
-  { key: "facility", label: "🏢 ส่วนกลาง" },
-  { key: "equipment", label: "❄️ อุปกรณ์ในห้อง" },
-  { key: "recurring", label: "🔁 งานประจำ" },
+const TABS: { key: HubTab; label: string; icon: IconName }[] = [
+  { key: "due", label: "ถึงรอบ", icon: "bell" },
+  { key: "facility", label: "ส่วนกลาง", icon: "facilities" },
+  { key: "equipment", label: "อุปกรณ์ในห้อง", icon: "aircon" },
+  { key: "recurring", label: "งานประจำ", icon: "repeat" },
 ];
 
 export default function MaintenanceHub({
@@ -121,7 +121,7 @@ export default function MaintenanceHub({
       if (m !== "overdue" && m !== "due-soon") continue;
       out.push({
         key: `f-${f.id}`, source: "facility", id: f.id,
-        icon: FACILITY_TYPE_ICON[f.type] || "🏢",
+        icon: facilityIcon(f.type),
         where: `${f.building} · ส่วนกลาง`,
         building: f.building, room: "",
         label: f.type + (f.name ? ` ${f.name}` : ""),
@@ -139,7 +139,7 @@ export default function MaintenanceHub({
       if (m !== "overdue" && m !== "due-soon") continue;
       out.push({
         key: `e-${e.id}`, source: "equipment", id: e.id,
-        icon: EQUIPMENT_TYPE_ICON[e.type] || "🔧",
+        icon: equipmentIcon(e.type),
         where: `${e.building} · ห้อง ${e.room}`,
         building: e.building, room: e.room,
         label: e.type + (e.brand ? ` ${e.brand}` : ""),
@@ -209,7 +209,7 @@ export default function MaintenanceHub({
             className={`ac-chip ${tab === t.key ? "is-active" : ""}`}
             onClick={() => setTab(t.key)}
           >
-            {t.label}
+            <Icon name={t.icon} /> {t.label}
             {t.key === "due" && dueItems.length > 0 && (
               <span className="ac-maint-hub-badge">{dueItems.length}</span>
             )}
@@ -221,7 +221,7 @@ export default function MaintenanceHub({
         <div className="ac-maint-hub-due">
           <p className="ac-maint-hub-hint">
             รวมทุกอย่างที่ถึง/ใกล้ถึงรอบบำรุง จากส่วนกลางและอุปกรณ์ในห้อง —
-            ทำเสร็จแล้วกด <strong>✓ ทำแล้ววันนี้</strong> ระบบเริ่มนับรอบใหม่ให้เอง
+            ทำเสร็จแล้วกด <strong>ทำแล้ววันนี้</strong> ระบบเริ่มนับรอบใหม่ให้เอง
             (เตือนซ้ำทางอีเมลทุกเช้าด้วย)
           </p>
           <ErrorBanner message={err} onRetry={() => void loadDue()} onDismiss={() => setErr(null)} />
@@ -230,7 +230,7 @@ export default function MaintenanceHub({
             <EmptyState
               icon="celebration"
               tone="celebration"
-              title="ไม่มีอะไรถึงรอบบำรุง 🎉"
+              title="ไม่มีอะไรถึงรอบบำรุง"
               description='ตั้งรอบเพิ่มได้ที่แท็บ "ส่วนกลาง" (ปั๊มน้ำ/ล้างแอร์รวม) หรือ "อุปกรณ์ในห้อง" — ใส่ช่อง รอบบำรุง(วัน) แล้วรายการจะโผล่ที่นี่เองเมื่อใกล้ถึงกำหนด'
             />
           )}
@@ -240,7 +240,7 @@ export default function MaintenanceHub({
                 const overdue = it.days < 0;
                 return (
                   <li key={it.key} className={`ac-fac-due-row ${overdue ? "is-overdue" : ""}`}>
-                    <span className="ac-fac-due-icon" aria-hidden>{it.icon}</span>
+                    <span className="ac-fac-due-icon" aria-hidden><Icon name={it.icon} size={20} /></span>
                     <span className="ac-fac-due-main">
                       <span className="ac-fac-due-title">
                         <b>{it.where}</b> · {it.label}
@@ -262,7 +262,7 @@ export default function MaintenanceHub({
                           title={it.broken
                             ? "ตั้งสถานะกลับเป็นปกติ + วันบริการล่าสุด = วันนี้"
                             : "บันทึกวันบริการล่าสุด = วันนี้ (เริ่มนับรอบใหม่)"}
-                        >{busyKey === it.key ? "..." : it.broken ? "✓ ซ่อมแล้ว" : "✓ ทำแล้ววันนี้"}</button>
+                        >{busyKey === it.key ? "..." : <><Icon name="check" /> {it.broken ? "ซ่อมแล้ว" : "ทำแล้ววันนี้"}</>}</button>
                         <button
                           className="ac-btn ac-btn-ghost ac-btn-sm"
                           onClick={() =>

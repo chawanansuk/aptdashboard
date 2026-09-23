@@ -1,3 +1,4 @@
+import type { IconName } from "@/lib/icons";
 import type { Role } from "@/auth";
 
 /**
@@ -42,7 +43,8 @@ export interface ModeConfig {
   mode: Mode;
   label: string;                // "Sales Mode"
   shortLabel: string;           // "Sales"
-  emoji: string;                // visual identity glyph
+  /** Hero icon — a lib/icons registry name (V2: was an emoji). */
+  icon: IconName;
   /** Initial activeView when user lands (if they haven't navigated). */
   defaultLandingView: string;
   /** Default task type pre-selected in AddTaskModal. */
@@ -76,7 +78,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
     mode: "sales",
     label: "โหมดขาย",
     shortLabel: "ขาย",
-    emoji: "🌅",
+    icon: "sun",
     defaultLandingView: "salespipeline",
     defaultTaskType: "ชมห้อง",
     addButtonLabel: "+ นัดลูกค้า",
@@ -100,7 +102,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
     mode: "engineer",
     label: "โหมดช่าง",
     shortLabel: "ช่าง",
-    emoji: "🔧",
+    icon: "maintenance",
     defaultLandingView: "engineerkanban",
     defaultTaskType: "ซ่อม",
     addButtonLabel: "+ แจ้งซ่อม",
@@ -126,7 +128,7 @@ export const MODE_CONFIG: Record<Mode, ModeConfig> = {
     mode: "management",
     label: "โหมดจัดการ",
     shortLabel: "จัดการ",
-    emoji: "📊",
+    icon: "income",
     defaultLandingView: "overview",
     defaultTaskType: "ย้ายเข้า",
     addButtonLabel: "+ เพิ่มงาน",

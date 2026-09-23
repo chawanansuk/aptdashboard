@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shouldPromptUpdate } from "@/lib/version";
 
@@ -78,7 +79,7 @@ export default function PWAClient() {
     <>
       {updateReady && (
         <div className="ac-update-bar" role="status" aria-live="polite">
-          <span>🔄 มีเวอร์ชันใหม่พร้อมใช้งาน</span>
+          <span><Icon name="refresh" /> มีเวอร์ชันใหม่พร้อมใช้งาน</span>
           <button
             type="button"
             className="ac-update-btn"
@@ -90,7 +91,7 @@ export default function PWAClient() {
       )}
       {offline && (
         <div className="ac-offline-bar" role="status" aria-live="polite">
-          ⚠ ออฟไลน์ — แสดงข้อมูลล่าสุดที่เคยโหลด • บันทึกไม่ได้จนกว่าจะกลับออนไลน์
+          <Icon name="warning" /> ออฟไลน์ — แสดงข้อมูลล่าสุดที่เคยโหลด • บันทึกไม่ได้จนกว่าจะกลับออนไลน์
         </div>
       )}
     </>

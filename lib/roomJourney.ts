@@ -72,6 +72,10 @@ export interface JourneyAction {
     | "doneQc"            // ปิดงาน Checklist QC
     | "releaseNow"        // ทางลัด: ยกเลิกงานค้าง + ปล่อยขายทันที
     | "releaseRoom";      // → ว่าง (ปล่อยขาย)
+  /** Plain text. The icon that goes with each action lives in
+   *  lib/icons (JOURNEY_ACTION_ICON) — this module stays free of React
+   *  so it can be unit-tested and imported server-side. (V2: the labels
+   *  used to start with an emoji, "📋 รับจอง (มัดจำ)".) */
   label: string;
   /** Visual weight — primary = the expected next step. */
   variant: "primary" | "secondary";
@@ -82,7 +86,7 @@ export interface JourneyAction {
  *  The executor confirms + cancels open prep tasks before releasing. */
 const RELEASE_NOW: JourneyAction = {
   id: "releaseNow",
-  label: "⚡ ปล่อยขายเลย (ข้ามขั้นตอนที่เหลือ)",
+  label: "ปล่อยขายเลย (ข้ามขั้นตอนที่เหลือ)",
   variant: "secondary",
 };
 
@@ -222,8 +226,8 @@ export function deriveJourney(room: RoomView): JourneyState {
         ? `มีนัดชมห้อง ${viewing.date}${viewing.customer ? ` · ${viewing.customer}` : ""}`
         : "พร้อมรับลูกค้า — นัดชมห้องหรือรับจองได้เลย",
       actions: [
-        { id: "confirmBooking", label: "📋 รับจอง (มัดจำ)", variant: "primary" },
-        { id: "addViewing", label: "👀 นัดชมห้อง", variant: "secondary" },
+        { id: "confirmBooking", label: "รับจอง (มัดจำ)", variant: "primary" },
+        { id: "addViewing", label: "นัดชมห้อง", variant: "secondary" },
       ],
     };
   }
@@ -235,7 +239,7 @@ export function deriveJourney(room: RoomView): JourneyState {
       title: "มัดจำจองแล้ว — รอทำสัญญา/ย้ายเข้า",
       subtitle: room.tenant ? `ผู้จอง: ${room.tenant}` : "รอลูกค้าเข้าทำสัญญา",
       actions: [
-        { id: "confirmMoveIn", label: "✅ ยืนยันเข้าอยู่ (→ มีผู้เช่า)", variant: "primary" },
+        { id: "confirmMoveIn", label: "ยืนยันเข้าอยู่ (→ มีผู้เช่า)", variant: "primary" },
       ],
     };
   }
@@ -247,7 +251,7 @@ export function deriveJourney(room: RoomView): JourneyState {
       title: "มีผู้เช่า",
       subtitle: room.tenant ? `ผู้เช่า: ${room.tenant}` : "",
       actions: [
-        { id: "noticeMoveout", label: "🚪 แจ้งย้ายออก", variant: "secondary" },
+        { id: "noticeMoveout", label: "แจ้งย้ายออก", variant: "secondary" },
       ],
     };
   }
@@ -283,7 +287,7 @@ export function deriveJourney(room: RoomView): JourneyState {
           ? "QC ผ่านแล้ว แต่ยังมีงานซ่อมค้าง — ปิดงานซ่อมก่อนปล่อยขาย"
           : "ซ่อมเสร็จแล้วกดปิดงานได้ที่นี่ หรือติดตามในกระดานงานช่าง",
         actions: [
-          { id: "doneRepair", label: "✓ ซ่อมเสร็จแล้ว — ปิดงาน", variant: "primary" },
+          { id: "doneRepair", label: "ซ่อมเสร็จแล้ว — ปิดงาน", variant: "primary" },
           RELEASE_NOW,
         ],
       };
@@ -295,7 +299,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "ผ่าน QC แล้ว — พร้อมปล่อยขาย",
         subtitle: "ทุกขั้นตอนเสร็จสิ้น กดปล่อยขายเพื่อเปลี่ยนเป็นห้องว่าง",
         actions: [
-          { id: "releaseRoom", label: "🏠 ปล่อยขาย (→ ห้องว่าง)", variant: "primary" },
+          { id: "releaseRoom", label: "ปล่อยขาย (→ ห้องว่าง)", variant: "primary" },
         ],
       };
     }
@@ -306,7 +310,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "Checklist สภาพห้องก่อนปล่อยขาย",
         subtitle: "ตรวจตามฟอร์ม QC 6 หมวด — ผ่านครบแล้วกดปิดงานที่นี่ได้เลย",
         actions: [
-          { id: "doneQc", label: "✓ QC ผ่านแล้ว — ปิดงาน", variant: "primary" },
+          { id: "doneQc", label: "QC ผ่านแล้ว — ปิดงาน", variant: "primary" },
           RELEASE_NOW,
         ],
       };
@@ -318,7 +322,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "ทำสะอาดหลังซ่อม",
         subtitle: "เสร็จแล้วกดปิดงานได้ที่นี่ หรือติดตามในกระดานงานช่าง",
         actions: [
-          { id: "doneCleanAfter", label: "✓ ทำสะอาดเสร็จแล้ว — ปิดงาน", variant: "primary" },
+          { id: "doneCleanAfter", label: "ทำสะอาดเสร็จแล้ว — ปิดงาน", variant: "primary" },
           RELEASE_NOW,
         ],
       };
@@ -330,7 +334,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "ซ่อมเสร็จแล้ว — ทำสะอาดหลังซ่อม",
         subtitle: "สร้างงานทำสะอาดรอบสุดท้ายก่อน QC",
         actions: [
-          { id: "createCleanAfter", label: "🧹 สร้างงานทำสะอาดหลังซ่อม", variant: "primary" },
+          { id: "createCleanAfter", label: "สร้างงานทำสะอาดหลังซ่อม", variant: "primary" },
           RELEASE_NOW,
         ],
       };
@@ -344,7 +348,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "พร้อมตรวจ QC ก่อนปล่อยขาย",
         subtitle: "สร้างงาน Checklist เพื่อให้ช่างตรวจตามฟอร์ม",
         actions: [
-          { id: "createQcChecklist", label: "✅ สร้างงาน Checklist QC", variant: "primary" },
+          { id: "createQcChecklist", label: "สร้างงาน Checklist QC", variant: "primary" },
           RELEASE_NOW,
         ],
       };
@@ -356,8 +360,8 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "ตรวจห้องเสร็จแล้ว — สรุปผล",
         subtitle: "มีรายการต้องซ่อมไหม? เลือกเส้นทางถัดไป",
         actions: [
-          { id: "createRepair", label: "🔧 มีซ่อม — สร้างงานซ่อม", variant: "primary" },
-          { id: "skipRepair", label: "✅ ไม่มีซ่อม — ไป QC เลย", variant: "secondary" },
+          { id: "createRepair", label: "มีซ่อม — สร้างงานซ่อม", variant: "primary" },
+          { id: "skipRepair", label: "ไม่มีซ่อม — ไป QC เลย", variant: "secondary" },
           RELEASE_NOW,
         ],
       };
@@ -369,7 +373,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "รอตรวจห้อง · คืนเงินประกัน",
         subtitle: "ตรวจเสร็จแล้วกดปิดงานได้ที่นี่ หรือติดตามในกระดานงานช่าง",
         actions: [
-          { id: "doneInspect", label: "✓ ตรวจห้องเสร็จแล้ว — ปิดงาน", variant: "primary" },
+          { id: "doneInspect", label: "ตรวจห้องเสร็จแล้ว — ปิดงาน", variant: "primary" },
           RELEASE_NOW,
         ],
       };
@@ -381,7 +385,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "ทำความสะอาดเสร็จ — นัดตรวจห้อง",
         subtitle: "สร้างงานตรวจห้องเพื่อเช็คสภาพ + คืนเงินประกัน",
         actions: [
-          { id: "createInspect", label: "📋 สร้างงานตรวจห้อง + คืนประกัน", variant: "primary" },
+          { id: "createInspect", label: "สร้างงานตรวจห้อง + คืนประกัน", variant: "primary" },
           RELEASE_NOW,
         ],
       };
@@ -393,7 +397,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "กำลังทำความสะอาดก่อนตรวจ",
         subtitle: "เสร็จแล้วกดปิดงานได้ที่นี่ หรือติดตามในกระดานงานช่าง",
         actions: [
-          { id: "doneCleanBefore", label: "✓ ทำสะอาดเสร็จแล้ว — ปิดงาน", variant: "primary" },
+          { id: "doneCleanBefore", label: "ทำสะอาดเสร็จแล้ว — ปิดงาน", variant: "primary" },
           RELEASE_NOW,
         ],
       };
@@ -405,7 +409,7 @@ export function deriveJourney(room: RoomView): JourneyState {
         title: "แจ้งย้ายออก — เริ่มเตรียมห้อง",
         subtitle: "ขั้นแรก: ทำความสะอาดก่อนนัดตรวจ — หรือใช้ทางลัดปล่อยขายทันที",
         actions: [
-          { id: "createCleanBefore", label: "🧹 สร้างงานทำสะอาดก่อนตรวจ", variant: "primary" },
+          { id: "createCleanBefore", label: "สร้างงานทำสะอาดก่อนตรวจ", variant: "primary" },
           RELEASE_NOW,
         ],
       };

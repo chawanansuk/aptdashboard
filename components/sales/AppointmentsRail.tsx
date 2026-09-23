@@ -99,7 +99,7 @@ const AppointmentsRail = forwardRef<HTMLDivElement, Props>(
     return (
       <div className={styles.rail} ref={ref}>
         <div className={styles.railHead}>
-          <h3 className={styles.railTitle}>📅 นัดหมายข้างหน้า</h3>
+          <h3 className={styles.railTitle}><Icon name="calendar" /> นัดหมายข้างหน้า</h3>
           <span className={styles.railCount}>{appointments.length} นัด</span>
         </div>
 
@@ -113,7 +113,7 @@ const AppointmentsRail = forwardRef<HTMLDivElement, Props>(
             {overdue.length > 0 && (
               <div className={styles.railDay} data-tone="overdue">
                 <div className={styles.railDayHead}>
-                  <span className={styles.railDayLabel}>⚠️ เลยนัด — โทรตามลูกค้า</span>
+                  <span className={styles.railDayLabel}><Icon name="warning" /> เลยนัด — โทรตามลูกค้า</span>
                   <span className={styles.railDayCount}>{overdue.length}</span>
                 </div>
                 {overdue.map((o, i) => (

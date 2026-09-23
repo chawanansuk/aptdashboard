@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon, JOURNEY_ACTION_ICON } from "@/lib/icons";
 import { useState } from "react";
 import type { RoomView } from "@/types";
 import {
@@ -55,7 +56,7 @@ export default function RoomJourneyPanel({ room, onAction }: Props) {
             return (
               <li key={label} className={`ac-journey-step is-${state}`}>
                 <span className="ac-journey-step-dot" aria-hidden>
-                  {state === "done" ? "✓" : n}
+                  {state === "done" ? <Icon name="check" /> : n}
                 </span>
                 <span className="ac-journey-step-label">{label}</span>
               </li>
@@ -69,7 +70,8 @@ export default function RoomJourneyPanel({ room, onAction }: Props) {
         {j.subtitle && <p className="ac-journey-sub">{j.subtitle}</p>}
         {j.actions.length > 0 && (
           <div className="ac-journey-actions">
-            {j.actions.map((a) => (
+            {j.actions.map((a) => {
+              return (
               <button
                 key={a.id}
                 type="button"
@@ -77,13 +79,14 @@ export default function RoomJourneyPanel({ room, onAction }: Props) {
                 disabled={busy}
                 onClick={() => void run(a.id)}
               >
-                {busy ? "กำลังบันทึก…" : a.label}
+                {busy ? "กำลังบันทึก…" : <><Icon name={JOURNEY_ACTION_ICON[a.id]} /> {a.label}</>}
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
         {j.actions.length === 0 && j.step && (
-          <p className="ac-journey-waiting">⏳ รอปิดงานในกระดานงานช่าง แล้วขั้นถัดไปจะโผล่ที่นี่</p>
+          <p className="ac-journey-waiting"><Icon name="waiting" /> รอปิดงานในกระดานงานช่าง แล้วขั้นถัดไปจะโผล่ที่นี่</p>
         )}
       </div>
     </div>

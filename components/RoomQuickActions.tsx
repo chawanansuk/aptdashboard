@@ -154,7 +154,7 @@ export default function RoomQuickActions({
           className="ac-quick-popover-close"
           onClick={onClose}
           aria-label="ปิด"
-        >✕</button>
+        ><Icon name="close" /></button>
       </div>
 
       {picking ? (

@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "@/lib/icons";
 import { memo, useMemo, useState, lazy, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import type { SheetRow } from "@/types";
@@ -313,13 +314,13 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
               }
               exportCsv(`${tag}_${today}.csv`, visible, columns);
             }}
-          >⬇ CSV</button>
+          ><Icon name="download" /> CSV</button>
           <button
             type="button"
             className="ac-btn ac-btn-ghost ac-btn-sm ac-no-print"
             onClick={() => window.print()}
             title="พิมพ์/บันทึก PDF"
-          >🖨 พิมพ์</button>
+          ><Icon name="print" /> พิมพ์</button>
         </div>
       </header>
 
@@ -350,7 +351,7 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
         <EmptyState
           icon={hideDone ? "celebration" : "tasks"}
           tone={hideDone ? "celebration" : "neutral"}
-          title={hideDone ? "งานทั้งหมดเสร็จแล้ว 🎉" : (emptyText || "ไม่มีงานในรายการนี้")}
+          title={hideDone ? "งานทั้งหมดเสร็จแล้ว" : (emptyText || "ไม่มีงานในรายการนี้")}
           description={hideDone ? "ปลดล็อก toggle ด้านบนเพื่อดูงานที่เสร็จ/ยกเลิก" : undefined}
         />
       )}
@@ -414,7 +415,7 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
               className="ac-btn ac-btn-primary ac-btn-sm"
               disabled={bulkRunning}
               onClick={() => bulkSetStatus(TASK_STATUS.DONE)}
-            >✓ ทำเสร็จทั้งหมด</button>
+            ><Icon name="check" /> ทำเสร็จทั้งหมด</button>
             <button
               type="button"
               className="ac-btn ac-btn-ghost ac-btn-sm"
@@ -426,14 +427,14 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus }: P
               className="ac-btn ac-btn-ghost ac-btn-sm"
               disabled={bulkRunning}
               onClick={() => bulkSetStatus(TASK_STATUS.CANCELLED)}
-            >✗ ยกเลิกทั้งหมด</button>
+            ><Icon name="close" /> ยกเลิกทั้งหมด</button>
             {canDelete && (
               <button
                 type="button"
                 className="ac-btn ac-btn-danger ac-btn-sm"
                 disabled={bulkRunning}
                 onClick={bulkDelete}
-              >🗑 ลบทั้งหมด</button>
+              ><Icon name="trash" /> ลบทั้งหมด</button>
             )}
             <button
               type="button"

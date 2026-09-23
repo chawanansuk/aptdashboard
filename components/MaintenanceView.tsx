@@ -1,9 +1,10 @@
 "use client";
 
+import { Icon, equipmentIcon } from "@/lib/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RoomEquipment, MaintenanceStatus } from "@/types";
 import {
-  EQUIPMENT_TYPES, EQUIPMENT_TYPE_ICON, EQUIPMENT_STATUS_COLOR,
+  EQUIPMENT_TYPES, EQUIPMENT_STATUS_COLOR,
   MAINTENANCE_STATUS_COLOR,
 } from "@/lib/constants";
 import { bangkokTodayYmd } from "@/lib/dateUtils";
@@ -214,7 +215,7 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
           onClick={handleExport}
           disabled={filtered.length === 0}
           title={filtered.length === 0 ? "ไม่มีข้อมูล" : `ดาวน์โหลด ${filtered.length} รายการ`}
-        >⬇ CSV</button>
+        ><Icon name="download" /> CSV</button>
       </div>
       <div className="ac-maintenance-summary">
         <div className="ac-maint-stat" style={{ borderColor: counts.overdue > 0 ? MAINTENANCE_STATUS_COLOR.overdue : GROUP_COLOR.action }}>
@@ -237,7 +238,7 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
           plainly so an empty action list doesn't read as "something's wrong". */}
       {rows && counts.total > 0 && counts.action === 0 && (
         <div className="ac-banner ac-banner-ok" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span aria-hidden>✓</span>
+          <span aria-hidden><Icon name="check" /></span>
           <span>ไม่มีอุปกรณ์ที่ต้องบำรุงตอนนี้ — ทุกชิ้นยังอยู่ในรอบ</span>
         </div>
       )}
@@ -246,7 +247,7 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
       {actionItems.length > 0 && (
         <section className="ac-maint-week" aria-label="อุปกรณ์ที่ต้องบำรุง">
           <div className="ac-maint-week-head">
-            <span className="ac-maint-week-title">🔧 ต้องบำรุงก่อน</span>
+            <span className="ac-maint-week-title"><Icon name="maintenance" /> ต้องบำรุงก่อน</span>
             <span className="ac-maint-week-sub">{actionItems.length} รายการ (เรียงด่วนสุดก่อน)</span>
           </div>
           <ul className="ac-maint-week-list">
@@ -259,10 +260,11 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
                 days < 0 ? `เลย ${Math.abs(days)} วัน` :
                 days === 0 ? "วันนี้" :
                 `อีก ${days} วัน`;
+              const typeIcon = equipmentIcon(eq.type);
               return (
                 <li key={eq.id} className="ac-maint-week-item">
                   <span className="ac-maint-week-item-icon" aria-hidden>
-                    {EQUIPMENT_TYPE_ICON[eq.type] || "🔧"}
+                    <Icon name={typeIcon} size={18} />
                   </span>
                   <div>
                     <div className="ac-maint-week-item-where">
@@ -298,12 +300,13 @@ export default function MaintenanceView({ activeBuilding, onScheduleService }: P
         {EQUIPMENT_TYPES.map((t) => {
           const count = typeCounts.get(t) ?? 0;
           if (count === 0 && typeFilter !== t) return null;
+          const typeIcon = equipmentIcon(t);
           return (
             <button
               key={t}
               className={`ac-chip ${typeFilter === t ? "is-active" : ""}`}
               onClick={() => setTypeFilter(t)}
-            >{EQUIPMENT_TYPE_ICON[t] || ""} {t} ({count})</button>
+            ><Icon name={typeIcon} /> {t} ({count})</button>
           );
         })}
       </div>
@@ -430,10 +433,11 @@ function MaintCard({
   const urgencyClass =
     m === "overdue" ? "is-overdue" :
     m === "due-soon" ? "is-due-soon" : "";
+  const typeIcon = equipmentIcon(eq.type);
 
   return (
     <li className={`ac-maint-card ${urgencyClass}`}>
-      <div className="ac-maint-card-icon">{EQUIPMENT_TYPE_ICON[eq.type] || "🔧"}</div>
+      <div className="ac-maint-card-icon" aria-hidden><Icon name={typeIcon} size={22} /></div>
       <div className="ac-maint-card-main">
         <div className="ac-maint-card-line1">
           <strong>{eq.building} {eq.room}</strong>

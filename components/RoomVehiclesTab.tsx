@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { Vehicle } from "@/types";
@@ -111,7 +112,7 @@ export default function RoomVehiclesTab({ building, room }: Props) {
 
       {err && (
         <div className="ac-banner ac-banner-warn" role="alert">
-          <strong>⚠ </strong>{err}{" "}
+          <strong><Icon name="warning" /> </strong>{err}{" "}
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => void load()}>ลองใหม่</button>{" "}
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setErr(null)}>ปิด</button>
         </div>

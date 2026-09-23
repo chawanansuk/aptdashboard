@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon, type IconName } from "@/lib/icons";
 import { useEffect, useMemo, useState } from "react";
 import type { RoomEquipment } from "@/types";
 import { getMaintenanceStatus, isServiceCountable } from "@/lib/maintenanceUtils";
@@ -79,9 +80,10 @@ export default function ServiceDueBanner({ activeBuilding, onNavigate }: Props) 
   if (counts.overdue === 0 && counts.dueSoon === 0) return null;
 
   const tone = counts.overdue > 0 ? "is-overdue" : "is-soon";
+  const labelIcon: IconName = counts.overdue > 0 ? "warning" : "maintenance";
   const label = counts.overdue > 0
-    ? `⚠ เลยกำหนดบำรุง ${counts.overdue} รายการ${counts.dueSoon ? ` · ใกล้กำหนด ${counts.dueSoon}` : ""}`
-    : `🛠 ใกล้กำหนดบำรุง ${counts.dueSoon} รายการ`;
+    ? `เลยกำหนดบำรุง ${counts.overdue} รายการ${counts.dueSoon ? ` · ใกล้กำหนด ${counts.dueSoon}` : ""}`
+    : `ใกล้กำหนดบำรุง ${counts.dueSoon} รายการ`;
 
   return (
     <button
@@ -90,7 +92,7 @@ export default function ServiceDueBanner({ activeBuilding, onNavigate }: Props) 
       onClick={() => onNavigate?.("maintenance")}
       title="คลิกเพื่อไปที่หน้าบำรุงรักษา"
     >
-      <span>{label}</span>
+      <span><Icon name={labelIcon} /> {label}</span>
       <span className="ac-service-due-arrow" aria-hidden>→</span>
     </button>
   );

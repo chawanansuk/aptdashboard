@@ -87,7 +87,7 @@ export default function NotificationDropdown({ items, onNavigate }: Props) {
           </header>
           {items.length === 0 ? (
             <div className="ac-notif-empty">
-              <div className="ac-notif-empty-glyph" aria-hidden>✓</div>
+              <div className="ac-notif-empty-glyph" aria-hidden><Icon name="check" /></div>
               <div className="ac-notif-empty-text">ทุกอย่างเรียบร้อย — ไม่มีงานเร่งด่วน</div>
             </div>
           ) : (
@@ -107,7 +107,7 @@ export default function NotificationDropdown({ items, onNavigate }: Props) {
                       }}
                       disabled={!clickable}
                     >
-                      <span className="ac-notif-row-glyph" aria-hidden>{it.glyph}</span>
+                      <span className="ac-notif-row-glyph" aria-hidden><Icon name={it.glyph} size={18} /></span>
                       <span className="ac-notif-row-main">
                         <span className="ac-notif-row-title">{it.title}</span>
                         <span className="ac-notif-row-detail">{it.detail}</span>

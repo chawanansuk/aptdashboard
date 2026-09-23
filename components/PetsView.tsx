@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomPhoto, RoomView } from "@/types";
@@ -137,7 +138,7 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
   return (
     <div className="ac-pets-view">
       <div className="ac-pets-head">
-        <h2 className="ac-pets-title">🐱 สัตว์เลี้ยงทั้งหอ</h2>
+        <h2 className="ac-pets-title"><Icon name="pet" size={22} /> สัตว์เลี้ยงทั้งหอ</h2>
         <div className="ac-pets-filters" role="tablist" aria-label="กรองตามตึก">
           <button
             type="button"
@@ -165,7 +166,7 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
         <EmptyState
           icon="search"
           title={building ? `ยังไม่มีรูปสัตว์เลี้ยงของตึก ${building}` : "ยังไม่มีรูปสัตว์เลี้ยง"}
-          description='ลงทะเบียนได้ที่หน้าห้อง → แถบ "🐱 สัตว์เลี้ยงประจำห้อง" — ใส่ชื่อ+จุดเด่นไว้ เวลาแมวหลุดจะได้เทียบตัวถูก'
+          description='ลงทะเบียนได้ที่หน้าห้อง → แถบ "สัตว์เลี้ยงประจำห้อง" — ใส่ชื่อ+จุดเด่นไว้ เวลาแมวหลุดจะได้เทียบตัวถูก'
         />
       )}
 
@@ -206,7 +207,7 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
           onClick={() => setLightbox(null)}
         >
           <button type="button" className="ac-room-lightbox-close" onClick={() => setLightbox(null)} aria-label="ปิด">
-            ✕
+            <Icon name="close" size={20} />
           </button>
           <LightboxImage
             className="ac-room-lightbox-img"
@@ -233,7 +234,7 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
                   {info.tenant && <span> · ผู้เช่าห้องนี้: {info.tenant}</span>}
                   {info.phone && (
                     <a className="ac-pets-call" href={`tel:${sheetPhoneDigits(info.phone)}`}>
-                      📞 โทร {formatSheetPhone(info.phone)}
+                      <Icon name="phone" /> โทร {formatSheetPhone(info.phone)}
                     </a>
                   )}
                 </span>
@@ -248,7 +249,7 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
               e.stopPropagation();
               void removePhoto(lightbox);
             }}
-          >{deleting ? "กำลังลบ…" : "🗑 ลบรูป"}</button>
+          >{deleting ? "กำลังลบ…" : <><Icon name="trash" /> ลบรูป</>}</button>
         </div>
       )}
     </div>

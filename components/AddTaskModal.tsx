@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Part } from "@/types";
 import { useForm } from "react-hook-form";
@@ -397,7 +398,7 @@ export default function AddTaskModal({
             <div className="ac-modal-title" id="ac-addtask-title">เพิ่มงานใหม่</div>
             <div className="ac-modal-sub">บันทึกลงชีต &quot;งาน&quot;</div>
           </div>
-          <button className="ac-modal-close" onClick={requestClose} aria-label="ปิด" type="button">✕</button>
+          <button className="ac-modal-close" onClick={requestClose} aria-label="ปิด" type="button"><Icon name="close" /></button>
         </header>
 
         <form onSubmit={handleSubmit(wrappedSubmit)}>
@@ -405,7 +406,7 @@ export default function AddTaskModal({
             {/* r31 (pattern line_to_task): แปะข้อความ LINE ให้ AI เติมฟอร์ม —
                 ผู้ใช้ยังตรวจทุกช่องก่อนกดบันทึก (ช่องที่ AI เดาโชว์เป็นป้ายเตือน) */}
             <details className="ac-ai-paste" open={aiOpen} onToggle={(e) => setAiOpen((e.target as HTMLDetailsElement).open)}>
-              <summary>📋 แปะข้อความ LINE ให้ AI เติมฟอร์ม</summary>
+              <summary><Icon name="clipboard" /> แปะข้อความ LINE ให้ AI เติมฟอร์ม</summary>
               <div className="ac-ai-paste-body">
                 <textarea
                   rows={3}
@@ -421,7 +422,7 @@ export default function AddTaskModal({
                     className="ac-btn ac-btn-secondary ac-btn-sm"
                     onClick={() => void runAiParse()}
                     disabled={aiBusy || !aiText.trim()}
-                  >{aiBusy ? "กำลังอ่าน…" : "✨ ให้ AI อ่าน"}</button>
+                  >{aiBusy ? "กำลังอ่าน…" : <><Icon name="ai" /> ให้ AI อ่าน</>}</button>
                   {aiUnsure.length > 0 && (
                     <span className="ac-ai-unsure">
                       เติมให้แล้ว — เช็คช่อง: {aiUnsure.map((u) => FIELD_LABELS[u] || u).join(", ")}
@@ -507,14 +508,14 @@ export default function AddTaskModal({
                         aria-checked={!isCommonMode}
                         className={`ac-form-toggle-btn ${!isCommonMode ? "is-active" : ""}`}
                         onClick={() => setLocationKind("room")}
-                      >🚪 ห้องเช่า</button>
+                      ><Icon name="doorOpen" /> ห้องเช่า</button>
                       <button
                         type="button"
                         role="radio"
                         aria-checked={!!isCommonMode}
                         className={`ac-form-toggle-btn ${isCommonMode ? "is-active" : ""}`}
                         onClick={() => setLocationKind("common")}
-                      >🏢 ส่วนกลาง</button>
+                      ><Icon name="facilities" /> ส่วนกลาง</button>
                     </div>
                   )}
 

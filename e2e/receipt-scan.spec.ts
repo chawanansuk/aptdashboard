@@ -44,7 +44,7 @@ test("scan → review with auto-match → save posts purchases", async ({ page }
   await page.goto("/");
   await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
   await page.locator('button[aria-label="อะไหล่"]').evaluate((el) => (el as HTMLElement).click());
-  await page.getByRole("button", { name: "📷 สแกนใบเสร็จ" }).click();
+  await page.getByRole("button", { name: "สแกนใบเสร็จ" }).click();
 
   const modal = page.locator(".ac-receipt-modal");
   await expect(modal).toBeVisible();
@@ -88,7 +88,7 @@ test("missing API key surfaces the setup hint instead of a generic error", async
   await page.goto("/");
   await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
   await page.locator('button[aria-label="อะไหล่"]').evaluate((el) => (el as HTMLElement).click());
-  await page.getByRole("button", { name: "📷 สแกนใบเสร็จ" }).click();
+  await page.getByRole("button", { name: "สแกนใบเสร็จ" }).click();
   const modal = page.locator(".ac-receipt-modal");
   await modal.locator('input[type="file"]').setInputFiles({ name: "bill.png", mimeType: "image/png", buffer: Buffer.from(TINY, "base64") });
   await modal.getByRole("button", { name: "อ่านใบเสร็จ" }).click();

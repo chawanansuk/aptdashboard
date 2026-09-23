@@ -2017,6 +2017,17 @@ html.dark .ac-rc-bldg { color: #64748B; }
   border-color: var(--color-border-strong);
   color: var(--color-text);
 }
+/* V2 icons — every icon is a lucide SVG from lib/icons (<Icon name=…>),
+   stroke = currentColor, so it takes the colour of whatever text it sits
+   in, exactly like the emoji it replaced but without the OS drawing its
+   own colours. Size stays whatever the call site asks for (default 16);
+   these two lines only make an icon sit on the text baseline when it is
+   inline, and never get squeezed when it is a flex item. */
+.lucide {
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+}
+
 /* V2 — the primary action is BRAND green in every role, not the role
    accent. Before, "บันทึก" was sky for sales, teal for engineers and
    indigo for management, which put the same weight of colour on the

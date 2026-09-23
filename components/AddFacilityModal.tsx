@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FACILITY_TYPES, FACILITY_STATUS_LIST,
@@ -169,7 +170,7 @@ export default function AddFacilityModal({
             className="ac-modal-close"
             onClick={() => !submitting && onClose()}
             aria-label="ปิด"
-          >✕</button>
+          ><Icon name="close" /></button>
         </header>
 
         <div className="ac-modal-body">

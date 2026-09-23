@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "@/lib/icons";
 
 import { useEffect, useRef, useState } from "react";
 import type { Part } from "@/types";
@@ -104,7 +105,7 @@ export default function PurchaseModal({ open, part, initialQty, onClose, onSaved
           toast.success(`บันทึกซื้อ ${part.name} แล้ว — ราคาเท่าครั้งก่อน`);
         }
       } else {
-        toast.success(`บันทึกซื้อ ${part.name} แล้ว ✓`);
+        toast.success(`บันทึกซื้อ ${part.name} แล้ว`);
       }
       onSaved();
       onClose();
@@ -119,8 +120,8 @@ export default function PurchaseModal({ open, part, initialQty, onClose, onSaved
     <div className="ac-modal-backdrop" onClick={() => !saving && onClose()}>
       <div ref={ref} className="ac-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="บันทึกซื้อของเข้าสต๊อก">
         <header className="ac-modal-head">
-          <div className="ac-modal-title">🛒 ซื้อเข้า — {part.name}</div>
-          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด">✕</button>
+          <div className="ac-modal-title"><Icon name="cart" /> ซื้อเข้า — {part.name}</div>
+          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด"><Icon name="close" /></button>
         </header>
         <div className="ac-modal-body">
           <div className="ac-field">

@@ -242,17 +242,17 @@ export default function PartsView({ rooms = [] }: Props) {
           </h1>
           {lowCount > 0 && (
             <div className="ac-parts-low-banner" role="status">
-              ⚠ {lowCount} รายการ ใกล้หมด/ต้องสั่งซื้อ
+              <Icon name="warning" /> {lowCount} รายการ ใกล้หมด/ต้องสั่งซื้อ
             </div>
           )}
           {monthSpend > 0 && (
             <div className="ac-parts-value-banner">
-              🛒 ซื้อเข้าเดือนนี้ {monthSpend.toLocaleString("th-TH")} บาท
+              <Icon name="cart" /> ซื้อเข้าเดือนนี้ {monthSpend.toLocaleString("th-TH")} บาท
             </div>
           )}
           {stockValue > 0 && (
             <div className="ac-parts-value-banner">
-              💰 มูลค่าสต๊อกรวม {stockValue.toLocaleString("th-TH")} บาท
+              <Icon name="money" /> มูลค่าสต๊อกรวม {stockValue.toLocaleString("th-TH")} บาท
               {pricedCount < (rows?.length ?? 0) &&
                 ` (ตั้งราคาแล้ว ${pricedCount}/${rows?.length ?? 0} รายการ)`}
             </div>
@@ -265,14 +265,14 @@ export default function PartsView({ rooms = [] }: Props) {
             onClick={handleExport}
             disabled={!rows || filtered.length === 0}
             title={filtered.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${filtered.length} รายการ`}
-          >⬇ ดาวน์โหลด CSV</button>
+          ><Icon name="download" /> ดาวน์โหลด CSV</button>
           {canWrite && (
             <button
               type="button"
               className="ac-btn ac-btn-secondary"
               onClick={() => setScanOpen(true)}
               title="ถ่ายรูปใบเสร็จแมคโคร/โฮมโปร ให้ระบบอ่านรายการ+ราคา แล้วบันทึกซื้อทีเดียว"
-            >📷 สแกนใบเสร็จ</button>
+            ><Icon name="camera" /> สแกนใบเสร็จ</button>
           )}
           {canWrite && (
             <button

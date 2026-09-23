@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useRef, useState } from "react";
 import {
   LEAD_STAGES, LEAD_SOURCES,
@@ -208,7 +209,7 @@ export default function AddLeadModal({ open, initial, initialStage, onClose, onS
                 onClick={() => { onCreateMoveinTask(initial!); onClose(); }}
                 disabled={submitting}
                 title="สร้างงานย้ายเข้าจาก Lead นี้"
-              >📥 สร้างงานย้ายเข้า</button>
+              ><Icon name="moveIn" /> สร้างงานย้ายเข้า</button>
             )}
             <button
               type="button"

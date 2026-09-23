@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useState } from "react";
 import type { Part, Requisition } from "@/types";
 
@@ -58,7 +59,7 @@ export function RepairPartsPicker({
 
   return (
     <div className="ac-repair-parts">
-      <div className="ac-form-section-label">🔩 เบิกอะไหล่ที่ใช้ <span className="ac-form-section-optional">(ไม่บังคับ)</span></div>
+      <div className="ac-form-section-label"><Icon name="part" /> เบิกอะไหล่ที่ใช้ <span className="ac-form-section-optional">(ไม่บังคับ)</span></div>
       {lines.map((line, i) => (
         <div key={i} className="ac-repair-parts-row">
           <select
@@ -89,7 +90,7 @@ export function RepairPartsPicker({
             onClick={() => onChange(lines.filter((_, j) => j !== i))}
             disabled={disabled}
             aria-label="ลบรายการนี้"
-          >✕</button>
+          ><Icon name="close" /></button>
         </div>
       ))}
       <button
@@ -129,7 +130,7 @@ export function RoomPartsUsed({ building, room }: { building: string; room: stri
 
   return (
     <div className="ac-repair-parts-used">
-      <div className="ac-form-section-label">📦 อะไหล่ที่เคยเบิกให้ห้องนี้</div>
+      <div className="ac-form-section-label"><Icon name="inventory" /> อะไหล่ที่เคยเบิกให้ห้องนี้</div>
       {mine.length === 0 ? (
         <span className="ac-field-hint">ยังไม่มีการเบิกอะไหล่ของห้องนี้</span>
       ) : (

@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomPhoto } from "@/types";
@@ -318,7 +319,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
             ลองอีกครั้ง
           </button>
           <button type="button" className="ac-btn ac-btn-ghost" onClick={() => discard(q.key)} aria-label="ลบออกจากคิว">
-            ✕
+            <Icon name="close" />
           </button>
         </span>
       )}
@@ -385,7 +386,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
     <>
     {loadErr && (
       <div className="ac-banner ac-banner-warn" role="alert">
-        <strong>⚠ </strong>โหลดรูปไม่สำเร็จ: {loadErr}{" "}
+        <strong><Icon name="warning" /> </strong>โหลดรูปไม่สำเร็จ: {loadErr}{" "}
         <button type="button" className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => void loadPhotos()}>ลองใหม่</button>
         {photos && photos.length > 0 && <span className="ac-text-muted"> — กำลังแสดงรูปชุดที่โหลดไว้ก่อน</span>}
       </div>
@@ -407,7 +408,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
       }}
     >
       <div className="ac-form-section-label">
-        📷 รูปตำหนิสภาพห้อง
+        <Icon name="camera" /> รูปตำหนิสภาพห้อง
         {defectCount > 0 && <span className="ac-form-section-optional">({defectCount} รูป)</span>}
       </div>
 
@@ -448,7 +449,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
           className="ac-btn ac-btn-secondary ac-defect-add-btn"
           onClick={() => openPicker("")}
         >
-          📷 เพิ่มรูปตำหนิ
+          <Icon name="camera" /> เพิ่มรูปตำหนิ
         </button>
       </div>
       <p className="ac-defect-hint">
@@ -460,7 +461,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
 
     <section className="ac-form-section ac-defect-photos" aria-label="สัตว์เลี้ยงประจำห้อง">
       <div className="ac-form-section-label">
-        🐱 สัตว์เลี้ยงประจำห้อง
+        <Icon name="pet" /> สัตว์เลี้ยงประจำห้อง
         {petPhotos.length > 0 && (
           <span className="ac-form-section-optional">({petPhotos.length} รูป)</span>
         )}
@@ -477,7 +478,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
           className="ac-btn ac-btn-secondary ac-defect-add-btn"
           onClick={() => openPicker("pet")}
         >
-          🐱 เพิ่มรูปสัตว์เลี้ยง
+          <Icon name="pet" /> เพิ่มรูปสัตว์เลี้ยง
         </button>
       </div>
       <p className="ac-defect-hint">
@@ -495,7 +496,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
           onClick={() => setLightbox(null)}
         >
           <button type="button" className="ac-room-lightbox-close" onClick={() => setLightbox(null)} aria-label="ปิด">
-            ✕
+            <Icon name="close" size={20} />
           </button>
           <LightboxImage
             className="ac-room-lightbox-img"
@@ -515,7 +516,7 @@ export default function RoomDefectPhotos({ building, room, turnover }: Props) {
                 e.stopPropagation();
                 void removePhoto(lightbox);
               }}
-            >{deleting ? "กำลังลบ…" : "🗑 ลบรูป"}</button>
+            >{deleting ? "กำลังลบ…" : <><Icon name="trash" /> ลบรูป</>}</button>
           )}
         </div>
       )}

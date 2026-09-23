@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useMemo, useState } from "react";
 import type { RoomView } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
@@ -117,8 +118,8 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
                 ],
               );
             }}
-          >⬇ CSV</button>
-          <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨 พิมพ์</button>
+          ><Icon name="download" /> CSV</button>
+          <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF"><Icon name="print" /> พิมพ์</button>
         </div>
       </header>
 

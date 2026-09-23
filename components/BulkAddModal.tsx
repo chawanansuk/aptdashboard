@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { canAddSalesTask, canAddEngTask, canAddCleanTask } from "@/lib/permissions";
@@ -65,7 +66,7 @@ export default function BulkAddModal({
             <div className="ac-modal-title">เพิ่มงานพร้อมกัน {count} ห้อง</div>
             <div className="ac-modal-sub">ระบบจะสร้าง 1 งาน/ห้อง</div>
           </div>
-          <button className="ac-modal-close" onClick={() => !submitting && onClose()}>✕</button>
+          <button className="ac-modal-close" onClick={() => !submitting && onClose()} aria-label="ปิด"><Icon name="close" /></button>
         </header>
         <div className="ac-modal-body">
           <div className="ac-field">

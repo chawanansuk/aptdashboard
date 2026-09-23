@@ -157,7 +157,7 @@ function OverviewCards({
         label="งานวันนี้"
         value={String(todayTaskCount)}
         sub={
-          overdueTaskCount > 0 ? `⚠ เลยกำหนด ${overdueTaskCount} รายการ` :
+          overdueTaskCount > 0 ? `เลยกำหนด ${overdueTaskCount} รายการ` :
           todayTaskCount === 0 ? "ไม่มีงานค้าง" : "รายการที่ยังไม่ปิด"
         }
         tone={overdueTaskCount > 0 ? "warn" : todayTaskCount === 0 ? "good" : todayTaskCount > 5 ? "warn" : "info"}

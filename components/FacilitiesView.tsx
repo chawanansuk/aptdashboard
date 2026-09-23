@@ -1,11 +1,12 @@
 "use client";
 
+import { Icon, facilityIcon } from "@/lib/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { Facility, FacilityType, FacilityStatus } from "@/types";
 import { formatCommonArea } from "@/lib/taskLocation";
 import {
-  FACILITY_TYPES, FACILITY_TYPE_ICON, FACILITY_STATUS_COLOR,
+  FACILITY_TYPES, FACILITY_STATUS_COLOR,
   MAINTENANCE_STATUS_COLOR, MAINTENANCE_STATUS_LABEL,
 } from "@/lib/constants";
 import { canAddEngTask } from "@/lib/permissions";
@@ -275,7 +276,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
         </div>
         <div className="ac-maint-stat" style={{ borderColor: dueList.length ? "#D97706" : "var(--color-border)" }}>
           <div className="ac-maint-stat-num" style={{ color: dueList.length ? "#D97706" : "var(--color-text-faint)" }}>{dueList.length}</div>
-          <div className="ac-maint-stat-label">🔔 ถึงรอบบำรุง</div>
+          <div className="ac-maint-stat-label"><Icon name="bell" /> ถึงรอบบำรุง</div>
         </div>
         <div className="ac-maint-stat" style={{ borderColor: "var(--color-text-faint)" }}>
           <div className="ac-maint-stat-num" style={{ color: "var(--color-text-faint)" }}>{counts.total}</div>
@@ -292,12 +293,13 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
           {FACILITY_TYPES.map((t) => {
             const count = rows ? rows.filter((f) => f.type === t).length : 0;
             if (count === 0 && typeFilter !== t) return null;
+            const typeIcon = facilityIcon(t);
             return (
               <button
                 key={t}
                 className={`ac-chip ${typeFilter === t ? "is-active" : ""}`}
                 onClick={() => setTypeFilter(t)}
-              >{FACILITY_TYPE_ICON[t] || ""} {t} ({count})</button>
+              ><Icon name={typeIcon} /> {t} ({count})</button>
             );
           })}
         </div>
@@ -328,7 +330,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
             }}
             disabled={!rows || filtered.length === 0}
             title={filtered.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${filtered.length} รายการ`}
-          >⬇ CSV</button>
+          ><Icon name="download" /> CSV</button>
           {canWrite && (
             <button className="ac-btn ac-btn-primary ac-btn-sm" onClick={() => setAddOpen(true)}>
               + เพิ่ม
@@ -358,14 +360,15 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
 
       {dueList.length > 0 && (
         <section className="ac-fac-due" aria-label="ถึงรอบบำรุง">
-          <h3 className="ac-fac-due-head">🔔 ถึงรอบบำรุง <span>({dueList.length})</span></h3>
+          <h3 className="ac-fac-due-head"><Icon name="bell" /> ถึงรอบบำรุง <span>({dueList.length})</span></h3>
           <ul className="ac-fac-due-list">
             {dueList.map((f) => {
               const days = daysUntilService(f);
               const overdue = days !== null && days < 0;
+              const dueIcon = facilityIcon(f.type);
               return (
                 <li key={`due-${f.id}`} className={`ac-fac-due-row ${overdue ? "is-overdue" : ""}`}>
-                  <span className="ac-fac-due-icon" aria-hidden>{FACILITY_TYPE_ICON[f.type] || "🏢"}</span>
+                  <span className="ac-fac-due-icon" aria-hidden><Icon name={dueIcon} size={20} /></span>
                   <span className="ac-fac-due-main">
                     <span className="ac-fac-due-title">
                       <b>{f.building}</b> · {f.type}{f.name ? ` ${f.name}` : ""}
@@ -383,14 +386,14 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
                       onClick={() => handleMarkRepaired(f)}
                       disabled={submitting}
                       title="ตั้งสถานะเป็น 'ใช้งานได้' + วันบริการล่าสุด = วันนี้"
-                    >✓ ซ่อมแล้ว</button>
+                    ><Icon name="check" /> ซ่อมแล้ว</button>
                   ) : (
                     <button
                       className="ac-btn ac-btn-primary ac-btn-sm ac-fac-done-btn"
                       onClick={() => handleMarkServiced(f)}
                       disabled={submitting}
                       title="บันทึกวันบริการล่าสุด = วันนี้ (เริ่มนับรอบใหม่)"
-                    >✓ ทำแล้ววันนี้</button>
+                    ><Icon name="check" /> ทำแล้ววันนี้</button>
                   ))}
                 </li>
               );
@@ -407,7 +410,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
             <ul className="ac-equipment-list">
               {list.map((f) => {
                 const statusColor = FACILITY_STATUS_COLOR[f.status] || "#94A3B8";
-                const icon = FACILITY_TYPE_ICON[f.type] || "🏢";
+                const typeIcon = facilityIcon(f.type);
                 const needsRepair = f.status === "ต้องซ่อม" || f.status === "กำลังซ่อม" || f.status === "ปิดใช้งาน";
                 const m = getMaintenanceStatus(f);
                 const next = computeNextService(f);
@@ -423,7 +426,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
                   (next ? ` · กำหนด ${formatDateLabel(next)}` : "");
                 return (
                   <li key={f.id} className="ac-equipment-card">
-                    <div className="ac-equipment-card-icon" aria-hidden="true">{icon}</div>
+                    <div className="ac-equipment-card-icon" aria-hidden="true"><Icon name={typeIcon} size={20} /></div>
                     <div className="ac-equipment-card-main">
                       <div className="ac-equipment-card-line1">
                         <span className="ac-equipment-card-type">{f.type}</span>
@@ -471,7 +474,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
                             onClick={() => handleMarkRepaired(f)}
                             disabled={submitting}
                             title="ตั้งสถานะเป็น 'ใช้งานได้' + วันบริการล่าสุด = วันนี้"
-                          >✓ ซ่อมแล้ว</button>
+                          ><Icon name="check" /> ซ่อมแล้ว</button>
                         )}
                         {!needsRepair && (m === "overdue" || m === "due-soon") && (
                           <button
@@ -479,7 +482,7 @@ export default function FacilitiesView({ buildings, activeBuilding, onScheduleSe
                             onClick={() => handleMarkServiced(f)}
                             disabled={submitting}
                             title="บันทึกวันบริการล่าสุด = วันนี้ (เริ่มนับรอบใหม่)"
-                          >✓ ทำแล้ววันนี้</button>
+                          ><Icon name="check" /> ทำแล้ววันนี้</button>
                         )}
                         <button
                           className="ac-btn ac-btn-ghost ac-btn-sm"

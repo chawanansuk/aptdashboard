@@ -98,15 +98,7 @@ export const EQUIPMENT_STATUS_LIST: EquipmentStatus[] = [
   "ปกติ", "ต้องซ่อม", "กำลังซ่อม", "ใช้ไม่ได้",
 ];
 
-export const EQUIPMENT_TYPE_ICON: Record<string, string> = {
-  แอร์: "❄",
-  เครื่องซักผ้า: "🌀",
-  ตู้เย็น: "🧊",
-  เครื่องทำน้ำอุ่น: "🚿",
-  โทรทัศน์: "📺",
-  ไมโครเวฟ: "🔥",
-  อื่นๆ: "🔧",
-};
+// EQUIPMENT_TYPE_ICON moved to lib/icons.tsx (V2: emoji → the icon registry).
 
 export const EQUIPMENT_STATUS_COLOR: Record<string, string> = {
   ปกติ:       TOKEN.ok,
@@ -165,15 +157,7 @@ export const FACILITY_STATUS_LIST: FacilityStatus[] = [
   "ใช้งานได้", "ต้องซ่อม", "กำลังซ่อม", "ปิดใช้งาน",
 ];
 
-export const FACILITY_TYPE_ICON: Record<string, string> = {
-  รอบล้างแอร์: "❄️",
-  รอบล้างเครื่องซักผ้า: "🧺",
-  ปั๊มน้ำ: "💧",
-  ไฟส่วนกลาง: "💡",
-  ต้นไม้: "🌳",
-  ทางเดินส่วนกลาง: "🚶",
-  อื่นๆ: "🏢",
-};
+// FACILITY_TYPE_ICON moved to lib/icons.tsx (V2: emoji → the icon registry).
 
 export const FACILITY_STATUS_COLOR: Record<string, string> = {
   ใช้งานได้:  TOKEN.ok,

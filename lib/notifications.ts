@@ -1,3 +1,4 @@
+import type { IconName } from "@/lib/icons";
 import type { Role } from "@/auth";
 import type { SheetRow, RoomView } from "@/types";
 import { parseThaiDate, getBangkokNow } from "@/lib/dateUtils";
@@ -28,10 +29,10 @@ export type NotificationKind =
 export interface NotificationItem {
   kind: NotificationKind;
   level: NotificationLevel;
-  /** Emoji rendered as the row's leading glyph. Plain string so we don't
-   *  drag in the lucide icon set for items that don't have a clean
-   *  semantic equivalent (e.g. "expiring contract"). */
-  glyph: string;
+  /** Leading icon of the row — a lib/icons registry name. (V2: this was
+   *  an emoji; every kind turned out to have a clean equivalent, e.g.
+   *  expiring contract → calendarClock.) */
+  glyph: IconName;
   title: string;
   detail: string;
   count: number;
@@ -99,7 +100,7 @@ export function buildNotifications({ tasks, rooms, roles, assetAlerts, now }: Bu
       items.push({
         kind: "overdueTasks",
         level: "critical",
-        glyph: "🔴",
+        glyph: "warning",
         title: "งานเลยกำหนด",
         detail: worstDays > 0 ? `เก่าสุด เลย ${worstDays} วัน` : "ต้องตามด่วน",
         count: overdue.length,
@@ -118,7 +119,7 @@ export function buildNotifications({ tasks, rooms, roles, assetAlerts, now }: Bu
       items.push({
         kind: "moveoutPending",
         level: "warning",
-        glyph: "🚪",
+        glyph: "doorOpen",
         title: "ห้องแจ้งย้ายออก",
         detail: "วางแผนทำสะอาด/ตรวจห้องก่อนปิดดีลใหม่",
         count: moveouts.length,
@@ -151,7 +152,7 @@ export function buildNotifications({ tasks, rooms, roles, assetAlerts, now }: Bu
       items.push({
         kind: "contractsExpiring",
         level: "warning",
-        glyph: "📅",
+        glyph: "calendarClock",
         title: "สัญญาเช่าใกล้หมด",
         detail,
         count: expiring.length,
@@ -165,7 +166,7 @@ export function buildNotifications({ tasks, rooms, roles, assetAlerts, now }: Bu
     items.push({
       kind: "lowStock",
       level: "warning",
-      glyph: "📦",
+      glyph: "inventory",
       title: "อะไหล่ใกล้หมด",
       detail: "ต่ำกว่าจุดสั่งซื้อ",
       count: assetAlerts.lowStockParts,
@@ -178,7 +179,7 @@ export function buildNotifications({ tasks, rooms, roles, assetAlerts, now }: Bu
     items.push({
       kind: "overdueEquipment",
       level: "warning",
-      glyph: "🛠",
+      glyph: "maintenance",
       title: "อุปกรณ์ครบกำหนดบำรุง",
       detail: "เลยรอบบำรุงรักษา",
       count: assetAlerts.overdueEquipment,

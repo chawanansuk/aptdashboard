@@ -44,7 +44,7 @@ test("paste LINE text → AI fills the add-task form and flags guessed fields", 
   await openAddTaskViaQuickMenu(page, "นัดชมห้อง");
   const modal = page.locator(".ac-modal");
   await modal.locator(".ac-ai-paste summary").click();
-  const readBtn = modal.getByRole("button", { name: "✨ ให้ AI อ่าน" });
+  const readBtn = modal.getByRole("button", { name: "ให้ AI อ่าน" });
   await expect(readBtn).toBeDisabled(); // ยังไม่มีข้อความ
   await modal.locator('textarea[aria-label="ข้อความ LINE"]').fill("ห้อง 204 มีทอง คุณนก ขอชมห้องพรุ่งนี้บ่ายสอง 081-234-5678 อยากดูห้องมุม");
   await readBtn.click();
@@ -73,11 +73,11 @@ test("parse-task error (no API key) shows the server message as a toast; form un
   const modal = page.locator(".ac-modal");
   await modal.locator(".ac-ai-paste summary").click();
   await modal.locator('textarea[aria-label="ข้อความ LINE"]').fill("ห้อง 204 แอร์ไม่เย็น");
-  await modal.getByRole("button", { name: "✨ ให้ AI อ่าน" }).click();
+  await modal.getByRole("button", { name: "ให้ AI อ่าน" }).click();
   await expect(page.locator("[data-sonner-toast]").filter({ hasText: "ANTHROPIC_API_KEY" })).toBeVisible();
   await expect(modal.locator("#ac-addtask-type")).toHaveValue("ซ่อม");
   await expect(modal.locator("#ac-addtask-room")).toHaveValue("");
-  await expect(modal.getByRole("button", { name: "✨ ให้ AI อ่าน" })).toBeEnabled();
+  await expect(modal.getByRole("button", { name: "ให้ AI อ่าน" })).toBeEnabled();
 });
 
 const TASKS: MockTask[] = [
@@ -98,7 +98,7 @@ test("maintlog → ✨ สรุปส่ง LINE → AI report modal is editabl
   await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
   await page.locator('button[aria-label="บันทึกซ่อมบำรุง"]').evaluate((el) => (el as HTMLElement).click());
   await expect(page.locator(".ac-mlog")).toBeVisible();
-  await page.getByRole("button", { name: "✨ สรุปส่ง LINE" }).click();
+  await page.getByRole("button", { name: "สรุปส่ง LINE" }).click();
 
   const modal = page.locator(".ac-ai-report");
   await expect(modal).toBeVisible();
@@ -106,7 +106,7 @@ test("maintlog → ✨ สรุปส่ง LINE → AI report modal is editabl
   await expect(box).toHaveValue(/เปลี่ยนหลอดไฟทางเดิน/);
   // แก้ถ้อยคำได้ก่อนคัดลอก
   await box.fill("ข้อความที่แก้แล้ว");
-  await modal.getByRole("button", { name: "📋 คัดลอกไปวาง LINE" }).click();
+  await modal.getByRole("button", { name: "คัดลอกไปวาง LINE" }).click();
   await expect(page.locator("[data-sonner-toast]").filter({ hasText: "คัดลอก" })).toBeVisible();
 
   // ส่ง digest ของหน้านี้ (ไม่ดึงชีทเพิ่ม) พร้อมป้ายช่วงเวลา
@@ -122,8 +122,8 @@ test("report error shows the server message inside the modal", async ({ page }) 
   await page.goto("/");
   await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
   await page.locator('button[aria-label="บันทึกซ่อมบำรุง"]').evaluate((el) => (el as HTMLElement).click());
-  await page.getByRole("button", { name: "✨ สรุปส่ง LINE" }).click();
+  await page.getByRole("button", { name: "สรุปส่ง LINE" }).click();
   const modal = page.locator(".ac-ai-report");
   await expect(modal.locator(".ac-banner-warn")).toContainText("ANTHROPIC_API_KEY");
-  await expect(modal.getByRole("button", { name: "📋 คัดลอกไปวาง LINE" })).toBeDisabled();
+  await expect(modal.getByRole("button", { name: "คัดลอกไปวาง LINE" })).toBeDisabled();
 });

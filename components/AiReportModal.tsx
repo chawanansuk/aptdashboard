@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { toast } from "@/lib/toast";
@@ -56,7 +57,7 @@ export default function AiReportModal({ open, periodLabel, digestMarkdown, onClo
   async function copy() {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("คัดลอกรายงานแล้ว ✓ — วางใน LINE ได้เลย");
+      toast.success("คัดลอกรายงานแล้ว — วางใน LINE ได้เลย");
     } catch {
       toast.error("คัดลอกอัตโนมัติไม่ได้ — เลือกข้อความในกล่องแล้วคัดลอกเอง");
     }
@@ -66,12 +67,12 @@ export default function AiReportModal({ open, periodLabel, digestMarkdown, onClo
     <div className="ac-modal-backdrop" onClick={onClose}>
       <div ref={ref} className="ac-modal ac-modal-form ac-ai-report" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="สรุปรายงานส่ง LINE">
         <header className="ac-modal-head">
-          <div className="ac-modal-title">✨ สรุปงาน{periodLabel} — ส่ง LINE</div>
-          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด">✕</button>
+          <div className="ac-modal-title"><Icon name="ai" /> สรุปงาน{periodLabel} — ส่ง LINE</div>
+          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด"><Icon name="close" /></button>
         </header>
         <div className="ac-modal-body">
-          {loading && <div className="ac-ai-loading">⏳ กำลังเขียนรายงาน… (ราว 10 วินาที)</div>}
-          {error && <div className="ac-banner ac-banner-warn" role="alert">⚠ {error}</div>}
+          {loading && <div className="ac-ai-loading"><Icon name="waiting" /> กำลังเขียนรายงาน… (ราว 10 วินาที)</div>}
+          {error && <div className="ac-banner ac-banner-warn" role="alert"><Icon name="warning" /> {error}</div>}
           {!loading && !error && (
             <>
               <p className="ac-text-muted ac-ai-hint">AI เขียนจากข้อมูลในหน้านี้เท่านั้น — แก้ถ้อยคำได้ก่อนคัดลอก</p>
@@ -88,7 +89,7 @@ export default function AiReportModal({ open, periodLabel, digestMarkdown, onClo
         <footer className="ac-modal-foot">
           <button className="ac-btn ac-btn-ghost" onClick={onClose}>ปิด</button>
           <button className="ac-btn ac-btn-primary" onClick={() => void copy()} disabled={loading || !text}>
-            📋 คัดลอกไปวาง LINE
+            <Icon name="clipboard" /> คัดลอกไปวาง LINE
           </button>
         </footer>
       </div>

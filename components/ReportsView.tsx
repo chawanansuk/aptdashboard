@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useMemo, useState } from "react";
 import {
   BarChart, Bar,
@@ -211,13 +212,13 @@ export default function ReportsView({ rooms, tasks }: Props) {
             onClick={() => void exportCSV()}
             disabled={filtered.length === 0}
             title="ดาวน์โหลด CSV (เปิดใน Excel/Google Sheets ได้)"
-          >📥 CSV</button>
+          ><Icon name="download" /> CSV</button>
           <button
             type="button"
             className="ac-btn ac-btn-ghost"
             onClick={exportPDF}
             title="พิมพ์รายงาน (PDF/หน้ากระดาษ A4)"
-          >🖨 PDF</button>
+          ><Icon name="print" /> PDF</button>
         </div>
       </div>
 

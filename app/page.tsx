@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useMemo, useRef, useState, useCallback, lazy, Suspense } from "react";
 import { quickSetRoomStatus, executeJourneyAction } from "@/lib/journeyActions";
 import { resilientPost } from "@/lib/resilientWrite";
@@ -1091,7 +1092,7 @@ export default function Home() {
         } catch { /* เช็คไม่ได้ → ถือว่ายังไม่เข้า ให้คนกดใหม่ (กันซ้ำฝั่ง Google อยู่แล้ว) */ }
         toast.dismiss(checking);
         if (landed) {
-          toast.success("บันทึกแล้ว ✓ — Google ตอบช้าแต่รายการเข้าแล้ว");
+          toast.success("บันทึกแล้ว — Google ตอบช้าแต่รายการเข้าแล้ว");
           publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
           setShowAddTask(false);
           setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");
@@ -1180,7 +1181,7 @@ export default function Home() {
   // Errors banner is in-flow inside <main>; null when nothing to show.
   const errorsBanner = errors.length > 0 ? (
     <div className="ac-banner ac-banner-warn">
-      <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
+      <strong><Icon name="warning" /> มีปัญหาในการโหลดข้อมูล:</strong>{" "}
       {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}
       {rooms.length > 0 && <span> — กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ ({lastUpdated})</span>}
       <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={refresh} disabled={isRefreshing} style={{ marginLeft: 8 }}>
@@ -1332,7 +1333,7 @@ export default function Home() {
                     className="ac-btn ac-btn-ghost ac-btn-sm"
                     onClick={() => setPresetMenuOpen((v) => !v)}
                     title="ชุด filter ที่บันทึกไว้"
-                  >★ ชุด {presets.length > 0 && `(${presets.length})`}</button>
+                  ><Icon name="star" /> ชุด {presets.length > 0 && `(${presets.length})`}</button>
                   {presetMenuOpen && (
                     <>
                       <div className="ac-preset-backdrop" onClick={() => setPresetMenuOpen(false)} />

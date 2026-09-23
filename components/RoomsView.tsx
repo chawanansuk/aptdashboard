@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon, type IconName } from "@/lib/icons";
 import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "./EmptyState";
 import type { Role } from "@/auth";
@@ -43,7 +44,7 @@ function latestTaskFor(r: RoomView): { task: SheetRow; section: "วันนี
 function buildRoomTooltip(r: RoomView): string {
   const lines: string[] = [
     `ห้อง ${r.room} · ${r.building}${r.floor ? ` · ชั้น ${r.floor}` : ""}`,
-    `สถานะ: ${STATUS_LABEL[r.status]}${r.needsCleaning ? " · 🧹 ต้องทำสะอาด" : ""}`,
+    `สถานะ: ${STATUS_LABEL[r.status]}${r.needsCleaning ? " · ต้องทำสะอาด" : ""}`,
   ];
   const latest = latestTaskFor(r);
   if (latest) {
@@ -128,7 +129,7 @@ const RoomCard = memo(function RoomCard({
           className="ac-rc-clean"
           title="ต้องทำสะอาดก่อนลูกค้าเข้า"
           aria-label="ต้องทำสะอาด"
-        >🧹</span>
+        ><Icon name="clean" size={12} /></span>
       )}
       {(() => {
         if (!canSeeTenant || r.status !== "occupied" || !r.contractEnd) return null;
@@ -148,10 +149,10 @@ const RoomCard = memo(function RoomCard({
               : `สัญญาหมดในอีก ${days} วัน`
             }
             aria-label="สัญญาใกล้หมดหรือหมดแล้ว"
-          >⏰</span>
+          ><Icon name="clock" size={11} strokeWidth={2} /></span>
         );
       })()}
-      {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
+      {bulkMode && <span className="ac-rc-check">{checked ? <Icon name="check" size={12} strokeWidth={2.5} /> : null}</span>}
       <span className="ac-rc-num">{r.room}</span>
       <span className="ac-rc-bldg" aria-hidden>{abbreviateBuilding(r.building)}</span>
       <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
@@ -172,7 +173,7 @@ const RoomCard = memo(function RoomCard({
         }
         const target = bestMovein ?? bestView;
         if (!target) return null;
-        const icon = bestMovein ? "📥" : "👀";
+        const icon: IconName = bestMovein ? "moveIn" : "view";
         const label = bestMovein ? "วันเข้า" : "นัดชม";
         const dd = String(target.getDate()).padStart(2, "0");
         const mm = String(target.getMonth() + 1).padStart(2, "0");
@@ -181,7 +182,7 @@ const RoomCard = memo(function RoomCard({
             className="ac-rc-movein"
             title={`${label} ${dd}/${mm}/${target.getFullYear()}`}
             aria-label={`${label} ${dd}/${mm}`}
-          >{icon} {dd}/{mm}</span>
+          ><Icon name={icon} size={11} /> {dd}/{mm}</span>
         );
       })()}
       {/* "ต้องซ่อมอะไร" hint for repair rooms. */}
@@ -195,7 +196,7 @@ const RoomCard = memo(function RoomCard({
               className="ac-rc-repair-hint"
               title={`ต้องซ่อม: ${detail}`}
               aria-label={`ต้องซ่อม: ${detail}`}
-            >🔧 {detail}</span>
+            ><Icon name="maintenance" size={12} /> {detail}</span>
           );
         }
         return (
@@ -203,7 +204,7 @@ const RoomCard = memo(function RoomCard({
             className="ac-rc-repair-hint is-empty"
             title="ห้องนี้ถูกตั้งเป็น 'รอเข้าซ่อม' แต่ยังไม่มีใบงานซ่อม — สร้างงานซ่อมเพื่อบอกช่างว่าต้องซ่อมอะไร"
             aria-label="ยังไม่มีใบงานซ่อม"
-          >🔧 ยังไม่มีใบงาน</span>
+          ><Icon name="maintenance" size={12} /> ยังไม่มีใบงาน</span>
         );
       })()}
       {(veh > 0 || eq > 0) && (
@@ -213,14 +214,14 @@ const RoomCard = memo(function RoomCard({
               className="ac-rc-veh"
               title={`ยานพาหนะ ${veh} คัน`}
               aria-label={`มียานพาหนะ ${veh} คัน`}
-            >🏍 {veh}</span>
+            ><Icon name="vehicle" size={11} /> {veh}</span>
           )}
           {eq > 0 && (
             <span
               className="ac-rc-eq"
               title={`อุปกรณ์ ${eq} ชิ้น`}
               aria-label={`มีอุปกรณ์ ${eq} ชิ้น`}
-            >🔧 {eq}</span>
+            ><Icon name="maintenance" size={11} /> {eq}</span>
           )}
         </span>
       )}
@@ -504,13 +505,13 @@ function RoomsView({
           className={`ac-btn ac-btn-sm ${bulkMode ? "ac-btn-primary" : "ac-btn-ghost"}`}
           onClick={onToggleBulkMode}
           title="เลือกหลายห้องพร้อมกัน"
-        >{bulkMode ? "✕ ออกจากเลือก" : "☑ เลือกหลาย"}</button>
+        >{bulkMode ? <><Icon name="close" /> ออกจากเลือก</> : <><Icon name="select" /> เลือกหลาย</>}</button>
         <button
           type="button"
           className="ac-btn ac-btn-ghost ac-btn-sm ac-no-print"
           onClick={() => window.print()}
           title="พิมพ์/บันทึก PDF (ใช้ปุ่ม Ctrl+P หรือ Cmd+P ก็ได้)"
-        >🖨 พิมพ์</button>
+        ><Icon name="print" /> พิมพ์</button>
       </section>
 
       <div ref={gridRef}>
