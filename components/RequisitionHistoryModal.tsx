@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "@/lib/icons";
 
 import { useEffect, useRef, useState } from "react";
 import type { Part, Purchase, Requisition } from "@/types";
@@ -109,10 +110,10 @@ export default function RequisitionHistoryModal({ open, part, onClose }: Props) 
           <div className="ac-chips" role="tablist" aria-label="เลือกประวัติ" style={{ marginBottom: 10 }}>
             <button type="button" role="tab" aria-selected={tab === "req"}
               className={`ac-chip ${tab === "req" ? "is-active" : ""}`}
-              onClick={() => setTab("req")}>📤 เบิกออก</button>
+              onClick={() => setTab("req")}><Icon name="moveOut" /> เบิกออก</button>
             <button type="button" role="tab" aria-selected={tab === "buy"}
               className={`ac-chip ${tab === "buy" ? "is-active" : ""}`}
-              onClick={() => setTab("buy")}>🛒 ซื้อเข้า{purchases && purchases.length > 0 ? ` (${purchases.length})` : ""}</button>
+              onClick={() => setTab("buy")}><Icon name="cart" /> ซื้อเข้า{purchases && purchases.length > 0 ? ` (${purchases.length})` : ""}</button>
           </div>
           {tab === "buy" ? (
             purchases === null ? (
@@ -147,8 +148,8 @@ export default function RequisitionHistoryModal({ open, part, onClose }: Props) 
                         <span className="ac-req-history-time" title={r.createdAt}>{r.date}</span>
                       </div>
                       <div className="ac-req-history-row2">
-                        <span className="ac-req-history-user">👤 {(r.creator || "").split("@")[0] || "—"}</span>
-                        {r.store && <span className="ac-req-history-note">· 🏪 {r.store}</span>}
+                        <span className="ac-req-history-user"><Icon name="user" size={13} /> {(r.creator || "").split("@")[0] || "—"}</span>
+                        {r.store && <span className="ac-req-history-note">· <Icon name="store" size={13} /> {r.store}</span>}
                       </div>
                     </li>
                   );
@@ -181,7 +182,7 @@ export default function RequisitionHistoryModal({ open, part, onClose }: Props) 
                   </div>
                   <div className="ac-req-history-row2">
                     <span className="ac-req-history-user">
-                      👤 {r.user.split("@")[0] || "—"}
+                      <Icon name="user" size={13} /> {r.user.split("@")[0] || "—"}
                     </span>
                     {r.note && (
                       <span className="ac-req-history-note">· {r.note}</span>

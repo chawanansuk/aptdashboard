@@ -1,15 +1,16 @@
 "use client";
 
+import { Icon, type IconName } from "@/lib/icons";
 import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "./EmptyState";
 import type { Role } from "@/auth";
 import type { RoomStatus, RoomView, SheetRow } from "@/types";
-import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS, FILTER_CHIPS } from "@/lib/constants";
+import { STATUS_LABEL, STATUS_DOT, STATUS_KEYS } from "@/lib/constants";
 import { abbreviateBuilding } from "@/lib/buildingAbbrev";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
 import { roomKey as makeRoomKey } from "@/lib/taskKey";
-import { buildingSortIndex } from "@/lib/salesData";
+import { buildingSortIndex, floorSortKey } from "@/lib/salesData";
 import { useRoomDensity, ROOM_DENSITY_VALUES, type RoomDensity } from "@/lib/useRoomDensity";
 import { canViewTenant } from "@/lib/permissions";
 import RoomQuickActions from "./RoomQuickActions";
@@ -43,7 +44,7 @@ function latestTaskFor(r: RoomView): { task: SheetRow; section: "วันนี
 function buildRoomTooltip(r: RoomView): string {
   const lines: string[] = [
     `ห้อง ${r.room} · ${r.building}${r.floor ? ` · ชั้น ${r.floor}` : ""}`,
-    `สถานะ: ${STATUS_LABEL[r.status]}${r.needsCleaning ? " · 🧹 ต้องทำสะอาด" : ""}`,
+    `สถานะ: ${STATUS_LABEL[r.status]}${r.needsCleaning ? " · ต้องทำสะอาด" : ""}`,
   ];
   const latest = latestTaskFor(r);
   if (latest) {
@@ -128,7 +129,7 @@ const RoomCard = memo(function RoomCard({
           className="ac-rc-clean"
           title="ต้องทำสะอาดก่อนลูกค้าเข้า"
           aria-label="ต้องทำสะอาด"
-        >🧹</span>
+        ><Icon name="clean" size={12} /></span>
       )}
       {(() => {
         if (!canSeeTenant || r.status !== "occupied" || !r.contractEnd) return null;
@@ -148,10 +149,10 @@ const RoomCard = memo(function RoomCard({
               : `สัญญาหมดในอีก ${days} วัน`
             }
             aria-label="สัญญาใกล้หมดหรือหมดแล้ว"
-          >⏰</span>
+          ><Icon name="clock" size={11} strokeWidth={2} /></span>
         );
       })()}
-      {bulkMode && <span className="ac-rc-check">{checked ? "✓" : ""}</span>}
+      {bulkMode && <span className="ac-rc-check">{checked ? <Icon name="check" size={12} strokeWidth={2.5} /> : null}</span>}
       <span className="ac-rc-num">{r.room}</span>
       <span className="ac-rc-bldg" aria-hidden>{abbreviateBuilding(r.building)}</span>
       <span className="ac-rc-status">{STATUS_LABEL[r.status]}</span>
@@ -172,7 +173,7 @@ const RoomCard = memo(function RoomCard({
         }
         const target = bestMovein ?? bestView;
         if (!target) return null;
-        const icon = bestMovein ? "📥" : "👀";
+        const icon: IconName = bestMovein ? "moveIn" : "view";
         const label = bestMovein ? "วันเข้า" : "นัดชม";
         const dd = String(target.getDate()).padStart(2, "0");
         const mm = String(target.getMonth() + 1).padStart(2, "0");
@@ -181,7 +182,7 @@ const RoomCard = memo(function RoomCard({
             className="ac-rc-movein"
             title={`${label} ${dd}/${mm}/${target.getFullYear()}`}
             aria-label={`${label} ${dd}/${mm}`}
-          >{icon} {dd}/{mm}</span>
+          ><Icon name={icon} size={11} /> {dd}/{mm}</span>
         );
       })()}
       {/* "ต้องซ่อมอะไร" hint for repair rooms. */}
@@ -195,7 +196,7 @@ const RoomCard = memo(function RoomCard({
               className="ac-rc-repair-hint"
               title={`ต้องซ่อม: ${detail}`}
               aria-label={`ต้องซ่อม: ${detail}`}
-            >🔧 {detail}</span>
+            ><Icon name="maintenance" size={12} /> {detail}</span>
           );
         }
         return (
@@ -203,7 +204,7 @@ const RoomCard = memo(function RoomCard({
             className="ac-rc-repair-hint is-empty"
             title="ห้องนี้ถูกตั้งเป็น 'รอเข้าซ่อม' แต่ยังไม่มีใบงานซ่อม — สร้างงานซ่อมเพื่อบอกช่างว่าต้องซ่อมอะไร"
             aria-label="ยังไม่มีใบงานซ่อม"
-          >🔧 ยังไม่มีใบงาน</span>
+          ><Icon name="maintenance" size={12} /> ยังไม่มีใบงาน</span>
         );
       })()}
       {(veh > 0 || eq > 0) && (
@@ -213,14 +214,14 @@ const RoomCard = memo(function RoomCard({
               className="ac-rc-veh"
               title={`ยานพาหนะ ${veh} คัน`}
               aria-label={`มียานพาหนะ ${veh} คัน`}
-            >🏍 {veh}</span>
+            ><Icon name="vehicle" size={11} /> {veh}</span>
           )}
           {eq > 0 && (
             <span
               className="ac-rc-eq"
               title={`อุปกรณ์ ${eq} ชิ้น`}
               aria-label={`มีอุปกรณ์ ${eq} ชิ้น`}
-            >🔧 {eq}</span>
+            ><Icon name="maintenance" size={11} /> {eq}</span>
           )}
         </span>
       )}
@@ -249,6 +250,12 @@ const RoomCard = memo(function RoomCard({
 
 interface Props {
   visibleRooms: RoomView[];
+  /** Room count per status for the current view/building scope, counted
+   *  BEFORE `activeFilter` is applied (see app/page.tsx roomsInScope).
+   *  Drives the counts on the merged filter/legend chips. Optional —
+   *  falls back to counting `visibleRooms`, which is correct whenever no
+   *  status chip is active. */
+  statusCounts?: Record<RoomStatus, number>;
   activeFilter: "all" | RoomStatus;
   onChangeFilter: (f: "all" | RoomStatus) => void;
   // Note: the in-page search used to live here too but duplicated ⌘K's
@@ -287,11 +294,27 @@ const DENSITY_TITLE: Record<RoomDensity, string> = {
 };
 
 function RoomsView({
-  visibleRooms, activeFilter, onChangeFilter,
+  visibleRooms, statusCounts, activeFilter, onChangeFilter,
   bulkMode, bulkSelected, onToggleBulkMode, onToggleBulkRoom, onSelectRoom,
   roles, onRepairRoom, onQuickStatus, vehicleCountByRoom, equipmentCountByRoom,
 }: Props) {
   const { density, setDensity } = useRoomDensity();
+
+  /** Counts behind the status chips. `statusCounts` is the scope-wide
+   *  count from the page; without it, fall back to the rendered list. */
+  const counts = useMemo(() => {
+    if (statusCounts) return statusCounts;
+    const c: Record<RoomStatus, number> = {
+      occupied: 0, ready: 0, pending: 0, moveout: 0, qc: 0, repair: 0, inactive: 0,
+    };
+    visibleRooms.forEach((r) => { c[r.status]++; });
+    return c;
+  }, [statusCounts, visibleRooms]);
+  const totalCount = useMemo(
+    () => STATUS_KEYS.reduce((n, s) => n + counts[s], 0),
+    [counts],
+  );
+
   // Contract-expiring chip — only visible to roles that can see
   // tenant info (management). Contract date isn't strictly PII but
   // mirrors the gate to avoid sales/engineer seeing renewal cues.
@@ -365,12 +388,21 @@ function RoomsView({
         ...g,
         list: g.list.sort((a, b) => a.room.localeCompare(b.room, undefined, { numeric: true })),
       }))
-      // Building order first (sales preference), then floor ascending. When
-      // only one building is present this collapses to a plain floor sort.
-      .sort((a, b) =>
-        buildingSortIndex(a.building) - buildingSortIndex(b.building) ||
-        a.building.localeCompare(b.building) ||
-        (a.floor || "").localeCompare(b.floor || "", undefined, { numeric: true }));
+      // Building order first (sales preference), then floors TOP-DOWN — the
+      // highest floor first, the way the building looks from the street
+      // (V2 Direction B). Same rule the sales board's elevation grid already
+      // uses (lib/salesData groupByBuildingFloor floorDesc), so the two room
+      // grids no longer disagree. floorSortKey: numeric floors by value,
+      // non-numeric ones ("-", "ดาดฟ้า") grouped together.
+      .sort((a, b) => {
+        const byBuilding =
+          buildingSortIndex(a.building) - buildingSortIndex(b.building) ||
+          a.building.localeCompare(b.building);
+        if (byBuilding) return byBuilding;
+        const [na, sa] = floorSortKey(a.floor || "");
+        const [nb, sb] = floorSortKey(b.floor || "");
+        return nb - na || sb.localeCompare(sa);
+      });
   }, [visibleRooms]);
 
   // Default tab stop = first card in render order (floor-sorted).
@@ -424,10 +456,44 @@ function RoomsView({
   return (
     <>
       <section className="ac-fb">
-        <div className="ac-chips">
-          {FILTER_CHIPS.map((c) => (
-            <button key={c.key} className={`ac-chip ${activeFilter === c.key ? "is-active" : ""}`} onClick={() => onChangeFilter(c.key)}>{c.label}</button>
+        {/* V2: the colour legend used to be a whole second card below this
+            bar — seven swatches you could read but not click, while the
+            filter row offered only 4 of the 7 statuses. Merged into one
+            row: every status is a chip that carries its own legend dot
+            and its room count, so the legend IS the filter. */}
+        <div className="ac-chips ac-status-chips" role="group" aria-label="กรองตามสถานะห้อง">
+          <button
+            type="button"
+            className={`ac-chip ${activeFilter === "all" ? "is-active" : ""}`}
+            aria-pressed={activeFilter === "all"}
+            onClick={() => onChangeFilter("all")}
+          >
+            ทุกสถานะ
+            <span className="ac-chip-count">{totalCount}</span>
+          </button>
+          {STATUS_KEYS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`ac-chip ac-chip-status ac-chip-${s} ${activeFilter === s ? "is-active" : ""}`}
+              aria-pressed={activeFilter === s}
+              // Nothing to show → not a dead end the user can walk into;
+              // the chip stays visible so it still reads as a legend.
+              disabled={counts[s] === 0 && activeFilter !== s}
+              onClick={() => onChangeFilter(s)}
+              title={`แสดงเฉพาะห้อง${STATUS_LABEL[s]}`}
+            >
+              {/* Colour comes from .ac-chip-<status> in CSS, not an inline
+                  hex — see .ac-chip-status .ac-legend-dot. */}
+              <span className="ac-legend-dot" />
+              {STATUS_LABEL[s]}
+              <span className="ac-chip-count">{counts[s]}</span>
+            </button>
           ))}
+          {/* Not a status — explains the red corner dot on cards. */}
+          <span className="ac-legend-item ac-legend-hint">
+            <span className="ac-legend-dot ac-legend-today" />งานวันนี้
+          </span>
         </div>
         {/* Search moved to the top-nav ⌘K button — same scope (room/
             building/tenant/phone) with rank-based ordering and digit-
@@ -448,23 +514,13 @@ function RoomsView({
           className={`ac-btn ac-btn-sm ${bulkMode ? "ac-btn-primary" : "ac-btn-ghost"}`}
           onClick={onToggleBulkMode}
           title="เลือกหลายห้องพร้อมกัน"
-        >{bulkMode ? "✕ ออกจากเลือก" : "☑ เลือกหลาย"}</button>
+        >{bulkMode ? <><Icon name="close" /> ออกจากเลือก</> : <><Icon name="select" /> เลือกหลาย</>}</button>
         <button
           type="button"
           className="ac-btn ac-btn-ghost ac-btn-sm ac-no-print"
           onClick={() => window.print()}
           title="พิมพ์/บันทึก PDF (ใช้ปุ่ม Ctrl+P หรือ Cmd+P ก็ได้)"
-        >🖨 พิมพ์</button>
-      </section>
-
-      <section className="ac-legend">
-        {STATUS_KEYS.map((s) => (
-          <div key={s} className="ac-legend-item">
-            <span className="ac-legend-dot" style={{ background: STATUS_DOT[s] }} />
-            <span>{STATUS_LABEL[s]}</span>
-          </div>
-        ))}
-        <div className="ac-legend-item"><span className="ac-legend-dot ac-legend-today" /><span>งานวันนี้</span></div>
+        ><Icon name="print" /> พิมพ์</button>
       </section>
 
       <div ref={gridRef}>

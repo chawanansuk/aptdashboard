@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { computeBooking } from "@/lib/bookingMath";
@@ -300,7 +301,7 @@ export default function BookingConfirmModal({
         for (const m of modes) next[m] = displayed(m);
         return next;
       });
-      toast.success(`คัดลอก${label}แล้ว ✓ — วางใน LINE ได้เลย`);
+      toast.success(`คัดลอก${label}แล้ว — วางใน LINE ได้เลย`);
     } catch {
       toast.error("คัดลอกอัตโนมัติไม่ได้ — เลือกข้อความในกล่องแล้วคัดลอกเอง");
     }
@@ -361,7 +362,7 @@ export default function BookingConfirmModal({
             <div className="ac-modal-title">ยืนยันการจอง</div>
             <div className="ac-modal-sub">{building} ห้อง {room}</div>
           </div>
-          <button className="ac-modal-close" onClick={attemptClose} aria-label="ปิด" type="button">✕</button>
+          <button className="ac-modal-close" onClick={attemptClose} aria-label="ปิด" type="button"><Icon name="close" /></button>
         </header>
 
         <div className="ac-modal-body ac-booking-body">
@@ -405,10 +406,10 @@ export default function BookingConfirmModal({
                   shows ค.ศ. but the LINE message uses พ.ศ., so this keeps
                   what staff confirm consistent with what the tenant sees. */}
               {moveInDate && (
-                <div className="ac-booking-date-hint">📅 {moveInLabel(moveInDate, moveInTime.trim() || undefined)}</div>
+                <div className="ac-booking-date-hint"><Icon name="calendar" /> {moveInLabel(moveInDate, moveInTime.trim() || undefined)}</div>
               )}
               {warnings.map((w) => (
-                <div key={w} className="ac-banner ac-banner-warn ac-booking-warn">⚠️ {w}</div>
+                <div key={w} className="ac-banner ac-banner-warn ac-booking-warn"><Icon name="warning" /> {w}</div>
               ))}
             </div>
 
@@ -543,7 +544,7 @@ export default function BookingConfirmModal({
           <div className="ac-booking-preview">
             {calc && (
               <div className="ac-booking-totals">
-                <div className="ac-booking-totals-head">💰 สรุปยอดวันเข้าพัก</div>
+                <div className="ac-booking-totals-head"><Icon name="money" /> สรุปยอดวันเข้าพัก</div>
                 {calc.nextMonthRent > 0 && (
                   <div className="ac-booking-total-row"><span>ค่าห้องรายเดือน</span><span>{fmt(calc.nextMonthRent)}</span></div>
                 )}
@@ -564,17 +565,17 @@ export default function BookingConfirmModal({
                 not a real free-deposit deal — flag it loudly. */}
             {calc && calc.deposit === 0 && (
               <div className="ac-banner ac-banner-warn ac-booking-warn">
-                ⚠️ ค่าประกันเป็น 0 — ยืนยันว่าถูกต้องไหม?
+                <Icon name="warning" /> ค่าประกันเป็น 0 — ยืนยันว่าถูกต้องไหม?
               </div>
             )}
             {calc && msgMode === "A" && calc.bookingPaid === 0 && (
               <div className="ac-banner ac-banner-warn ac-booking-warn">
-                ⚠️ ยอดมัดจำเป็น 0 — ใส่ช่อง &quot;มัดจำที่จ่ายแล้ว&quot; ก่อนส่งขอมัดจำ
+                <Icon name="warning" /> ยอดมัดจำเป็น 0 — ใส่ช่อง &quot;มัดจำที่จ่ายแล้ว&quot; ก่อนส่งขอมัดจำ
               </div>
             )}
             {calc && calc.remaining < 0 && (
               <div className="ac-banner ac-banner-warn ac-booking-warn">
-                ⚠️ ยอดคงเหลือติดลบ ({fmt(calc.remaining)}) — ตรวจส่วนลด/มัดจำอีกครั้ง
+                <Icon name="warning" /> ยอดคงเหลือติดลบ ({fmt(calc.remaining)}) — ตรวจส่วนลด/มัดจำอีกครั้ง
               </div>
             )}
 
@@ -595,7 +596,7 @@ export default function BookingConfirmModal({
                 >
                   <span className="ac-booking-mode-step" aria-hidden>{MODE_STEP[m]}</span>
                   {MODE_LABEL[m]}
-                  {overrides[m] !== undefined && overrides[m] !== generated[m] ? " ✏️" : ""}
+                  {overrides[m] !== undefined && overrides[m] !== generated[m] && <Icon name="edit" label="แก้ข้อความเองแล้ว" />}
                 </button>
               ))}
             </div>
@@ -613,7 +614,7 @@ export default function BookingConfirmModal({
                   disabled={!valid}
                   title={missingTitle}
                 >
-                  📋 คัดลอกข้อความนี้
+                  <Icon name="clipboard" /> คัดลอกข้อความนี้
                 </button>
                 <button
                   type="button"
@@ -622,7 +623,7 @@ export default function BookingConfirmModal({
                   disabled={!valid}
                   title={missingTitle || "คัดลอกข้อความยืนยัน + สิ่งที่ต้องเตรียม ไว้วางสองรอบใน LINE"}
                 >
-                  📑 ขั้น 3+4 ต่อกัน
+                  <Icon name="files" /> ขั้น 3+4 ต่อกัน
                 </button>
               </div>
             </div>
@@ -630,7 +631,7 @@ export default function BookingConfirmModal({
                 changes never clobber them — only the explicit ↻ does. */}
             {msgDirty && (
               <div className="ac-booking-dirtybar">
-                <span>✏️ แก้ข้อความเองอยู่ — ตัวเลขอาจไม่ตรงกับฟอร์ม</span>
+                <span><Icon name="edit" /> แก้ข้อความเองอยู่ — ตัวเลขอาจไม่ตรงกับฟอร์ม</span>
                 <button type="button" className="ac-btn ac-btn-ghost" onClick={regenerateCurrent}>
                   ↻ สร้างใหม่จากข้อมูล
                 </button>
@@ -665,7 +666,7 @@ export default function BookingConfirmModal({
               the message — the indicator tracks the CURRENT mode's text. */}
           {valid && (
             <div className={`ac-booking-copied ${copiedCurrent ? "is-copied" : ""}`} aria-live="polite">
-              {copiedCurrent ? "คัดลอกแล้ว ✓" : "ยังไม่ได้คัดลอกข้อความ"}
+              {copiedCurrent ? <><Icon name="check" /> คัดลอกแล้ว</> : "ยังไม่ได้คัดลอกข้อความ"}
             </div>
           )}
           <div className="ac-booking-foot-actions">

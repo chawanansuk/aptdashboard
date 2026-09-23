@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RoomView, SheetRow } from "@/types";
-import { Icon } from "@/lib/icons";
+import { Icon, JOURNEY_ACTION_ICON } from "@/lib/icons";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { formatBaht } from "@/lib/money";
 import { parseThaiDate } from "@/lib/dateUtils";
@@ -148,7 +148,7 @@ export default function RoomDetailDrawer({ room, onClose, onOpenFull, onRefresh,
                           className={`${styles.journeyStep} ${state === "done" ? styles.journeyStepDone : state === "current" ? styles.journeyStepCurrent : ""}`}
                           title={label}
                         >
-                          <span className={styles.journeyDot} aria-hidden>{state === "done" ? "✓" : n}</span>
+                          <span className={styles.journeyDot} aria-hidden>{state === "done" ? <Icon name="check" /> : n}</span>
                           <span className={styles.journeyStepLabel}>{label}</span>
                         </li>
                       );
@@ -159,7 +159,8 @@ export default function RoomDetailDrawer({ room, onClose, onOpenFull, onRefresh,
                 {journey.subtitle && <div className={styles.journeySub}>{journey.subtitle}</div>}
                 {onRefresh && journey.actions.length > 0 && (
                   <div className={styles.journeyActions}>
-                    {journey.actions.map((a) => (
+                    {journey.actions.map((a) => {
+                      return (
                       <button
                         key={a.id}
                         type="button"
@@ -167,13 +168,14 @@ export default function RoomDetailDrawer({ room, onClose, onOpenFull, onRefresh,
                         disabled={journeyBusy}
                         onClick={() => void runJourney(a.id)}
                       >
-                        {journeyBusy ? "กำลังบันทึก…" : a.label}
+                        {journeyBusy ? "กำลังบันทึก…" : <><Icon name={JOURNEY_ACTION_ICON[a.id]} /> {a.label}</>}
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
                 {journey.actions.length === 0 && journey.step && (
-                  <div className={styles.journeyWaiting}>⏳ รอปิดงานในกระดานงานช่าง</div>
+                  <div className={styles.journeyWaiting}><Icon name="waiting" /> รอปิดงานในกระดานงานช่าง</div>
                 )}
               </div>
             </div>

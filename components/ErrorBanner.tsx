@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 /**
  * Reusable error banner with optional retry. Replaces ad-hoc
  * `<div className="ac-banner ac-banner-warn">` snippets scattered
@@ -22,7 +23,7 @@ export default function ErrorBanner({ message, onRetry, onDismiss }: Props) {
   if (!message) return null;
   return (
     <div className="ac-banner ac-banner-warn ac-banner-with-actions" role="alert">
-      <span className="ac-banner-icon" aria-hidden>⚠</span>
+      <span className="ac-banner-icon" aria-hidden><Icon name="warning" /></span>
       <span className="ac-banner-msg">{message}</span>
       <span className="ac-banner-actions">
         {onRetry && (

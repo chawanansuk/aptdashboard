@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
@@ -51,17 +52,19 @@ export default function HealthBanner() {
     return (
       <div className="ac-health-banner ac-health-banner-warn" role="status">
         <div className="ac-health-banner-main">
-          <strong>⬆ Apps Script ยังเป็นเวอร์ชันเก่า</strong>
-          <span className="ac-health-banner-msg">
-            backend ที่รันอยู่คือ v{health.version} แต่โค้ดล่าสุดคือ v{health.expectedVersion} —
-            วางโค้ดใหม่แล้ว Deploy → Manage deployments → ✏️ → New version (URL เดิม ไม่เปลี่ยน)
-          </span>
+          <div className="ac-health-banner-text">
+            <strong><Icon name="upgrade" /> Apps Script ยังเป็นเวอร์ชันเก่า</strong>
+            <span className="ac-health-banner-msg">
+              backend ที่รันอยู่คือ v{health.version} แต่โค้ดล่าสุดคือ v{health.expectedVersion} —
+              วางโค้ดใหม่แล้ว Deploy → Manage deployments → ✏️ → New version (URL เดิม ไม่เปลี่ยน)
+            </span>
+          </div>
           <button
             type="button"
             className="ac-health-banner-close"
             onClick={() => setDismissed(true)}
             aria-label="ปิด"
-          >✕</button>
+          ><Icon name="close" /></button>
         </div>
       </div>
     );
@@ -78,8 +81,12 @@ export default function HealthBanner() {
   return (
     <div className="ac-health-banner" role="alert">
       <div className="ac-health-banner-main">
-        <strong>⚠ Apps Script: {label}</strong>
-        <span className="ac-health-banner-msg">{health.message}</span>
+        {/* หัวข้อกับคำอธิบายอยู่ในคอลัมน์เดียวกัน ปุ่มอยู่นอกคอลัมน์ —
+            ไม่งั้นคำอธิบายจะถูกบีบจนเหลือบรรทัดละคำบนมือถือ */}
+        <div className="ac-health-banner-text">
+          <strong><Icon name="warning" /> Apps Script: {label}</strong>
+          <span className="ac-health-banner-msg">{health.message}</span>
+        </div>
         <button
           type="button"
           className="ac-health-banner-link"
@@ -90,7 +97,7 @@ export default function HealthBanner() {
           className="ac-health-banner-close"
           onClick={() => setDismissed(true)}
           aria-label="ปิด"
-        >✕</button>
+        ><Icon name="close" /></button>
       </div>
       {expanded && (
         <div className="ac-health-banner-details">

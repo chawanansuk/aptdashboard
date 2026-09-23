@@ -173,7 +173,7 @@ const VIEW_CATALOG: ViewDef[] = [
   { route: "repair",      label: "งานซ่อม",        hint: STATUS_LABEL.repair },
   { route: "inactive",    label: "ห้องไม่ใช้งาน",   hint: STATUS_LABEL.inactive },
   { route: "tenants",     label: "ผู้เช่า",         hint: "รายการผู้เช่า + สัญญาหมด" },
-  { route: "maintenance", label: "ซ่อมบำรุง",       hint: "🔔 ถึงรอบ / ส่วนกลาง / อุปกรณ์ในห้อง / งานประจำ" },
+  { route: "maintenance", label: "ซ่อมบำรุง",       hint: "ถึงรอบ / ส่วนกลาง / อุปกรณ์ในห้อง / งานประจำ" },
   { route: "facilities",  label: "ซ่อมบำรุง · ส่วนกลาง", hint: "ล้างแอร์ / ปั๊มน้ำ / ส่วนกลาง" },
   { route: "recurring",   label: "ซ่อมบำรุง · งานประจำ", hint: "งานสร้างอัตโนมัติตามรอบ" },
   { route: "income",      label: "รายได้",         hint: "สรุปรายได้รายเดือน" },
@@ -250,7 +250,7 @@ export function buildActions(params: {
     // on this room. Otherwise use the standard status/tenant hint.
     const hint = matchedVehicle
       ? [
-          `🏍 ${matchedVehicle.plate}`,
+          `รถ ${matchedVehicle.plate}`,
           matchedVehicle.model || null,
           STATUS_LABEL[r.status],
           r.tenant && `ผู้เช่า ${r.tenant}`,

@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon, type IconName } from "@/lib/icons";
 import { memo, useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
 import { useSession } from "next-auth/react";
@@ -74,12 +75,12 @@ type ColumnKey = "pending" | "in_progress" | "blocked" | "done";
 // globals.css :root — same palette as the sales board, so status colors
 // agree across the whole app (รอเริ่ม=indigo, กำลังทำ=เขียว, ติดขัด=coral,
 // เสร็จ=เขียวเข้ม).
-const COLUMNS: { key: ColumnKey; label: string; emoji: string; accent: string }[] = [
+const COLUMNS: { key: ColumnKey; label: string; icon: IconName; accent: string }[] = [
   // 🆕 เดิมเรนเดอร์เป็นกล่องคำว่า "NEW" ภาษาอังกฤษ — อ่านเป็น badge แปลกๆ
-  { key: "pending",     label: "รอเริ่ม",     emoji: "📋", accent: "var(--primary)" },
-  { key: "in_progress", label: "กำลังทำ",     emoji: "🔧", accent: "var(--st-green)" },
-  { key: "blocked",     label: "ติดขัด",      emoji: "⏸",  accent: "var(--st-coral)" },
-  { key: "done",        label: "เสร็จวันนี้",   emoji: "✅", accent: "var(--st-green-deep)" },
+  { key: "pending",     label: "รอเริ่ม",     icon: "clipboard", accent: "var(--primary)" },
+  { key: "in_progress", label: "กำลังทำ",     icon: "maintenance", accent: "var(--st-green)" },
+  { key: "blocked",     label: "ติดขัด",      icon: "blocked", accent: "var(--st-coral)" },
+  { key: "done",        label: "เสร็จวันนี้",   icon: "done", accent: "var(--st-green-deep)" },
 ];
 
 /** Target status written when a card is dropped into a column. Exported
@@ -231,7 +232,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
       // reverted from the tasks list.
       if (newStatus === "เสร็จ") {
         const prevStatus = t.status || "";
-        toast.success(`ปิดงาน ${t.building} ${t.room} แล้ว ✓`, {
+        toast.success(`ปิดงาน ${t.building} ${t.room} แล้ว`, {
           action: { label: "เลิกทำ", onClick: () => void moveTo({ ...t, status: newStatus }, prevStatus) },
         });
       }
@@ -397,7 +398,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
 
       {err && (
         <div className="ac-banner ac-banner-warn" role="alert">
-          <strong>⚠ </strong>{err}{" "}
+          <strong><Icon name="warning" /> </strong>{err}{" "}
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setErr(null)}>ปิด</button>
         </div>
       )}
@@ -412,10 +413,10 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
       >
         {(
           [
-            { key: "all",    label: "ทั้งหมด",  icon: "" },
-            { key: "room",   label: "ห้องเช่า", icon: "🚪" },
-            { key: "common", label: "ส่วนกลาง", icon: "🏢" },
-          ] as Array<{ key: LocationFilter; label: string; icon: string }>
+            { key: "all",    label: "ทั้งหมด",  icon: null },
+            { key: "room",   label: "ห้องเช่า", icon: "doorOpen" },
+            { key: "common", label: "ส่วนกลาง", icon: "facilities" },
+          ] as Array<{ key: LocationFilter; label: string; icon: IconName | null }>
         ).map((chip) => (
           <button
             key={chip.key}
@@ -425,7 +426,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
             className={`ac-chip ${locFilter === chip.key ? "is-active" : ""}`}
             onClick={() => setLocFilter(chip.key)}
           >
-            {chip.icon && <span aria-hidden>{chip.icon} </span>}
+            {chip.icon && <Icon name={chip.icon} />}
             {chip.label}
           </button>
         ))}
@@ -443,7 +444,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
           aria-label={`ห้องแจ้งย้ายออก ${moveoutQueue.length} ห้อง`}
         >
           <header className="ac-kanban-moveout-head">
-            <span className="ac-kanban-moveout-icon" aria-hidden>🚪</span>
+            <span className="ac-kanban-moveout-icon" aria-hidden><Icon name="doorOpen" /></span>
             <h3 className="ac-kanban-moveout-title">
               ห้องแจ้งย้ายออก
               <span className="ac-kanban-moveout-count">{moveoutQueue.length}</span>
@@ -483,7 +484,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
                           disabled={!onEditTask}
                           title={`${kind.label}: ${stateLabel} (${task.date})`}
                         >
-                          <span aria-hidden>{kind.icon}</span>
+                          <span aria-hidden><Icon name={kind.icon} size={14} /></span>
                           <span>{kind.label}</span>
                           <span className="ac-kanban-moveout-chip-state">{stateLabel}</span>
                         </button>
@@ -500,7 +501,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
                         aria-busy={creating}
                         title={`สร้างงาน ${kind.label} เข้าคอลัมน์รอเริ่ม`}
                       >
-                        <span aria-hidden>{kind.icon}</span>
+                        <span aria-hidden><Icon name={kind.icon} size={14} /></span>
                         <span>{kind.label}</span>
                         <span className="ac-kanban-moveout-chip-state">
                           {creating ? "กำลังสร้าง…" : "+ สร้าง"}
@@ -538,7 +539,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
               style={{ borderBottomColor: isActive ? col.accent : "transparent" }}
               title={isZero ? `${col.label} (ไม่มีงาน)` : `${col.label} ${count} งาน`}
             >
-              <span aria-hidden>{col.emoji}</span>
+              <span aria-hidden><Icon name={col.icon} /></span>
               <span>{col.label}</span>
               <span className={`ac-kanban-mobile-tab-count ${isZero ? "is-zero" : ""}`}>{count}</span>
             </button>
@@ -551,7 +552,7 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
           <KanbanColumn
             key={col.key}
             label={col.label}
-            emoji={col.emoji}
+            icon={col.icon}
             accent={col.accent}
             tasks={buckets[col.key]}
             busyKey={busyKey}
@@ -625,12 +626,12 @@ function KpiCell({ label, value, accent, onClick, ariaLabel }: KpiCellProps) {
 }
 
 function KanbanColumn({
-  label, emoji, accent, tasks, busyKey, onMove, onEditTask, onSelectTask, column,
+  label, icon, accent, tasks, busyKey, onMove, onEditTask, onSelectTask, column,
   isFlashing, flashKeys, draggingKey, isDragOver,
   onDragStartCard, onDragEndCard, onColDragOver, onColDragLeave, onColDrop,
 }: {
   label: string;
-  emoji: string;
+  icon: IconName;
   accent: string;
   tasks: SheetRow[];
   busyKey: string | null;
@@ -667,7 +668,7 @@ function KanbanColumn({
         className="ac-kanban-col-head"
         style={{ borderTopColor: accent, "--col-accent": accent } as React.CSSProperties}
       >
-        <span className="ac-kanban-col-emoji" aria-hidden>{emoji}</span>
+        <span className="ac-kanban-col-emoji" aria-hidden><Icon name={icon} size={18} /></span>
         <span className="ac-kanban-col-label">{label}</span>
         <span className="ac-kanban-col-count">{tasks.length}</span>
       </div>
@@ -730,7 +731,7 @@ const KanbanCard = memo(function KanbanCard({
   onDragStart?: (key: string) => void;
   onDragEnd?: () => void;
 }) {
-  const typeIcon = task.type === "ซ่อม" ? "🔧" : task.type === "ทำสะอาด" ? "🧹" : "📋";
+  const typeIcon: IconName = task.type === "ซ่อม" ? "maintenance" : task.type === "ทำสะอาด" ? "clean" : "clipboard";
   const age = ageLabel(task.date);
   const location = parseTaskLocation(task);
   const isCommon = location.kind === "common";
@@ -770,9 +771,9 @@ const KanbanCard = memo(function KanbanCard({
       } : undefined}
     >
       <header className="ac-kanban-card-head">
-        <span className="ac-kanban-card-handle" aria-hidden title="ลากเพื่อย้ายสถานะ">⠿</span>
+        <span className="ac-kanban-card-handle" aria-hidden title="ลากเพื่อย้ายสถานะ"><Icon name="grip" /></span>
         <span className="ac-kanban-card-type" aria-hidden>
-          {isCommon ? "🏢" : typeIcon}
+          <Icon name={isCommon ? "facilities" : typeIcon} />
         </span>
         <span className="ac-kanban-card-title">
           {isCommon ? location.label : `ห้อง ${task.room}`}
@@ -809,7 +810,7 @@ const KanbanCard = memo(function KanbanCard({
             and removes visual noise. */}
         {reporter && reporter !== "—" && (
           <span className="ac-kanban-card-reporter" title={task.creator || "ไม่ระบุผู้แจ้ง"}>
-            👤 {reporter}
+            <Icon name="user" /> {reporter}
           </span>
         )}
       </div>
@@ -825,12 +826,12 @@ const KanbanCard = memo(function KanbanCard({
             <button
               className="ac-kanban-btn ac-kanban-btn-primary"
               onClick={() => onMove(task, TASK_STATUS.IN_PROGRESS)}
-            >▶ เริ่ม</button>
+            ><Icon name="start" /> เริ่ม</button>
             <button
               className="ac-kanban-btn ac-kanban-btn-ghost"
               onClick={() => onMove(task, TASK_STATUS.CANCELLED)}
               title="ยกเลิกงานนี้"
-            >✗ ยกเลิก</button>
+            ><Icon name="close" /> ยกเลิก</button>
           </>
         )}
         {column === "in_progress" && !busy && (
@@ -838,11 +839,11 @@ const KanbanCard = memo(function KanbanCard({
             <button
               className="ac-kanban-btn ac-kanban-btn-success"
               onClick={() => onMove(task, TASK_STATUS.DONE)}
-            >✓ เสร็จ</button>
+            ><Icon name="check" /> เสร็จ</button>
             <button
               className="ac-kanban-btn ac-kanban-btn-warn"
               onClick={() => onMove(task, TASK_STATUS.BLOCKED)}
-            >⏸ ติดขัด</button>
+            ><Icon name="blocked" /> ติดขัด</button>
           </>
         )}
         {column === "blocked" && !busy && (
@@ -850,11 +851,11 @@ const KanbanCard = memo(function KanbanCard({
             <button
               className="ac-kanban-btn ac-kanban-btn-primary"
               onClick={() => onMove(task, TASK_STATUS.IN_PROGRESS)}
-            >▶ ทำต่อ</button>
+            ><Icon name="start" /> ทำต่อ</button>
             <button
               className="ac-kanban-btn ac-kanban-btn-success"
               onClick={() => onMove(task, TASK_STATUS.DONE)}
-            >✓ เสร็จ</button>
+            ><Icon name="check" /> เสร็จ</button>
           </>
         )}
         {column === "done" && !busy && (
@@ -862,7 +863,7 @@ const KanbanCard = memo(function KanbanCard({
             className="ac-kanban-btn ac-kanban-btn-ghost"
             onClick={() => onMove(task, TASK_STATUS.PENDING)}
             title="ดึงกลับเป็นยังไม่เสร็จ"
-          >↶ คืน</button>
+          ><Icon name="undo" /> คืน</button>
         )}
 
         {onEdit && !busy && (

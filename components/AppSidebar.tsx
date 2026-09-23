@@ -276,7 +276,7 @@ function AppSidebar({
                   <span
                     className={`ac-badge ${item.secondaryBadgeClass || ""}`}
                     title={`เลยกำหนด ${item.secondaryBadge} งาน`}
-                  >⚠{item.secondaryBadge}</span>
+                  ><Icon name="warning" />{item.secondaryBadge}</span>
                 )}
               </button>
               );

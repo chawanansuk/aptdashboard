@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useRef, useState } from "react";
 import type { SheetRow } from "@/types";
 import { parseRepairLog } from "@/lib/repairLog";
@@ -133,7 +134,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
         <header className="ac-summary-head">
           <div>
             <h2 id="ac-task-drawer-title" className="ac-task-drawer-title">
-              {loc.kind === "common" ? <>🏢 {loc.label}</> : <>🚪 {loc.label}</>}
+              <Icon name={loc.kind === "common" ? "facilities" : "doorOpen"} size={20} /> {loc.label}
             </h2>
             <div className="ac-task-drawer-sub">
               {task.building}{task.type ? ` · ${task.type}` : ""}
@@ -156,7 +157,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
             {slaBadge && (
               <>
                 <dt>SLA</dt>
-                <dd className="ac-task-drawer-sla">⏰ {slaBadge}</dd>
+                <dd className="ac-task-drawer-sla"><Icon name="clock" /> {slaBadge}</dd>
               </>
             )}
 
@@ -181,7 +182,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
                   {task.phone && (
                     <>
                       {" · "}
-                      <a className="ac-task-drawer-phone" href={`tel:${sheetPhoneDigits(task.phone)}`}>📞 {formatSheetPhone(task.phone)}</a>
+                      <a className="ac-task-drawer-phone" href={`tel:${sheetPhoneDigits(task.phone)}`}><Icon name="phone" /> {formatSheetPhone(task.phone)}</a>
                     </>
                   )}
                 </dd>
@@ -198,7 +199,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
               optional box to add a new one. Engineer-facing (onLogRepair). */}
           {isRepair && (
             <section className="ac-repair-log" aria-label="บันทึกการซ่อม">
-              <header className="ac-repair-log-head">🔧 บันทึกการซ่อม</header>
+              <header className="ac-repair-log-head"><Icon name="maintenance" /> บันทึกการซ่อม</header>
               {repair && repair.entries.length > 0 ? (
                 <ul className="ac-repair-log-list">
                   {repair.entries.map((e, i) => (
@@ -248,7 +249,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
               </header>
               {timer.runningHours >= 12 && (
                 <p className="ac-task-timer-stale" role="alert">
-                  ⚠ จับเวลาค้างมา {Math.floor(timer.runningHours)} ชม. — ถ้าลืมหยุด
+                  <Icon name="warning" /> จับเวลาค้างมา {Math.floor(timer.runningHours)} ชม. — ถ้าลืมหยุด
                   กด "หยุด" แล้วเวลาที่เกินจะถูกบันทึกด้วย (แก้ได้ในชีต บันทึกเวลา)
                 </p>
               )}
@@ -258,14 +259,14 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
                     type="button"
                     className="ac-btn ac-btn-primary"
                     onClick={timer.start}
-                  >▶ เริ่มจับเวลา</button>
+                  ><Icon name="start" /> เริ่มจับเวลา</button>
                 )}
                 {timer.status === "running" && (
                   <button
                     type="button"
                     className="ac-btn ac-btn-danger"
                     onClick={timer.stop}
-                  >⏸ หยุดจับเวลา</button>
+                  ><Icon name="blocked" /> หยุดจับเวลา</button>
                 )}
                 {timer.status === "submitting" && (
                   <button type="button" className="ac-btn ac-btn-ghost" disabled>
@@ -275,7 +276,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
               </div>
               {timer.error && (
                 <div className="ac-task-timer-error" role="alert">
-                  ⚠ {timer.error}{" "}
+                  <Icon name="warning" /> {timer.error}{" "}
                   <button
                     type="button"
                     className="ac-btn ac-btn-ghost ac-btn-sm"
@@ -315,7 +316,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
                 onClick={() => onEdit(task)}
                 disabled={busy}
                 title="แก้ไขรายละเอียดงาน"
-              >✎ แก้ไข</button>
+              ><Icon name="edit" /> แก้ไข</button>
             )}
             {canStart && (
               <button
@@ -323,7 +324,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
                 className="ac-btn ac-btn-primary"
                 onClick={() => onMove(task, TASK_STATUS.IN_PROGRESS)}
                 disabled={busy}
-              >▶ เริ่ม</button>
+              ><Icon name="start" /> เริ่ม</button>
             )}
             {canDone && (
               <button
@@ -331,7 +332,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
                 className="ac-btn ac-btn-success"
                 onClick={() => onMove(task, TASK_STATUS.DONE)}
                 disabled={busy}
-              >✓ เสร็จ</button>
+              ><Icon name="check" /> เสร็จ</button>
             )}
             {canBlock && (
               <button
@@ -339,7 +340,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
                 className="ac-btn ac-btn-ghost"
                 onClick={() => onMove(task, TASK_STATUS.BLOCKED)}
                 disabled={busy}
-              >⏸ ติดขัด</button>
+              ><Icon name="blocked" /> ติดขัด</button>
             )}
             {canCancel && (
               <button
@@ -348,7 +349,7 @@ export default function TaskDetailDrawer({ task, onClose, onMove, onEdit, onLogR
                 onClick={() => onMove(task, TASK_STATUS.CANCELLED)}
                 disabled={busy}
                 title="ยกเลิกงานนี้"
-              >✗ ยกเลิก</button>
+              ><Icon name="close" /> ยกเลิก</button>
             )}
           </footer>
         )}

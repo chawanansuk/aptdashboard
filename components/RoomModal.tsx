@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
@@ -420,9 +421,9 @@ export default function RoomModal({
                 aria-pressed={isPinned}
                 aria-label={isPinned ? "เลิกปักหมุดห้องนี้" : "ปักหมุดห้องนี้"}
                 title={isPinned ? "เลิกปักหมุด" : "ปักหมุด — เข้าถึงเร็วจากเมนูข้าง"}
-              >{isPinned ? "★" : "☆"}</button>
+              ><Icon name="star" fill={isPinned ? "currentColor" : "none"} /></button>
             )}
-            <button className="ac-modal-close" onClick={attemptClose} aria-label="ปิด">✕</button>
+            <button className="ac-modal-close" onClick={attemptClose} aria-label="ปิด"><Icon name="close" /></button>
           </div>
         </header>
 
@@ -451,7 +452,7 @@ export default function RoomModal({
               aria-selected={tab === "repair"}
               className={`ac-modal-tab ${tab === "repair" ? "is-active" : ""}`}
               onClick={() => setTab("repair")}
-            >🔧 บันทึกซ่อม</button>
+            ><Icon name="maintenance" /> บันทึกซ่อม</button>
           )}
         </nav>
 
@@ -484,7 +485,7 @@ export default function RoomModal({
               {!journeySlot && room.status === "ready" && canBook && onConfirmBooking && (
                 <div className="ac-moveout-workflow ac-moveout-workflow--in" role="region" aria-label="จองห้อง">
                   <header className="ac-moveout-head">
-                    <span className="ac-moveout-icon" aria-hidden>📋</span>
+                    <span className="ac-moveout-icon" aria-hidden><Icon name="clipboard" /></span>
                     <div>
                       <h3 className="ac-moveout-title">จองห้องนี้</h3>
                       <p className="ac-moveout-sub">สร้างข้อความยืนยัน + นัดย้ายเข้าอัตโนมัติ</p>
@@ -492,7 +493,7 @@ export default function RoomModal({
                   </header>
                   <div className="ac-moveout-actions">
                     <button type="button" className="ac-btn ac-btn-primary" onClick={onConfirmBooking}>
-                      📋 ยืนยันการจอง
+                      <Icon name="clipboard" /> ยืนยันการจอง
                     </button>
                   </div>
                 </div>
@@ -509,7 +510,7 @@ export default function RoomModal({
                   aria-label="ขั้นตอนย้ายเข้า"
                 >
                   <header className="ac-moveout-head">
-                    <span className="ac-moveout-icon" aria-hidden>📥</span>
+                    <span className="ac-moveout-icon" aria-hidden><Icon name="moveIn" /></span>
                     <div>
                       <h3 className="ac-moveout-title">ขั้นตอนย้ายเข้า</h3>
                       <p className="ac-moveout-sub">
@@ -523,21 +524,21 @@ export default function RoomModal({
                         type="button"
                         className="ac-btn ac-btn-primary"
                         onClick={onConfirmBooking}
-                      >📋 ยืนยันการจอง</button>
+                      ><Icon name="clipboard" /> ยืนยันการจอง</button>
                     )}
                     {onMoveinClean && (
                       <button
                         type="button"
                         className="ac-btn ac-btn-secondary"
                         onClick={onMoveinClean}
-                      >🧹 จองทำสะอาด</button>
+                      ><Icon name="clean" /> จองทำสะอาด</button>
                     )}
                     {onMoveinSchedule && (
                       <button
                         type="button"
                         className="ac-btn ac-btn-secondary"
                         onClick={onMoveinSchedule}
-                      >📥 บันทึกวันย้ายเข้า</button>
+                      ><Icon name="moveIn" /> บันทึกวันย้ายเข้า</button>
                     )}
                   </div>
                 </div>
@@ -551,7 +552,7 @@ export default function RoomModal({
               {!journeySlot && room.status === "moveout" && (canEdit || canAddClean) && (
                 <div className="ac-moveout-workflow" role="region" aria-label="ขั้นตอนย้ายออก">
                   <header className="ac-moveout-head">
-                    <span className="ac-moveout-icon" aria-hidden>📤</span>
+                    <span className="ac-moveout-icon" aria-hidden><Icon name="moveOut" /></span>
                     <div>
                       <h3 className="ac-moveout-title">ขั้นตอนย้ายออก</h3>
                       <p className="ac-moveout-sub">
@@ -565,14 +566,14 @@ export default function RoomModal({
                         type="button"
                         className="ac-btn ac-btn-secondary"
                         onClick={onMoveoutInspect}
-                      >📋 จองตรวจห้อง</button>
+                      ><Icon name="clipboard" /> จองตรวจห้อง</button>
                     )}
                     {onMoveoutClean && (
                       <button
                         type="button"
                         className="ac-btn ac-btn-secondary"
                         onClick={onMoveoutClean}
-                      >🧹 จองทำสะอาด</button>
+                      ><Icon name="clean" /> จองทำสะอาด</button>
                     )}
                     {canEdit && (
                       <button
@@ -583,7 +584,7 @@ export default function RoomModal({
                           onChange({ tenant: "", phone: "", contractEnd: "" });
                         }}
                         title="ล้างชื่อ/เบอร์/วันสัญญา — กด 'บันทึก' เพื่อยืนยัน"
-                      >👤 ล้างข้อมูลผู้เช่า</button>
+                      ><Icon name="clearTenant" /> ล้างข้อมูลผู้เช่า</button>
                     )}
                   </div>
                 </div>
@@ -613,7 +614,7 @@ export default function RoomModal({
                             className="ac-room-phone-call"
                             href={`tel:${sheetPhoneDigits(phone)}`}
                             title={`โทรหา ${phone}`}
-                          >📞 โทร</a>
+                          ><Icon name="phone" /> โทร</a>
                         )}
                       </label>
                       <input
@@ -814,7 +815,7 @@ export default function RoomModal({
                                     )}
                                     {r.entries.map((e, j) => (
                                       <div key={j} className="ac-room-history-fix">
-                                        🔧 <span className="ac-room-history-fix-date">{e.date}</span> {e.text}
+                                        <Icon name="maintenance" /> <span className="ac-room-history-fix-date">{e.date}</span> {e.text}
                                       </div>
                                     ))}
                                   </div>
@@ -852,7 +853,7 @@ export default function RoomModal({
 
           {tab === "repair" && onQuickRepair && (
             <div className="ac-room-repair">
-              <div className="ac-form-section-label">🔧 บันทึกการซ่อม</div>
+              <div className="ac-form-section-label"><Icon name="maintenance" /> บันทึกการซ่อม</div>
               <textarea
                 className="ac-room-repair-input ac-room-repair-input-block"
                 rows={3}
@@ -898,7 +899,7 @@ export default function RoomModal({
             disabled={saving}
             title="เพิ่มงานใหม่สำหรับห้องนี้"
           >
-            + เพิ่มงานที่ห้องนี้
+            + เพิ่มงาน
           </button>
           <button className="ac-btn ac-btn-ghost" onClick={attemptClose} disabled={saving}>
             ยกเลิก

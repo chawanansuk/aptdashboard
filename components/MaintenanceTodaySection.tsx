@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Facility, RoomEquipment } from "@/types";
-import { EQUIPMENT_TYPE_ICON, FACILITY_TYPE_ICON } from "@/lib/constants";
+import { Icon, equipmentIcon, facilityIcon } from "@/lib/icons";
 import { daysUntilService, isServiceCountable } from "@/lib/maintenanceUtils";
 import { formatCommonArea } from "@/lib/taskLocation";
 import { cachedFetchJson } from "@/lib/cachedFetchJson";
@@ -153,9 +153,9 @@ export default function MaintenanceTodaySection({
 
       <ul className="ac-maint-today-list">
         {filtered.map((item) => {
-          const icon = item.kind === "equipment"
-            ? EQUIPMENT_TYPE_ICON[item.type] || "🔧"
-            : FACILITY_TYPE_ICON[item.type] || "🏢";
+          const typeIcon = item.kind === "equipment"
+            ? equipmentIcon(item.type)
+            : facilityIcon(item.type);
           const where = item.kind === "equipment"
             ? `${item.building} ${item.room}`
             : item.building;
@@ -171,7 +171,7 @@ export default function MaintenanceTodaySection({
               key={`${item.kind}:${item.id}`}
               className={`ac-maint-today-item is-${item.status}`}
             >
-              <span className="ac-maint-today-icon" aria-hidden>{icon}</span>
+              <span className="ac-maint-today-icon" aria-hidden><Icon name={typeIcon} size={20} /></span>
               <div className="ac-maint-today-main">
                 <div className="ac-maint-today-line1">
                   <strong>{where}</strong>

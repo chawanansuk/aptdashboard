@@ -182,7 +182,7 @@ export default function RecurringView({ buildings }: Props) {
             className="ac-btn ac-btn-primary"
             onClick={runCheck}
             disabled={running}
-          >{running ? "กำลังตรวจ…" : "▶ ตรวจและสร้าง"}</button>
+          >{running ? "กำลังตรวจ…" : <><Icon name="start" /> ตรวจและสร้าง</>}</button>
           <button
             type="button"
             className="ac-btn ac-btn-ghost"

@@ -9,11 +9,11 @@ import NotificationDropdown from "./NotificationDropdown";
 import type { NotificationItem } from "@/lib/notifications";
 
 const overdue: NotificationItem = {
-  kind: "overdueTasks", level: "critical", glyph: "🔴",
+  kind: "overdueTasks", level: "critical", glyph: "warning",
   title: "งานเลยกำหนด", detail: "เก่าสุด เลย 28 วัน", count: 23, route: "today",
 };
 const moveout: NotificationItem = {
-  kind: "moveoutPending", level: "warning", glyph: "🚪",
+  kind: "moveoutPending", level: "warning", glyph: "doorOpen",
   title: "ห้องแจ้งย้ายออก", detail: "วางแผนทำสะอาด", count: 7, route: "moveout",
 };
 

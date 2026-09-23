@@ -138,7 +138,7 @@ export default function SummaryDrawer({ open, onClose, tasks, onAddTask, onTaskC
                 icon="celebration"
                 tone="celebration"
                 compact
-                title="ไม่มีงานในช่วงนี้ 🎉"
+                title="ไม่มีงานในช่วงนี้"
                 description="ทุกอย่างเรียบร้อย — ไม่มีงานที่ต้องทำในช่วงเวลาที่เลือก"
               />
             ) : (

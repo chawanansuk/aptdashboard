@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useMemo, useState } from "react";
 import type { SheetRow, RoomView } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
@@ -294,7 +295,7 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
               <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => shiftDay(1)} aria-label="วันถัดไป">›</button>
             </>
           )}
-          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨</button>
+          <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => window.print()} title="พิมพ์/บันทึก PDF" aria-label="พิมพ์"><Icon name="print" /></button>
         </div>
       </header>
 

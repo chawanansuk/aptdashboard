@@ -58,7 +58,7 @@ test("trend arrow + month spend banner + purchase history tab", async ({ page })
   const modal = page.locator(".ac-modal");
   await expect(modal).toContainText("1,134 ฿");
   await expect(modal).toContainText("▲ +8%");
-  await expect(modal).toContainText("🏪 แมคโคร");
+  await expect(modal).toContainText("แมคโคร");
 });
 
 test("เติม opens purchase modal and posts quantity+price+store", async ({ page }) => {

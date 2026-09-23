@@ -68,16 +68,18 @@ export default async function RootLayout({
 }>) {
   const session = await auth();
   return (
-    <html lang="th">
+    // ตัวแปรฟอนต์ต้องอยู่ที่ <html> ไม่ใช่ <body>: globals.css ประกาศ
+    // --font-sans ไว้ที่ :root โดยอ้าง var(--font-plex-sans) ถ้าตัวแปรนั้น
+    // ถูกนิยามที่ body ค่าที่ :root จะ resolve ไม่ได้ (invalid at
+    // computed-value time) แล้วทั้งแอปก็ตกไปใช้ฟอนต์ระบบทั้งที่โหลด
+    // IBM Plex Sans Thai มาครบทุกน้ำหนักแล้ว
+    <html lang="th" className={`${plexSansThai.variable} ${plexMono.variable}`}>
       <head>
         {/* Warm TCP+TLS to Google avatar CDN before <Image> request — saves ~50-100ms on first profile pic load */}
         <link rel="preconnect" href="https://lh3.googleusercontent.com" crossOrigin="" />
         <link rel="dns-prefetch" href="https://lh3.googleusercontent.com" />
       </head>
-      <body
-        className={`antialiased ${plexSansThai.variable} ${plexMono.variable}`}
-        style={{ minHeight: "100vh" }}
-      >
+      <body className="antialiased" style={{ minHeight: "100vh" }}>
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,

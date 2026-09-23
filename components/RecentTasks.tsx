@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon, type IconName } from "@/lib/icons";
 import { memo, useMemo } from "react";
 import type { SheetRow, RoomView } from "@/types";
 import { relativeTimeShort, formatFullTimestamp } from "@/lib/relativeTime";
@@ -29,13 +30,13 @@ interface Props {
   onSelectRoom?: (r: RoomView) => void;
 }
 
-const TYPE_ICON: Record<string, string> = {
-  "ทำสะอาด": "🧹",
-  "ซ่อม":    "🔧",
-  "ย้ายเข้า": "📥",
-  "ย้ายออก": "📤",
-  "ชมห้อง":  "👀",
-  "อื่นๆ":    "•",
+const TYPE_ICON: Record<string, IconName> = {
+  "ทำสะอาด": "clean",
+  "ซ่อม":    "maintenance",
+  "ย้ายเข้า": "moveIn",
+  "ย้ายออก": "moveOut",
+  "ชมห้อง":  "view",
+  "อื่นๆ":    "status",
 };
 
 function shortenCreator(email: string | undefined): string {
@@ -83,7 +84,7 @@ function RecentTasks({ tasks, rooms, activeBuilding, onSelectRoom }: Props) {
       <ul className="ac-recent-tasks-list">
         {recent.map((t) => {
           const loc = parseTaskLocation(t);
-          const icon = TYPE_ICON[t.type] || "•";
+          const icon: IconName = TYPE_ICON[t.type] || "status";
           // Compact time for the tight meta row (#12) — full timestamp
           // in the title tooltip. Falls back to the task date when there's
           // no createdAt to compute from.
@@ -102,7 +103,7 @@ function RecentTasks({ tasks, rooms, activeBuilding, onSelectRoom }: Props) {
                 onClick={clickable ? () => onSelectRoom!(room!) : undefined}
               >
                 <span className="ac-recent-task-icon" aria-hidden>
-                  {loc.kind === "common" ? "🏢" : icon}
+                  <Icon name={loc.kind === "common" ? "facilities" : icon} size={18} />
                 </span>
                 <span className="ac-recent-task-body">
                   <span className="ac-recent-task-title">

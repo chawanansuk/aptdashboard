@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useMemo, useRef, useState, useCallback, lazy, Suspense } from "react";
 import { quickSetRoomStatus, executeJourneyAction } from "@/lib/journeyActions";
 import { resilientPost } from "@/lib/resilientWrite";
@@ -70,6 +71,7 @@ import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
 import { getModeConfig, type GreetingStats } from "@/lib/modeConfig";
 import WelcomeHero from "@/components/WelcomeHero";
+import ReadyRoomsCard from "@/components/ReadyRoomsCard";
 import {
   SalesPipelineSkeleton,
   EngineerKanbanSkeleton,
@@ -102,6 +104,21 @@ const RecurringView   = lazy(() => import("@/components/RecurringView"));
 const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
 const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 const ReportsView     = lazy(() => import("@/components/ReportsView"));
+
+/** "งานวันนี้" = open tasks dated today OR earlier (still overdue).
+ *  Shared by the full today view and the overview card (V2 Direction B)
+ *  so the two can never disagree about what counts as today's work. A
+ *  daily view that hid overdue made the "งานเลยกำหนด" notification land on
+ *  an empty page; parseThaiDate handles both dd/MM/yyyy and the ISO
+ *  yyyy-MM-dd that Apps Script emits. */
+function isOpenDueByToday(t: SheetRow, now: Date = new Date()): boolean {
+  if (isClosedStatus(t.status)) return false;
+  const td = parseThaiDate(t.date);
+  if (!td) return false;
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const tdStart = new Date(td.getFullYear(), td.getMonth(), td.getDate()).getTime();
+  return tdStart <= todayStart; // future-dated tasks excluded
+}
 
 export default function Home() {
   const { status, rooms, errors, lastUpdated, refresh, tasks, isInitial, isRefreshing, optimisticUpdateRoom, optimisticAddTask, optimisticUpdateTask } =
@@ -349,6 +366,9 @@ export default function Home() {
   // would force the overlay shut. Drive it off the SAME breakpoint the CSS
   // uses so JS and CSS agree on when the overlay applies.
   const isDesktopRail = useMediaQuery(MQ.desktopRail);
+  // Overview cards show fewer rows on a phone — the first screen has to
+  // stay a first screen (density budget, e2e/ui-review assertDensity).
+  const isMobile = useMediaQuery(MQ.mobile);
   useEffect(() => {
     if (isDesktopRail) setSidebarOpen(false);
   }, [isDesktopRail]);
@@ -487,7 +507,12 @@ export default function Home() {
   const vacancyByBuilding = useMemo(() => computeVacancyByBuilding(rooms), [rooms]);
   const headerVacancy = isSupplyRelevantView(activeView) ? vacancyByBuilding : undefined;
 
-  const visibleRooms = useMemo(() => {
+  /** Rooms in scope for the current view + building tab, BEFORE the
+   *  status chips are applied. Split out of `visibleRooms` (V2) because
+   *  the merged filter/legend row shows a room count per status: counting
+   *  the already-filtered list would collapse every other chip to 0 the
+   *  moment one is selected, and the user could never switch chips. */
+  const roomsInScope = useMemo(() => {
     if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "pets" || activeView === "leads" || activeView === "recurring" || activeView === "maintlog" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
     // Note: room search was previously layered in here using the `search`
     // state — duplicated ⌘K's room/tenant/phone search. Removed in
@@ -497,10 +522,24 @@ export default function Home() {
       if (activeBuilding !== "ทั้งหมด" && r.building !== activeBuilding) return false;
       if (activeView === "today" && !r.today) return false;
       if (activeView !== "overview" && activeView !== "today" && r.status !== activeView) return false;
-      if (activeFilter !== "all" && r.status !== activeFilter) return false;
       return true;
     });
-  }, [rooms, activeBuilding, activeView, activeFilter]);
+  }, [rooms, activeBuilding, activeView]);
+
+  const visibleRooms = useMemo(
+    () => (activeFilter === "all" ? roomsInScope : roomsInScope.filter((r) => r.status === activeFilter)),
+    [roomsInScope, activeFilter],
+  );
+
+  /** Room count per status within the current scope — feeds the chip
+   *  counts in RoomsView's filter bar. */
+  const roomStatusCounts = useMemo(() => {
+    const counts: Record<RoomStatus, number> = {
+      occupied: 0, ready: 0, pending: 0, moveout: 0, qc: 0, repair: 0, inactive: 0,
+    };
+    roomsInScope.forEach((r) => { counts[r.status]++; });
+    return counts;
+  }, [roomsInScope]);
 
   const dateBounds = useMemo<{ start: Date | null; end: Date | null }>(() => {
     if (activeView === "today" || dateRange === "all") return { start: null, end: null };
@@ -532,20 +571,7 @@ export default function Home() {
     return list.filter((t) => {
       if (activeBuilding !== "ทั้งหมด" && t.building !== activeBuilding) return false;
       if (types && !types.includes(t.type)) return false;
-      if (activeView === "today") {
-        if (isClosedStatus(t.status)) return false;
-        // "วันนี้" shows today's work AND anything still overdue (date on or
-        // before today) — a daily view that hid overdue made the
-        // "งานเลยกำหนด" notification land on an empty page. parseThaiDate
-        // handles both dd/MM/yyyy and the ISO yyyy-MM-dd that Apps Script
-        // emits, so ISO-dated tasks aren't silently dropped either.
-        const td = parseThaiDate(t.date);
-        if (!td) return false;
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        const tdStart = new Date(td.getFullYear(), td.getMonth(), td.getDate()).getTime();
-        if (tdStart > todayStart) return false; // exclude future-dated tasks
-      }
+      if (activeView === "today" && !isOpenDueByToday(t)) return false;
       if (activeView !== "today" && (dateBounds.start || dateBounds.end)) {
         const td = parseThaiDate(t.date);
         if (!td) return false;
@@ -560,6 +586,15 @@ export default function Home() {
       return true;
     }).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   }, [tasks, activeView, activeBuilding, search, dateBounds]);
+
+  /** Overview "งานวันนี้" card (V2 Direction B) — same definition as the
+   *  full today view, building-scoped, no search box on the overview. */
+  const overviewTodayTasks = useMemo(() => {
+    if (activeView !== "overview") return [];
+    return (tasks || [])
+      .filter((t) => (activeBuilding === "ทั้งหมด" || t.building === activeBuilding) && isOpenDueByToday(t))
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  }, [tasks, activeView, activeBuilding]);
 
   // moveout/qc/repair are room-status views — their sidebar badge counts
   // ROOMS in that status, so they render the room grid (filtered to that
@@ -1072,7 +1107,7 @@ export default function Home() {
         } catch { /* เช็คไม่ได้ → ถือว่ายังไม่เข้า ให้คนกดใหม่ (กันซ้ำฝั่ง Google อยู่แล้ว) */ }
         toast.dismiss(checking);
         if (landed) {
-          toast.success("บันทึกแล้ว ✓ — Google ตอบช้าแต่รายการเข้าแล้ว");
+          toast.success("บันทึกแล้ว — Google ตอบช้าแต่รายการเข้าแล้ว");
           publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
           setShowAddTask(false);
           setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");
@@ -1161,7 +1196,7 @@ export default function Home() {
   // Errors banner is in-flow inside <main>; null when nothing to show.
   const errorsBanner = errors.length > 0 ? (
     <div className="ac-banner ac-banner-warn">
-      <strong>⚠ มีปัญหาในการโหลดข้อมูล:</strong>{" "}
+      <strong><Icon name="warning" /> มีปัญหาในการโหลดข้อมูล:</strong>{" "}
       {errors.map((e, i) => (<span key={i}>{e}{i < errors.length - 1 ? " • " : ""}</span>))}
       {rooms.length > 0 && <span> — กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ ({lastUpdated})</span>}
       <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={refresh} disabled={isRefreshing} style={{ marginLeft: 8 }}>
@@ -1244,8 +1279,21 @@ export default function Home() {
     >
       {isInitial && rooms.length === 0 && status !== "error" && <SkeletonLoader />}
 
+          {/* V2 Direction B — one green band holds the greeting AND the
+              headline numbers (they were a band + a separate row of white
+              cards). The cards are the same OverviewCards; the band only
+              restyles them (see .ac-hero-band in globals.css). */}
           {activeView === "overview" && rooms.length > 0 && (
-            <WelcomeHero config={modeConfig} stats={greetingStats} />
+            <section className="ac-hero-band" aria-label="ภาพรวมวันนี้">
+              <WelcomeHero config={modeConfig} stats={greetingStats} />
+              <OverviewCards
+                rooms={rooms}
+                tasks={tasks}
+                activeBuilding={activeBuilding}
+                roles={roles}
+                onNavigate={(v) => setActiveView(v)}
+              />
+            </section>
           )}
 
           {activeView === "overview" && (
@@ -1255,14 +1303,29 @@ export default function Home() {
             />
           )}
 
+          {/* First screen = work you can act on: today's tasks with a one-tap
+              ปิดงาน (the real TasksList rows + write path, compact) next to
+              the rooms that can be rented now. */}
           {activeView === "overview" && rooms.length > 0 && (
-            <OverviewCards
-              rooms={rooms}
-              tasks={tasks}
-              activeBuilding={activeBuilding}
-              roles={roles}
-              onNavigate={(v) => setActiveView(v)}
-            />
+            <div className="ac-overview-split">
+              <TasksList
+                compact
+                limit={isMobile ? 3 : 5}
+                tasks={overviewTodayTasks}
+                title="งานวันนี้"
+                emptyText="ไม่มีงานค้างวันนี้"
+                onSeeAll={() => setActiveView("today")}
+                onChanged={refresh}
+                onOptimisticStatus={(t, s) => { optimisticUpdateTask(t, s); void bumpLeadOnViewingClosed(t, s); }}
+              />
+              <ReadyRoomsCard
+                rooms={rooms}
+                activeBuilding={activeBuilding}
+                onSelectRoom={(r) => setSelectedRoom(r)}
+                onSeeAll={() => setActiveView("ready")}
+                limit={isMobile ? 2 : 4}
+              />
+            </div>
           )}
 
           {activeView === "overview" && rooms.length > 0 && (
@@ -1285,6 +1348,7 @@ export default function Home() {
           {showRoomGrid && (
             <RoomsView
               visibleRooms={visibleRooms}
+              statusCounts={roomStatusCounts}
               activeFilter={activeFilter}
               onChangeFilter={setActiveFilter}
               bulkMode={bulkMode}
@@ -1312,7 +1376,7 @@ export default function Home() {
                     className="ac-btn ac-btn-ghost ac-btn-sm"
                     onClick={() => setPresetMenuOpen((v) => !v)}
                     title="ชุด filter ที่บันทึกไว้"
-                  >★ ชุด {presets.length > 0 && `(${presets.length})`}</button>
+                  ><Icon name="star" /> ชุด {presets.length > 0 && `(${presets.length})`}</button>
                   {presetMenuOpen && (
                     <>
                       <div className="ac-preset-backdrop" onClick={() => setPresetMenuOpen(false)} />

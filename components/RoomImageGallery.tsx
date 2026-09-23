@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useState } from "react";
 
 /**
@@ -51,7 +52,7 @@ export default function RoomImageGallery({ images, label }: { images?: string; l
 
       {lightbox !== null && (
         <div className="ac-room-lightbox" role="dialog" aria-modal="true" aria-label="รูปขยาย" onClick={close}>
-          <button type="button" className="ac-room-lightbox-close" onClick={close} aria-label="ปิด">✕</button>
+          <button type="button" className="ac-room-lightbox-close" onClick={close} aria-label="ปิด"><Icon name="close" /></button>
           {urls.length > 1 && (
             <button
               type="button"

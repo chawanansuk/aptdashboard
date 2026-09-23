@@ -60,7 +60,7 @@
   --tabbar-h: 64px;
 
   --text-xs: 12px;
-  --text-sm: 12px;
+  --text-sm: 13px;
   --text-base: 14px;
   --text-md: 16px;
   --text-lg: 18px;
@@ -95,6 +95,49 @@
    * silently resolved to nothing (e.g. the moveout count pill rendered
    * as faint grey text instead of a red badge). */
   --color-danger: #DC2626;
+
+  /* ====================================================================
+   * V2 BRAND (redesign) — product identity, deliberately SEPARATE from
+   * --color-accent above.
+   *
+   * --color-accent is per-role (sales sky / engineer teal / management
+   * indigo, swapped by <html data-mode>) and 137 rules consume it. That
+   * role personality is a product feature, so V2 does not repurpose it.
+   * --color-brand is the one constant green the app is dressed in:
+   * logo, page hero, primary CTA. Role chrome keeps following accent.
+   * ==================================================================== */
+  --color-brand: #047857;
+  --color-brand-strong: #065F46;
+  --color-brand-soft: #ECFDF5;
+  --color-brand-border: #A7F3D0;
+  --color-brand-on: #FFFFFF;
+  /* The gradient is a BAND that carries text (page hero), so both ends
+     must clear AA against white: emerald-700 5.56:1 → teal-700 5.47:1.
+     The brighter teal-600 this started as measured 3.74:1 and would have
+     failed the subtitle line. --brand-gradient-on is white in BOTH
+     themes — the dark theme's band is darker still, not lighter. */
+  --brand-gradient: linear-gradient(135deg, #047857 0%, #0F766E 100%);
+  --brand-gradient-on: #FFFFFF;
+  /* Glass for cards sitting ON the band. 8% white is the most the band's
+     lighter (teal) end can take before white text on it drops under
+     4.5:1 — 12% measured 4.33:1. Checked in lib/contrast.test.ts. */
+  --hero-glass: rgba(255, 255, 255, 0.08);
+
+  /* ----- Room status surfaces (V2) -----
+   * Base hex MIRRORS lib/statusTokens.ts TOKEN (pinned by
+   * lib/statusTokens.test.ts) — change there, change here. Only the
+   * derived tint/border/ink are new: a room card carries its status as
+   * a soft ground + rail, and the ink is darkened (light) or lightened
+   * (dark) off the same base so label text stays readable on the tint.
+   */
+  --status-ink-mix: #0F172A;
+  --status-occupied: #1E293B;
+  --status-ready:    #22C55E;
+  --status-pending:  #A855F7;
+  --status-moveout:  #EF4444;
+  --status-qc:       #F97316;
+  --status-repair:   #EAB308;
+  --status-inactive: #94A3B8;
 
   /* ----- Mode personality (PR-O) -----
    * Per-role accent color. Default is the management indigo. Set
@@ -176,6 +219,60 @@ html.dark {
   --color-text-faint: #A3B1C6;
   --color-accent: #3B82F6;
   --color-danger: #EF4444;
+
+  /* V2 brand on dark — lighter green so it reads on a dark ground, and
+   * the ink mix flips to white so status text lightens instead of darkens. */
+  --color-brand: #34D399;
+  --color-brand-strong: #6EE7B7;
+  --color-brand-soft: #064E3B;
+  --color-brand-border: #065F46;
+  --color-brand-on: #052E16;
+  --brand-gradient: linear-gradient(135deg, #065F46 0%, #0F766E 100%);
+  --status-ink-mix: #FFFFFF;
+  /* "มีผู้เช่า" is slate-800 — the one status whose base is darker than
+     the dark page itself, so its rail, dot and label all but vanished
+     (the derived ink measured 3.9:1). Slate-400 is the same colour the
+     occupancy bar already lightens to in dark; the derived ink off it
+     reads 5.6:1 on the card. The other six statuses are bright enough to
+     keep their single value across both themes. */
+  --status-occupied: #94A3B8;
+}
+
+/* ====================================================================
+ * Derived status surfaces — one formula, both themes.
+ * soft   = 10% of the status colour over the card surface
+ * border = 32% over the surface
+ * ink    = status pushed toward --status-ink-mix until it reads on soft
+ * Defined after both theme blocks so it picks up whichever base is live.
+ * ==================================================================== */
+:root, html.dark {
+  /* V2 Direction B: tiles carry their status as a FILL now (14%, was a
+     10% wash + a coloured rail), and ink moved from 74–78% of the status
+     colour to 50%. At 74% the "พร้อมขาย"/"รอเข้าซ่อม" labels measured
+     ~3.4:1 on their own tint — under the 4.5:1 every other piece of text
+     here is held to. lib/contrast.test.ts now checks every ink-on-soft
+     pair in both themes, so a future tweak can't slide back. */
+  --status-occupied-soft:   color-mix(in srgb, var(--status-occupied) 10%, var(--color-surface));
+  --status-occupied-border: color-mix(in srgb, var(--status-occupied) 22%, var(--color-surface));
+  --status-occupied-ink:    var(--color-text);
+  --status-ready-soft:      color-mix(in srgb, var(--status-ready) 14%, var(--color-surface));
+  --status-ready-border:    color-mix(in srgb, var(--status-ready) 26%, var(--color-surface));
+  --status-ready-ink:       color-mix(in srgb, var(--status-ready) 50%, var(--status-ink-mix));
+  --status-pending-soft:    color-mix(in srgb, var(--status-pending) 14%, var(--color-surface));
+  --status-pending-border:  color-mix(in srgb, var(--status-pending) 26%, var(--color-surface));
+  --status-pending-ink:     color-mix(in srgb, var(--status-pending) 50%, var(--status-ink-mix));
+  --status-moveout-soft:    color-mix(in srgb, var(--status-moveout) 14%, var(--color-surface));
+  --status-moveout-border:  color-mix(in srgb, var(--status-moveout) 26%, var(--color-surface));
+  --status-moveout-ink:     color-mix(in srgb, var(--status-moveout) 50%, var(--status-ink-mix));
+  --status-qc-soft:         color-mix(in srgb, var(--status-qc) 14%, var(--color-surface));
+  --status-qc-border:       color-mix(in srgb, var(--status-qc) 26%, var(--color-surface));
+  --status-qc-ink:          color-mix(in srgb, var(--status-qc) 50%, var(--status-ink-mix));
+  --status-repair-soft:     color-mix(in srgb, var(--status-repair) 16%, var(--color-surface));
+  --status-repair-border:   color-mix(in srgb, var(--status-repair) 30%, var(--color-surface));
+  --status-repair-ink:      color-mix(in srgb, var(--status-repair) 50%, var(--status-ink-mix));
+  --status-inactive-soft:   color-mix(in srgb, var(--status-inactive) 10%, var(--color-surface));
+  --status-inactive-border: color-mix(in srgb, var(--status-inactive) 22%, var(--color-surface));
+  --status-inactive-ink:    var(--color-text-muted);
 }
 
 /* ====================================================================
@@ -219,10 +316,17 @@ h3, .ac-h3 {
 
 /* ===== Mobile-first overhaul (Phase 3.5+) ===== */
 @media (max-width: 768px) {
-  /* --- Navbar: single row, compact icons --- */
+  /* --- Navbar: compact icons --- */
   .ac-nav {
-    flex-wrap: nowrap;
-    height: 56px;
+    /* BUG (found while checking V2 at 768/390): this said `height: 56px`,
+       left over from when the header was a single flex row. The header
+       has been a TWO-row grid below 1024 (brand+utils / tabs+actions)
+       for a while, so the second row — the building tabs, refresh and
+       the "+" button — overflowed a 56px box and the page scrolled
+       underneath it. It was invisible while the first thing below was
+       white; the V2 green hero band made it obvious. min-height keeps
+       the 56px floor for the one-row case and lets two rows fit. */
+    min-height: 56px;
     padding: 8px 10px;
     gap: 8px;
     padding-left: max(10px, env(safe-area-inset-left));
@@ -415,11 +519,12 @@ html.dark .ac-sc {
 }
 html.dark .ac-sc-num { color: #F1F5F9; }
 html.dark .ac-sc-label { color: #94A3B8; }
+/* Dark: the bar has to sit ABOVE the page ground (--color-surface is the
+   page itself in dark), so it takes surface-2. */
 html.dark .ac-fb,
-html.dark .ac-legend,
 html.dark .ac-fs {
-  background: #1E293B;
-  border-color: #334155;
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
 }
 html.dark .ac-fs-head {
   background: #0F172A;
@@ -428,62 +533,30 @@ html.dark .ac-fs-head {
 html.dark .ac-fs-title { color: #F1F5F9; }
 html.dark .ac-fs-stat { color: #64748B; }
 html.dark .ac-chip {
-  background: #334155;
+  background: var(--color-surface-3);
   color: #CBD5E1;
 }
-html.dark .ac-chip:hover { background: #475569; }
+html.dark .ac-chip:hover:not(:disabled) { background: #475569; }
 html.dark .ac-search {
   background: #334155;
   border-color: #475569;
 }
 html.dark .ac-search input { color: #E5E7EB; }
-html.dark .ac-legend-item { color: #94A3B8; }
-html.dark .ac-rc-occupied {
-  /* Was #1E293B — identical to the dark floor-section background, so
-     the most common card on the grid disappeared. One step lighter +
-     a stronger border keeps it quiet but visible. */
-  background: #283548;
-  border-color: #47546C;
-  border-top-color: #94A3B8;
+
+/* V2 dark room cards: the old rules painted saturated grounds
+   (#4C1D95 purple, #7F1D1D red) that swallowed the label text. Dark
+   mode now uses one calm surface one step lighter than the floor
+   section, and carries the status on the rail + dot + number instead —
+   the --status-*-ink tokens lighten off the same base in dark. */
+html.dark .ac-rc {
+  background: #26334A;
+  border-color: #3A4761;
+  padding-left: 16px; /* room for the dark-mode status rail */
 }
-html.dark .ac-rc-occupied .ac-rc-num { color: #E2E8F0; }
-html.dark .ac-rc-occupied .ac-rc-status { color: #94A3B8; }
-html.dark .ac-rc-ready {
-  background: #064E3B;
-  border-color: #065F46;
-}
-html.dark .ac-rc-ready .ac-rc-num { color: #6EE7B7; }
-html.dark .ac-rc-ready .ac-rc-status { color: #34D399; }
-html.dark .ac-rc-pending {
-  background: #4C1D95;
-  border-color: #5B21B6;
-}
-html.dark .ac-rc-pending .ac-rc-num { color: #DDD6FE; }
-html.dark .ac-rc-pending .ac-rc-status { color: #C4B5FD; }
-html.dark .ac-rc-moveout {
-  background: #7F1D1D;
-  border-color: #991B1B;
-}
-html.dark .ac-rc-moveout .ac-rc-num { color: #FECACA; }
-html.dark .ac-rc-moveout .ac-rc-status { color: #FCA5A5; }
-html.dark .ac-rc-qc {
-  background: #7C2D12;
-  border-color: #9A3412;
-}
-html.dark .ac-rc-qc .ac-rc-num { color: #FED7AA; }
-html.dark .ac-rc-qc .ac-rc-status { color: #FDBA74; }
-html.dark .ac-rc-repair {
-  background: #713F12;
-  border-color: #854D0E;
-}
-html.dark .ac-rc-repair .ac-rc-num { color: #FEF08A; }
-html.dark .ac-rc-repair .ac-rc-status { color: #FDE047; }
-html.dark .ac-rc-inactive {
-  background: #1E293B;
-  border-color: #334155;
-}
-html.dark .ac-rc-inactive .ac-rc-num,
-html.dark .ac-rc-inactive .ac-rc-status { color: #475569; }
+html.dark .ac-rc-status { color: #E2E8F0; }
+html.dark .ac-rc-occupied { --rc-ink: #E2E8F0; }
+html.dark .ac-rc-inactive { --rc-ink: #8494A8; }
+html.dark .ac-rc-inactive .ac-rc-status { color: #8494A8; }
 html.dark .ac-modal {
   background: #1E293B;
   color: #E5E7EB;
@@ -633,20 +706,9 @@ html.dark .ac-banner-ok {
 }
 .ac-banner a { color: #4F46E5; text-decoration: underline; }
 
-.ac-empty {
-  background: #fff;
-  border: 1px dashed #E5E7EB;
-  border-radius: 12px;
-  padding: 32px;
-  text-align: center;
-  color: #6B7280;
-  font-size: 13px;
-}
-.ac-empty-error {
-  border-color: #FCA5A5;
-  background: #FEF2F2;
-  color: #991B1B;
-}
+/* (.ac-empty / .ac-empty-error removed in V2 — the dashed-box empty
+   state had two users left in MaintLogView and the error variant none.
+   Every view uses the EmptyState component / .ac-empty-state now.) */
 
 /* .ac-last-updated removed (#1 partial) — the "อัปเดต hh:mm" text was
    demoted to the refresh button's tooltip / aria-label since it ate
@@ -658,7 +720,10 @@ html.dark .ac-banner-ok {
 html, body {
   margin: 0;
   padding: 0;
-  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  /* font-family ถูกลบออกจากบล็อกนี้: มันอยู่หลัง `body { font-family:
+     var(--font-sans) }` ในไฟล์เดียวกัน specificity เท่ากัน ตัวหลังจึงชนะ
+     ทั้งแอปเลยเรนเดอร์ด้วย Segoe UI/ฟอนต์ระบบ ทั้งที่ next/font โหลด
+     IBM Plex Sans Thai มาครบ 4 น้ำหนักทุกครั้งที่เปิดหน้า */
   background: #F0F2F5;
   color: #111827;
   font-size: 14px;
@@ -969,17 +1034,21 @@ html.dark .ac-cmdk-btn-kbd {
   border: 2px solid #fff;
 }
 
+/* V2 — was a hardcoded indigo (#4F46E5) that matched nothing after the
+   role accents landed: it read indigo for a sales user whose whole app
+   was sky. It follows the role accent now. Green is reserved for the
+   create action, so this one stays accent, not brand. */
 .ac-summary-btn {
-  background: #4F46E5;
+  background: var(--color-accent);
   color: #fff;
-  font-weight: 700;
-  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-xs);
   padding: 8px 14px;
-  border-radius: 8px;
-  letter-spacing: 0.5px;
+  border-radius: var(--radius-md);
+  letter-spacing: 0.3px;
   transition: background 0.15s;
 }
-.ac-summary-btn:hover { background: #4338CA; }
+.ac-summary-btn:hover { background: color-mix(in srgb, var(--color-accent) 86%, #000); }
 
 .ac-avatar {
   width: 36px; height: 36px;
@@ -1193,35 +1262,82 @@ html.dark .ac-badge-empty { background: #334155; color: #94A3B8; }
 .ac-sub-info { background: #EFF6FF; color: #2563EB; }
 .ac-sub-urgent { background: #FEF2F2; color: #DC2626; }
 
-/* FILTER BAR */
+/* FILTER BAR — V2: tokens instead of the old hardcoded #fff / #E8EAED,
+   and it now carries the colour legend too (see .ac-chip-status). */
 .ac-fb {
-  background: #fff;
-  border: 1px solid #E8EAED;
-  border-radius: 12px;
-  padding: 12px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   flex-wrap: wrap;
   box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
 }
 .ac-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ac-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 12px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 500;
-  background: #F3F4F6;
-  color: #374151;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
   border: 1px solid transparent;
   transition: all 0.15s;
 }
-.ac-chip:hover { background: #E5E7EB; }
+.ac-chip:hover:not(:disabled) { background: var(--color-surface-3); }
+.ac-chip:disabled { opacity: 0.45; cursor: default; }
 /* Active chip = role accent with a soft self-colored glow. */
 .ac-chip.is-active {
   background: var(--color-accent);
   color: #fff;
   box-shadow: 0 2px 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* Room-status chips (V2) — filter + legend in one control. Each chip
+   carries its status colour through --chip-accent, so selecting "รอ
+   เข้าซ่อม" tints the chip in the SAME colour as the cards it reveals
+   instead of the generic role accent. */
+.ac-chip-occupied { --chip-accent: var(--status-occupied); --chip-soft: var(--status-occupied-soft); --chip-ink: var(--status-occupied-ink); }
+.ac-chip-ready    { --chip-accent: var(--status-ready);    --chip-soft: var(--status-ready-soft);    --chip-ink: var(--status-ready-ink); }
+.ac-chip-pending  { --chip-accent: var(--status-pending);  --chip-soft: var(--status-pending-soft);  --chip-ink: var(--status-pending-ink); }
+.ac-chip-moveout  { --chip-accent: var(--status-moveout);  --chip-soft: var(--status-moveout-soft);  --chip-ink: var(--status-moveout-ink); }
+.ac-chip-qc       { --chip-accent: var(--status-qc);       --chip-soft: var(--status-qc-soft);       --chip-ink: var(--status-qc-ink); }
+.ac-chip-repair   { --chip-accent: var(--status-repair);   --chip-soft: var(--status-repair-soft);   --chip-ink: var(--status-repair-ink); }
+.ac-chip-inactive { --chip-accent: var(--status-inactive); --chip-soft: var(--status-inactive-soft); --chip-ink: var(--status-inactive-ink); }
+
+/* The chip's legend dot reads its colour from the chip, not from an
+   inline style, so the dark-mode lightening of --status-occupied reaches
+   it too (an inline hex would have outranked every theme rule). */
+.ac-chip-status .ac-legend-dot { background: var(--chip-accent); }
+
+/* Count badge — the number of rooms this chip would show. */
+.ac-chip-count {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  color: inherit;
+}
+.ac-chip.is-active .ac-chip-count {
+  background: color-mix(in srgb, #fff 26%, transparent);
+}
+
+/* The "งานวันนี้" hint is a legend entry, not a filter — no chip frame. */
+.ac-legend-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px;
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+  white-space: nowrap;
 }
 
 .ac-search {
@@ -1247,24 +1363,16 @@ html.dark .ac-badge-empty { background: #334155; color: #94A3B8; }
   color: #111827;
 }
 
-/* COLOR LEGEND */
-.ac-legend {
-  background: #fff;
-  border: 1px solid #E8EAED;
-  border-radius: 12px;
-  padding: 10px 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  align-items: center;
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
-}
+/* COLOR LEGEND — V2: the standalone `.ac-legend` card is gone; its
+   swatches became the status chips in `.ac-fb` above. What remains is the
+   dot itself, still used by the chips, RoomModal's status line and the
+   "งานวันนี้" hint. */
 .ac-legend-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  color: #6B7280;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
 }
 .ac-legend-dot {
   display: inline-block;
@@ -1381,32 +1489,54 @@ html.dark .ac-fs-stat.is-active {
 }
 
 /* ROOM GRID */
+/* V2 — was a wrapping flex row of fixed-width cards, which left a ragged
+   band of empty floor section to the right of the last card on every
+   row (up to ~270px at 1440). It is a grid now: auto-fill keeps the
+   track count honest (a floor with 3 rooms does NOT stretch them to a
+   third of the screen each) while 1fr spends the leftover pixels evenly
+   on the cards that are there. --rc-w is the card's natural width and
+   is the one number each density variant has to set. */
 .ac-rg {
-  display: flex;
-  flex-wrap: wrap;
+  --rc-w: 144px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--rc-w), 1fr));
   gap: 8px;
   padding: 14px 16px;
 }
+.ac-rg-compact { --rc-w: 56px; }
+.ac-rg-large   { --rc-w: 172px; }
 
 /* ROOM CARD — base (= comfy default for backward compat) */
 .ac-rc {
   position: relative;
   /* min-height (not height): the repair-hint / move-in pills add a
      4th line on some cards — a fixed height clipped them mid-glyph. */
-  width: 66px; min-height: 58px;
-  border-radius: 10px;
-  border: 1.5px solid transparent;
+  /* V2 (approved redesign): the room card is the object staff scan all
+     day. At 66px the status label clipped mid-word ("รอเข้าซ่อม แ..."),
+     so the card now sizes to its content: number first, full status
+     below, status colour carried by a 4px left rail instead of tinting
+     the whole tile. */
+  /* Width comes from the grid track (see .ac-rg) — the card fills its
+     cell instead of being pinned to 144px. */
+  min-height: 104px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--rc-border, var(--color-border));
+  background: var(--rc-soft, var(--color-surface));
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
   transition: transform 0.15s, box-shadow 0.15s;
-  text-align: center;
-  padding: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  overflow: hidden;
   cursor: pointer;
   user-select: none;
-  background: transparent;
+  /* (A leftover `background: transparent` used to sit here, AFTER the
+     --rc-soft background above — so the status tint never actually
+     rendered and every tile was plain white. Removed in Direction B,
+     where the tint is the whole point.) */
   /* Skip rendering cards scrolled out of view — the grid holds all 297
      rooms, but only ~20-40 are ever on screen. content-visibility: auto
      lets the browser bypass layout/paint for the off-screen ones, so
@@ -1416,12 +1546,42 @@ html.dark .ac-fs-stat.is-active {
      overridden per density below. Browsers without support (Safari <18)
      simply render everything as before — no regression. */
   content-visibility: auto;
-  contain-intrinsic-size: 66px 58px;
+  contain-intrinsic-size: 144px 104px;
 }
+/* 4px status rail. Direction B carries status as the tile's FILL in
+   light mode, so the rail is dark-mode only — there the tiles stay one
+   neutral surface (a tinted ground swallowed the label) and the rail is
+   what says the status. */
+.ac-rc::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--rc-accent, var(--color-border-strong));
+  display: none;
+}
+html.dark .ac-rc::before { display: block; }
 .ac-rc:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); transition: transform 180ms var(--ease), box-shadow 180ms var(--ease); }
-.ac-rc:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
-.ac-rc-num { font-size: 15px; font-weight: 800; line-height: 1.1; }
-.ac-rc-status { font-size: 11px; font-weight: 600; line-height: 1.1; }
+.ac-rc:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.ac-rc-num {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.1;
+  color: var(--rc-ink, var(--color-text));
+  letter-spacing: -0.01em;
+}
+/* Full status label in the status' own ink (Direction B) — the tint
+   says which status, the label says it in words; no separate dot. The
+   ink/tint pair is held to 4.5:1 by lib/contrast.test.ts. */
+.ac-rc-status {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.25;
+  color: var(--rc-ink, var(--color-text));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 /* "วันเข้า" hint for pending rooms — small purple date pill under status */
 .ac-rc-movein {
   display: inline-block;
@@ -1447,20 +1607,22 @@ html.dark .ac-rc-movein {
    showing the repair note. `.is-empty` (grey) flags a room marked for
    repair that has no ซ่อม job yet. Truncates so long notes don't break
    the card grid. */
+/* V2: the note is the whole point of a repair card ("แอร์ไม่เย็น"), so
+   it wraps to a second line instead of clipping to "แอร์ไม่เย็น เดิม...".
+   The card hugs its content, so two lines cost nothing. */
 .ac-rc-repair-hint {
   display: block;
   margin-top: 2px;
   max-width: 100%;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.1;
-  color: #92400E;
-  background: color-mix(in srgb, #F59E0B 26%, transparent);
-  padding: 1px 5px;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+  color: var(--status-repair-ink);
+  background: color-mix(in srgb, var(--status-repair) 18%, transparent);
+  padding: 2px 6px;
   border-radius: var(--radius-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .ac-rc-repair-hint.is-empty {
   color: #64748B;
@@ -1476,20 +1638,26 @@ html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in
   background: #EF4444;
   border-radius: 50%;
 }
-/* Contract-expiring chip (management only) — top-left of card, small
-   clock emoji. Tone scales with urgency:
+/* Contract-expiring chip (management only) — small clock emoji. Tone
+   scales with urgency:
      is-warn   30..8 days  amber
      is-soon    7..0 days  orange
-     is-expired   <0 days  red */
+     is-expired   <0 days  red
+   V2: moved from the top-LEFT corner, which the room number moved into
+   when the card became left-aligned — the clock sat on top of the first
+   digit. It shares the top-right corner with the "งานวันนี้" dot now,
+   and steps aside when that dot is present (DOM order guarantees the
+   sibling combinator matches). */
 .ac-rc-contract {
   position: absolute;
-  top: 2px; left: 4px;
+  top: 4px; right: 5px;
   font-size: 11px;
   line-height: 1;
   padding: 1px 3px;
   border-radius: var(--radius-sm);
   pointer-events: none;
 }
+.ac-rc-today ~ .ac-rc-contract { right: 17px; }
 .ac-rc-contract.is-warn    { background: color-mix(in srgb, #EAB308 28%, transparent); }
 .ac-rc-contract.is-soon    { background: color-mix(in srgb, #F97316 36%, transparent); }
 .ac-rc-contract.is-expired { background: color-mix(in srgb, #EF4444 42%, transparent); }
@@ -1500,7 +1668,8 @@ html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in
    "รอสัญญา" room that still must be cleaned before move-in). */
 .ac-rc-clean {
   position: absolute;
-  bottom: 2px; left: 3px;
+  /* V2: clear of the 4px status rail, which it used to sit on. */
+  bottom: 3px; left: 10px;
   font-size: 11px;
   line-height: 1;
   pointer-events: none;
@@ -1523,7 +1692,7 @@ html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in
 /* Badges container — bottom-right of card, stacks vehicle + equipment */
 .ac-rc-badges {
   position: absolute;
-  bottom: 2px; right: 4px;
+  bottom: 3px; right: 26px;
   display: inline-flex;
   gap: 2px;
 }
@@ -1543,23 +1712,37 @@ html.dark .ac-rc-repair-hint.is-empty { color: #94A3B8; background: color-mix(in
 .ac-rg-compact .ac-rc-badges { display: none; }
 
 /* Density variants — compact / comfy (default) / large */
-.ac-rg-compact .ac-rc { width: 44px; min-height: 36px; padding: 2px; gap: 0; }
-/* keep contain-intrinsic-size matched to the rendered size per density
-   so the skipped-card scrollbar estimate stays accurate */
-.ac-rg-compact .ac-rc { contain-intrinsic-size: 44px 36px; }
-.ac-rg-compact .ac-rc-num { font-size: 12px; }
+/* compact keeps the dense grid for big properties — status colour still
+   reads from the rail even though the label is hidden */
+.ac-rg-compact .ac-rc {
+  min-height: 48px;
+  padding: 6px 6px 6px 10px;
+  gap: 0;
+  align-items: center; justify-content: center; text-align: center;
+  contain-intrinsic-size: 56px 48px;
+}
+.ac-rg-compact .ac-rc-num { font-size: var(--text-base); }
 .ac-rg-compact .ac-rc-status { display: none; }
 .ac-rg-compact .ac-rc-today { top: 2px; right: 2px; width: 5px; height: 5px; }
 
-.ac-rg-large .ac-rc { width: 96px; min-height: 84px; padding: 6px; gap: 3px; }
-.ac-rg-large .ac-rc { contain-intrinsic-size: 96px 84px; }
-.ac-rg-large .ac-rc-num { font-size: 20px; }
-.ac-rg-large .ac-rc-status { font-size: 11px; }
+.ac-rg-large .ac-rc {
+  min-height: 120px;
+  padding: 14px 14px 14px 18px;
+  gap: 8px;
+  contain-intrinsic-size: 172px 120px;
+}
+.ac-rg-large .ac-rc-num { font-size: var(--text-2xl); }
+.ac-rg-large .ac-rc-status { font-size: var(--text-base); }
 
 /* "..." quick-action trigger on cell (hover on desktop, always on touch) */
+/* V2: the "⋯" moved out of the top-LEFT corner — that is the room
+   number's corner now, and on touch devices (where the button is always
+   visible, not hover-only) it sat directly on the digits. Bottom-right
+   is the only corner the V2 card leaves free; the vehicle/equipment
+   badges step left to make room. */
 .ac-rc-more {
   position: absolute;
-  top: 2px; left: 2px;
+  bottom: 3px; right: 4px;
   width: 18px; height: 18px;
   border: none; background: rgba(255, 255, 255, 0.85);
   border-radius: 5px;
@@ -1585,45 +1768,16 @@ html.dark .ac-rc-more:hover { background: #0F172A; color: #F1F5F9; }
    Switch to a light slate tint with a strong slate top accent so it
    reads as "the default + filled" rather than "alert!". Dark mode
    keeps the deep slate fill (text contrast is fine there). */
-.ac-rc-occupied { background: #F8FAFC; border-color: #CBD5E1; }
-.ac-rc-occupied .ac-rc-num { color: #0F172A; }
-.ac-rc-occupied .ac-rc-status { color: #64748B; }
-
-.ac-rc-ready { background: #F0FDF4; border-color: #86EFAC; }
-.ac-rc-ready .ac-rc-num { color: #16A34A; }
-.ac-rc-ready .ac-rc-status { color: #4ADE80; }
-
-.ac-rc-pending { background: #FAF5FF; border-color: #D8B4FE; }
-.ac-rc-pending .ac-rc-num { color: #7C3AED; }
-.ac-rc-pending .ac-rc-status { color: #A855F7; }
-
-.ac-rc-moveout { background: #FEF2F2; border-color: #FCA5A5; }
-.ac-rc-moveout .ac-rc-num { color: #DC2626; }
-.ac-rc-moveout .ac-rc-status { color: #EF4444; }
-
-.ac-rc-qc { background: #FFF7ED; border-color: #FDBA74; }
-.ac-rc-qc .ac-rc-num { color: #C2410C; }
-.ac-rc-qc .ac-rc-status { color: #F97316; }
-
-.ac-rc-repair { background: #FEFCE8; border-color: #FDE047; }
-.ac-rc-repair .ac-rc-num { color: #854D0E; }
-.ac-rc-repair .ac-rc-status { color: #CA8A04; }
-
-.ac-rc-inactive { background: #F1F5F9; border-color: #E2E8F0; }
-.ac-rc-inactive .ac-rc-num { color: #CBD5E1; }
-.ac-rc-inactive .ac-rc-status { color: #CBD5E1; }
-
-/* 3px colored top accent (Problem #2) — same template every card,
-   only the accent color changes per status. Makes status legible at
-   a glance even when the room number colour is muted. */
-.ac-rc { border-top-width: 3px; }
-.ac-rc-occupied { border-top-color: #475569; }
-.ac-rc-ready    { border-top-color: #16A34A; }
-.ac-rc-pending  { border-top-color: #7C3AED; }
-.ac-rc-moveout  { border-top-color: #DC2626; }
-.ac-rc-qc       { border-top-color: #EA580C; }
-.ac-rc-repair   { border-top-color: #CA8A04; }
-.ac-rc-inactive { border-top-color: #94A3B8; }
+/* V2: each status sets FOUR variables and the base .ac-rc rules above
+   consume them. Replaces 21 hardcoded hex rules; the base hues still
+   come from lib/statusTokens TOKEN via the --status-* tokens. */
+.ac-rc-occupied { --rc-accent: var(--status-occupied); --rc-soft: var(--status-occupied-soft); --rc-border: var(--status-occupied-border); --rc-ink: var(--status-occupied-ink); }
+.ac-rc-ready    { --rc-accent: var(--status-ready);    --rc-soft: var(--status-ready-soft);    --rc-border: var(--status-ready-border);    --rc-ink: var(--status-ready-ink); }
+.ac-rc-pending  { --rc-accent: var(--status-pending);  --rc-soft: var(--status-pending-soft);  --rc-border: var(--status-pending-border);  --rc-ink: var(--status-pending-ink); }
+.ac-rc-moveout  { --rc-accent: var(--status-moveout);  --rc-soft: var(--status-moveout-soft);  --rc-border: var(--status-moveout-border);  --rc-ink: var(--status-moveout-ink); }
+.ac-rc-qc       { --rc-accent: var(--status-qc);       --rc-soft: var(--status-qc-soft);       --rc-border: var(--status-qc-border);       --rc-ink: var(--status-qc-ink); }
+.ac-rc-repair   { --rc-accent: var(--status-repair);   --rc-soft: var(--status-repair-soft);   --rc-border: var(--status-repair-border);   --rc-ink: var(--status-repair-ink); }
+.ac-rc-inactive { --rc-accent: var(--status-inactive); --rc-soft: var(--status-inactive-soft); --rc-border: var(--status-inactive-border); --rc-ink: var(--status-inactive-ink); }
 
 /* Building sub-label (Problem #3) — disambiguates rooms with the
    same number across buildings (102 exists in three of them).
@@ -1825,7 +1979,10 @@ html.dark .ac-rc-bldg { color: #64748B; }
   border-top: 1px solid var(--color-border);
   background: var(--color-surface-2);
 }
-.ac-modal-foot .ac-btn { min-height: 40px; }
+/* Footer buttons never shrink; the keyboard hint absorbs the squeeze
+   (V2 — the footer used to wrap "บันทึก" onto a second line inside a
+   460px modal, which read as a button that had fallen off the row). */
+.ac-modal-foot .ac-btn { min-height: 40px; flex-shrink: 0; }
 .ac-modal-body {
   padding: var(--space-4) var(--space-5);
   display: flex; flex-direction: column; gap: var(--space-3);
@@ -1858,37 +2015,253 @@ html.dark .ac-rc-bldg { color: #64748B; }
 .ac-btn:disabled {
   opacity: 0.55; cursor: not-allowed;
 }
+/* V2 — a ghost button used to be bare text. In the task rows that put
+   four of them in a line ("ยกเลิก ไม่สนใจ แก้ไข ลบ") next to one filled
+   button, so the row read as one button and some words. It keeps its
+   transparent ground but takes the border that .ac-btn already reserves
+   (1px transparent), so nothing moves and every action now looks
+   pressable. */
 .ac-btn-ghost {
   background: transparent;
   color: var(--color-text-muted);
+  border-color: var(--color-border);
 }
 .ac-btn-ghost:hover:not(:disabled) {
   background: var(--color-surface-3);
+  border-color: var(--color-border-strong);
   color: var(--color-text);
 }
+/* ====================================================================
+ * V2 Direction B — overview first screen
+ * ==================================================================== */
+
+/* One green band holding the greeting AND the headline numbers. It owns
+   the gradient; WelcomeHero and OverviewCards inside it are the same
+   components as before, restyled only by being inside the band. */
+.ac-hero-band {
+  position: relative;
+  overflow: hidden;
+  background: var(--brand-gradient);
+  color: var(--brand-gradient-on);
+  border-radius: var(--radius-xl);
+  padding: 0 var(--space-6, 24px) var(--space-6, 24px);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+.ac-hero-band::before {
+  content: "";
+  position: absolute;
+  top: -40%; right: -8%;
+  width: 520px; height: 520px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
+.ac-hero-band .ac-welcome-hero {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 22px 0 18px;
+  overflow: visible;
+}
+.ac-hero-band .ac-welcome-hero::before { display: none; }
+.ac-hero-band .ac-overview-cards { margin-bottom: 0; position: relative; }
+/* Glass cards: --hero-glass is the lightest the band can take and keep
+   white text at 4.5:1 (lib/contrast.test.ts). Text is full white — no
+   opacity on labels, which is what pushed the mock under AA. */
+.ac-hero-band .ac-overview-card,
+html.dark .ac-hero-band .ac-overview-card {
+  background: var(--hero-glass);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+  color: var(--brand-gradient-on);
+}
+.ac-hero-band .ac-overview-card.is-clickable:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.45);
+}
+.ac-hero-band .ac-overview-card:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6); }
+.ac-hero-band .ac-overview-card-label,
+.ac-hero-band .ac-overview-card-sub,
+.ac-hero-band .ac-overview-card-value,
+.ac-hero-band .ac-overview-card-warn .ac-overview-card-value,
+.ac-hero-band .ac-overview-card-danger .ac-overview-card-value { color: inherit; }
+/* On green, an amber or red NUMBER would fail contrast — so the band
+   moves the warning onto the sub line as a solid pill (white on amber-700
+   5.0:1, on red-700 6.5:1). Same meaning, readable. */
+.ac-hero-band .ac-overview-card-warn .ac-overview-card-sub,
+.ac-hero-band .ac-overview-card-danger .ac-overview-card-sub {
+  align-self: flex-start;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-weight: var(--font-weight-semibold);
+}
+.ac-hero-band .ac-overview-card-warn .ac-overview-card-sub { background: #B45309; }
+.ac-hero-band .ac-overview-card-danger .ac-overview-card-sub { background: #B91C1C; }
+.ac-hero-band .ac-occ-bar { background: rgba(255, 255, 255, 0.2); }
+.ac-hero-band .ac-overview-card-skeleton,
+html.dark .ac-hero-band .ac-overview-card-skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,.12) 25%, rgba(255,255,255,.28) 50%, rgba(255,255,255,.12) 75%);
+  background-size: 200% 100%;
+}
+@media (max-width: 600px) {
+  .ac-hero-band { padding: 0 14px 14px; }
+  .ac-hero-band .ac-welcome-hero { padding: 12px 0 10px; }
+}
+/* Phones: the KPI row inside the band is a swipe track (see the 560px
+   block) — its negative margins must line up with the band's padding. */
+@media (max-width: 560px) {
+  .ac-hero-band .ac-overview-cards {
+    margin-left: -14px; margin-right: -14px;
+    padding-left: 14px; padding-right: 14px;
+  }
+}
+
+/* Today + ready-to-rent side by side; stacked below 1024px. */
+.ac-overview-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  align-items: stretch;
+}
+@media (max-width: 1023px) {
+  .ac-overview-split { grid-template-columns: minmax(0, 1fr); }
+}
+.ac-overview-split > .ac-tasks { margin: 0; }
+.ac-tasks-compact,
+.ac-ready-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
+}
+html.dark .ac-tasks-compact,
+html.dark .ac-ready-card { background: var(--color-surface-2); }
+.ac-tasks-compact .ac-task-bucket { margin-top: 4px; }
+.ac-tasks-seeall {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-brand);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.ac-tasks-seeall:hover { background: var(--color-brand-soft); }
+.ac-tasks-seeall:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .ac-tasks-seeall { min-height: 44px; }
+}
+
+/* Phones: the full task list turns every row action into a full-width
+   button on its own line. In the compact card there is ONE action, so it
+   stays a normal button at the end of the row instead of adding a whole
+   extra line per task. */
+@media (max-width: 640px) {
+  .ac-tasks-compact .ac-task { padding: 10px 12px; flex-wrap: nowrap; align-items: center; }
+  .ac-tasks-compact .ac-task-main { flex: 1 1 auto; flex-basis: auto; min-width: 0; }
+  .ac-tasks-compact .ac-task-actions { flex: 0 0 auto; width: auto; justify-content: flex-end; }
+  .ac-tasks-compact .ac-task-actions .ac-btn-sm { flex: 0 0 auto; }
+  .ac-tasks-compact,
+  .ac-ready-card { padding: 14px; }
+}
+
+/* Ready-to-rent rows — tinted with the same status tokens as the tiles. */
+.ac-ready-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ac-ready-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--rr-soft, var(--color-surface-2));
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms var(--ease), transform 160ms var(--ease);
+}
+.ac-ready-row:hover { border-color: var(--rr-border, var(--color-border-strong)); transform: translateY(-1px); }
+.ac-ready-row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.ac-ready-row-ready   { --rr-soft: var(--status-ready-soft);   --rr-border: var(--status-ready-border);   --rr-ink: var(--status-ready-ink); }
+.ac-ready-row-moveout { --rr-soft: var(--status-moveout-soft); --rr-border: var(--status-moveout-border); --rr-ink: var(--status-moveout-ink); }
+.ac-ready-num {
+  flex: 0 0 auto;
+  min-width: 52px;
+  height: 40px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--rr-ink, var(--color-text));
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.ac-ready-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ac-ready-where { font-size: var(--text-sm); font-weight: var(--font-weight-semibold); }
+.ac-ready-note { font-size: var(--text-xs); color: var(--color-text-muted); }
+.ac-ready-end { flex: 0 0 auto; font-size: var(--text-sm); font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.ac-ready-sub {
+  margin: 16px 0 8px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+.ac-ready-sub span { font-weight: var(--font-weight-medium); }
+
+/* V2 icons — every icon is a lucide SVG from lib/icons (<Icon name=…>),
+   stroke = currentColor, so it takes the colour of whatever text it sits
+   in, exactly like the emoji it replaced but without the OS drawing its
+   own colours. Size stays whatever the call site asks for (default 16);
+   these two lines only make an icon sit on the text baseline when it is
+   inline, and never get squeezed when it is a flex item. */
+.lucide {
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+}
+
+/* V2 — the primary action is BRAND green in every role, not the role
+   accent. Before, "บันทึก" was sky for sales, teal for engineers and
+   indigo for management, which put the same weight of colour on the
+   button as on the chips and tabs around it; nothing in the page said
+   "this is the action". Green is used for nothing else, so it now does.
+   Ground and ink come from the --color-brand/--color-brand-on pair,
+   which is defined per theme (AA: 5.56:1 light, 7.7:1 dark). */
 .ac-btn-primary {
-  /* Subtle top-light gradient over the role accent + a soft accent
-   * glow — reads "pressable" without changing size or layout. */
   background:
     linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 55%),
-    var(--color-accent);
-  color: #fff;
+    var(--color-brand);
+  color: var(--color-brand-on);
   box-shadow: var(--shadow-xs),
-    0 2px 10px color-mix(in srgb, var(--color-accent) 28%, transparent);
+    0 2px 10px color-mix(in srgb, var(--color-brand) 28%, transparent);
 }
 .ac-btn-primary:hover:not(:disabled) {
-  /* Darken the SAME accent instead of jumping to a fixed blue — keeps
-   * the hover on-hue for every role's accent. */
+  /* Darken the SAME green rather than jumping hue. */
   background:
     linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 55%),
-    color-mix(in srgb, var(--color-accent) 86%, #000);
+    color-mix(in srgb, var(--color-brand) 86%, #000);
   box-shadow: var(--shadow-sm),
-    0 4px 14px color-mix(in srgb, var(--color-accent) 34%, transparent);
+    0 4px 14px color-mix(in srgb, var(--color-brand) 34%, transparent);
 }
 html.dark .ac-btn-primary:hover:not(:disabled) {
+  /* Dark's brand is the light mint, so hover BRIGHTENS it — mixing to
+     black there would drag it toward the page ground. */
   background:
     linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, 0) 55%),
-    color-mix(in srgb, var(--color-accent) 82%, #fff);
+    color-mix(in srgb, var(--color-brand) 82%, #fff);
 }
 .ac-btn-secondary {
   background: #EFF6FF;
@@ -1929,9 +2302,21 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   .ac-divider { display: none; }
   .ac-logo-text { display: none; }
   .ac-sg { grid-template-columns: repeat(2, 1fr); }
-  .ac-rc { width: 64px; min-height: 60px; padding: 6px; contain-intrinsic-size: 64px 60px; }
-  .ac-rc-num { font-size: 16px; }
-  .ac-rc-status { font-size: 11px; }
+  /* V2 — this used to pin the card to a 64px square, which after the
+     card was rebuilt (number over full status label) left the label
+     wrapping to four lines inside a tile too narrow to hold it: "รอ
+     เข้า ซ่อม". The phone now gets its own track width — three cards
+     per row at 390px — and the card fills the track like it does on
+     desktop instead of being hard-sized. */
+  .ac-rg { --rc-w: 100px; padding: 10px 12px; gap: 6px; }
+  .ac-rc {
+    min-height: 78px;
+    padding: 8px 8px 8px 12px;
+    gap: 4px;
+    contain-intrinsic-size: 108px 78px;
+  }
+  .ac-rc-num { font-size: var(--text-base); }
+  .ac-rc-status { font-size: var(--text-xs); }
   .ac-search { min-width: 0; flex: 1; }
   .ac-fs-stats { display: none; }
 }
@@ -2014,9 +2399,12 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
 
 
 /* ===== Add Task Button ===== */
+/* V2 — the app's single most-used action wears the brand green, same as
+   .ac-btn-primary, so "the green one" means "the thing that creates"
+   wherever you are. */
 .ac-add-btn{
-  background: var(--color-accent);
-  color: #fff;
+  background: var(--color-brand);
+  color: var(--color-brand-on);
   border: 0;
   font-weight: var(--font-weight-semibold);
   /* Tighter vertical padding (#1 partial) so the button sits cleanly
@@ -2041,9 +2429,12 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   .ac-add-btn { padding: 6px 10px; }
 }
 .ac-add-btn:hover {
-  background: color-mix(in srgb, var(--color-accent) 86%, #000);
+  background: color-mix(in srgb, var(--color-brand) 86%, #000);
   box-shadow: var(--shadow-sm),
-    0 4px 14px color-mix(in srgb, var(--color-accent) 30%, transparent);
+    0 4px 14px color-mix(in srgb, var(--color-brand) 30%, transparent);
+}
+html.dark .ac-add-btn:hover {
+  background: color-mix(in srgb, var(--color-brand) 82%, #fff);
 }
 .ac-add-btn:active { transform: translateY(0.5px) scale(0.985); }
 .ac-add-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
@@ -2182,18 +2573,22 @@ html.dark .ac-btn-danger:hover:not(:disabled) { background: #DC2626; border-colo
 }
 .ac-btn-sm {
   padding: 6px 12px;
-  font-size: 12px;
-  border-radius: 8px;
+  font-size: var(--text-xs);
+  border-radius: var(--radius-md);
   min-height: 32px;
 }
+/* Task state — a badge, not a button: it leads the action cluster and
+   keeps a gap from the first real button so the two never read as one
+   group of five controls. */
 .ac-task-status {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
   padding: 4px 8px;
   border-radius: 999px;
-  background: #E2E8F0;
-  color: #475569;
-  margin-left: 4px;
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+  margin-right: var(--space-2);
+  white-space: nowrap;
 }
 .ac-task-status.is-done {
   background: #DCFCE7;
@@ -2718,77 +3113,25 @@ html.dark .ac-page-title { color: #F1F5F9; }
 html.dark .ac-page-sub { color: #94A3B8; }
 html.dark .ac-page-sub code { background: #334155; color: #E2E8F0; }
 
-/* ===== Income KPI cards ===== */
-.ac-income-kpi {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.ac-kpi-card {
-  /* Same premium recipe as the sales board / room cells: top sheen +
-   * glass inset + soft shadow, gentle lift on hover. */
-  background: var(--card-grad), #fff;
-  border: 1px solid #E8EAED;
-  border-radius: 14px;
-  padding: 16px 18px;
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
-  transition: transform var(--duration-normal) var(--ease),
-    box-shadow var(--duration-normal) var(--ease);
-}
-.ac-kpi-card:hover {
-  transform: translateY(-2px);
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-lift);
-}
-.ac-kpi-label {
-  font-size: 12px;
-  color: #6B7280;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-.ac-kpi-num {
-  font-size: 24px;
-  font-weight: 800;
-  color: #0F172A;
-  line-height: 1.1;
-  margin-bottom: 4px;
-}
-.ac-kpi-sub {
-  font-size: 11px;
-  color: #64748B;
-}
-.ac-kpi-actual { border-top: 3px solid #16A34A; }
-.ac-kpi-actual .ac-kpi-num { color: #15803D; }
-.ac-kpi-lost { border-top: 3px solid #DC2626; }
-.ac-kpi-lost .ac-kpi-num { color: #B91C1C; }
-.ac-kpi-potential { border-top: 3px solid #4F46E5; }
-.ac-kpi-rate { border-top: 3px solid #0891B2; }
-.ac-kpi-bar {
+/* ===== Income page bar ===== *
+ * V2: the income page's four .ac-kpi-card tiles are .ac-overview-card
+ * now (see IncomeView), so that whole card style — plus its dark pairs
+ * and its four coloured top borders — is gone. What survives is the
+ * progress bar, renamed to .ac-card-bar because any stat card can use it.
+ */
+.ac-card-bar {
   height: 8px;
-  background: #E2E8F0;
+  background: var(--color-surface-3);
   border-radius: 999px;
   overflow: hidden;
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
-.ac-kpi-bar-fill {
+.ac-card-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #06B6D4, #4F46E5);
+  background: var(--brand-gradient);
   border-radius: 999px;
   transition: width 0.4s ease;
 }
-html.dark .ac-kpi-card {
-  background: var(--card-grad), #1E293B;
-  border-color: #334155;
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
-}
-html.dark .ac-kpi-num { color: #F1F5F9; }
-html.dark .ac-kpi-label { color: #94A3B8; }
-html.dark .ac-kpi-sub { color: #64748B; }
-html.dark .ac-kpi-bar { background: #334155; }
-/* Variant number colors — the light-theme deep green/red disappear on
- * navy; brighten to their dark-safe pairs. */
-html.dark .ac-kpi-actual .ac-kpi-num { color: #4ADE80; }
-html.dark .ac-kpi-lost .ac-kpi-num { color: #F87171; }
 
 /* ===== Generic table ===== */
 .ac-table-wrap {
@@ -3172,32 +3515,34 @@ html.dark .ac-cal-task-line1 { color: #F1F5F9; }
 }
 
 /* ===== Empty state (with icon + CTA) ===== */
+/* V2: was five hardcoded greys. The description in particular was
+   #94A3B8 on white = 2.6:1 — the sentence that explains WHY the screen
+   is empty was the least readable text on it. Tokens now, so both
+   themes come from the same 4.5:1-tested pair. */
 .ac-empty-state {
   text-align: center;
   padding: 40px 20px;
-  color: #94A3B8;
+  color: var(--color-text-muted);
 }
 .ac-empty-icon {
   display: inline-flex;
-  margin-bottom: 12px;
-  color: #CBD5E1;
+  margin-bottom: var(--space-3);
+  /* Decorative outline behind the title — not carrying information. */
+  color: var(--color-border-strong);
 }
 .ac-empty-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #475569;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
   margin-bottom: 4px;
 }
 .ac-empty-desc {
-  font-size: 13px;
-  color: #94A3B8;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
   max-width: 340px;
   margin: 0 auto;
   line-height: 1.5;
 }
-html.dark .ac-empty-icon { color: #475569; }
-html.dark .ac-empty-title { color: #CBD5E1; }
-html.dark .ac-empty-desc { color: #64748B; }
 
 /* ===== Page head with action button ===== */
 .ac-page-head-row {
@@ -3258,9 +3603,10 @@ html.dark .ac-cal-task.is-clickable:hover { background: #1E1B4B; }
   }
   .ac-table th { background: #F0F0F0 !important; color: #000 !important; }
   .ac-table td, .ac-table th { border: 1px solid #ddd !important; }
-  /* KPI cards: keep on one row if possible */
-  .ac-income-kpi { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
-  .ac-kpi-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+  /* Stat cards: keep on one row if possible (income + overview + reports
+     all render .ac-overview-cards now) */
+  .ac-overview-cards { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
+  .ac-overview-card { box-shadow: none !important; border: 1px solid #ccc !important; }
   /* Calendar */
   .ac-cal-grid { box-shadow: none !important; border: 1px solid #ccc; padding: 6px !important; }
   .ac-cal-cell { border: 1px solid #eee !important; min-height: 70px !important; }
@@ -3919,18 +4265,30 @@ html.dark .ac-health-banner-warn {
   color: #DBEAFE;
   border-bottom-color: #3B82F6;
 }
+/* V2 — บั๊กจากหน้าจอจริงบนมือถือ: แถบนี้เคยเป็น flex แถวเดียว โดยหัวข้อ
+   ("⚠ Apps Script: Network ติดต่อไม่ได้") กับปุ่ม "ดูรายละเอียด"/"✕"
+   กินความกว้างไปเกือบหมด เหลือให้ข้อความอธิบาย (flex: 1 + min-width: 0
+   จึงหดได้ไม่จำกัด) แค่เศษเสี้ยว → ตัดบรรทัดเหลือบรรทัดละคำ
+   ("Apps / Script / ไม่ตอบ / ใน 20 / วินาที") อ่านไม่ออกเลย
+   หัวข้อกับคำอธิบายอยู่ในกล่องเดียวกัน (.ac-health-banner-text) แล้ว
+   ปุ่มอยู่นอกกล่อง — กล่องข้อความกินที่ที่เหลือทั้งหมดและตัดบรรทัดปกติ */
 .ac-health-banner-main {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  flex-wrap: wrap;
   max-width: 1400px;
   margin: 0 auto;
 }
-.ac-health-banner-msg {
-  flex: 1;
+.ac-health-banner-text {
+  flex: 1 1 0;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
+.ac-health-banner-msg { overflow-wrap: anywhere; }
+.ac-health-banner-link,
+.ac-health-banner-close { flex-shrink: 0; }
 .ac-health-banner-link {
   background: transparent;
   border: 0;
@@ -3952,6 +4310,12 @@ html.dark .ac-health-banner-warn {
   margin-left: 4px;
 }
 .ac-health-banner-close:hover { opacity: 0.7; }
+/* 44px tap floor on touch (WCAG 2.5.5) — these two sit at the very top of
+   the screen where mis-taps are easiest. */
+@media (pointer: coarse) {
+  .ac-health-banner-link,
+  .ac-health-banner-close { min-width: 44px; min-height: 44px; }
+}
 .ac-health-banner-details {
   margin-top: 8px;
   padding-top: 8px;
@@ -4419,15 +4783,17 @@ html.dark .ac-cmdk-foot kbd { background: #1E293B; border-color: #334155; }
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-3);
   margin-bottom: var(--space-4);
+  /* V2: a card with one extra line must not stretch the whole row to its
+     height — the others used to sit in a box half full of white. */
+  align-items: start;
 }
 .ac-overview-card {
   display: flex; flex-direction: column; gap: var(--space-1);
   /* Premium depth — same token treatment as the sales/kanban cards. */
   background: var(--card-grad), var(--color-surface);
   border: 1px solid var(--color-border);
-  border-left-width: 3px; border-left-color: var(--color-text-faint);
   border-radius: var(--radius-lg);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   text-align: left; font: inherit; color: inherit;
   cursor: default;
   box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
@@ -4447,11 +4813,13 @@ html.dark .ac-cmdk-foot kbd { background: #1E293B; border-color: #334155; }
   outline: none; box-shadow: var(--shadow-focus);
 }
 
-.ac-overview-card-good   { border-left-color: #16A34A; }
-.ac-overview-card-warn   { border-left-color: #EAB308; }
-.ac-overview-card-danger { border-left-color: #DC2626; }
-.ac-overview-card-info   { border-left-color: var(--color-accent); }
-.ac-overview-card-neutral { border-left-color: var(--color-text-faint); }
+/* V2: the 3px coloured left rail was decorative — five different hues
+   that carried no meaning while the room grid below uses colour as its
+   primary encoding. Tone now only tints the NUMBER, and only when the
+   tone is actually a warning, so colour in this row always means
+   "look at this". good/info/neutral render in plain ink. */
+.ac-overview-card-warn   .ac-overview-card-value { color: var(--status-repair-ink); }
+.ac-overview-card-danger .ac-overview-card-value { color: var(--color-danger); }
 
 .ac-overview-card-label {
   font-size: var(--text-sm);
@@ -4576,50 +4944,16 @@ html.dark .ac-overview-card-skeleton {
    room-grid dots (STATUS_DOT). Light: occupied=slate-800 reads as solid
    "filled"; dark: lighten to slate-400 so the segment stays visible
    against the dark elevated card background. */
-.ac-occ-bar-occupied    { background: #1E293B; }
-.ac-occ-bar-available   { background: #22C55E; }
-.ac-occ-bar-pending     { background: #A855F7; }
-.ac-occ-bar-moveout     { background: #EF4444; }
-.ac-occ-bar-maintenance { background: #EAB308; }
-html.dark .ac-occ-bar-occupied { background: #64748B; }
-
-.ac-occ-legend {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
-  gap: 4px 10px;
-  margin-top: 8px;
-  padding: 0;
-  list-style: none;
-  font-size: 11px;
-  color: var(--color-text-faint, #64748B);
-}
-.ac-occ-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-.ac-occ-legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.ac-occ-legend-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ac-occ-legend-num {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  margin-left: auto;
-  color: var(--color-text-soft, #475569);
-}
-html.dark .ac-occ-legend { color: #94A3B8; }
-html.dark .ac-occ-legend-num { color: #CBD5E1; }
-/* Make the card a touch taller to fit bar + legend without crowding */
-.ac-occ-card { padding-bottom: 14px; }
+/* V2: the literal hexes here were a hand-copy of lib/statusTokens; they
+   now read the same --status-* variables the room cards and filter chips
+   use, so the bar can never drift from the grid it summarises. */
+.ac-occ-bar-occupied    { background: var(--status-occupied); }
+.ac-occ-bar-available   { background: var(--status-ready); }
+.ac-occ-bar-pending     { background: var(--status-pending); }
+.ac-occ-bar-moveout     { background: var(--status-moveout); }
+.ac-occ-bar-maintenance { background: var(--status-repair); }
+/* (The dark lightening of "มีผู้เช่า" now lives on --status-occupied
+   itself, so this bar needs no dark-mode rule of its own.) */
 
 /* ===== Role switcher (multi-role view-as) ===== */
 .ac-role-switcher {
@@ -4958,9 +5292,12 @@ html.dark .ac-bottom-nav-tab.is-active {
 .ac-bottom-nav-tab.is-active .ac-bottom-nav-label { font-weight: 700; }
 
 /* Primary "+ เพิ่ม" tab — circular, lifted, accent fill */
+/* V2: the raised "+" is the mobile twin of the header's "+ เพิ่ม", so it
+   wears the same brand green — it was a fixed blue that matched neither
+   the header button nor any role accent. */
 .ac-bottom-nav-tab.is-primary {
-  color: #fff;
-  background: #2563EB;
+  color: var(--color-brand-on);
+  background: var(--color-brand);
   margin: 0 4px;
   align-self: center;
   height: 44px;
@@ -4968,18 +5305,18 @@ html.dark .ac-bottom-nav-tab.is-active {
   flex: 0 0 auto;
   border-radius: 50%;
   padding: 0;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-brand) 35%, transparent);
   position: relative;
   top: -8px;
 }
 .ac-bottom-nav-tab.is-primary .ac-bottom-nav-label { display: none; }
 .ac-bottom-nav-tab.is-primary .ac-bottom-nav-icon { height: auto; }
-.ac-bottom-nav-tab.is-primary:hover { background: #1D4ED8; }
+.ac-bottom-nav-tab.is-primary:hover { background: color-mix(in srgb, var(--color-brand) 86%, #000); }
 .ac-bottom-nav-tab.is-primary:active {
   transform: translateY(-8px) scale(0.92);
 }
-html.dark .ac-bottom-nav-tab.is-primary { background: #3B82F6; }
-html.dark .ac-bottom-nav-tab.is-primary:hover { background: #2563EB; }
+html.dark .ac-bottom-nav-tab.is-primary { background: var(--color-brand); }
+html.dark .ac-bottom-nav-tab.is-primary:hover { background: color-mix(in srgb, var(--color-brand) 82%, #fff); }
 
 /* Show only on mobile / small tablets */
 @media (max-width: 768px) {
@@ -5288,20 +5625,35 @@ html.dark .ac-field-error { color: #F87171; }
 
 /* Keyboard hint in footer (desktop only — too cramped on mobile) */
 .ac-modal-foot-hint {
-  font-size: 11px;
-  color: #94A3B8;
-  margin-right: auto;
+  font-size: var(--text-xs);
+  /* Was #94A3B8 — 2.6:1 on the footer, under the 4.5:1 this project
+     enforces in lib/contrast.test.ts for every other piece of text. */
+  color: var(--color-text-muted);
   display: flex; align-items: center; gap: 2px;
+  /* flex-basis 0 (not auto) is what actually stops the wrap: a wrapping
+     flex line is filled by each item's CONTENT width, so an auto-basis
+     hint pushed "บันทึก" onto a second row before any shrinking could
+     happen. At basis 0 it contributes nothing to that decision and then
+     grows into whatever the buttons leave over — which also replaces the
+     margin-right: auto it used to need. */
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  /* When it does run out of room, fade the tail instead of guillotining
+     a glyph in half. */
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
 }
 .ac-modal-foot-hint kbd {
   display: inline-block;
   padding: 1px 5px;
-  background: #F1F5F9;
-  border: 1px solid #E2E8F0;
-  border-radius: 3px;
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-family: ui-monospace, "SF Mono", monospace;
-  font-size: 11px;
-  color: #475569;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
   margin: 0 1px;
 }
 html.dark .ac-modal-foot-hint kbd {
@@ -6435,34 +6787,42 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
  * Mode-aware "this is YOUR workspace" greeting. Sets the tone for the
  * page in the active mode's accent color.
  * ==================================================================== */
+/* V2 — the page's one saturated surface. It used to be a 12% accent wash
+   on white: a card you had to look for, sitting above five other white
+   cards. Now it is a filled brand band (the green gradient), which gives
+   the page a top edge, states who is logged in and what today looks like,
+   and is the only place --brand-gradient appears. Both gradient stops
+   clear AA against white text — see --brand-gradient. */
 .ac-welcome-hero {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 18px 22px;
-  margin-bottom: 14px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--color-accent) 12%, var(--color-surface)) 0%,
-    var(--color-surface) 100%
-  );
-  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+  padding: 20px 24px;
+  margin-bottom: var(--space-4);
+  background: var(--brand-gradient);
+  border: none;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
+  color: var(--brand-gradient-on);
   position: relative;
   overflow: hidden;
 }
-/* Subtle accent stripe on the left edge */
+/* A filled band needs no left rail to announce itself. Instead: one soft
+   highlight off the top-right, so the green reads as lit, not flat. */
 .ac-welcome-hero::before {
   content: "";
   position: absolute;
-  top: 0; bottom: 0; left: 0;
-  width: 4px;
-  background: var(--color-accent);
+  top: -60%; right: -10%;
+  width: 380px; height: 380px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
 }
 
 .ac-welcome-hero-icon {
-  font-size: 36px;
+  font-size: 32px;
   line-height: 1;
   flex-shrink: 0;
   width: 56px;
@@ -6470,7 +6830,8 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 50%;
 }
 
@@ -6482,31 +6843,33 @@ html.dark .ac-room-history-status:not(.is-done):not(.is-cancelled) {
 .ac-welcome-hero-line1 {
   font-size: var(--text-xl);
   font-weight: var(--font-weight-bold);
-  color: var(--color-text);
+  color: inherit;
   line-height: 1.2;
   letter-spacing: -0.005em;
 }
-.ac-welcome-hero-greeting {
-  color: var(--color-accent);
-}
+/* On the band, greeting and name are one white line — the greeting used
+   to be tinted accent to stand out on white, which on green would only
+   have muddied it. */
+.ac-welcome-hero-greeting,
 .ac-welcome-hero-name {
-  color: var(--color-text);
+  color: inherit;
 }
 
 .ac-welcome-hero-line2 {
   font-size: var(--text-base);
-  color: var(--color-text-muted);
+  color: rgba(255, 255, 255, 0.92);
   margin-top: 4px;
   line-height: 1.4;
 }
 
+/* Tagline is the quietest line on the band; uppercase tracking was doing
+   decoration, not work, so it now reads as plain small text. */
 .ac-welcome-hero-tagline {
-  font-size: var(--text-xs);
-  color: var(--color-text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.76);
+  letter-spacing: 0.01em;
   margin-top: 4px;
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 @media (max-width: 600px) {
@@ -7754,50 +8117,9 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   color: var(--color-text);
 }
 
-/* KPI cards row */
-.ac-reports-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
-}
-@media (max-width: 900px) {
-  .ac-reports-kpis { grid-template-columns: repeat(2, 1fr); }
-}
-.ac-reports-kpi {
-  padding: var(--space-4);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  position: relative;
-  overflow: hidden;
-}
-.ac-reports-kpi::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-}
-.ac-reports-kpi-indigo::before { background: #6366F1; }
-.ac-reports-kpi-green::before  { background: #22C55E; }
-.ac-reports-kpi-amber::before  { background: #F59E0B; }
-.ac-reports-kpi-red::before    { background: #EF4444; }
-.ac-reports-kpi-value {
-  font-size: 28px;
-  font-weight: var(--font-weight-bold);
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.ac-reports-kpi-label {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  margin-top: 4px;
-}
-.ac-reports-kpi-sub {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  margin-top: 6px;
-  opacity: 0.85;
-}
+/* KPI cards row — V2: the reports page renders the shared
+   .ac-overview-card / .ac-overview-cards now (see ReportsView KpiCard),
+   so the .ac-reports-kpi* duplicate of that card is gone. */
 
 /* Charts */
 .ac-reports-row {
@@ -8729,59 +9051,13 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-3);
 }
-.ac-insights-card {
-  padding: var(--space-3) var(--space-4);
-  background: var(--card-grad), var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-soft);
-  transition: border-color 140ms var(--ease), transform 180ms var(--ease), box-shadow 180ms var(--ease);
-}
-.ac-insights-card:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-  transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 var(--glass), var(--shadow-lift);
-}
-.ac-insights-label {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-medium);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-.ac-insights-value {
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-  line-height: 1.1;
-}
-.ac-insights-sub {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-.ac-insights-bar {
-  margin-top: 4px;
-  height: 6px;
-  background: color-mix(in srgb, var(--color-text-muted) 14%, transparent);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-.ac-insights-bar-fill {
-  height: 100%;
-  background: var(--color-accent);
-  border-radius: var(--radius-full);
-  transition: width 300ms ease;
-}
-/* Tones — color the value + bar based on threshold */
-.ac-insights-card.is-good .ac-insights-value { color: #15803D; }
-.ac-insights-card.is-good .ac-insights-bar-fill { background: #22C55E; }
-.ac-insights-card.is-mid  .ac-insights-value { color: #B45309; }
-.ac-insights-card.is-mid  .ac-insights-bar-fill { background: #F59E0B; }
-.ac-insights-card.is-low  .ac-insights-value { color: #B91C1C; }
-.ac-insights-card.is-low  .ac-insights-bar-fill { background: #EF4444; }
+/* V2, second pass: matching .ac-overview-card was not enough — the two
+   rows still kept two sets of classes that had to be edited in parallel.
+   InsightsCards renders the shared card outright now, so everything that
+   used to live here is gone except the tone of its progress bar. */
+.ac-overview-card-good   .ac-card-bar-fill { background: var(--status-ready); }
+.ac-overview-card-warn   .ac-card-bar-fill { background: var(--status-repair); }
+.ac-overview-card-danger .ac-card-bar-fill { background: var(--color-danger); }
 
 /* ====================================================================
  * Keyboard help modal — `?` shortcut
@@ -10201,7 +10477,7 @@ html.dark .ac-booking-vaccine-hint { color: #fb923c; }
   .ac-chip, .ac-tab, .ac-btn, .ac-kanban-mobile-tab,
   button.ac-kanban-kpi, .ac-kanban-card.is-clickable,
   .ac-kanban-card.is-dragging,
-  .ac-overview-card, .ac-insights-card, .ac-task, .ac-rc {
+  .ac-overview-card, .ac-task, .ac-rc {
     transition: none !important;
     transform: none !important;
   }
@@ -10280,9 +10556,15 @@ html.dark .ac-booking-vaccine-hint { color: #fb923c; }
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 .ac-journey-step-label {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
-  white-space: nowrap;
+  /* V2: was nowrap, so any label wider than the 56px step ran straight
+     over its neighbours — at 390px the five stages read as one smear
+     ("สะอาดรอบทำQC"). Wrapping is the honest fix; the steps keep equal
+     widths and just get one more line. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
   text-align: center;
 }
 .ac-journey-step.is-current .ac-journey-step-label {
@@ -10419,14 +10701,17 @@ html.dark .ac-nav {
     var(--edge-light),
     0 12px 32px -16px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
-/* Brand mark follows the role accent, with a soft matching glow. */
+/* V2 — the brand mark is the one thing on screen that must NOT change
+   when you switch roles: it used to be an accent→violet gradient, so the
+   product's own logo was sky in sales, teal for engineers and indigo for
+   management. It now wears --color-brand in every mode; role personality
+   continues to live in the chrome around it. */
 .ac-logo-icon {
-  background: linear-gradient(135deg,
-    var(--color-accent),
-    color-mix(in srgb, var(--color-accent) 55%, var(--aurora-violet)));
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-accent) 40%, transparent);
+  background: var(--brand-gradient);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-brand) 40%, transparent);
+  color: var(--brand-gradient-on);
 }
-.ac-logo-text { color: var(--color-accent); }
+.ac-logo-text { color: var(--color-brand); }
 /* Active header tab: accent→violet gradient pill (both themes — the
  * html.dark .ac-tab color rule outranks .ac-tab.is-active by
  * specificity, so the dark pair is required, not decorative). */
@@ -10486,21 +10771,20 @@ html.dark .ac-bottom-nav {
 html.dark .ac-bottom-nav-tab.is-active {
   background: color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
-/* The raised "+" follows the role accent instead of fixed blue. */
+/* The raised "+" is the mobile twin of the header's "+ เพิ่ม" — same
+   brand green (V2; it followed the role accent here, which meant the
+   create button was one colour on desktop and another on the phone). */
 .ac-bottom-nav-tab.is-primary,
 html.dark .ac-bottom-nav-tab.is-primary {
-  background: linear-gradient(135deg,
-    var(--color-accent),
-    color-mix(in srgb, var(--color-accent) 55%, var(--aurora-violet)));
+  background: var(--brand-gradient);
+  color: var(--brand-gradient-on);
   box-shadow:
     var(--edge-light),
-    0 4px 16px color-mix(in srgb, var(--color-accent) 45%, transparent);
+    0 4px 16px color-mix(in srgb, var(--color-brand) 45%, transparent);
 }
 .ac-bottom-nav-tab.is-primary:hover,
 html.dark .ac-bottom-nav-tab.is-primary:hover {
-  background: linear-gradient(135deg,
-    var(--color-accent),
-    color-mix(in srgb, var(--color-accent) 55%, var(--aurora-violet)));
+  background: var(--brand-gradient);
   filter: brightness(1.08);
 }
 
@@ -10578,6 +10862,22 @@ html.dark .ac-chip.is-active {
   color: #fff;
   box-shadow: 0 2px 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
+.ac-chip:hover:disabled { transform: none; }
+
+/* V2 — a selected STATUS chip wears its own status colour, not the role
+   accent: the chip and the cards it just revealed then read as one
+   filter. Declared after the generic .is-active pill so it wins, and
+   paired for dark for the same specificity reason noted above. */
+.ac-chip-status.is-active,
+html.dark .ac-chip-status.is-active {
+  background: var(--chip-soft);
+  color: var(--chip-ink);
+  border-color: var(--chip-accent);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--chip-accent) 28%, transparent);
+}
+.ac-chip-status.is-active .ac-chip-count {
+  background: color-mix(in srgb, var(--chip-accent) 20%, transparent);
+}
 .ac-search:focus-within {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
@@ -10624,8 +10924,7 @@ html.dark .ac-chip.is-active {
 .ac-sg,
 .ac-overview-cards,
 .ac-kanban { animation: ac-view-in .28s var(--ease) backwards; }
-.ac-fb,
-.ac-legend { animation: ac-view-in .28s var(--ease) 40ms backwards; }
+.ac-fb { animation: ac-view-in .28s var(--ease) 40ms backwards; }
 .ac-fs,
 .ac-tasks { animation: ac-view-in .28s var(--ease) 70ms backwards; }
 /* Containers with position:sticky DESCENDANTS must not animate
@@ -10935,10 +11234,13 @@ html.dark .ac-buy-down { color: #4ADE80; }
  * (Prom Design density budget: หน้าแอปไม่ควรเกิน ~3 จอ) */
 @media (max-width: 640px) {
   .ac-insights-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .ac-insights-card { padding: 8px 10px; }
-  .ac-insights-label { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ac-insights-value { font-size: 20px; }
-  .ac-insights-sub { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-insights-grid .ac-overview-card { padding: 8px 10px; }
+  .ac-insights-grid .ac-overview-card-label,
+  .ac-insights-grid .ac-overview-card-sub {
+    font-size: var(--text-xs);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ac-insights-grid .ac-overview-card-value { font-size: var(--text-xl); }
 }
 
 /* r30: ยุบ/ขยายรายตึกในกริดห้อง (จำสถานะ) */

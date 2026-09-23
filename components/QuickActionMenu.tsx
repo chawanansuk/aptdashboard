@@ -1,4 +1,5 @@
 "use client";
+import { Icon, type IconName } from "@/lib/icons";
 
 import { useEffect, useRef } from "react";
 
@@ -12,7 +13,8 @@ export interface QuickAction {
   id: string;
   label: string;
   shortcut: string;     // single letter
-  icon?: string;        // emoji is fine — matches the rest of the UI
+  /** Registry name (lib/icons) — V2: was an emoji. */
+  icon?: IconName;
   description?: string;
   visible: boolean;
   onSelect: () => void;
@@ -122,7 +124,7 @@ export default function QuickActionMenu({ open, onClose, actions }: Props) {
                 }}
                 title={a.description || a.label}
               >
-                {a.icon && <span className="ac-quick-menu-icon" aria-hidden>{a.icon}</span>}
+                {a.icon && <span className="ac-quick-menu-icon" aria-hidden><Icon name={a.icon} size={18} /></span>}
                 <span className="ac-quick-menu-label">{a.label}</span>
                 <kbd className="ac-quick-menu-kbd" aria-label={`ปุ่มลัด ${a.shortcut}`}>{a.shortcut.toUpperCase()}</kbd>
               </button>

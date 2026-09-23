@@ -65,7 +65,7 @@ function OccupancyCard({ rate, total, vacant, breakdown, onClick }: OccupancyCar
   return (
     <button
       type="button"
-      className={`ac-overview-card ac-overview-card-${tone} ac-occ-card ${onClick ? "is-clickable" : ""}`}
+      className={`ac-overview-card ac-overview-card-${tone} ${onClick ? "is-clickable" : ""}`}
       onClick={onClick}
       disabled={!onClick}
       aria-label={`อัตราเช่า ${pct}% · ${vacant} ห้องว่าง จาก ${total} ห้อง`}
@@ -89,15 +89,13 @@ function OccupancyCard({ rate, total, vacant, breakdown, onClick }: OccupancyCar
           );
         })}
       </div>
-      <ul className="ac-occ-legend">
-        {OCC_SEG_ORDER.map((k) => (
-          <li key={k} className="ac-occ-legend-item">
-            <span className={`ac-occ-legend-dot ac-occ-bar-${k}`} aria-hidden />
-            <span className="ac-occ-legend-label">{OCC_SEG_LABEL[k]}</span>
-            <span className="ac-occ-legend-num">{breakdown[k]}</span>
-          </li>
-        ))}
-      </ul>
+      {/* V2: the five-row legend under the bar is gone. It repeated, in a
+          tighter and less complete form, the per-status counts that the
+          room grid's filter chips now carry — and it made this card ~100px
+          taller than the four beside it, which the grid then stretched to
+          match, leaving each of them half empty. The bar keeps the shape
+          of the split; each segment still names itself on hover and to a
+          screen reader. */}
     </button>
   );
 }
@@ -159,7 +157,7 @@ function OverviewCards({
         label="งานวันนี้"
         value={String(todayTaskCount)}
         sub={
-          overdueTaskCount > 0 ? `⚠ เลยกำหนด ${overdueTaskCount} รายการ` :
+          overdueTaskCount > 0 ? `เลยกำหนด ${overdueTaskCount} รายการ` :
           todayTaskCount === 0 ? "ไม่มีงานค้าง" : "รายการที่ยังไม่ปิด"
         }
         tone={overdueTaskCount > 0 ? "warn" : todayTaskCount === 0 ? "good" : todayTaskCount > 5 ? "warn" : "info"}

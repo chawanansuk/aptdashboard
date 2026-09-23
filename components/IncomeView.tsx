@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useMemo } from "react";
 import type { RoomView } from "@/types";
 import { formatBaht, parsePriceOr0 as priceNum } from "@/lib/money";
@@ -72,30 +73,35 @@ export default function IncomeView({ rooms, activeBuilding }: Props) {
           <h2 className="ac-page-title">สรุปรายได้ {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
           <p className="ac-page-sub">ตัวเลขนี้คือ <strong>ศักยภาพ</strong> (ค่าเช่าตามสถานะห้อง) ไม่ใช่ยอดที่จ่ายจริง — ดูยอดจริงในชีต <code>มิเตอร์</code></p>
         </div>
-        <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF">🖨 พิมพ์</button>
+        <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF"><Icon name="print" /> พิมพ์</button>
       </header>
 
-      <section className="ac-income-kpi">
-        <div className="ac-kpi-card ac-kpi-actual">
-          <div className="ac-kpi-label">รายได้ปัจจุบัน (มีผู้เช่า)</div>
-          <div className="ac-kpi-num">{fmtBaht(data.actual)}</div>
-          <div className="ac-kpi-sub">{data.occupied} ห้อง · {data.collectRate.toFixed(0)}% ของศักยภาพ</div>
+      {/* V2: these four were a stat card of their own (.ac-kpi-card) —
+          a fourth one, with coloured top borders and its own type scale.
+          They render the shared .ac-overview-card now. Only "เสียโอกาส"
+          keeps a tinted number, because money not being collected is the
+          one thing on this page worth staring at. */}
+      <section className="ac-overview-cards">
+        <div className="ac-overview-card">
+          <div className="ac-overview-card-label">รายได้ปัจจุบัน (มีผู้เช่า)</div>
+          <div className="ac-overview-card-value">{fmtBaht(data.actual)}</div>
+          <div className="ac-overview-card-sub">{data.occupied} ห้อง · {data.collectRate.toFixed(0)}% ของศักยภาพ</div>
         </div>
-        <div className="ac-kpi-card ac-kpi-lost">
-          <div className="ac-kpi-label">เสียโอกาส (ห้องว่าง)</div>
-          <div className="ac-kpi-num">{fmtBaht(data.lost)}</div>
-          <div className="ac-kpi-sub">{data.vacant} ห้อง · ต่อเดือน</div>
+        <div className="ac-overview-card ac-overview-card-danger">
+          <div className="ac-overview-card-label">เสียโอกาส (ห้องว่าง)</div>
+          <div className="ac-overview-card-value">{fmtBaht(data.lost)}</div>
+          <div className="ac-overview-card-sub">{data.vacant} ห้อง · ต่อเดือน</div>
         </div>
-        <div className="ac-kpi-card ac-kpi-potential">
-          <div className="ac-kpi-label">ศักยภาพรวม (ถ้าเช่าเต็ม)</div>
-          <div className="ac-kpi-num">{fmtBaht(data.potential)}</div>
-          <div className="ac-kpi-sub">{data.total} ห้อง</div>
+        <div className="ac-overview-card">
+          <div className="ac-overview-card-label">ศักยภาพรวม (ถ้าเช่าเต็ม)</div>
+          <div className="ac-overview-card-value">{fmtBaht(data.potential)}</div>
+          <div className="ac-overview-card-sub">{data.total} ห้อง</div>
         </div>
-        <div className="ac-kpi-card ac-kpi-rate">
-          <div className="ac-kpi-label">อัตราการเช่า</div>
-          <div className="ac-kpi-num">{data.occupancyRate.toFixed(1)}%</div>
-          <div className="ac-kpi-bar">
-            <div className="ac-kpi-bar-fill" style={{ width: `${data.occupancyRate}%` }} />
+        <div className="ac-overview-card">
+          <div className="ac-overview-card-label">อัตราการเช่า</div>
+          <div className="ac-overview-card-value">{data.occupancyRate.toFixed(1)}%</div>
+          <div className="ac-card-bar" role="img" aria-label={`อัตราการเช่า ${data.occupancyRate.toFixed(1)}%`}>
+            <div className="ac-card-bar-fill" style={{ width: `${data.occupancyRate}%` }} />
           </div>
         </div>
       </section>

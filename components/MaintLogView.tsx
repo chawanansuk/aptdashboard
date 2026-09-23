@@ -1,8 +1,10 @@
 "use client";
+import { Icon } from "@/lib/icons";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseThaiDate, bangkokTodayYmd } from "@/lib/dateUtils";
 import type { Role } from "@/auth";
+import EmptyState from "./EmptyState";
 import type { Part, Requisition, RoomView, SheetRow } from "@/types";
 import {
   buildPeriods, buildMaintDigest, digestToMarkdown, shortDate, groupLabel,
@@ -181,7 +183,7 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
     <section className="ac-mlog">
       <header className="ac-page-head ac-mlog-head">
         <div>
-          <h2 className="ac-h2">🔧 บันทึกซ่อมบำรุง{activeBuilding !== "ทั้งหมด" && ` · ${activeBuilding}`}</h2>
+          <h2 className="ac-h2"><Icon name="maintenance" size={22} /> บันทึกซ่อมบำรุง{activeBuilding !== "ทั้งหมด" && ` · ${activeBuilding}`}</h2>
           <p className="ac-text-muted ac-mlog-sub">
             งานซ่อม · ทำสะอาด · งานส่วนกลาง — ย้อนดูได้ ~4 เดือน (เก่ากว่านั้นดูในชีตรายงาน)
           </p>
@@ -197,11 +199,11 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
             onClick={() => setReportOpen(true)}
             disabled={digest.rooms.length === 0 && digest.common.length === 0}
             title="ให้ AI เขียนสรุปช่วงนี้เป็นข้อความอ่านง่าย คัดลอกส่งกลุ่ม LINE ได้เลย"
-          >✨ สรุปส่ง LINE</button>
+          ><Icon name="ai" /> สรุปส่ง LINE</button>
           <button className="ac-btn ac-btn-ghost" onClick={exportMd} title="ดาวน์โหลดสรุปช่วงนี้เป็นไฟล์ Markdown (เปิดใน LINE/Notes ได้)">
-            ⬇ ส่งออก
+            <Icon name="download" /> ส่งออก
           </button>
-          <button className="ac-btn ac-btn-ghost" onClick={() => window.print()}>🖨 พิมพ์</button>
+          <button className="ac-btn ac-btn-ghost" onClick={() => window.print()}><Icon name="print" /> พิมพ์</button>
         </div>
       </header>
 
@@ -279,36 +281,36 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
         />
       </div>
 
+      {/* V2: these two were the app's only remaining hand-rolled empty
+          states (.ac-empty — a dashed box with an emoji). They use the
+          shared EmptyState component like every other view now. */}
       {digest.rooms.length === 0 && digest.common.length === 0 ? (
-        <div className="ac-empty">
-          <div className="ac-empty-icon">🧰</div>
-          <p>ยังไม่มีงานซ่อมบำรุงใน{period.label}{activeBuilding !== "ทั้งหมด" && ` ของ${activeBuilding}`}</p>
-          {canLog && (
-            <button className="ac-btn ac-btn-primary" onClick={() => setLogOpen(true)}>
-              + ลงบันทึกงานแรก
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon="maintenance"
+          title={`ยังไม่มีงานซ่อมบำรุงใน${period.label}${activeBuilding !== "ทั้งหมด" ? ` ของ${activeBuilding}` : ""}`}
+          action={canLog ? { label: "+ ลงบันทึกงานแรก", onClick: () => setLogOpen(true) } : undefined}
+        />
       ) : shown.rooms.length === 0 && shown.common.length === 0 ? (
-        <div className="ac-empty">
-          <div className="ac-empty-icon">🔍</div>
-          <p>ไม่พบรายการตามเงื่อนไขที่กรอง</p>
-          <button
-            className="ac-btn ac-btn-ghost"
-            onClick={() => { setTypeFilter(null); setOpenOnly(false); setSearch(""); }}
-          >ล้างตัวกรอง</button>
-        </div>
+        <EmptyState
+          icon="search"
+          tone="warning"
+          title="ไม่พบรายการตามเงื่อนไขที่กรอง"
+          action={{
+            label: "ล้างตัวกรอง",
+            onClick: () => { setTypeFilter(null); setOpenOnly(false); setSearch(""); },
+          }}
+        />
       ) : (
         <>
           {shown.rooms.length > 0 && (
             <div className="ac-fs ac-mlog-section">
-              <header className="ac-fs-head"><div className="ac-fs-title">🏠 รายห้อง</div></header>
+              <header className="ac-fs-head"><div className="ac-fs-title"><Icon name="doorOpen" /> รายห้อง</div></header>
               <div className="ac-mlog-rooms">{shown.rooms.map(renderGroup)}</div>
             </div>
           )}
           {shown.common.length > 0 && (
             <div className="ac-fs ac-mlog-section">
-              <header className="ac-fs-head"><div className="ac-fs-title">🏢 พื้นที่ส่วนกลาง</div></header>
+              <header className="ac-fs-head"><div className="ac-fs-title"><Icon name="facilities" /> พื้นที่ส่วนกลาง</div></header>
               <div className="ac-mlog-rooms">{shown.common.map(renderGroup)}</div>
             </div>
           )}
@@ -424,7 +426,7 @@ function LogModal({ rooms, initialBuilding, onClose, refresh, optimisticAddTask 
       if (data.skipped) {
         toast.info("มีงานแบบเดียวกันของวันนั้นอยู่แล้ว — ไม่บันทึกซ้ำ");
       } else {
-        toast.success("ลงบันทึกแล้ว ✓");
+        toast.success("ลงบันทึกแล้ว");
         optimisticAddTask({
           date: dateOut, type, building, room: finalRoom,
           customer: "", phone: "", note: finalNote,
@@ -453,8 +455,8 @@ function LogModal({ rooms, initialBuilding, onClose, refresh, optimisticAddTask 
     <div className="ac-modal-backdrop" onClick={onClose}>
       <div ref={dialogRef} className="ac-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="ลงบันทึกงานซ่อมบำรุง">
         <header className="ac-modal-head">
-          <div className="ac-modal-title">📝 ลงบันทึกงานซ่อมบำรุง</div>
-          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด">✕</button>
+          <div className="ac-modal-title"><Icon name="note" /> ลงบันทึกงานซ่อมบำรุง</div>
+          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด"><Icon name="close" /></button>
         </header>
         <div className="ac-modal-body">
           {/* Area toggle */}
@@ -464,13 +466,13 @@ function LogModal({ rooms, initialBuilding, onClose, refresh, optimisticAddTask 
               className={`ac-btn ${area === "room" ? "ac-btn-primary" : "ac-btn-ghost"}`}
               onClick={() => setArea("room")}
               aria-pressed={area === "room"}
-            >🏠 ห้องพัก</button>
+            ><Icon name="doorOpen" /> ห้องพัก</button>
             <button
               type="button"
               className={`ac-btn ${area === "common" ? "ac-btn-primary" : "ac-btn-ghost"}`}
               onClick={() => setArea("common")}
               aria-pressed={area === "common"}
-            >🏢 ส่วนกลาง</button>
+            ><Icon name="facilities" /> ส่วนกลาง</button>
           </div>
 
           <div className="ac-field">

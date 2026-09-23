@@ -1,3 +1,4 @@
+import { Icon } from "@/lib/icons";
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 
@@ -96,9 +97,9 @@ function Cell({ allowed }: { allowed: boolean }) {
     <span
       className={`ac-perm-cell ${allowed ? "is-yes" : "is-no"}`}
       aria-label={allowed ? "อนุญาต" : "ไม่อนุญาต"}
-      title={allowed ? "✓" : "—"}
+      title={allowed ? "อนุญาต" : "ไม่อนุญาต"}
     >
-      {allowed ? "✓" : "—"}
+      {allowed ? <Icon name="check" strokeWidth={2.25} /> : "—"}
     </span>
   );
 }

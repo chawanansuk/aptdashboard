@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/lib/icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   EQUIPMENT_TYPES, EQUIPMENT_STATUS_LIST,
@@ -167,7 +168,7 @@ export default function AddEquipmentModal({
             className="ac-modal-close"
             onClick={() => !submitting && onClose()}
             aria-label="ปิด"
-          >✕</button>
+          ><Icon name="close" /></button>
         </header>
 
         <div className="ac-modal-body">

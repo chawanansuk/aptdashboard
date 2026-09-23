@@ -184,7 +184,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
             className="ac-btn ac-btn-ghost"
             onClick={handleExport}
             disabled={!rows || filtered.length === 0}
-          >⬇ CSV</button>
+          ><Icon name="download" /> CSV</button>
           {canWrite && (
             <button
               type="button"
@@ -291,7 +291,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
                         >
                           <div className="ac-lead-card-name">{lead.name}</div>
                           {lead.phone && (
-                            <div className="ac-lead-card-phone">📞 {lead.phone}</div>
+                            <div className="ac-lead-card-phone"><Icon name="phone" /> {lead.phone}</div>
                           )}
                           {lead.interest && (
                             <div className="ac-lead-card-interest">{lead.interest}</div>
@@ -309,7 +309,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
                                 <span
                                   className={`ac-lead-card-age ${stale ? "is-stale" : ""}`}
                                   title={stale ? `ค้างในขั้น "${lead.stage}" ${days} วัน — ควรตามต่อ` : `อยู่ในขั้นนี้ ${days} วัน`}
-                                >{stale ? "⏰ " : ""}{days} วัน</span>
+                                >{stale && <><Icon name="clock" size={12} />{" "}</>}{days} วัน</span>
                               );
                             })()}
                             {(lead.updatedAt || lead.createdAt) && (
@@ -338,7 +338,7 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
                               disabled={busy}
                               title="ลบ"
                               aria-label="ลบ Lead"
-                            >🗑</button>
+                            ><Icon name="trash" /></button>
                           </div>
                         )}
                       </li>

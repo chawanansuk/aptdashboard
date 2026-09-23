@@ -114,7 +114,7 @@ test.describe("defect photos", () => {
 
     // Pet upload (v3.25.4): the 🐱 button routes the same picker into
     // the pet category — POST must carry category:"pet".
-    await petSection.getByRole("button", { name: "🐱 เพิ่มรูปสัตว์เลี้ยง" }).click();
+    await petSection.getByRole("button", { name: "เพิ่มรูปสัตว์เลี้ยง" }).click();
     await section.locator('input[type="file"]').setInputFiles({
       name: "cat.png",
       mimeType: "image/png",

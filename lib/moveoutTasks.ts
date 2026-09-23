@@ -1,3 +1,4 @@
+import type { IconName } from "@/lib/icons";
 import type { SheetRow } from "@/types";
 import { isClosedStatus } from "@/lib/constants";
 import { getBangkokNow } from "@/lib/dateUtils";
@@ -62,7 +63,8 @@ export interface MoveoutPrepKind {
   type: string;
   note: string;
   label: string;
-  icon: string;
+  /** Registry name (lib/icons) — V2: was an emoji. */
+  icon: IconName;
 }
 
 export const MOVEOUT_PREP_KINDS: MoveoutPrepKind[] = [
@@ -71,14 +73,14 @@ export const MOVEOUT_PREP_KINDS: MoveoutPrepKind[] = [
     type: MOVEOUT_INSPECT_TYPE,
     note: MOVEOUT_INSPECT_NOTE,
     label: "ตรวจห้อง",
-    icon: "📋",
+    icon: "clipboard",
   },
   {
     kind: "clean",
     type: MOVEOUT_CLEAN_TYPE,
     note: MOVEOUT_CLEAN_NOTE,
     label: "ทำสะอาด",
-    icon: "🧹",
+    icon: "clean",
   },
 ];
 

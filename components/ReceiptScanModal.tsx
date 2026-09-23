@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "@/lib/icons";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Part } from "@/types";
@@ -152,7 +153,7 @@ export default function ReceiptScanModal({ open, parts, onClose, onSaved }: Prop
       });
     }
     if (failed.length === 0) {
-      if (okCount > 0) toast.success(`บันทึกซื้อจากใบเสร็จแล้ว ${okCount} รายการ ✓`);
+      if (okCount > 0) toast.success(`บันทึกซื้อจากใบเสร็จแล้ว ${okCount} รายการ`);
       onClose();
     } else {
       toast.warning(`บันทึกได้ ${okCount}/${toSave.length} รายการ`, {
@@ -177,12 +178,12 @@ export default function ReceiptScanModal({ open, parts, onClose, onSaved }: Prop
     <div className="ac-modal-backdrop" onClick={() => stage !== "scanning" && stage !== "saving" && onClose()}>
       <div ref={ref} className="ac-modal ac-modal-form ac-receipt-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="สแกนใบเสร็จ">
         <header className="ac-modal-head">
-          <div className="ac-modal-title">📷 สแกนใบเสร็จ → บันทึกซื้อ</div>
-          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด" disabled={stage === "scanning" || stage === "saving"}>✕</button>
+          <div className="ac-modal-title"><Icon name="camera" /> สแกนใบเสร็จ → บันทึกซื้อ</div>
+          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด" disabled={stage === "scanning" || stage === "saving"}><Icon name="close" /></button>
         </header>
 
         <div className="ac-modal-body">
-          {error && <div className="ac-banner ac-banner-warn" role="alert">⚠ {error}</div>}
+          {error && <div className="ac-banner ac-banner-warn" role="alert"><Icon name="warning" /> {error}</div>}
 
           {(stage === "pick" || stage === "scanning") && (
             <>
@@ -197,7 +198,7 @@ export default function ReceiptScanModal({ open, parts, onClose, onSaved }: Prop
                   <img src={preview} alt="ใบเสร็จ" className="ac-receipt-preview" />
                 ) : (
                   <div className="ac-receipt-drop-hint">
-                    <div style={{ fontSize: 40 }}>🧾</div>
+                    <div aria-hidden><Icon name="receipt" size={40} strokeWidth={1.5} /></div>
                     <strong>ถ่ายรูป / เลือกรูปใบเสร็จ</strong>
                     <span className="ac-text-muted">ให้เห็นทั้งใบ ชัด ไม่เอียงมาก — ระบบจะอ่านรายการ จำนวน ราคาให้เอง</span>
                   </div>
@@ -217,7 +218,7 @@ export default function ReceiptScanModal({ open, parts, onClose, onSaved }: Prop
                 </div>
               )}
               {stage === "scanning" && (
-                <div className="ac-receipt-scanning">⏳ กำลังอ่านใบเสร็จ… (ราว 10-20 วินาที)</div>
+                <div className="ac-receipt-scanning"><Icon name="waiting" /> กำลังอ่านใบเสร็จ… (ราว 10-20 วินาที)</div>
               )}
             </>
           )}

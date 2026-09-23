@@ -19,7 +19,7 @@ test("booking P0: prefill, modes, dirty edit, phone format, copy gating", async 
   await page.goto("/");
   await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
   await page.locator(".ac-rc").filter({ hasText: "401" }).first().click();
-  await page.getByRole("button", { name: "📋 รับจอง (มัดจำ)" }).first().click();
+  await page.getByRole("button", { name: "รับจอง (มัดจำ)" }).first().click();
 
   const modal = page.locator(".ac-booking-modal");
   await expect(modal).toBeVisible();
@@ -30,7 +30,7 @@ test("booking P0: prefill, modes, dirty edit, phone format, copy gating", async 
   await expect(modal.locator("#ac-bk-msg")).not.toHaveValue(/ค่าประกัน: 0 บาท/);
 
   // Copy gated while tenant/phone missing
-  await expect(modal.getByRole("button", { name: "📋 คัดลอกข้อความนี้" })).toBeDisabled();
+  await expect(modal.getByRole("button", { name: "คัดลอกข้อความนี้" })).toBeDisabled();
 
   // P0-3: phone formats live
   await modal.locator("#ac-bk-tenant").fill("กุ๊กไก่");
@@ -66,7 +66,7 @@ test("booking P0: prefill, modes, dirty edit, phone format, copy gating", async 
   await expect(modal.locator("#ac-bk-msg")).toHaveValue(/\(10:30\)/);
 
   // copy now enabled; B+C copies both messages
-  await modal.getByRole("button", { name: "📑 ขั้น 3+4 ต่อกัน" }).click();
+  await modal.getByRole("button", { name: "ขั้น 3+4 ต่อกัน" }).click();
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   expect(clip).toContain("✅ ยืนยันการจองเรียบร้อยค่ะ");
   expect(clip).toContain("📄 สิ่งที่ต้องเตรียม");
@@ -91,7 +91,7 @@ test("booking P2: save note, Ctrl+Enter, copy indicator, dirty-close guard", asy
   await page.goto("/");
   await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
   await page.locator(".ac-rc").filter({ hasText: "401" }).first().click();
-  await page.getByRole("button", { name: "📋 รับจอง (มัดจำ)" }).first().click();
+  await page.getByRole("button", { name: "รับจอง (มัดจำ)" }).first().click();
 
   const modal = page.locator(".ac-booking-modal");
   await modal.locator("#ac-bk-tenant").fill("กุ๊กไก่");
@@ -100,8 +100,8 @@ test("booking P2: save note, Ctrl+Enter, copy indicator, dirty-close guard", asy
   // Copy indicator: starts un-copied → ✓ after copy → reverts on edit
   const indicator = modal.locator(".ac-booking-copied");
   await expect(indicator).toHaveText("ยังไม่ได้คัดลอกข้อความ");
-  await modal.getByRole("button", { name: "📋 คัดลอกข้อความนี้" }).click();
-  await expect(indicator).toHaveText("คัดลอกแล้ว ✓");
+  await modal.getByRole("button", { name: "คัดลอกข้อความนี้" }).click();
+  await expect(indicator).toHaveText("คัดลอกแล้ว");
   await modal.locator("#ac-bk-msg").fill("ข้อความที่แก้ใหม่");
   await expect(indicator).toHaveText("ยังไม่ได้คัดลอกข้อความ");
 
@@ -136,7 +136,7 @@ test("booking P1: deposit radio, vaccine, chips, discount, auto-tick", async ({ 
   await page.goto("/");
   await page.addStyleTag({ content: "nextjs-portal{display:none} .ac-health-banner{display:none}" });
   await page.locator(".ac-rc").filter({ hasText: "401" }).first().click();
-  await page.getByRole("button", { name: "📋 รับจอง (มัดจำ)" }).first().click();
+  await page.getByRole("button", { name: "รับจอง (มัดจำ)" }).first().click();
 
   const modal = page.locator(".ac-booking-modal");
   await modal.locator("#ac-bk-tenant").fill("กุ๊กไก่");

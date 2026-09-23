@@ -1,10 +1,11 @@
 "use client";
 
+import { Icon, equipmentIcon } from "@/lib/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomEquipment, EquipmentType, EquipmentStatus, SheetRow } from "@/types";
 import {
-  EQUIPMENT_TYPES, EQUIPMENT_TYPE_ICON, EQUIPMENT_STATUS_COLOR,
+  EQUIPMENT_TYPES, EQUIPMENT_STATUS_COLOR,
   MAINTENANCE_STATUS_COLOR, MAINTENANCE_STATUS_LABEL,
 } from "@/lib/constants";
 import {
@@ -224,12 +225,13 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
           {EQUIPMENT_TYPES.map((t) => {
             const count = rows ? rows.filter((r) => r.type === t).length : 0;
             if (count === 0 && filter !== t) return null;
+            const typeIcon = equipmentIcon(t);
             return (
               <button
                 key={t}
                 className={`ac-chip ${filter === t ? "is-active" : ""}`}
                 onClick={() => setFilter(t)}
-              >{EQUIPMENT_TYPE_ICON[t] || ""} {t} ({count})</button>
+              ><Icon name={typeIcon} /> {t} ({count})</button>
             );
           })}
         </div>
@@ -280,11 +282,11 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
       <ul className="ac-equipment-list">
         {filtered.map((eq) => {
           const statusColor = EQUIPMENT_STATUS_COLOR[eq.status] || "#94A3B8";
-          const icon = EQUIPMENT_TYPE_ICON[eq.type] || "🔧";
+          const typeIcon = equipmentIcon(eq.type);
           const needsRepair = eq.status === "ต้องซ่อม" || eq.status === "กำลังซ่อม" || eq.status === "ใช้ไม่ได้";
           return (
             <li key={eq.id} className="ac-equipment-card">
-              <div className="ac-equipment-card-icon" aria-hidden="true">{icon}</div>
+              <div className="ac-equipment-card-icon" aria-hidden="true"><Icon name={typeIcon} size={20} /></div>
               <div className="ac-equipment-card-main">
                 <div className="ac-equipment-card-line1">
                   <span className="ac-equipment-card-type">{eq.type}</span>
@@ -339,7 +341,7 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
                       onClick={() => handleMarkRepaired(eq)}
                       disabled={submitting}
                       title="ตั้งสถานะเป็น 'ปกติ' + วันซ่อมล่าสุด = วันนี้"
-                    >✓ ซ่อมแล้ว</button>
+                    ><Icon name="check" /> ซ่อมแล้ว</button>
                   )}
                   <button
                     className="ac-btn ac-btn-ghost ac-btn-sm"

@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "@/lib/icons";
 
 import { useSession } from "next-auth/react";
 import type { ModeConfig, GreetingStats } from "@/lib/modeConfig";
@@ -42,7 +43,7 @@ export default function WelcomeHero({ config, stats }: Props) {
       aria-label="ทักทาย"
     >
       <div className="ac-welcome-hero-icon" aria-hidden>
-        {config.emoji}
+        <Icon name={config.icon} size={28} />
       </div>
       <div className="ac-welcome-hero-text">
         <div className="ac-welcome-hero-line1">

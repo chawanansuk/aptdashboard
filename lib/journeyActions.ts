@@ -393,7 +393,7 @@ export async function executeJourneyAction(
           // Stale panel (task already closed elsewhere) — refresh fixes it.
           toast.info(`ไม่พบงาน${doneSpec.label}ที่ค้างอยู่ — รีเฟรชข้อมูลให้แล้ว`);
         } else {
-          toast.success(`ปิดงาน${doneSpec.label}แล้ว ✓`);
+          toast.success(`ปิดงาน${doneSpec.label}แล้ว`);
           publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
         }
         deps.refresh();

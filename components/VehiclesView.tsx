@@ -235,7 +235,7 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
             disabled={!rows || filtered.length === 0}
             title={filtered.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${filtered.length} รายการ`}
           >
-            ⬇ ดาวน์โหลด CSV
+            <Icon name="download" /> ดาวน์โหลด CSV
           </button>
           {canWrite && (
             <button
@@ -334,7 +334,7 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
                             disabled={busy}
                             aria-label={`ลบยานพาหนะ ${v.plate}`}
                             title={`ลบยานพาหนะ ${v.plate}`}
-                          >🗑</button>
+                          ><Icon name="trash" /></button>
                         </div>
                       </td>
                     )}

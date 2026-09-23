@@ -60,7 +60,7 @@ test("hub tab 🔔 merges facility + equipment due items, one-tap serviced", asy
   await expect(rows.nth(1)).toContainText("ส่วนกลาง");
 
   // One-tap on the EQUIPMENT row posts to /api/room-equipment
-  await rows.first().getByRole("button", { name: "✓ ทำแล้ววันนี้" }).click();
+  await rows.first().getByRole("button", { name: "ทำแล้ววันนี้" }).click();
   const today = new Date().toISOString().slice(0, 10);
   const upd = posted.find((p) => p.url.includes("room-equipment"));
   expect(upd?.body).toMatchObject({ action: "update", id: "e1", lastService: today });
@@ -80,12 +80,12 @@ test("ส่วนกลาง tab keeps the FacilitiesView due strip + one-tap"
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, rows: [] }) }),
   );
   await openHub(page);
-  await page.getByRole("tab", { name: "🏢 ส่วนกลาง" }).click();
+  await page.getByRole("tab", { name: "ส่วนกลาง" }).click();
 
   const due = page.locator(".ac-fac-due");
   await expect(due).toBeVisible();
   await expect(due.locator(".ac-fac-due-row")).toHaveCount(1);
-  await due.locator(".ac-fac-due-row").first().getByRole("button", { name: "✓ ทำแล้ววันนี้" }).click();
+  await due.locator(".ac-fac-due-row").first().getByRole("button", { name: "ทำแล้ววันนี้" }).click();
   const today = new Date().toISOString().slice(0, 10);
   expect(posted.find((p) => p.action === "update")).toMatchObject({ id: "f1", lastService: today });
   // Card meta spells out the interval in months
@@ -111,7 +111,7 @@ test("broken item in due list gets ✓ ซ่อมแล้ว (status reset + 
 
   const row = page.locator(".ac-maint-hub .ac-fac-due-row").first();
   await expect(row.locator(".ac-fac-due-broken")).toHaveText("ต้องซ่อม");
-  await row.getByRole("button", { name: "✓ ซ่อมแล้ว" }).click();
+  await row.getByRole("button", { name: "ซ่อมแล้ว" }).click();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
   expect(posted.find((p) => p.action === "update")).toMatchObject({
     id: "fb", lastService: today, status: "ใช้งานได้",
