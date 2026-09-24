@@ -15,6 +15,8 @@
  * the upstream Apps Script `withWriteLock_` v3.9.0 dedupes on its side).
  */
 
+import { neutralizeFormulas } from "@/lib/sheetText";
+
 export interface AppsScriptResult<T = unknown> {
   ok: boolean;
   error?: string;
@@ -150,7 +152,9 @@ async function runCall<T>(
   // Placed after the body spread so a malicious client payload can't
   // override it, and omitted entirely when unset (pre-rollout compat).
   const secret = process.env.APPS_SCRIPT_SECRET;
-  const payload = JSON.stringify({ ...body, ...(secret ? { secret } : {}), action });
+  // neutralizeFormulas: free text can't turn into a Sheets formula
+  // (lib/sheetText — a note "=ห้อง!E5" used to read back a tenant name).
+  const payload = JSON.stringify({ ...neutralizeFormulas(body), ...(secret ? { secret } : {}), action });
 
   let lastErr: Error | null = null;
 

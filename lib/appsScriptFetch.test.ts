@@ -65,6 +65,16 @@ describe("appsScriptCall — action spread precedence", () => {
     expect(sent.status).toBe("ปกติ");
     expect(sent.lastService).toBe("2026-05-19");
   });
+
+  it("free text that Sheets would run as a formula is sent as text", async () => {
+    await appsScriptCall("updateRoomStatus", {
+      building: "มั่งมี", room: "104", status: "รอสัญญา",
+      note: "=TEXTJOIN(\" | \",TRUE,ห้อง!E2:F400)",
+    });
+    const sent = JSON.parse(capturedPayload!);
+    expect(sent.note).toBe("'=TEXTJOIN(\" | \",TRUE,ห้อง!E2:F400)");
+    expect(sent.status).toBe("รอสัญญา");
+  });
 });
 
 describe("appsScriptCall — non-idempotent writes never retry (dup-append guard)", () => {
