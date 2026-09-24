@@ -75,6 +75,18 @@ export interface OptimisticRoomPatch {
  * reflects every patched field (write landed) or once it's older than
  * `ttlMs`. Returns `rooms` unchanged when there's nothing pending.
  */
+/** Apps Script's getRooms_ reads cells through norm(), which turns a
+ *  note's line breaks into spaces — so a patch "a\nb" never equalled the
+ *  confirmed "a b" and stayed pinned for the whole TTL, masking changes
+ *  other people made to that room (audit r36). Compare text the way the
+ *  backend normalises it. */
+function sameCell(a: unknown, b: unknown): boolean {
+  if (typeof a === "string" && typeof b === "string") {
+    return a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
+  }
+  return a === b;
+}
+
 export function applyOptimisticRoomPatches(
   rooms: RoomRow[],
   patches: Map<string, OptimisticRoomPatch>,
@@ -90,7 +102,7 @@ export function applyOptimisticRoomPatches(
     const entry = patches.get(roomKey(row.building, row.room));
     if (!entry) return row;
     const confirmed = Object.entries(entry.patch).every(
-      ([f, val]) => (row as unknown as Record<string, unknown>)[f] === val,
+      ([f, val]) => sameCell((row as unknown as Record<string, unknown>)[f], val),
     );
     if (confirmed) {
       patches.delete(roomKey(row.building, row.room));

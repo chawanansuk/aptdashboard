@@ -100,7 +100,6 @@ const VehiclesView    = lazy(() => import("@/components/VehiclesView"));
 const PetsView        = lazy(() => import("@/components/PetsView"));
 const MaintenanceHub  = lazy(() => import("@/components/MaintenanceHub"));
 const LeadsView       = lazy(() => import("@/components/LeadsView"));
-const RecurringView   = lazy(() => import("@/components/RecurringView"));
 const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
 const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 const ReportsView     = lazy(() => import("@/components/ReportsView"));
@@ -1322,7 +1321,7 @@ export default function Home() {
                 rooms={rooms}
                 activeBuilding={activeBuilding}
                 onSelectRoom={(r) => setSelectedRoom(r)}
-                onSeeAll={() => setActiveView("ready")}
+                onSeeAll={(v) => setActiveView(v)}
                 roles={roles}
                 onScheduleMoveIn={canPerform(roles, "task.add.sales") ? (r) => openMoveinSchedule(r.building, r.room) : undefined}
                 limit={isMobile ? 2 : 4}
