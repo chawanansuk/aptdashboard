@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { EXPECTED_BACKEND_VERSION, isBackendOutdated } from "@/lib/backendVersion";
-import { appsScriptCall, isAbortLike } from "@/lib/appsScriptFetch";
+import { appsScriptCall, isAbortLike, AppsScriptError } from "@/lib/appsScriptFetch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +32,11 @@ interface HealthOK {
 
 interface HealthFail {
   ok: false;
-  error: "missing_env" | "network_error" | "not_json" | "upstream_not_ok";
+  /** "timeout" (B-hardening): Apps Script didn't answer inside the probe
+   *  budget — usually a slow/cold Google, which clears on its own, and a
+   *  different thing from "unreachable" (network_error), so the banner can
+   *  say so instead of "ติดต่อไม่ได้". */
+  error: "missing_env" | "network_error" | "timeout" | "not_json" | "upstream_not_ok";
   message: string;
   statusCode?: number;
   responsePreview?: string;
@@ -81,10 +85,13 @@ export async function GET(): Promise<NextResponse<HealthOK | HealthFail | { erro
       }
       // unknown action → pre-3.32 backend: fall through to the GET probe
     } catch (e) {
+      const timedOut = (e instanceof AppsScriptError && e.status === 504) || isAbortLike(e);
       const body: HealthFail = {
         ok: false,
-        error: "network_error",
-        message: e instanceof Error ? e.message : "unknown network error",
+        error: timedOut ? "timeout" : "network_error",
+        message: timedOut
+          ? `Apps Script ไม่ตอบใน ${HEALTH_TIMEOUT_MS / 1000} วินาที`
+          : e instanceof Error ? e.message : "unknown network error",
         latencyMs: Date.now() - t0,
       };
       return NextResponse.json(body);
@@ -102,9 +109,9 @@ export async function GET(): Promise<NextResponse<HealthOK | HealthFail | { erro
   } catch (e) {
     const body: HealthFail = {
       ok: false,
-      error: "network_error",
+      error: isAbortLike(e) ? "timeout" : "network_error",
       message: isAbortLike(e)
-        ? `Apps Script ไม่ตอบใน ${HEALTH_TIMEOUT_MS / 1000} วินาที (cold start นานผิดปกติ หรือ URL ผิด)`
+        ? `Apps Script ไม่ตอบใน ${HEALTH_TIMEOUT_MS / 1000} วินาที`
         : e instanceof Error ? e.message : "unknown network error",
       latencyMs: Date.now() - t0,
     };

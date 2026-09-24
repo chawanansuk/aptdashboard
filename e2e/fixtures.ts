@@ -20,6 +20,7 @@ export interface MockRoom {
 }
 
 export interface MockTask {
+  id?: string; // row id (v3.21) — writes pin the exact row when present
   date: string; // dd/MM/yyyy or yyyy-MM-dd
   type: string;
   building: string;

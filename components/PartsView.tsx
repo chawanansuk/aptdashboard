@@ -23,6 +23,7 @@ import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
 import type { RoomView } from "@/types";
+import PageHeader from "./PageHeader";
 
 /**
  * Parts / Inventory view — Task 37.
@@ -234,31 +235,9 @@ export default function PartsView({ rooms = [] }: Props) {
 
   return (
     <section className="ac-parts" aria-label="คลังอะไหล่">
-      <header className="ac-parts-head">
-        <div>
-          <h1 className="ac-parts-title">
-            <Icon name="inventory" size={22} />
-            <span>คลังอะไหล่</span>
-          </h1>
-          {lowCount > 0 && (
-            <div className="ac-parts-low-banner" role="status">
-              <Icon name="warning" /> {lowCount} รายการ ใกล้หมด/ต้องสั่งซื้อ
-            </div>
-          )}
-          {monthSpend > 0 && (
-            <div className="ac-parts-value-banner">
-              <Icon name="cart" /> ซื้อเข้าเดือนนี้ {monthSpend.toLocaleString("th-TH")} บาท
-            </div>
-          )}
-          {stockValue > 0 && (
-            <div className="ac-parts-value-banner">
-              <Icon name="money" /> มูลค่าสต๊อกรวม {stockValue.toLocaleString("th-TH")} บาท
-              {pricedCount < (rows?.length ?? 0) &&
-                ` (ตั้งราคาแล้ว ${pricedCount}/${rows?.length ?? 0} รายการ)`}
-            </div>
-          )}
-        </div>
-        <div className="ac-parts-head-actions">
+      <PageHeader
+        title="คลังอะไหล่" icon="inventory"
+        actions={<>
           <button
             type="button"
             className="ac-btn ac-btn-ghost"
@@ -283,8 +262,26 @@ export default function PartsView({ rooms = [] }: Props) {
               <Icon name="add" size={16} /> เพิ่มอะไหล่
             </button>
           )}
-        </div>
-      </header>
+        </>}
+      >
+          {lowCount > 0 && (
+            <div className="ac-parts-low-banner" role="status">
+              <Icon name="warning" /> {lowCount} รายการ ใกล้หมด/ต้องสั่งซื้อ
+            </div>
+          )}
+          {monthSpend > 0 && (
+            <div className="ac-parts-value-banner">
+              <Icon name="cart" /> ซื้อเข้าเดือนนี้ {monthSpend.toLocaleString("th-TH")} บาท
+            </div>
+          )}
+          {stockValue > 0 && (
+            <div className="ac-parts-value-banner">
+              <Icon name="money" /> มูลค่าสต๊อกรวม {stockValue.toLocaleString("th-TH")} บาท
+              {pricedCount < (rows?.length ?? 0) &&
+                ` (ตั้งราคาแล้ว ${pricedCount}/${rows?.length ?? 0} รายการ)`}
+            </div>
+          )}
+      </PageHeader>
 
       <div className="ac-parts-toolbar">
         <input

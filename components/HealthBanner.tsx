@@ -8,9 +8,33 @@ type Health =
   | { ok: true; version: string; expectedVersion: string; outdated: boolean; message: string; latencyMs: number }
   | { ok: false; error: string; message: string; statusCode?: number; responsePreview?: string; latencyMs?: number };
 
+/** Failures worth a second look before alarming anyone: a slow or
+ *  briefly unreachable Google usually answers a few seconds later.
+ *  Configuration errors (missing env, wrong access → not JSON) are
+ *  deterministic and shown at once. */
+const TRANSIENT = new Set(["timeout", "network_error", "upstream_not_ok"]);
+/** Pause before the one re-probe. Exported for tests. */
+export const HEALTH_RETRY_DELAY_MS = 4_000;
+
+async function probe(): Promise<Health> {
+  try {
+    const r = await fetch("/api/sheet/health", { cache: "no-store" });
+    return (await r.json()) as Health;
+  } catch (e) {
+    return { ok: false, error: "network_error", message: e instanceof Error ? e.message : "fetch failed" };
+  }
+}
+
 /**
  * Probes /api/sheet/health on mount and shows a dismissible warning
  * banner if Apps Script is unreachable / mis-configured.
+ *
+ * B-hardening: a single slow probe used to put "Apps Script: Network
+ * ติดต่อไม่ได้" across the top of a phone while the app itself was
+ * working from its caches. A transient failure is now re-probed once
+ * after HEALTH_RETRY_DELAY_MS and only shown if it fails again; a
+ * timeout is worded as what it is — Google being slow — not as a
+ * connection failure.
  *
  * Suppresses itself on /login pages so unauthenticated users don't see
  * the auth-required error.
@@ -24,21 +48,17 @@ export default function HealthBanner() {
   useEffect(() => {
     if (authStatus !== "authenticated") return;
     let cancelled = false;
-    fetch("/api/sheet/health", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return;
-        setHealth(data as Health);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setHealth({
-          ok: false,
-          error: "network_error",
-          message: e instanceof Error ? e.message : "fetch failed",
-        });
-      });
-    return () => { cancelled = true; };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void (async () => {
+      const first = await probe();
+      if (cancelled) return;
+      if (first.ok || !TRANSIENT.has(first.error)) { setHealth(first); return; }
+      await new Promise<void>((resolve) => { timer = setTimeout(resolve, HEALTH_RETRY_DELAY_MS); });
+      if (cancelled) return;
+      const second = await probe();
+      if (!cancelled) setHealth(second);
+    })();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [authStatus]);
 
   if (!health || dismissed) return null;
@@ -73,19 +93,36 @@ export default function HealthBanner() {
   const errorLabel: Record<string, string> = {
     missing_env: "Vercel env หาย",
     network_error: "Network ติดต่อไม่ได้",
+    timeout: "หลังบ้าน Google ตอบช้ากว่าปกติ",
     not_json: "Apps Script ตอบไม่ใช่ JSON",
     upstream_not_ok: "Apps Script ตอบ error",
   };
   const label = errorLabel[health.error] || health.error;
 
   return (
-    <div className="ac-health-banner" role="alert">
+    // Slow ≠ broken: a timeout gets the calmer blue style and a polite
+    // live region; real failures keep the amber alert.
+    <div
+      className={`ac-health-banner ${health.error === "timeout" ? "ac-health-banner-warn" : ""}`}
+      role={health.error === "timeout" ? "status" : "alert"}
+    >
       <div className="ac-health-banner-main">
         {/* หัวข้อกับคำอธิบายอยู่ในคอลัมน์เดียวกัน ปุ่มอยู่นอกคอลัมน์ —
             ไม่งั้นคำอธิบายจะถูกบีบจนเหลือบรรทัดละคำบนมือถือ */}
         <div className="ac-health-banner-text">
-          <strong><Icon name="warning" /> Apps Script: {label}</strong>
-          <span className="ac-health-banner-msg">{health.message}</span>
+          {health.error === "timeout" ? (
+            <>
+              <strong><Icon name="waiting" /> {label}</strong>
+              <span className="ac-health-banner-msg">
+                การบันทึกอาจใช้เวลานานกว่าปกติ ถ้าบันทึกไม่ผ่านให้ลองใหม่อีกครั้ง — มักหายเองในไม่กี่นาที
+              </span>
+            </>
+          ) : (
+            <>
+              <strong><Icon name="warning" /> Apps Script: {label}</strong>
+              <span className="ac-health-banner-msg">{health.message}</span>
+            </>
+          )}
         </div>
         <button
           type="button"
@@ -123,6 +160,12 @@ export default function HealthBanner() {
               )}
               {health.error === "network_error" && (
                 <li>Apps Script deployment อาจถูกลบ หรือ URL ผิด — เปิด Deploy → Manage deployments → ตรวจสอบ Web app URL</li>
+              )}
+              {health.error === "timeout" && (
+                <>
+                  <li>ตรวจสองรอบห่างกันแล้วยังช้าทั้งคู่ ({health.message}) — ปกติคือ Google ตื่นช้าหรือโหลดหนัก หายเองในไม่กี่นาที</li>
+                  <li>ถ้าเป็นนานเกิน 15 นาที เปิด Apps Script editor → Executions ดูว่ามีงานค้างหรือ error</li>
+                </>
               )}
               {health.error === "upstream_not_ok" && (
                 <li>Apps Script ตอบ error — เปิด Apps Script editor → Executions → ดู log error</li>

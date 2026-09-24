@@ -4,6 +4,7 @@ import type { SheetRow, RoomView } from "@/types";
 import { parseThaiDate, getBangkokNow } from "@/lib/dateUtils";
 import { isClosedStatus } from "@/lib/constants";
 import { canAccess, type Route } from "@/lib/permissions";
+import { unscheduledMoveIns } from "@/lib/moveIns";
 
 /**
  * Notification derivation — pure, no side effects.
@@ -24,7 +25,8 @@ export type NotificationKind =
   | "contractsExpiring"
   | "lowStock"
   | "overdueEquipment"
-  | "moveoutPending";
+  | "moveoutPending"
+  | "unscheduledMoveIns";
 
 export interface NotificationItem {
   kind: NotificationKind;
@@ -124,6 +126,26 @@ export function buildNotifications({ tasks, rooms, roles, assetAlerts, now }: Bu
         detail: "วางแผนทำสะอาด/ตรวจห้องก่อนปิดดีลใหม่",
         count: moveouts.length,
         route: "moveout",
+      });
+    }
+  }
+
+  // ---- 2b. Booked rooms with no move-in appointment ----
+  // A room flips to รอสัญญา when it's booked, but nothing reminds anyone
+  // to set the move-in date — and without the ย้ายเข้า appointment the
+  // prep work (clean, keys) never gets scheduled. Routes to the overview,
+  // where the "รอเข้าอยู่" list has a one-tap "นัดวันเข้า" per room.
+  if (canAccess(roles, "pending")) {
+    const unscheduled = unscheduledMoveIns(rooms);
+    if (unscheduled.length > 0) {
+      items.push({
+        kind: "unscheduledMoveIns",
+        level: "warning",
+        glyph: "moveIn",
+        title: "จองแล้ว ยังไม่นัดวันเข้า",
+        detail: "ตั้งนัดย้ายเข้าเพื่อเตรียมห้องทัน",
+        count: unscheduled.length,
+        route: "overview",
       });
     }
   }

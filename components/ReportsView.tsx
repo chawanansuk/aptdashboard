@@ -3,10 +3,9 @@
 import { Icon } from "@/lib/icons";
 import { useMemo, useState } from "react";
 import {
-  BarChart, Bar,
+  BarChart, Bar, LabelList,
   LineChart, Line,
-  PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import type { RoomView, SheetRow } from "@/types";
@@ -14,6 +13,7 @@ import { parseThaiDate } from "@/lib/dateUtils";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { exportCsv } from "@/lib/csvExport";
 import { toast } from "@/lib/toast";
+import PageHeader from "./PageHeader";
 
 interface Props {
   rooms: RoomView[];
@@ -36,14 +36,31 @@ interface Props {
  *   - PDF — window.print + @media print CSS in globals
  */
 
-const CHART_COLORS: Record<string, string> = {
-  "ย้ายเข้า":  "#22C55E",
-  "ย้ายออก":  "#EF4444",
-  "ชมห้อง":   "#A855F7",
-  "ทำสะอาด":  "#EAB308",
-  "ซ่อม":     "#F97316",
-  "อื่นๆ":    "#64748B",
-};
+/*
+ * Chart styling (V2 group D) — every value is a token, so the three charts
+ * follow the theme instead of carrying their own hexes:
+ *  - ONE data hue (--chart-series) for all three single-measure charts.
+ *    They used to be indigo (bars), sky (line) and a six-colour pie, for
+ *    no reason a reader could decode.
+ *  - Grid: hairline, solid, one step off the surface — recessive.
+ *  - Text (ticks, values, tooltip) in text tokens, never the series
+ *    colour; recharts' defaults paint tooltip items and pie labels in the
+ *    data colour, which is how the yellow "ทำสะอาด (2)" ended up unreadable.
+ *  - Bars capped at 24px with a 4px rounded data end.
+ */
+const SERIES = "var(--chart-series)";
+const GRID = "var(--color-border)";
+const AXIS_TICK = { fill: "var(--color-text-muted)", fontSize: 12 };
+const VALUE_LABEL = { fill: "var(--color-text)", fontSize: 12, fontWeight: 600 };
+const TOOLTIP = {
+  contentStyle: {
+    background: "var(--color-surface)", border: "1px solid var(--color-border)",
+    borderRadius: 8, boxShadow: "var(--shadow-soft)", fontSize: 13,
+  },
+  labelStyle: { color: "var(--color-text)", fontWeight: 600 },
+  itemStyle: { color: "var(--color-text)" },
+  cursor: { fill: "color-mix(in srgb, var(--chart-series) 8%, transparent)" },
+} as const;
 
 function fmtBaht(n: number): string {
   return n.toLocaleString("th-TH");
@@ -110,14 +127,15 @@ export default function ReportsView({ rooms, tasks }: Props) {
       .sort((a, b) => b.count - a.count);
   }, [filtered]);
 
-  // ---- Pie chart: tasks per type ----
+  // ---- Tasks per type — sorted bars (was a pie; see the chart below) ----
   const byType = useMemo(() => {
     const counts = new Map<string, number>();
     for (const t of filtered) {
       counts.set(t.type, (counts.get(t.type) || 0) + 1);
     }
     return Array.from(counts.entries())
-      .map(([type, count]) => ({ type, count, color: CHART_COLORS[type] || "#64748B" }));
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
   }, [filtered]);
 
   // ---- Line chart: tasks per day (last N days) ----
@@ -179,6 +197,11 @@ export default function ReportsView({ rooms, tasks }: Props) {
 
   return (
     <section className="ac-reports">
+      <PageHeader
+        title="รายงาน"
+        icon="summary"
+        subtitle="สรุปงานและค่าใช้จ่ายตามช่วงเวลาและตึก — ส่งออกเป็น CSV/PDF ได้"
+      />
       {/* Filter bar */}
       <div className="ac-reports-filters">
         <div className="ac-reports-filter-group">
@@ -240,42 +263,43 @@ export default function ReportsView({ rooms, tasks }: Props) {
             <EmptyChart />
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={byBuilding}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="building" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
+              <BarChart data={byBuilding} margin={{ top: 20, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke={GRID} />
+                <XAxis dataKey="building" tick={AXIS_TICK} axisLine={{ stroke: GRID }} tickLine={false} />
+                <YAxis allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={32} />
+                <Tooltip {...TOOLTIP} />
                 {/* ปิด entry animation ทุกกราฟในหน้านี้ — ปุ่ม PDF ใช้ window.print()
                     ถ้ากดตอนกราฟยังวิ่งอยู่ กระดาษที่พิมพ์ได้แท่ง/วงกลมครึ่งเดียว */}
-                <Bar dataKey="count" fill="#6366F1" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+                <Bar dataKey="count" name="งาน" fill={SERIES} radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={false}>
+                  <LabelList dataKey="count" position="top" {...VALUE_LABEL} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
 
         <div className="ac-reports-chart">
-          <h3 className="ac-reports-chart-title">สัดส่วนประเภทงาน</h3>
+          {/* Was a six-colour pie. Its palette (the task-type colours) fails
+              the categorical checks — ทำสะอาด yellow is too light to read as a
+              mark, ซ่อม orange vs ทำสะอาด yellow are too close even for full
+              colour vision, ย้ายเข้า green vs ย้ายออก red collapse for
+              red-green colour blindness — and a pie is a poor way to compare
+              close counts anyway. Sorted bars need no colour for identity:
+              the type name is on the axis and the count at the bar end. */}
+          <h3 className="ac-reports-chart-title">งานตามประเภท</h3>
           {byType.length === 0 ? (
             <EmptyChart />
           ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={byType}
-                  dataKey="count"
-                  nameKey="type"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  isAnimationActive={false}
-                  label={(props: { name?: string | number; value?: string | number }) => `${props.name ?? ""} (${props.value ?? 0})`}
-                >
-                  {byType.map((entry) => (
-                    <Cell key={entry.type} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
+            <ResponsiveContainer width="100%" height={Math.max(160, byType.length * 40 + 24)}>
+              <BarChart data={byType} layout="vertical" margin={{ top: 4, right: 36, left: 0, bottom: 0 }}>
+                <CartesianGrid horizontal={false} stroke={GRID} />
+                <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="type" width={68} tick={{ ...AXIS_TICK, fill: "var(--color-text)" }} axisLine={{ stroke: GRID }} tickLine={false} />
+                <Tooltip {...TOOLTIP} />
+                <Bar dataKey="count" name="งาน" fill={SERIES} radius={[0, 4, 4, 0]} maxBarSize={24} isAnimationActive={false}>
+                  <LabelList dataKey="count" position="right" {...VALUE_LABEL} />
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           )}
         </div>
@@ -289,13 +313,19 @@ export default function ReportsView({ rooms, tasks }: Props) {
             <EmptyChart />
           ) : (
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={byDay}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" interval={Math.max(0, Math.floor(byDay.length / 8) - 1)} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="count" stroke="#0EA5E9" strokeWidth={2} dot={false} name="งานต่อวัน" isAnimationActive={false} />
+              {/* One series → no legend box: the title already says what's
+                  plotted (a one-swatch legend only restated it). */}
+              <LineChart data={byDay} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke={GRID} />
+                <XAxis dataKey="date" interval={Math.max(0, Math.floor(byDay.length / 8) - 1)} tick={AXIS_TICK} axisLine={{ stroke: GRID }} tickLine={false} />
+                <YAxis allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={32} />
+                <Tooltip {...TOOLTIP} cursor={{ stroke: GRID }} />
+                <Line
+                  type="monotone" dataKey="count" name="งาน" stroke={SERIES} strokeWidth={2}
+                  strokeLinecap="round" strokeLinejoin="round" dot={false}
+                  activeDot={{ r: 5, fill: SERIES, stroke: "var(--color-surface)", strokeWidth: 2 }}
+                  isAnimationActive={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           )}

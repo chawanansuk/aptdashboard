@@ -8,6 +8,7 @@ import { isClosedStatus, isDoneStatus, isCancelledStatus, isNotInterestedStatus,
 import { roomKey } from "@/lib/taskKey";
 import { usePersistedString } from "@/lib/usePersistedString";
 import EmptyState from "./EmptyState";
+import PageHeader from "./PageHeader";
 
 type ViewMode = "month" | "day";
 const VIEW_MODES: ViewMode[] = ["month", "day"];
@@ -259,8 +260,11 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
 
   return (
     <div className="ac-calendar">
-      <header className="ac-page-head ac-cal-head">
-        <h2 className="ac-page-title">ปฏิทินงาน {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
+      <PageHeader
+        className="ac-cal-head"
+        title={`ปฏิทินงาน${activeBuilding !== "ทั้งหมด" ? ` · ${activeBuilding}` : ""}`}
+        icon="calendar"
+        actions={
         <div className="ac-cal-nav ac-no-print">
           {/* View-mode toggle — segmented control between month grid and
               focused day view. Persists via usePersistedString. */}
@@ -297,7 +301,8 @@ export default function CalendarView({ tasks, activeBuilding, rooms, onSelectRoo
           )}
           <button className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => window.print()} title="พิมพ์/บันทึก PDF" aria-label="พิมพ์"><Icon name="print" /></button>
         </div>
-      </header>
+        }
+      />
 
       {viewMode === "month" && (<>
       {/* 7-day preview strip — instant context for "what's coming up this week" */}

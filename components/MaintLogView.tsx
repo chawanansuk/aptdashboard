@@ -22,6 +22,7 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 import { RepairPartsPicker, type RepairPartLine } from "@/components/RoomRepairParts";
 import { fileRequisitionLines } from "@/lib/partsRequisition";
 import AiReportModal from "./AiReportModal";
+import PageHeader from "./PageHeader";
 
 /**
  * บันทึกซ่อมบำรุง — the engineer section's week/month story:
@@ -181,14 +182,10 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
 
   return (
     <section className="ac-mlog">
-      <header className="ac-page-head ac-mlog-head">
-        <div>
-          <h2 className="ac-h2"><Icon name="maintenance" size={22} /> บันทึกซ่อมบำรุง{activeBuilding !== "ทั้งหมด" && ` · ${activeBuilding}`}</h2>
-          <p className="ac-text-muted ac-mlog-sub">
-            งานซ่อม · ทำสะอาด · งานส่วนกลาง — ย้อนดูได้ ~4 เดือน (เก่ากว่านั้นดูในชีตรายงาน)
-          </p>
-        </div>
-        <div className="ac-mlog-actions ac-no-print">
+      <PageHeader
+        title={`บันทึกซ่อมบำรุง${activeBuilding !== "ทั้งหมด" ? ` · ${activeBuilding}` : ""}`} icon="maintenance"
+        subtitle="งานซ่อม · ทำสะอาด · งานส่วนกลาง — ย้อนดูได้ ~4 เดือน (เก่ากว่านั้นดูในชีตรายงาน)"
+        actions={<>
           {canLog && (
             <button className="ac-btn ac-btn-primary" onClick={() => setLogOpen(true)}>
               + ลงบันทึกงาน
@@ -204,8 +201,8 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
             <Icon name="download" /> ส่งออก
           </button>
           <button className="ac-btn ac-btn-ghost" onClick={() => window.print()}><Icon name="print" /> พิมพ์</button>
-        </div>
-      </header>
+        </>}
+      />
 
       {/* Period chips */}
       <div className="ac-chips ac-mlog-periods ac-no-print" role="tablist" aria-label="เลือกช่วงเวลา">
