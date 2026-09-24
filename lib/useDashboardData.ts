@@ -236,6 +236,7 @@ function sameRoomView(a: RoomView, b: RoomView): boolean {
     a.price === b.price &&
     a.floor === b.floor &&
     a.images === b.images &&
+    a.note === b.note &&
     a.today === b.today &&
     a.needsCleaning === b.needsCleaning &&
     sameTaskList(a.todayTasks, b.todayTasks) &&
@@ -360,6 +361,7 @@ export function mergeRoomsAndTasks(
       phone: r.phone,
       contractEnd: r.contractEnd,
       images: r.images,
+      note: r.note || "",
       today: todayTasks.length > 0,
       needsCleaning,
       todayTasks,

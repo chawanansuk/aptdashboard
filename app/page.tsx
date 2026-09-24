@@ -1323,6 +1323,7 @@ export default function Home() {
                 activeBuilding={activeBuilding}
                 onSelectRoom={(r) => setSelectedRoom(r)}
                 onSeeAll={() => setActiveView("ready")}
+                roles={roles}
                 limit={isMobile ? 2 : 4}
               />
             </div>

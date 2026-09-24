@@ -86,7 +86,17 @@ describe("parseRoomsCSV (rooms sheet)", () => {
       phone: "0899999999",
       contractEnd: "31/12/2026",
       images: "", // #7 — no image column in this fixture → empty
+      note: "",   // v3.33.0 — no หมายเหตุ column → empty, not undefined
     });
+  });
+
+  it("reads the room note column (v3.33.0 — หมายเหตุ)", () => {
+    const csv = [
+      "ตึก,ห้อง,สถานะ,ผู้เช่า,หมายเหตุ",
+      "A,104,รอสัญญา,คุณเอ,เข้า 1 ต.ค. โอนมัดจำแล้ว",
+    ].join("\n");
+    const [row] = parseRoomsCSV(csv);
+    expect(row.note).toBe("เข้า 1 ต.ค. โอนมัดจำแล้ว");
   });
 
   it("resolves alias headers (อาคาร→building, เลขห้อง→room)", () => {

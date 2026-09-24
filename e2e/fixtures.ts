@@ -16,6 +16,7 @@ export interface MockRoom {
   tenant: string;
   phone: string;
   contractEnd: string;
+  note?: string; // room "หมายเหตุ" (v3.33.0)
 }
 
 export interface MockTask {

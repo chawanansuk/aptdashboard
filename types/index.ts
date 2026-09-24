@@ -53,6 +53,10 @@ export interface RoomRow {
    *  absent when the workbook has no image column — the UI just hides
    *  the gallery. Read-only: paste links into the sheet (Drive/LINE/etc). */
   images?: string;
+  /** Room note (sheet column "หมายเหตุ", v3.33.0). Free text the team
+   *  keeps on the room — e.g. who booked a รอสัญญา room and when they
+   *  move in. Absent on workbooks that don't have the column yet. */
+  note?: string;
 }
 
 // ===== Unified room status (UI level) =====
@@ -76,6 +80,7 @@ export interface RoomView {
   phone: string;
   contractEnd: string;
   images?: string;      // comma-separated URLs (#7) — passthrough from RoomRow
+  note?: string;        // room note ("หมายเหตุ", v3.33.0)
   today: boolean;       // มีงานรอทำวันนี้
   /**
    * มีงาน "ทำสะอาด" ค้างอยู่ แต่ headline status ไม่ใช่ qc — ใช้โชว์ตัวบ่งชี้รอง
