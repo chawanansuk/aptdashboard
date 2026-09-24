@@ -82,7 +82,7 @@ export interface JourneyDeps {
   optimisticUpdateRoom?: (
     building: string,
     room: string,
-    patch: { status?: string; tenant?: string; phone?: string; contractEnd?: string },
+    patch: { status?: string; tenant?: string; phone?: string; contractEnd?: string; note?: string },
   ) => void;
   /** Live tasks list — dup guard for the moveout auto-prep bridge. */
   tasks?: SheetRow[];
@@ -141,7 +141,8 @@ export async function quickSetRoomStatus(
   // Optimistic patch always — every card must flip live, bulk or not.
   deps.optimisticUpdateRoom?.(room.building, room.room, {
     status: rawStatus,
-    ...(opts.clearTenant ? { tenant: "", phone: "", contractEnd: "" } : {}),
+    // v3.34: releaseRoom also clears the note server-side — mirror it.
+    ...(opts.clearTenant ? { tenant: "", phone: "", contractEnd: "", note: "" } : {}),
   });
   if (opts.silent) return; // bulk caller does the toast/bus/refresh once
   toast.success(`อัปเดตสถานะห้อง → ${rawStatus}`);
