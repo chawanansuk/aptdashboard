@@ -53,6 +53,7 @@ const ROOM_HEADER_ALIASES: Record<keyof RoomRow, string[]> = {
   phone: ["เบอร์", "เบอร์ติดต่อ", "เบอร์โทร"],
   contractEnd: ["สัญญา", "วันสัญญาหมด", "สัญญาหมด", "วันหมดสัญญา"],
   images: ["รูป", "ภาพ", "รูปภาพ", "images", "photos"],
+  note: ["หมายเหตุ", "โน้ต", "note"],
 };
 
 export function parseRoomsCSV(csvText: string): RoomRow[] {

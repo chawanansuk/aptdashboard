@@ -2196,6 +2196,7 @@ html.dark .ac-ready-card { background: var(--color-surface-2); }
 .ac-ready-row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 .ac-ready-row-ready   { --rr-soft: var(--status-ready-soft);   --rr-border: var(--status-ready-border);   --rr-ink: var(--status-ready-ink); }
 .ac-ready-row-moveout { --rr-soft: var(--status-moveout-soft); --rr-border: var(--status-moveout-border); --rr-ink: var(--status-moveout-ink); }
+.ac-ready-row-pending { --rr-soft: var(--status-pending-soft); --rr-border: var(--status-pending-border); --rr-ink: var(--status-pending-ink); }
 .ac-ready-num {
   flex: 0 0 auto;
   min-width: 52px;
@@ -2212,7 +2213,25 @@ html.dark .ac-ready-card { background: var(--color-surface-2); }
 }
 .ac-ready-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .ac-ready-where { font-size: var(--text-sm); font-weight: var(--font-weight-semibold); }
-.ac-ready-note { font-size: var(--text-xs); color: var(--color-text-muted); }
+/* One line: a room note can be a paragraph; the full text is on hover
+   (title) and in the room window. */
+.ac-ready-note {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ac-ready-where-sub { font-weight: var(--font-weight-medium); color: var(--color-text-muted); }
+/* Booked but no move-in appointment yet — the row someone should chase.
+   Pill on its own tint: the repair ink/soft pair is held to 4.5:1. */
+.ac-ready-end.is-missing {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--status-repair-soft);
+  color: var(--status-repair-ink);
+  font-size: var(--text-xs);
+}
 .ac-ready-end { flex: 0 0 auto; font-size: var(--text-sm); font-weight: var(--font-weight-semibold); white-space: nowrap; }
 .ac-ready-sub {
   margin: 16px 0 8px;

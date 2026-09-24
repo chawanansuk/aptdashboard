@@ -1,9 +1,14 @@
 /**
- * Code.gs v3.32.0 — Dashboard หอพัก
+ * Code.gs v3.33.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.33.0:
+ *   - หมายเหตุห้องบันทึกได้จริง: คอลัมน์ "หมายเหตุ" ในชีตห้อง (สร้างให้เองครั้งแรกที่มี
+ *     คนเขียน), getRooms_ ส่งกลับ, updateRoomStatus_ เขียน + ลงบันทึกการแก้ไข.
+ *     เดิมแอปส่งหมายเหตุมาแต่ไม่มีที่เก็บ — หายเงียบทุกครั้ง
  *
  * NEW v3.32.0 (audit r35):
  *   - action 'ping' (หลังด่าน secret) ให้แบนเนอร์สุขภาพ; doGet ไม่บอกเวอร์ชันเมื่อเปิด secret
@@ -489,7 +494,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.32.0';
+var BACKEND_VERSION = '3.33.0';
 
 function doGet() {
   // v3.32 (audit r35): เมื่อเปิด SHARED_SECRET แล้ว GET ไม่ผ่านด่านลับ — ไม่ควรบอก
@@ -1131,6 +1136,9 @@ function roomHeaderCols_(headers) {
     cntr:   findIdx(['สัญญา', 'วันสัญญาหมด', 'สัญญาหมด', 'วันหมดสัญญา']),
     price:  findIdx(['ค่าเช่า', 'ราคา/เดือน', 'ราคา', 'ค่าเช่ารายเดือน']),
     images: findIdx(['รูป', 'ภาพ', 'รูปภาพ', 'images', 'photos']),
+    // v3.33.0: หมายเหตุของห้อง — ช่องนี้มีในหน้าต่างห้องของแอปมาตลอด แต่ไม่เคย
+    // มีที่เก็บ (เขียนทิ้ง). updateRoomStatus_ สร้างคอลัมน์ให้เองครั้งแรกที่มีคนเขียน
+    note:   findIdx(['หมายเหตุ', 'โน้ต', 'note']),
   };
 }
 
@@ -1145,7 +1153,8 @@ function getRooms_() {
   const cols = roomHeaderCols_(headers);
   var iBld = cols.bld, iRoom = cols.room, iFloor = cols.floor,
       iStatus = cols.status, iTenant = cols.tenant, iPhone = cols.phone,
-      iCntr = cols.cntr, iPrice = cols.price, iImages = cols.images;
+      iCntr = cols.cntr, iPrice = cols.price, iImages = cols.images,
+      iNote = cols.note;
 
   var rows = [];
   for (var i = 1; i < data.length; i++) {
@@ -1163,6 +1172,7 @@ function getRooms_() {
       contractEnd: iCntr   >= 0 ? fmtDate_(r[iCntr]) : '',
       price:       iPrice  >= 0 ? norm(r[iPrice])  : '',
       images:      iImages >= 0 ? norm(r[iImages]) : '',
+      note:        iNote   >= 0 ? norm(r[iNote])   : '',
     });
   }
   return rows;
@@ -1503,12 +1513,27 @@ function updateRoomStatus_(b, opts) {
       const oldPhone  = idxPhone  >= 0 ? norm(data[i][idxPhone])  : '';
       const oldCntr   = idxCntr   >= 0 ? norm(data[i][idxCntr])   : '';
       const oldPrice  = idxPrice  >= 0 ? norm(data[i][idxPrice])  : '';
+      // v3.33.0 — หมายเหตุห้อง. แอปส่ง note มากับการบันทึกหน้าต่างห้องมาตลอด
+      // แต่ฟังก์ชันนี้ไม่เคยเขียน และชีตห้องไม่มีคอลัมน์ให้เขียน → ที่เซลส์พิมพ์
+      // ไว้ (เช่น "คุณเอ เข้า 1 ต.ค.") หายเงียบทุกครั้ง. เขียนเฉพาะเมื่อผู้เรียก
+      // ส่ง note มา (undefined = ไม่แตะ) — เปลี่ยนสถานะด่วน/ระบบอัตโนมัติจึงไม่ลบ
+      // หมายเหตุที่มีอยู่. ไม่มีคอลัมน์ → สร้างหัว "หมายเหตุ" ต่อท้าย เฉพาะเมื่อมี
+      // ข้อความจะเก็บจริง (ไม่งอกคอลัมน์ว่างจากการบันทึกที่ไม่ได้พิมพ์อะไร).
+      let idxNote = cols.note;
+      const oldNote = idxNote >= 0 ? norm(data[i][idxNote]) : '';
 
       if (b.status      !== undefined) sh.getRange(i+1, idxStatus+1).setValue(b.status);
       if (b.tenant      !== undefined && idxTenant >= 0) sh.getRange(i+1, idxTenant+1).setValue(b.tenant);
       if (b.phone       !== undefined && idxPhone  >= 0) sh.getRange(i+1, idxPhone+1).setValue(b.phone);
       if (b.contractEnd !== undefined && idxCntr   >= 0) sh.getRange(i+1, idxCntr+1).setValue(b.contractEnd);
       if (b.price       !== undefined && idxPrice  >= 0) sh.getRange(i+1, idxPrice+1).setValue(b.price);
+      if (b.note !== undefined) {
+        if (idxNote < 0 && norm(b.note) !== '') {
+          idxNote = sh.getLastColumn();            // 0-based index of the next empty column
+          sh.getRange(1, idxNote + 1).setValue('หมายเหตุ');
+        }
+        if (idxNote >= 0) sh.getRange(i+1, idxNote+1).setValue(b.note);
+      }
       clearRoomsCache_();
 
       // Field-level diff for the audit log. Empty diffs (caller sent a
@@ -1529,6 +1554,9 @@ function updateRoomStatus_(b, opts) {
       }
       if (b.price !== undefined && idxPrice >= 0 && norm(b.price) !== oldPrice) {
         diffs.push('ค่าเช่า: ' + (oldPrice || '∅') + ' → ' + (norm(b.price) || '∅'));
+      }
+      if (b.note !== undefined && idxNote >= 0 && norm(b.note) !== oldNote) {
+        diffs.push('หมายเหตุ: ' + (oldNote || '∅') + ' → ' + (norm(b.note) || '∅'));
       }
       if (diffs.length > 0) {
         // Choose the action label by what dominated the edit so the

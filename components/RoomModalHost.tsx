@@ -56,7 +56,7 @@ interface Props {
   optimisticUpdateRoom: (
     building: string,
     room: string,
-    patch: { status?: string; tenant?: string; phone?: string; contractEnd?: string; price?: string },
+    patch: { status?: string; tenant?: string; phone?: string; contractEnd?: string; price?: string; note?: string },
   ) => void;
   /** Refetch after writes. */
   refresh: () => void;
@@ -199,7 +199,9 @@ export default function RoomModalHost({
       setEditPhone(room.phone || "");
       setEditContractEnd(room.contractEnd || "");
       setEditPrice(room.price || "");
-      setEditNote("");
+      // v3.33.0: the note is stored on the room now — open with what's
+      // there (it used to always open blank because it was never kept).
+      setEditNote(room.note || "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.building, room?.room]);
@@ -243,8 +245,9 @@ export default function RoomModalHost({
               phone: editPhone,
               contractEnd: editContractEnd,
               price: editPrice,
+              note: editNote,
             }
-          : { status: editStatus });
+          : { status: editStatus, note: editNote });
         // Bridge sales → engineer: when a room flips into "แจ้งย้ายออก"
         // for the first time, auto-create the prep tasks engineers need
         // (inspection + post-tenant clean). Skip when one already exists.

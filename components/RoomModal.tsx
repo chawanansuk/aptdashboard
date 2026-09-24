@@ -221,7 +221,7 @@ export default function RoomModal({
       phone: room.phone || "",
       contractEnd: room.contractEnd || "",
       price: room.price || "",
-      note: "",
+      note: room.note || "",
     };
   }, [room.building, room.room]);
 
