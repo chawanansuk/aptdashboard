@@ -1324,6 +1324,7 @@ export default function Home() {
                 onSelectRoom={(r) => setSelectedRoom(r)}
                 onSeeAll={() => setActiveView("ready")}
                 roles={roles}
+                onScheduleMoveIn={canPerform(roles, "task.add.sales") ? (r) => openMoveinSchedule(r.building, r.room) : undefined}
                 limit={isMobile ? 2 : 4}
               />
             </div>

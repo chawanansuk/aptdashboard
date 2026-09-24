@@ -2,13 +2,13 @@
 
 import { memo, useMemo } from "react";
 import type { Role } from "@/auth";
-import type { RoomView, SheetRow } from "@/types";
+import type { RoomView } from "@/types";
 import { Icon } from "@/lib/icons";
 import { STATUS_LABEL } from "@/lib/constants";
 import { canViewTenant } from "@/lib/permissions";
 import { formatBaht } from "@/lib/money";
-import { parseThaiDate } from "@/lib/dateUtils";
-import { buildingSortIndex, formatDateShort, scopeRooms } from "@/lib/salesData";
+import { formatDateShort, scopeRooms } from "@/lib/salesData";
+import { byBuildingThenRoom, nextAppointment, sortPendingByMoveIn } from "@/lib/moveIns";
 import EmptyState from "./EmptyState";
 
 interface Props {
@@ -21,35 +21,14 @@ interface Props {
    *  API already blanks them for everyone else; this only picks the
    *  wording for a blank ("จองแล้ว" vs "ยังไม่ได้ใส่ชื่อ"). */
   roles?: Role[];
+  /** Open the new-appointment form as a ย้ายเข้า for this room (the same
+   *  flow as the room window's "บันทึกวันย้ายเข้า"). Passed only to roles
+   *  that may add sales tasks — without it the "ยังไม่นัดวันเข้า" marker
+   *  stays a plain label. */
+  onScheduleMoveIn?: (r: RoomView) => void;
   /** Rows per section — the card sits next to the งานวันนี้ card, so it
    *  shows the head of each list, not all 300 rooms. */
   limit?: number;
-}
-
-const byBuildingThenRoom = (a: RoomView, b: RoomView) =>
-  buildingSortIndex(a.building) - buildingSortIndex(b.building) ||
-  a.building.localeCompare(b.building) ||
-  a.room.localeCompare(b.room, undefined, { numeric: true });
-
-/** Nearest open appointment of `type` (today or later) — the date a
- *  notice-given room frees up (ย้ายออก) or a booked room fills (ย้ายเข้า). */
-export function nextAppointment(r: RoomView, type: "ย้ายออก" | "ย้ายเข้า"): Date | null {
-  let best: Date | null = null;
-  const all: SheetRow[] = [...(r.todayTasks || []), ...(r.upcomingTasks || [])];
-  for (const t of all) {
-    if (t.type !== type) continue;
-    const d = parseThaiDate(t.date);
-    if (d && (!best || d.getTime() < best.getTime())) best = d;
-  }
-  return best;
-}
-
-/** รอสัญญา rooms in the order someone should look at them: soonest
- *  move-in first; rooms booked WITHOUT a move-in appointment last — those
- *  are the ones to chase ("ยังไม่นัดวันเข้า"). */
-export function sortPendingByMoveIn(rooms: RoomView[]): RoomView[] {
-  const at = (r: RoomView) => nextAppointment(r, "ย้ายเข้า")?.getTime() ?? Number.POSITIVE_INFINITY;
-  return [...rooms].sort((a, b) => at(a) - at(b) || byBuildingThenRoom(a, b));
 }
 
 /**
@@ -58,7 +37,7 @@ export function sortPendingByMoveIn(rooms: RoomView[]): RoomView[] {
  * RoomModal the room grid opens, so every action (จอง, นัดชม, …) stays
  * in the one place it already lives.
  */
-function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, limit = 4 }: Props) {
+function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, onScheduleMoveIn, limit = 4 }: Props) {
   const showNames = canViewTenant(roles);
   const { ready, booked, leaving } = useMemo(() => {
     const scoped = scopeRooms(rooms, activeBuilding);
@@ -85,11 +64,14 @@ function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, 
     const end = r.status === "ready" ? price
       : r.status === "moveout" ? (outAt ? `ย้ายออก ${formatDateShort(outAt)}` : "")
       : inAt ? `เข้า ${formatDateShort(inAt)}` : null;
+    // The tint lives on the <li>: a booked room with no move-in date gets a
+    // SECOND button ("นัดวันเข้า") beside the row, and a button can't be
+    // nested inside the row's own button.
     return (
-      <li key={`${r.building}|${r.room}`}>
+      <li key={`${r.building}|${r.room}`} className={`ac-ready-item ac-ready-item-${r.status}`}>
         <button
           type="button"
-          className={`ac-ready-row ac-ready-row-${r.status}`}
+          className="ac-ready-row"
           onClick={() => onSelectRoom(r)}
           aria-label={`ห้อง ${r.room} อาคาร ${r.building} · ${STATUS_LABEL[r.status]}`}
         >
@@ -100,12 +82,21 @@ function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, 
             </span>
             {note && <span className="ac-ready-note" title={note}>{note}</span>}
           </span>
-          {end === null ? (
-            <span className="ac-ready-end is-missing">ยังไม่นัดวันเข้า</span>
-          ) : (
-            <span className="ac-ready-end">{end}</span>
-          )}
+          {end === null
+            ? !onScheduleMoveIn && <span className="ac-ready-end is-missing">ยังไม่นัดวันเข้า</span>
+            : <span className="ac-ready-end">{end}</span>}
         </button>
+        {end === null && onScheduleMoveIn && (
+          <button
+            type="button"
+            className="ac-ready-schedule"
+            onClick={() => onScheduleMoveIn(r)}
+            title="ยังไม่มีนัดย้ายเข้า — กดเพื่อนัดวันเข้า"
+            aria-label={`ห้อง ${r.room} ยังไม่นัดวันเข้า — นัดวันย้ายเข้า`}
+          >
+            <Icon name="calendar" size={14} /> นัดวันเข้า
+          </button>
+        )}
       </li>
     );
   };

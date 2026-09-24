@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import type { RoomView, SheetRow } from "@/types";
-import ReadyRoomsCard, { nextAppointment, sortPendingByMoveIn } from "./ReadyRoomsCard";
+import ReadyRoomsCard from "./ReadyRoomsCard";
+import { nextAppointment, sortPendingByMoveIn } from "@/lib/moveIns";
 
 afterEach(() => cleanup());
 
@@ -54,6 +55,19 @@ describe("booked rooms (รอเข้าอยู่)", () => {
     expect(booked.getByText(/^เข้า \d{2}\/\d{2}$/)).toBeTruthy();
     const unscheduled = within(getByRole("button", { name: /ห้อง 103/ }));
     expect(unscheduled.getByText("ยังไม่นัดวันเข้า")).toBeTruthy();
+  });
+
+  it("turns the missing move-in marker into a scheduling button when allowed", () => {
+    const onSchedule = vi.fn();
+    const onSelect = vi.fn();
+    const r = room({ room: "103", status: "pending", tenant: "คุณบี" });
+    const { getByRole, queryByText } = render(
+      <ReadyRoomsCard rooms={[r]} activeBuilding="ทั้งหมด" onSelectRoom={onSelect} roles={["management"]} onScheduleMoveIn={onSchedule} />,
+    );
+    fireEvent.click(getByRole("button", { name: /ยังไม่นัดวันเข้า — นัดวันย้ายเข้า/ }));
+    expect(onSchedule).toHaveBeenCalledWith(r);
+    expect(onSelect).not.toHaveBeenCalled(); // not nested in the row button
+    expect(queryByText("ยังไม่นัดวันเข้า")).toBeNull(); // the plain label is replaced, not duplicated
   });
 
   it("does not invent a name for roles that can't see tenants", () => {

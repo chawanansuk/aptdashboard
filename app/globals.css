@@ -2175,28 +2175,63 @@ html.dark .ac-ready-card { background: var(--color-surface-2); }
   .ac-ready-card { padding: 14px; }
 }
 
-/* Ready-to-rent rows — tinted with the same status tokens as the tiles. */
+/* Ready-to-rent rows — tinted with the same status tokens as the tiles.
+   The tint sits on the <li> (.ac-ready-item) so a booked row can carry a
+   second button ("นัดวันเข้า") next to the row button. */
 .ac-ready-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.ac-ready-row {
-  width: 100%;
+.ac-ready-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding-right: 10px;
   border: 1px solid transparent;
   border-radius: var(--radius-lg);
   background: var(--rr-soft, var(--color-surface-2));
+  transition: border-color 140ms var(--ease), transform 160ms var(--ease);
+}
+.ac-ready-item:hover { border-color: var(--rr-border, var(--color-border-strong)); transform: translateY(-1px); }
+.ac-ready-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px 10px 12px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
   color: var(--color-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 140ms var(--ease), transform 160ms var(--ease);
 }
-.ac-ready-row:hover { border-color: var(--rr-border, var(--color-border-strong)); transform: translateY(-1px); }
-.ac-ready-row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-.ac-ready-row-ready   { --rr-soft: var(--status-ready-soft);   --rr-border: var(--status-ready-border);   --rr-ink: var(--status-ready-ink); }
-.ac-ready-row-moveout { --rr-soft: var(--status-moveout-soft); --rr-border: var(--status-moveout-border); --rr-ink: var(--status-moveout-ink); }
-.ac-ready-row-pending { --rr-soft: var(--status-pending-soft); --rr-border: var(--status-pending-border); --rr-ink: var(--status-pending-ink); }
+.ac-ready-row:focus-visible,
+.ac-ready-schedule:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.ac-ready-item-ready   { --rr-soft: var(--status-ready-soft);   --rr-border: var(--status-ready-border);   --rr-ink: var(--status-ready-ink); }
+.ac-ready-item-moveout { --rr-soft: var(--status-moveout-soft); --rr-border: var(--status-moveout-border); --rr-ink: var(--status-moveout-ink); }
+.ac-ready-item-pending { --rr-soft: var(--status-pending-soft); --rr-border: var(--status-pending-border); --rr-ink: var(--status-pending-ink); }
+/* "ยังไม่นัดวันเข้า" as an action — same amber pill as the plain label, so
+   the missing state still reads at a glance, now pressable. */
+.ac-ready-schedule {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--status-repair-border);
+  border-radius: 999px;
+  background: var(--status-repair-soft);
+  color: var(--status-repair-ink);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ac-ready-schedule:hover { border-color: var(--status-repair); }
+@media (pointer: coarse) {
+  .ac-ready-schedule { min-height: 44px; }
+}
 .ac-ready-num {
   flex: 0 0 auto;
   min-width: 52px;
@@ -2223,8 +2258,8 @@ html.dark .ac-ready-card { background: var(--color-surface-2); }
   text-overflow: ellipsis;
 }
 .ac-ready-where-sub { font-weight: var(--font-weight-medium); color: var(--color-text-muted); }
-/* Booked but no move-in appointment yet — the row someone should chase.
-   Pill on its own tint: the repair ink/soft pair is held to 4.5:1. */
+/* Booked but no move-in appointment yet, for roles that can't schedule —
+   a label. Pill on its own tint: the repair ink/soft pair is 4.5:1+. */
 .ac-ready-end.is-missing {
   padding: 2px 8px;
   border-radius: 999px;

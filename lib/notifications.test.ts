@@ -142,6 +142,33 @@ describe("buildNotifications", () => {
     expect(m!.route).toBe("moveout");
   });
 
+  it("flags booked rooms with no move-in appointment, and only those", () => {
+    const booked = (id: string, over: Partial<RoomView> = {}) =>
+      room({ room: id, status: "pending", rawStatus: "รอสัญญา", ...over });
+    const scheduled = booked("102", { upcomingTasks: [task({ room: "102", type: "ย้ายเข้า" })] });
+    const onlyViewing = booked("103", { upcomingTasks: [task({ room: "103", type: "ชมห้อง" })] });
+    const items = buildNotifications({
+      tasks: [],
+      rooms: [booked("101"), scheduled, onlyViewing, room({ status: "ready" })],
+      roles: ["sales"],
+      now: NOW,
+    });
+    const m = items.find((i) => i.kind === "unscheduledMoveIns");
+    // 101 (nothing) + 103 (a viewing is not a move-in) — 102 is scheduled
+    expect(m?.count).toBe(2);
+    expect(m?.route).toBe("overview");
+  });
+
+  it("hides the move-in reminder from roles that can't see booked rooms", () => {
+    const items = buildNotifications({
+      tasks: [],
+      rooms: [room({ status: "pending", rawStatus: "รอสัญญา" })],
+      roles: ["engineer"],
+      now: NOW,
+    });
+    expect(items.find((i) => i.kind === "unscheduledMoveIns")).toBeUndefined();
+  });
+
   it("orders critical items before warnings", () => {
     const items = buildNotifications({
       tasks: [task({ date: dmy(new Date(2026, 4, 20)) })],
