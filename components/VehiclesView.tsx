@@ -13,6 +13,7 @@ import AddVehicleModal from "./AddVehicleModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
+import PageHeader from "./PageHeader";
 
 /**
  * Vehicles per room (v3.13.0).
@@ -219,15 +220,9 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
 
   return (
     <section className="ac-vehicles" aria-label="ยานพาหนะ">
-      <header className="ac-vehicles-head">
-        <div>
-          <h1 className="ac-vehicles-title">
-            <Icon name="vehicle" size={22} />
-            <span>ยานพาหนะ</span>
-            {rows && <span className="ac-vehicles-count">({rows.length})</span>}
-          </h1>
-        </div>
-        <div className="ac-vehicles-actions">
+      <PageHeader
+        title="ยานพาหนะ" icon="vehicle" count={rows ? rows.length : null}
+        actions={<>
           <button
             type="button"
             className="ac-btn ac-btn-ghost"
@@ -246,8 +241,8 @@ export default function VehiclesView({ activeBuilding, rooms }: Props) {
               <Icon name="add" size={16} /> เพิ่ม
             </button>
           )}
-        </div>
-      </header>
+        </>}
+      />
 
       <div className="ac-vehicles-toolbar">
         <input

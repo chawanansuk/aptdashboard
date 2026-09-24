@@ -14,6 +14,7 @@ import AddLeadModal from "./AddLeadModal";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
+import PageHeader from "./PageHeader";
 
 /**
  * Lead CRM view (Task 26) — Kanban-style pipeline with 6 stage columns.
@@ -170,15 +171,9 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
 
   return (
     <section className="ac-leads" aria-label="ผู้สนใจเช่า">
-      <header className="ac-leads-head">
-        <div>
-          <h1 className="ac-leads-title">
-            <Icon name="tenants" size={22} />
-            <span>ผู้สนใจเช่า</span>
-            {rows && <span className="ac-leads-count">({rows.length})</span>}
-          </h1>
-        </div>
-        <div className="ac-leads-actions">
+      <PageHeader
+        title="ผู้สนใจเช่า" icon="tenants" count={rows ? rows.length : null}
+        actions={<>
           <button
             type="button"
             className="ac-btn ac-btn-ghost"
@@ -192,8 +187,8 @@ export default function LeadsView({ onAddNew, onCreateMoveinTask }: Props) {
               onClick={() => { setAddStage(undefined); setAddOpen(true); }}
             >+ เพิ่ม Lead</button>
           )}
-        </div>
-      </header>
+        </>}
+      />
 
       <div className="ac-leads-toolbar">
         <input

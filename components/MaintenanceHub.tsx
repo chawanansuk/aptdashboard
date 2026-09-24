@@ -16,6 +16,7 @@ import { FacilitiesSkeleton, MaintenanceSkeleton } from "@/components/skeletons/
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
 import EmptyState from "./EmptyState";
+import PageHeader from "./PageHeader";
 
 const FacilitiesView = lazy(() => import("./FacilitiesView"));
 const MaintenanceView = lazy(() => import("./MaintenanceView"));
@@ -199,6 +200,11 @@ export default function MaintenanceHub({
 
   return (
     <div className="ac-maint-hub">
+      <PageHeader
+        title="ซ่อมบำรุง"
+        icon="maintenance"
+        subtitle="รอบบำรุงของส่วนกลางและอุปกรณ์ในห้อง — ทำเสร็จแล้วกดบันทึก ระบบเริ่มนับรอบใหม่ให้เอง"
+      />
       <div className="ac-chips ac-maint-hub-tabs" role="tablist" aria-label="หมวดซ่อมบำรุง">
         {TABS.map((t) => (
           <button

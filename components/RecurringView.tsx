@@ -9,6 +9,7 @@ import { parseSheetDate, getBangkokNow } from "@/lib/dateUtils";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
+import PageHeader from "./PageHeader";
 
 /**
  * Recurring task templates view (v3.17.0). Engineer + management see
@@ -165,18 +166,10 @@ export default function RecurringView({ buildings }: Props) {
 
   return (
     <section className="ac-recurring" aria-label="งานประจำ">
-      <header className="ac-recurring-head">
-        <div>
-          <h1 className="ac-recurring-title">
-            <Icon name="calendar" size={22} />
-            <span>งานประจำ</span>
-            {rows && <span className="ac-recurring-count">({rows.length})</span>}
-          </h1>
-          <p className="ac-recurring-sub">
-            เทมเพลตงานที่จะสร้างซ้ำตามรอบ — กด "ตรวจและสร้าง" เพื่อรันให้ครบกำหนด
-          </p>
-        </div>
-        <div className="ac-recurring-actions">
+      <PageHeader
+        title="งานประจำ" icon="repeat" count={rows ? rows.length : null}
+        subtitle='เทมเพลตงานที่จะสร้างซ้ำตามรอบ — กด "ตรวจและสร้าง" เพื่อรันให้ครบกำหนด'
+        actions={<>
           <button
             type="button"
             className="ac-btn ac-btn-primary"
@@ -188,8 +181,8 @@ export default function RecurringView({ buildings }: Props) {
             className="ac-btn ac-btn-ghost"
             onClick={() => setShowAdd((v) => !v)}
           >{showAdd ? "ยกเลิก" : "+ เพิ่มเทมเพลต"}</button>
-        </div>
-      </header>
+        </>}
+      />
 
       {showAdd && (
         <form className="ac-recurring-add-form" onSubmit={submitAdd}>

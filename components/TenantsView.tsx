@@ -8,6 +8,7 @@ import { exportCsv } from "@/lib/csvExport";
 import { formatSheetPhone, sheetPhoneDigits } from "@/lib/phoneFormat";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import EmptyState from "./EmptyState";
+import PageHeader from "./PageHeader";
 
 interface Props {
   rooms: RoomView[];
@@ -89,14 +90,13 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
 
   return (
     <div className="ac-tenants">
-      <header className="ac-page-head ac-page-head-row">
-        <div>
-          <h2 className="ac-page-title">ผู้เช่า {activeBuilding !== "ทั้งหมด" && `· ${activeBuilding}`}</h2>
-          <p className="ac-page-sub">ทั้งหมด {tenants.length} คน</p>
-        </div>
-        <div className="ac-tenants-head-actions">
+      <PageHeader
+        title={`ผู้เช่า${activeBuilding !== "ทั้งหมด" ? ` · ${activeBuilding}` : ""}`}
+        icon="tenants"
+        subtitle={`ทั้งหมด ${tenants.length} คน`}
+        actions={<>
           <button
-            className="ac-btn ac-btn-ghost ac-no-print"
+            className="ac-btn ac-btn-ghost"
             disabled={tenants.length === 0}
             title={tenants.length === 0 ? "ไม่มีข้อมูลให้ดาวน์โหลด" : `ดาวน์โหลด ${tenants.length} รายการ`}
             onClick={() => {
@@ -119,9 +119,9 @@ export default function TenantsView({ rooms, activeBuilding, onSelectRoom }: Pro
               );
             }}
           ><Icon name="download" /> CSV</button>
-          <button className="ac-btn ac-btn-ghost ac-no-print" onClick={() => window.print()} title="พิมพ์/บันทึก PDF"><Icon name="print" /> พิมพ์</button>
-        </div>
-      </header>
+          <button className="ac-btn ac-btn-ghost" onClick={() => window.print()} title="พิมพ์/บันทึก PDF"><Icon name="print" /> พิมพ์</button>
+        </>}
+      />
 
       <section className="ac-fb">
         <div className="ac-chips">

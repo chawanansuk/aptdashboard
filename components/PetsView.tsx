@@ -12,6 +12,7 @@ import { toast } from "@/lib/toast";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
+import PageHeader from "./PageHeader";
 
 /**
  * 🐱 สัตว์เลี้ยง — property-wide pet photo grid (v3.25.4).
@@ -137,8 +138,10 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
 
   return (
     <div className="ac-pets-view">
-      <div className="ac-pets-head">
-        <h2 className="ac-pets-title"><Icon name="pet" size={22} /> สัตว์เลี้ยงทั้งหอ</h2>
+      <PageHeader
+        title="สัตว์เลี้ยงทั้งหอ"
+        icon="pet"
+        actions={
         <div className="ac-pets-filters" role="tablist" aria-label="กรองตามตึก">
           <button
             type="button"
@@ -158,7 +161,8 @@ export default function PetsView({ buildings, activeBuilding, rooms }: Props) {
             >{b}</button>
           ))}
         </div>
-      </div>
+        }
+      />
 
       {error && <ErrorBanner message={error} onRetry={() => void load()} />}
 

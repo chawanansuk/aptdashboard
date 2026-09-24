@@ -14,6 +14,7 @@ import { parseThaiDate } from "@/lib/dateUtils";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { exportCsv } from "@/lib/csvExport";
 import { toast } from "@/lib/toast";
+import PageHeader from "./PageHeader";
 
 interface Props {
   rooms: RoomView[];
@@ -179,6 +180,11 @@ export default function ReportsView({ rooms, tasks }: Props) {
 
   return (
     <section className="ac-reports">
+      <PageHeader
+        title="รายงาน"
+        icon="summary"
+        subtitle="สรุปงานและค่าใช้จ่ายตามช่วงเวลาและตึก — ส่งออกเป็น CSV/PDF ได้"
+      />
       {/* Filter bar */}
       <div className="ac-reports-filters">
         <div className="ac-reports-filter-group">

@@ -1338,7 +1338,11 @@ export default function Home() {
             />
           )}
 
-          {activeView === "overview" && rooms.length > 0 && (
+          {/* "งานล่าสุด" stays on desktop; on a phone the งานวันนี้ card above
+              already carries the actionable part, and this list alone was
+              ~0.4 screen of scrolling (density budget). The same tasks are
+              in งานวันนี้ / ปฏิทิน on the bottom nav. */}
+          {activeView === "overview" && rooms.length > 0 && !isMobile && (
             <RecentTasks
               tasks={tasks}
               rooms={rooms}

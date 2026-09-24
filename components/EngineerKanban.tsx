@@ -25,6 +25,7 @@ import { toast } from "@/lib/toast";
 import { resilientPost } from "@/lib/resilientWrite";
 import { isWriteTimeout, maybeSavedMessage } from "@/lib/writeVerify";
 import { MOVEOUT_PREP_KINDS, findOpenPrepTask, todayThaiDate } from "@/lib/moveoutTasks";
+import PageHeader from "./PageHeader";
 
 interface Props {
   tasks: SheetRow[];
@@ -371,7 +372,12 @@ export default function EngineerKanban({ tasks, activeBuilding, rooms, onChanged
   }
 
   return (
-    <section className="ac-kanban" aria-label="Engineer Kanban">
+    <section className="ac-kanban" aria-label="กระดานงานช่าง">
+      <PageHeader
+        title="กระดานงานช่าง"
+        icon="maintenance"
+        subtitle="ลากการ์ดข้ามคอลัมน์ หรือกดปุ่มบนการ์ด เพื่อเปลี่ยนสถานะงาน"
+      />
       <div className="ac-kanban-strip">
         <KpiCell
           label="งานเปิดอยู่"
