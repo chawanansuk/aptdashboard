@@ -39,6 +39,24 @@ describe("design tokens pass WCAG AA on every surface", () => {
   }
 
   /**
+   * V2 group D: report charts draw every bar and line in --chart-series.
+   * A graphical mark needs 3:1 against the surface it sits on (WCAG
+   * 1.4.11) — the value labels beside it are in text tokens, so 3:1 is
+   * the right floor, not 4.5.
+   */
+  it("chart series colour reads as a mark on the card surface in both themes", () => {
+    const failures: string[] = [];
+    for (const selector of [":root", "html.dark"]) {
+      const tokens = readTokens(css, selector);
+      const series = tokens.get("--chart-series");
+      expect(series, `--chart-series missing in ${selector}`).toBeTruthy();
+      const ratio = contrastRatio(series!, tokens.get("--color-surface")!);
+      if (ratio < 3) failures.push(`${selector}: --chart-series on --color-surface = ${ratio}:1`);
+    }
+    expect(failures).toEqual([]);
+  });
+
+  /**
    * V2: the brand green carries real text — the primary button's label
    * and the page hero band — so it needs the same 4.5:1 floor the text
    * tokens have. The gradient is checked at BOTH stops: the band it

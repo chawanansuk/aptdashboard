@@ -122,6 +122,11 @@
      lighter (teal) end can take before white text on it drops under
      4.5:1 — 12% measured 4.33:1. Checked in lib/contrast.test.ts. */
   --hero-glass: rgba(255, 255, 255, 0.08);
+  /* Single data hue for the report charts (group D). A plain data blue —
+     not brand green (reserved for "create") and not the role accent (sky
+     for sales measures 2.8:1 on white, under the 3:1 a chart mark needs).
+     Dark mode lightens it below. Checked in lib/contrast.test.ts. */
+  --chart-series: #2563EB;
 
   /* ----- Room status surfaces (V2) -----
    * Base hex MIRRORS lib/statusTokens.ts TOKEN (pinned by
@@ -236,6 +241,7 @@ html.dark {
      reads 5.6:1 on the card. The other six statuses are bright enough to
      keep their single value across both themes. */
   --status-occupied: #94A3B8;
+  --chart-series: #60A5FA;
 }
 
 /* ====================================================================
