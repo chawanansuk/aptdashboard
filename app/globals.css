@@ -2238,6 +2238,11 @@ html.dark .ac-ready-card { background: var(--color-surface-2); }
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
 }
+.ac-ready-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .ac-ready-sub span { font-weight: var(--font-weight-medium); }
 
 /* V2 icons — every icon is a lucide SVG from lib/icons (<Icon name=…>),
@@ -9512,11 +9517,9 @@ html.dark .ac-lead-card-age.is-stale { color: #FCA5A5; background: color-mix(in 
 .ac-req-history-row2 { margin-top: 2px; }
 
 /* Recurring task templates view */
-.ac-recurring {
-  padding: var(--space-4);
-  max-width: 1280px;
-  margin: 0 auto;
-}
+/* A tab inside .ac-maint-hub (flex column) — full width, the hub pads.
+   The old standalone-page auto margins shrank it to its content, centred. */
+.ac-recurring { display: flex; flex-direction: column; gap: var(--space-3); }
 .ac-recurring-add-form {
   padding: var(--space-3) var(--space-4);
   background: color-mix(in srgb, var(--color-accent) 5%, transparent);
@@ -10988,6 +10991,13 @@ html.dark .ac-kanban-card-badge.is-warn { background: #78350F; color: #FDE68A; }
 
 /* ===== 🔧 ซ่อมบำรุง hub (UI r15) ===== */
 .ac-maint-hub { display: flex; flex-direction: column; gap: 12px; }
+.ac-recurring-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
 .ac-maint-hub-tabs .ac-chip { min-height: 38px; font-size: 13px; }
 @media (pointer: coarse) {
   .ac-maint-hub-tabs .ac-chip { min-height: 44px; }

@@ -149,7 +149,7 @@ function OverviewCards({
         total={occupancy.total}
         vacant={occupancy.vacant}
         breakdown={occupancy.breakdown}
-        onClick={() => onNavigate("ready")}
+        onClick={canAccess(roles, "ready") ? () => onNavigate("ready") : undefined}
       />
       {/* เดิมการ์ดนี้บอก "ไม่มีงานค้าง" ทั้งที่มีงานเลยกำหนดกองอยู่ —
           เลยกำหนดต้องดังกว่างานวันนี้ (UI audit r20) */}

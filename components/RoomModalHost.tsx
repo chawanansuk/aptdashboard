@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView, SheetRow } from "@/types";
 import RoomModal from "@/components/RoomModal";
@@ -185,6 +185,8 @@ export default function RoomModalHost({
   const [editPhone, setEditPhone] = useState("");
   const [editContractEnd, setEditContractEnd] = useState("");
   const [editNote, setEditNote] = useState("");
+  /** The note as it was when this room opened — see handleSave. */
+  const openedNoteRef = useRef("");
   const [editPrice, setEditPrice] = useState("");
 
   // Re-seed the edit fields whenever a DIFFERENT room opens. Keyed on
@@ -202,6 +204,7 @@ export default function RoomModalHost({
       // v3.33.0: the note is stored on the room now — open with what's
       // there (it used to always open blank because it was never kept).
       setEditNote(room.note || "");
+      openedNoteRef.current = room.note || "";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.building, room?.room]);
@@ -216,17 +219,22 @@ export default function RoomModalHost({
       // the route strips PII fields server-side as a defense-in-depth even
       // if we forgot here). Same writer in Apps Script; the action choice
       // just gates which permission the route enforces.
+      // The note goes out only when this user changed it (audit r36):
+      // Apps Script writes any note it receives, so sending the text this
+      // window opened with would overwrite a note someone else saved in
+      // the meantime — or blank it, from a tab on a build before v3.33.
+      const noteEdit = editNote !== openedNoteRef.current ? { note: editNote } : {};
       const body: Record<string, unknown> = canEditTenantPii
         ? {
             action: "updateRoomData",
             building: room.building, room: room.room,
             status: editStatus, tenant: editTenant, phone: editPhone,
-            contractEnd: editContractEnd, note: editNote, price: editPrice,
+            contractEnd: editContractEnd, price: editPrice, ...noteEdit,
           }
         : {
             action: "updateRoomStatus",
             building: room.building, room: room.room,
-            status: editStatus, note: editNote,
+            status: editStatus, ...noteEdit,
           };
       // Shared POST (r11) — SET action, no client retry.
       const { res, data } = await resilientPost("/api/sheet/update", body, { retries: 0 });
@@ -245,9 +253,9 @@ export default function RoomModalHost({
               phone: editPhone,
               contractEnd: editContractEnd,
               price: editPrice,
-              note: editNote,
+              ...noteEdit,
             }
-          : { status: editStatus, note: editNote });
+          : { status: editStatus, ...noteEdit });
         // Bridge sales → engineer: when a room flips into "แจ้งย้ายออก"
         // for the first time, auto-create the prep tasks engineers need
         // (inspection + post-tenant clean). Skip when one already exists.

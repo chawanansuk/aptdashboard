@@ -642,7 +642,8 @@ function TaskCard({
         <div className="ac-task-actions">
           {!closed && (
             <button className="ac-btn ac-btn-primary ac-btn-sm" disabled={busy}
-              onClick={() => onPickStatus(t, "เสร็จ")}>
+              onClick={() => onPickStatus(t, "เสร็จ")}
+              aria-label={`ปิดงาน ${t.type} ห้อง ${t.room}`}>
               {busy ? "..." : <><Icon name="check" /> ปิดงาน</>}
             </button>
           )}

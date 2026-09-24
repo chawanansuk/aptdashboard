@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import type { Role } from "@/auth";
-import { canPerform, type Action } from "@/lib/permissions";
+import { canPerform, canViewTaskCustomer, type Action } from "@/lib/permissions";
 import { invalidateDashboardCache } from "@/lib/dashboardCache";
 import { redisBumpEpoch, redisDel, REDIS_ROOMS_KEY, REDIS_TASKS_KEY } from "@/lib/redisCache";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
@@ -65,8 +65,16 @@ function actionToPermission(action: SheetUpdateBody["action"]): Action | null {
  * server-side if role isn't allowed to create that type. Returns null
  * when ok, or an error message string when forbidden.
  */
-function checkTaskTypePermission(action: string, type: string | undefined, roles: Role[] | undefined): string | null {
-  if (action !== "addTask") return null;
+function checkTaskTypePermission(
+  action: string,
+  type: string | undefined,
+  roles: Role[] | undefined,
+  originalType?: string,
+): string | null {
+  // updateTask can change a task's type too (no screen does, but the
+  // schema accepts it) — re-typing a task into another team's type must
+  // pass the same gate as creating one. An unchanged type is not a change.
+  if (action !== "addTask" && !(action === "updateTask" && type !== originalType)) return null;
   if (!type) return null; // ปล่อย Apps Script ตรวจ schema เอง
   const label = (roles || []).join("+") || "none";
   if (SALES_TYPES.has(type) && !canPerform(roles, "task.add.sales")) {
@@ -131,7 +139,10 @@ export async function POST(req: Request) {
 
   // 3b. Role check (task-type level) — sales ห้ามส่ง type="ซ่อม", ฯลฯ
   const typeForPerm = "type" in body && typeof body.type === "string" ? body.type : undefined;
-  const typeError = checkTaskTypePermission(action, typeForPerm, roles);
+  const originalType = action === "updateTask"
+    ? (body.matchType ?? body.match?.type)
+    : undefined;
+  const typeError = checkTaskTypePermission(action, typeForPerm, roles, originalType);
   if (typeError) {
     return NextResponse.json({ ok: false, error: typeError }, { status: 403 });
   }
@@ -150,6 +161,12 @@ export async function POST(req: Request) {
     delete body.price;
   } else if (action === "bookRoom") {
     delete body.contractEnd;
+  } else if (action === "updateTask" && !canViewTaskCustomer(roles)) {
+    // Engineers receive tasks with customer/phone already blanked by the
+    // tasks API, and EditTaskModal sends those blanks back — saving a
+    // note used to wipe the customer's name and phone from the sheet.
+    delete body.customer;
+    delete body.phone;
   }
 
   // 4. Stamp creator from session — overrides anything client sent

@@ -335,6 +335,15 @@ describe("applyOptimisticRoomPatches", () => {
     expect(map.has("A|101")).toBe(true);
   });
 
+  it("a multi-line note counts as confirmed when the backend returns it on one line", () => {
+    const now = Date.now();
+    // getRooms_ runs cells through norm(): line breaks come back as spaces.
+    const server = [room({ status: "รอสัญญา", note: "คุณเอ เข้า 1 ต.ค." })];
+    const map = patches([["A|101", { patch: { status: "รอสัญญา", note: "คุณเอ\nเข้า 1 ต.ค." }, at: now }]]);
+    applyOptimisticRoomPatches(server, map, now, TTL);
+    expect(map.has("A|101")).toBe(false);
+  });
+
   it("drops a patch once the server row reflects every patched field", () => {
     const now = Date.now();
     // Server now matches the optimistic write → write landed.

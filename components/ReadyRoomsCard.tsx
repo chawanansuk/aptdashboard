@@ -5,21 +5,23 @@ import type { Role } from "@/auth";
 import type { RoomView } from "@/types";
 import { Icon } from "@/lib/icons";
 import { STATUS_LABEL } from "@/lib/constants";
-import { canViewTenant } from "@/lib/permissions";
+import { canAccess, canViewTenant } from "@/lib/permissions";
 import { formatBaht } from "@/lib/money";
 import { formatDateShort, scopeRooms } from "@/lib/salesData";
-import { byBuildingThenRoom, nextAppointment, sortPendingByMoveIn } from "@/lib/moveIns";
+import { byBuildingThenRoom, isBooked, nextAppointment, sortPendingByMoveIn } from "@/lib/moveIns";
 import EmptyState from "./EmptyState";
 
 interface Props {
   rooms: RoomView[];
   activeBuilding: string;
   onSelectRoom: (r: RoomView) => void;
-  /** Jump to the full "พร้อมขาย" room view. */
-  onSeeAll?: () => void;
-  /** Tenant names are shown only to roles that may see them — the rooms
-   *  API already blanks them for everyone else; this only picks the
-   *  wording for a blank ("จองแล้ว" vs "ยังไม่ได้ใส่ชื่อ"). */
+  /** Jump to the full room view behind a section. Each link shows only
+   *  to roles that can open that view (engineers can't open พร้อมขาย —
+   *  the link used to bounce them with "ไม่มีสิทธิ์"). */
+  onSeeAll?: (view: SectionView) => void;
+  /** Tenant names are shown only to roles that may see them. The rooms
+   *  API already blanks them for everyone else; this also covers View-as,
+   *  where a manager previewing sales still receives the names. */
   roles?: Role[];
   /** Open the new-appointment form as a ย้ายเข้า for this room (the same
    *  flow as the room window's "บันทึกวันย้ายเข้า"). Passed only to roles
@@ -30,6 +32,8 @@ interface Props {
    *  shows the head of each list, not all 300 rooms. */
   limit?: number;
 }
+
+type SectionView = "ready" | "pending" | "moveout";
 
 /**
  * Overview "พร้อมให้เช่า" card (V2 Direction B) — the vacancy side of the
@@ -43,7 +47,7 @@ function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, 
     const scoped = scopeRooms(rooms, activeBuilding);
     return {
       ready: scoped.filter((r) => r.status === "ready").sort(byBuildingThenRoom),
-      booked: sortPendingByMoveIn(scoped.filter((r) => r.status === "pending")),
+      booked: sortPendingByMoveIn(scoped.filter(isBooked)),
       leaving: scoped.filter((r) => r.status === "moveout").sort(byBuildingThenRoom),
     };
   }, [rooms, activeBuilding]);
@@ -59,7 +63,7 @@ function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, 
       : r.status === "pending" ? "" : "แจ้งย้ายออกแล้ว";
     const note = (r.note || "").trim() || fallback;
     const who = r.status === "pending"
-      ? (r.tenant?.trim() || (showNames ? "ยังไม่ได้ใส่ชื่อผู้จอง" : "จองแล้ว"))
+      ? (showNames ? r.tenant?.trim() || "ยังไม่ได้ใส่ชื่อผู้จอง" : "จองแล้ว")
       : null;
     const end = r.status === "ready" ? price
       : r.status === "moveout" ? (outAt ? `ย้ายออก ${formatDateShort(outAt)}` : "")
@@ -73,7 +77,7 @@ function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, 
           type="button"
           className="ac-ready-row"
           onClick={() => onSelectRoom(r)}
-          aria-label={`ห้อง ${r.room} อาคาร ${r.building} · ${STATUS_LABEL[r.status]}`}
+          title={`ห้อง ${r.room} อาคาร ${r.building} · ${STATUS_LABEL[r.status]}`}
         >
           <span className="ac-ready-num">{r.room}</span>
           <span className="ac-ready-main">
@@ -101,17 +105,20 @@ function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, 
     );
   };
 
+  const seeAll = (view: SectionView, count: number) =>
+    onSeeAll && count > 0 && canAccess(roles, view) && (
+      <button type="button" className="ac-tasks-seeall" onClick={() => onSeeAll(view)}>
+        {count > limit ? `ดูทั้งหมด ${count} ห้อง` : "ดูทั้งหมด"} <Icon name="next" />
+      </button>
+    );
+
   return (
     <section className="ac-ready-card" aria-label="พร้อมให้เช่า">
       <header className="ac-tasks-head">
         <h3 className="ac-tasks-title">
           พร้อมให้เช่า <span className="ac-tasks-count">({ready.length})</span>
         </h3>
-        {onSeeAll && ready.length > 0 && (
-          <button type="button" className="ac-tasks-seeall" onClick={onSeeAll}>
-            {ready.length > limit ? `ดูทั้งหมด ${ready.length} ห้อง` : "ดูทั้งหมด"} <Icon name="next" />
-          </button>
-        )}
+        {seeAll("ready", ready.length)}
       </header>
       {ready.length === 0 ? (
         <EmptyState icon="rooms" compact title="ยังไม่มีห้องว่างพร้อมขาย" />
@@ -120,13 +127,13 @@ function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, 
       )}
       {booked.length > 0 && (
         <>
-          <h4 className="ac-ready-sub">รอเข้าอยู่ <span>({booked.length})</span></h4>
+          <h4 className="ac-ready-sub">รอเข้าอยู่ <span>({booked.length})</span>{seeAll("pending", booked.length)}</h4>
           <ul className="ac-ready-list">{booked.slice(0, limit).map(row)}</ul>
         </>
       )}
       {leaving.length > 0 && (
         <>
-          <h4 className="ac-ready-sub">ใกล้ว่าง <span>({leaving.length})</span></h4>
+          <h4 className="ac-ready-sub">ใกล้ว่าง <span>({leaving.length})</span>{seeAll("moveout", leaving.length)}</h4>
           <ul className="ac-ready-list">{leaving.slice(0, limit).map(row)}</ul>
         </>
       )}
