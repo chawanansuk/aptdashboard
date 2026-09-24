@@ -40,6 +40,23 @@ export const VALID_VIEWS: ActiveView[] = [
   "maintlog", "salespipeline", "engineerkanban", "reports",
 ];
 
+/**
+ * Views that render their own page instead of the room grid / task list.
+ * A Record, not an array, so a view added to ActiveView fails to compile
+ * until it is placed here or in the grid views — page.tsx used to spell
+ * this list out twice by hand, and a view missing from one copy got the
+ * room grid drawn underneath its own page.
+ */
+const CUSTOM_VIEWS: Record<Exclude<ActiveView, "overview" | "today" | RoomStatus>, true> = {
+  income: true, tenants: true, calendar: true, maintenance: true, facilities: true,
+  parts: true, vehicles: true, pets: true, leads: true, recurring: true, maintlog: true,
+  salespipeline: true, engineerkanban: true, reports: true,
+};
+
+export function isCustomView(view: string): boolean {
+  return Object.prototype.hasOwnProperty.call(CUSTOM_VIEWS, view);
+}
+
 export interface ViewRoutingOptions {
   /** Primary role — undefined while the session is still loading; the
    *  route guard waits for it so we don't redirect on a blank session. */

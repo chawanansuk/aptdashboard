@@ -297,7 +297,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, .ac-h1 {
+h1 {
   font-size: var(--text-2xl);
   line-height: var(--leading-tight);
   font-weight: var(--font-weight-bold);
@@ -309,7 +309,7 @@ h2, .ac-h2 {
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.005em;
 }
-h3, .ac-h3 {
+h3 {
   font-size: var(--text-lg);
   line-height: var(--leading-snug);
   font-weight: var(--font-weight-semibold);
@@ -345,17 +345,7 @@ h3, .ac-h3 {
     align-items: center;
     min-width: 0;
   }
-  .ac-nav-left .ac-divider { display: none; }
   .ac-logo-icon { width: 36px; height: 36px; flex-shrink: 0; }
-  .ac-tabs-select {
-    flex: 1;
-    min-width: 0;
-    max-width: 100%;
-    font-weight: 600;
-    color: #111827;
-    padding: 8px 10px;
-    min-height: 40px;
-  }
   .ac-nav-right {
     width: auto;
     flex-shrink: 0;
@@ -382,9 +372,7 @@ h3, .ac-h3 {
     min-height: 40px;
   }
   .ac-icon-btn { flex-shrink: 0; }
-  .ac-avatar { flex-shrink: 0; width: 38px; height: 38px; font-size: 13px; }
   .ac-theme-toggle { display: none; } /* keep nav compact; use system pref / dark toggle elsewhere */
-  .ac-last-updated { display: none; }
 
   /* --- Stat cards: compact --- */
   .ac-sg { gap: 8px; }
@@ -500,19 +488,12 @@ html.dark .ac-side-item.is-active {
   color: color-mix(in srgb, var(--color-accent) 55%, #fff);
 }
 html.dark .ac-side-label { color: #64748B; }
-html.dark .ac-divider { background: #334155; }
 html.dark .ac-hamburger:hover { background: #334155; }
 html.dark .ac-hamburger span { background: #E5E7EB; }
 html.dark .ac-tab { color: #94A3B8; }
 html.dark .ac-tab:hover { background: #334155; }
-html.dark .ac-tabs-select {
-  background: #334155;
-  border-color: #475569;
-  color: #E5E7EB;
-}
 html.dark .ac-icon-btn { color: #94A3B8; }
 html.dark .ac-icon-btn:hover { background: #334155; }
-html.dark .ac-avatar { background: #312E81; color: #A5B4FC; }
 html.dark .ac-mode-badge {
   background: #064E3B;
   border-color: #065F46;
@@ -644,11 +625,6 @@ html.dark .ac-summary-day-label { color: #F1F5F9; }
 html.dark .ac-summary-day-types {
   background: #0F172A;
   border-bottom-color: #334155;
-}
-html.dark .ac-type-chip {
-  background: #1E293B;
-  border-color: #334155;
-  color: #CBD5E1;
 }
 html.dark .ac-summary-task { border-bottom-color: #334155; }
 html.dark .ac-summary-task-main { color: #F1F5F9; }
@@ -896,7 +872,6 @@ html.dark .ac-mode-badge.is-management {
   border-color: #5B21B6;
   color: #DDD6FE;
 }
-.ac-divider { width: 1px; height: 24px; background: #E8EAED; }
 
 .ac-tabs {
   display: flex;
@@ -911,8 +886,6 @@ html.dark .ac-mode-badge.is-management {
   border-radius: 999px;
   width: fit-content;
 }
-/* Legacy select kept hidden — pills are now used on all viewports. */
-.ac-tabs-select { display: none !important; }
 .ac-tab {
   padding: 5px 12px;
   border-radius: 999px;
@@ -1056,14 +1029,6 @@ html.dark .ac-cmdk-btn-kbd {
 }
 .ac-summary-btn:hover { background: color-mix(in srgb, var(--color-accent) 86%, #000); }
 
-.ac-avatar {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: #E0E7FF;
-  color: #4F46E5;
-  font-weight: 700; font-size: 13px;
-  display: flex; align-items: center; justify-content: center;
-}
 
 /* BODY */
 .ac-body {
@@ -1257,16 +1222,10 @@ html.dark .ac-badge-empty { background: #334155; color: #94A3B8; }
   font-size: 18px;
   flex-shrink: 0;
 }
-.ac-si-indigo { background: #EEF2FF; color: #4F46E5; }
-.ac-si-green { background: #F0FDF4; color: #16A34A; }
-.ac-si-orange { background: #FFF7ED; color: #C2410C; }
-.ac-si-red { background: #FEF2F2; color: #DC2626; }
 .ac-sc-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ac-sc-label { font-size: 12px; color: #6B7280; }
 .ac-sc-num { font-size: 22px; font-weight: 800; color: #111827; line-height: 1.1; }
 .ac-sc-sub { font-size: 11px; padding: 2px 8px; border-radius: 6px; align-self: flex-start; font-weight: 600; }
-.ac-sub-info { background: #EFF6FF; color: #2563EB; }
-.ac-sub-urgent { background: #FEF2F2; color: #DC2626; }
 
 /* FILTER BAR — V2: tokens instead of the old hardcoded #fff / #E8EAED,
    and it now carries the colour legend too (see .ac-chip-status). */
@@ -1962,7 +1921,6 @@ html.dark .ac-rc-bldg { color: #64748B; }
   /* Loading hints stay alive — without them users can't tell the page
      is still working. Slow them down instead of disabling. */
   .ac-overview-card-skeleton,
-  .ac-skeleton-pulse,
   [class*="skeleton"] {
     animation-duration: 3s !important;
     animation-iteration-count: infinite !important;
@@ -2359,7 +2317,6 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   /* Note: .ac-tabs / .ac-tabs-select rules removed — pills now used on all
      viewports (parent .ac-nav-cell-tabs is horizontally scrollable). */
   .ac-mode-badge { display: none; }
-  .ac-divider { display: none; }
   .ac-logo-text { display: none; }
   .ac-sg { grid-template-columns: repeat(2, 1fr); }
   /* V2 — this used to pin the card to a 64px square, which after the
@@ -2433,26 +2390,6 @@ html.dark .ac-btn-secondary:hover:not(:disabled) { background: #1E40AF; }
   background: var(--color-surface-2);
   color: var(--color-text-muted);
   cursor: not-allowed;
-}
-
-/* === Toast === */
-.ac-toast {
-  position: fixed;
-  bottom: 24px; left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 18px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-  z-index: 300;
-  animation: ac-toast-in 0.2s ease-out;
-}
-.ac-toast-ok { background: #16A34A; color: #fff; }
-.ac-toast-err { background: #DC2626; color: #fff; }
-@keyframes ac-toast-in {
-  from { opacity: 0; transform: translate(-50%, 8px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 .ac-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -2844,13 +2781,6 @@ html.dark .ac-summary-close:hover { background: #334155; color: #F1F5F9; }
   color: #0F172A;
   border-top: 2px solid #E5E7EB;
 }
-.ac-pill {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
 .pill-vacant {
   background: #F0FDF4;
   color: #16A34A;
@@ -2934,24 +2864,6 @@ html.dark .ac-summary-close:hover { background: #334155; color: #F1F5F9; }
   background: #FAFAFA;
   border-bottom: 1px solid #F1F5F9;
 }
-.ac-type-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #fff;
-  border: 1px solid #E5E7EB;
-  font-size: 11px;
-  color: #475569;
-  font-weight: 600;
-}
-.ac-type-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #6366F1;
-}
 .ac-summary-task-list {
   display: flex;
   flex-direction: column;
@@ -2996,10 +2908,6 @@ html.dark .ac-summary-close:hover { background: #334155; color: #F1F5F9; }
 }
 .ac-icon-btn.is-spinning svg { animation: ac-spin 0.9s linear infinite; }
 .ac-icon-btn:disabled { opacity: 0.6; cursor: default; }
-
-/* === Avatar (clickable) === */
-.ac-avatar { cursor: pointer; transition: filter 0.15s; border: 0; }
-.ac-avatar:hover { filter: brightness(0.95); }
 
 /* === Skeleton loader === */
 @keyframes ac-shimmer {
@@ -3652,7 +3560,6 @@ html.dark .ac-cal-task.is-clickable:hover { background: #1E1B4B; }
   .ac-nav,
   .ac-side,
   .ac-side-backdrop,
-  .ac-toast,
   .ac-offline-bar,
   .ac-no-print,
   .ac-modal-backdrop,
@@ -5030,26 +4937,6 @@ html.dark .ac-overview-card-skeleton {
 /* (The dark lightening of "มีผู้เช่า" now lives on --status-occupied
    itself, so this bar needs no dark-mode rule of its own.) */
 
-/* ===== Role switcher (multi-role view-as) ===== */
-.ac-role-switcher {
-  display: inline-flex; align-items: center; gap: 6px;
-  margin-left: 8px; padding: 4px 8px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 12px;
-}
-html.dark .ac-role-switcher { background: #1E293B; border-color: #334155; }
-.ac-role-switcher-label { color: #64748B; font-size: 11px; }
-html.dark .ac-role-switcher-label { color: #94A3B8; }
-.ac-role-switcher-select {
-  background: transparent; border: none; font-size: 12px; font-weight: 600;
-  color: #0F172A; cursor: pointer; padding: 0 4px;
-}
-html.dark .ac-role-switcher-select { color: #F1F5F9; }
-.ac-role-switcher-select:focus { outline: none; }
-@media (max-width: 720px) {
-  .ac-role-switcher-label { display: none; }
-}
-
 /* ====================================================================
  * Calendar enhancements (PR-G)
  * ==================================================================== */
@@ -5224,12 +5111,6 @@ button:not(:disabled):not(.ac-rc):not(.ac-side-item):not(.ac-overview-card):acti
 /* Smoother hover lift on overview cards */
 .ac-overview-card.is-clickable {
   will-change: transform, box-shadow;
-}
-
-/* Toast: add gentle exit animation (used when component unmounts via
- * React; the CSS plays once before removal so user sees it fade out) */
-.ac-toast {
-  animation: ac-toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Card hover lift: smoother on all equipment/facility/maintenance cards */
@@ -7912,13 +7793,6 @@ html.dark .ac-empty-state-warning .ac-empty-title { color: #FB923C; }
   /* KPI numbers — clamp font size so long numbers (5+ digits) don't wrap */
   .ac-kanban-kpi-value {
     font-size: 22px;
-  }
-
-  /* Building names on cards — never wrap mid-word */
-  .ac-vacant-room-card-meta {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 }
 
@@ -10693,12 +10567,6 @@ html.dark .ac-tab.is-active {
     color-mix(in srgb, var(--color-accent) 62%, var(--aurora-violet)));
   color: #fff;
 }
-/* Role-colored ring on the avatar — quiet "who am I" signal. */
-.ac-avatar,
-html.dark .ac-avatar {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 38%, transparent);
-}
-
 /* ----- 3) Sidebar — glass rail + slide-hover ------------------------ */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .ac-side {

@@ -10,7 +10,7 @@ import { useDashboardData } from "@/lib/useDashboardData";
 import { useVehicleCountByRoom } from "@/lib/useVehicleCountByRoom";
 import { useAssetAlertCounts } from "@/lib/useAssetAlertCounts";
 import { usePersistedString } from "@/lib/usePersistedString";
-import { useViewRouting, VALID_VIEWS, type ActiveView } from "@/lib/useViewRouting";
+import { useViewRouting, isCustomView, VALID_VIEWS, type ActiveView } from "@/lib/useViewRouting";
 import { useUrlSync } from "@/lib/useUrlSync";
 import { pageTitle } from "@/lib/urlState";
 import { useEquipmentCountByRoom } from "@/lib/useEquipmentCountByRoom";
@@ -513,7 +513,7 @@ export default function Home() {
    *  the already-filtered list would collapse every other chip to 0 the
    *  moment one is selected, and the user could never switch chips. */
   const roomsInScope = useMemo(() => {
-    if (activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "pets" || activeView === "leads" || activeView === "recurring" || activeView === "maintlog" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports") return [];
+    if (isCustomView(activeView)) return [];
     // Note: room search was previously layered in here using the `search`
     // state — duplicated ⌘K's room/tenant/phone search. Removed in
     // Problem #8; users find rooms via the top-nav ⌘K. The `search`
@@ -601,7 +601,7 @@ export default function Home() {
   // status via visibleRooms) instead of a task list keyed on a task TYPE
   // that often doesn't exist (badge showed N but the task list was empty).
   const showTasksView = activeView === "today";
-  const showCustomView = activeView === "income" || activeView === "tenants" || activeView === "calendar" || activeView === "maintenance" || activeView === "facilities" || activeView === "parts" || activeView === "vehicles" || activeView === "pets" || activeView === "leads" || activeView === "recurring" || activeView === "maintlog" || activeView === "salespipeline" || activeView === "engineerkanban" || activeView === "reports";
+  const showCustomView = isCustomView(activeView);
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
   // Stats for the welcome hero — same data the rest of the page already

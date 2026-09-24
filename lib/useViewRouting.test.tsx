@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, renderHook, act } from "@testing-library/react";
-import { useViewRouting, VALID_VIEWS, type ActiveView } from "./useViewRouting";
+import { useViewRouting, isCustomView, VALID_VIEWS, type ActiveView } from "./useViewRouting";
 import type { Role } from "@/auth";
 
 // Capture toasts — the guard's "ไม่มีสิทธิ์" is part of the contract.
@@ -59,6 +59,15 @@ describe("useViewRouting — basics", () => {
     expect(VALID_VIEWS).toContain("maintlog");
     expect(VALID_VIEWS).toContain("pets");
     expect(VALID_VIEWS.length).toBe(23);
+  });
+
+  it("isCustomView: pages with their own screen vs the room grid / task list", () => {
+    const grid = ["overview", "today", "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive"];
+    for (const v of grid) expect(isCustomView(v), v).toBe(false);
+    const custom = VALID_VIEWS.filter((v) => !grid.includes(v));
+    expect(custom).toHaveLength(14);
+    for (const v of custom) expect(isCustomView(v), v).toBe(true);
+    expect(isCustomView("toString")).toBe(false); // own keys only
   });
 });
 
