@@ -15,10 +15,10 @@ interface Props {
    * Real per-card trend series (oldest → newest, ~7 points). A card
    * whose key is omitted shows no sparkline at all — only the number.
    *
-   * Currently only `appointments` has a real series — derived from the
-   * tasks sheet (events with dates already in the data). The three
-   * room-status cards would need daily snapshots, which aren't recorded;
-   * they used to draw an invented wave that read like a real trend.
+   * `appointments` comes from the tasks sheet; the three room-status
+   * cards from daily counts the sales page records (lib/kpiSnapshot), so
+   * they draw a line from the second day on. They once drew an invented
+   * wave that read like a real trend — never again: no data, no line.
    */
   trends?: Partial<Record<KpiKey, number[]>>;
   /** Navigate to a sidebar status view when a card is clicked. */

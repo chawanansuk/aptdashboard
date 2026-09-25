@@ -76,6 +76,10 @@ export function parseRoomsCSV(csvText: string): RoomRow[] {
         }
         if (row[fieldName] == null) row[fieldName] = "";
       }
+      // A note saved by Code.gs v3.34 into a plain-text (@) cell can keep the
+      // web's formula-guard apostrophe as a real character ("'-แอร์เสีย").
+      // v3.35 writes literal text; this cleans the rows written before it.
+      if (row.note) row.note = row.note.replace(/^'(?=[=+\-@])/, "");
       return row as RoomRow;
     })
     .filter((r) => r.building && r.room);
