@@ -14,6 +14,10 @@ import { buildingSortIndex, floorSortKey } from "@/lib/salesData";
 import { useRoomDensity, ROOM_DENSITY_VALUES, type RoomDensity } from "@/lib/useRoomDensity";
 import { canViewTenant } from "@/lib/permissions";
 import RoomQuickActions from "./RoomQuickActions";
+import RoomListRow from "./RoomListRow";
+import { useMediaQuery } from "@/lib/useMediaQuery";
+import { MQ } from "@/lib/breakpoints";
+import { isBooked, sortPendingByMoveIn } from "@/lib/moveIns";
 
 /**
  * Format relative time (วันนี้ / พรุ่งนี้ / X วันที่แล้ว) — Thai.
@@ -172,7 +176,13 @@ const RoomCard = memo(function RoomCard({
           }
         }
         const target = bestMovein ?? bestView;
-        if (!target) return null;
+        if (!target) {
+          // Booked with nothing scheduled — say so, instead of a blank
+          // where the next tile shows a date (the overview card does too).
+          return isBooked(r)
+            ? <span className="ac-rc-movein is-missing" title="จองแล้ว ยังไม่นัดวันเข้า">ยังไม่นัดวันเข้า</span>
+            : null;
+        }
         const icon: IconName = bestMovein ? "moveIn" : "view";
         const label = bestMovein ? "วันเข้า" : "นัดชม";
         const dd = String(target.getDate()).padStart(2, "0");
@@ -272,6 +282,9 @@ interface Props {
   onRepairRoom: (r: RoomView) => void;
   /** One-tap status hop from the ⋯ popover (v3.23) — see RoomQuickActions. */
   onQuickStatus?: (r: RoomView, rawStatus: string) => Promise<void>;
+  /** Phone list rows: "นัดวันเข้า" on a booked room with no move-in date
+   *  (same callback the overview card gets; omitted → plain label). */
+  onScheduleMoveIn?: (r: RoomView) => void;
   /** Optional: vehicle count per room ("Building|Room" → count). When
    *  supplied, each card shows a `🏍 N` badge when N > 0. */
   vehicleCountByRoom?: (building: string, room: string) => number;
@@ -296,9 +309,19 @@ const DENSITY_TITLE: Record<RoomDensity, string> = {
 function RoomsView({
   visibleRooms, statusCounts, activeFilter, onChangeFilter,
   bulkMode, bulkSelected, onToggleBulkMode, onToggleBulkRoom, onSelectRoom,
-  roles, onRepairRoom, onQuickStatus, vehicleCountByRoom, equipmentCountByRoom,
+  roles, onRepairRoom, onQuickStatus, onScheduleMoveIn, vehicleCountByRoom, equipmentCountByRoom,
 }: Props) {
   const { density, setDensity } = useRoomDensity();
+
+  // Phone + one status (a status view, or a status chip on): the floor
+  // grid is a MAP — worth its building/floor chrome when statuses mix.
+  // A single-status view is a to-do list, and 5 booked rooms in 5
+  // buildings cost five screens of headers on a phone. Rows instead,
+  // grouped by building. Bulk select keeps the grid (its checkboxes).
+  const isMobile = useMediaQuery(MQ.mobile);
+  const singleStatus = activeFilter !== "all" ||
+    (visibleRooms.length > 0 && visibleRooms.every((r) => r.status === visibleRooms[0].status));
+  const listMode = isMobile && singleStatus && !bulkMode;
 
   /** Counts behind the status chips. `statusCounts` is the scope-wide
    *  count from the page; without it, fall back to the rendered list. */
@@ -405,6 +428,20 @@ function RoomsView({
       });
   }, [visibleRooms]);
 
+  /** List mode: one group per building, floors top-down as in the grid;
+   *  booked rooms with no move-in date first (as the overview card). */
+  const buildingGroups = useMemo(() => {
+    const out: { building: string; list: RoomView[] }[] = [];
+    for (const g of floorGroups) {
+      const last = out[out.length - 1];
+      if (last && last.building === g.building) last.list.push(...g.list);
+      else out.push({ building: g.building, list: [...g.list] });
+    }
+    return out.map((g) => (
+      g.list.every((r) => r.status === "pending") ? { ...g, list: sortPendingByMoveIn(g.list) } : g
+    ));
+  }, [floorGroups]);
+
   // Default tab stop = first card in render order (floor-sorted).
   const firstKey = floorGroups[0]?.list[0] ? roomKey(floorGroups[0].list[0]) : null;
   const activeFocusKey = focusKey ?? firstKey;
@@ -431,7 +468,7 @@ function RoomsView({
     e.stopPropagation();
     const btn = e.currentTarget as HTMLElement;
     // Find the parent cell (.ac-rc) so the popover anchors there, not the dot button
-    const cell = btn.closest(".ac-rc") as HTMLElement | null;
+    const cell = btn.closest(".ac-rc, .ac-ready-item") as HTMLElement | null;
     const rect = (cell || btn).getBoundingClientRect();
     setQuickFor({ room: r, anchor: rect });
   }
@@ -498,7 +535,7 @@ function RoomsView({
         {/* Search moved to the top-nav ⌘K button — same scope (room/
             building/tenant/phone) with rank-based ordering and digit-
             only phone matching. See lib/commandPaletteSearch.ts. */}
-        <div className="ac-density-toggle" role="group" aria-label="ขนาดห้อง">
+        {!listMode && <div className="ac-density-toggle" role="group" aria-label="ขนาดห้อง">
           {ROOM_DENSITY_VALUES.map((d) => (
             <button
               key={d}
@@ -509,7 +546,7 @@ function RoomsView({
               aria-pressed={density === d}
             >{DENSITY_LABEL[d]}</button>
           ))}
-        </div>
+        </div>}
         <button
           className={`ac-btn ac-btn-sm ${bulkMode ? "ac-btn-primary" : "ac-btn-ghost"}`}
           onClick={onToggleBulkMode}
@@ -534,7 +571,30 @@ function RoomsView({
           action={activeFilter !== "all" ? { label: "ดูทุกสถานะ", onClick: () => onChangeFilter("all") } : undefined}
         />
       )}
-      {floorGroups.map((g, idx) => {
+      {listMode ? (
+        <div className="ac-room-list">
+          {buildingGroups.map((g) => (
+            <section key={g.building} className="ac-room-list-group" aria-label={g.building}>
+              {multiBuilding && (
+                <h3 className="ac-ready-sub">{g.building} <span>({g.list.length} ห้อง)</span></h3>
+              )}
+              <ul className="ac-ready-list">
+                {g.list.map((r) => (
+                  <RoomListRow
+                    key={makeRoomKey(r.building, r.room)}
+                    r={r}
+                    showNames={canSeeTenant}
+                    showBuilding={false}
+                    onSelect={onSelectRoom}
+                    onScheduleMoveIn={onScheduleMoveIn}
+                    onOpenQuick={openQuick}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      ) : floorGroups.map((g, idx) => {
         const counts: Record<RoomStatus, number> = { occupied: 0, ready: 0, pending: 0, moveout: 0, qc: 0, repair: 0, inactive: 0 };
         g.list.forEach((r) => counts[r.status]++);
         // Building divider — render once before the first floor section of

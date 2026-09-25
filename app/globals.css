@@ -1567,6 +1567,10 @@ html.dark .ac-rc-movein {
   color: #E9D5FF;
   background: color-mix(in srgb, #A855F7 30%, transparent);
 }
+/* Booked, no move-in date — the amber "chase this" pill, same pair the
+   overview card uses. */
+.ac-rc-movein.is-missing,
+html.dark .ac-rc-movein.is-missing { color: var(--status-repair-ink); background: var(--status-repair-soft); }
 .ac-rg-compact .ac-rc-movein { display: none; }
 /* "ต้องซ่อมอะไร" hint for รอเข้าซ่อม rooms — amber pill under the status
    showing the repair note. `.is-empty` (grey) flags a room marked for
@@ -2174,6 +2178,26 @@ html.dark .ac-ready-card { background: var(--color-surface-2); }
 .ac-ready-item-ready   { --rr-soft: var(--status-ready-soft);   --rr-border: var(--status-ready-border);   --rr-ink: var(--status-ready-ink); }
 .ac-ready-item-moveout { --rr-soft: var(--status-moveout-soft); --rr-border: var(--status-moveout-border); --rr-ink: var(--status-moveout-ink); }
 .ac-ready-item-pending { --rr-soft: var(--status-pending-soft); --rr-border: var(--status-pending-border); --rr-ink: var(--status-pending-ink); }
+.ac-ready-item-occupied { --rr-soft: var(--status-occupied-soft); --rr-border: var(--status-occupied-border); --rr-ink: var(--status-occupied-ink); }
+.ac-ready-item-qc       { --rr-soft: var(--status-qc-soft);       --rr-border: var(--status-qc-border);       --rr-ink: var(--status-qc-ink); }
+.ac-ready-item-repair   { --rr-soft: var(--status-repair-soft);   --rr-border: var(--status-repair-border);   --rr-ink: var(--status-repair-ink); }
+.ac-ready-item-inactive { --rr-soft: var(--status-inactive-soft); --rr-border: var(--status-inactive-border); --rr-ink: var(--status-inactive-ink); }
+/* Phone room list (RoomsView, single-status views) — the same rows as the
+   overview card, grouped by building; no floor sections, no tiles. */
+.ac-room-list { display: flex; flex-direction: column; padding: 4px 12px 16px; }
+.ac-room-list .ac-ready-sub { margin: 14px 0 6px; }
+.ac-room-list-group:first-child .ac-ready-sub { margin-top: 6px; }
+.ac-ready-more {
+  flex: 0 0 auto;
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-md);
+  background: transparent; color: var(--color-text-muted);
+  cursor: pointer;
+}
+.ac-ready-more:hover { background: var(--color-surface); color: var(--color-text); }
+.ac-ready-more:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+@media (pointer: coarse) { .ac-ready-more { width: 44px; height: 44px; } }
 /* "ยังไม่นัดวันเข้า" as an action — same amber pill as the plain label, so
    the missing state still reads at a glance, now pressable. */
 .ac-ready-schedule {

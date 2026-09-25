@@ -1364,6 +1364,7 @@ export default function Home() {
               roles={roles}
               onRepairRoom={openRepairForRoom}
               onQuickStatus={handleQuickStatus}
+              onScheduleMoveIn={canPerform(roles, "task.add.sales") ? (r) => openMoveinSchedule(r.building, r.room) : undefined}
               vehicleCountByRoom={vehicleCounts.get}
               equipmentCountByRoom={equipmentCounts.get}
             />
