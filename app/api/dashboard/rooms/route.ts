@@ -19,19 +19,7 @@ import {
   redisGetJson, redisSetJson, redisGetEpoch, isCachedSlice,
   REDIS_ROOMS_KEY, REDIS_SLICE_TTL_SEC, type CachedSlice,
 } from "@/lib/redisCache";
-
-/**
- * Strip tenant PII fields when the requester isn't allowed to read them.
- * Only fields that identify a person are blanked — `contractEnd` stays
- * because sales needs to know which rooms have contracts expiring (to
- * follow up) without seeing who the tenant is.
- *
- * Server-side enforcement is mandatory: even if the UI hides the section,
- * a direct fetch to /api/dashboard/rooms should never leak PII.
- */
-function stripTenantPii(rows: RoomRow[]): RoomRow[] {
-  return rows.map((r) => ({ ...r, tenant: "", phone: "" }));
-}
+import { stripTenantPii } from "@/lib/tenantPii";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

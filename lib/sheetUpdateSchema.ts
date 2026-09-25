@@ -205,7 +205,8 @@ export const ReleaseRoomSchema = z.object({
   room: Room,
   /** Optional status override; Apps Script defaults to "ว่าง". */
   status: z.string().min(1).max(40).optional(),
-  note: OptText(500),
+  // No `note`: v3.34 clears it server-side from the fixed template, like
+  // the tenant fields — this action can only erase, never write text.
 }).strip();
 
 /**

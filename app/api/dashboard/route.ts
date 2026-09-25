@@ -21,6 +21,7 @@ import {
   redisGetJson, redisSetJson, isCachedSlice,
   REDIS_ROOMS_KEY, REDIS_TASKS_KEY, REDIS_SLICE_TTL_SEC, type CachedSlice,
 } from "@/lib/redisCache";
+import { stripTenantPii } from "@/lib/tenantPii";
 
 /** Push a successful origin fetch into the shared L2 (fire-and-forget). */
 function persistToRedis(rooms: RoomRow[], tasks: SheetRow[], at: number = Date.now()): void {
@@ -53,10 +54,6 @@ async function hydrateFromRedis(): Promise<boolean> {
 }
 
 /** Strip tenant PII (see app/api/dashboard/rooms/route.ts for details). */
-function stripTenantPii(rows: RoomRow[]): RoomRow[] {
-  return rows.map((r) => ({ ...r, tenant: "", phone: "" }));
-}
-
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // r27: Vercel default (10-15s) สั้นกว่า timeout ของ appsScriptCall → function

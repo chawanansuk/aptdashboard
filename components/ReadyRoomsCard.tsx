@@ -4,12 +4,11 @@ import { memo, useMemo } from "react";
 import type { Role } from "@/auth";
 import type { RoomView } from "@/types";
 import { Icon } from "@/lib/icons";
-import { STATUS_LABEL } from "@/lib/constants";
 import { canAccess, canViewTenant } from "@/lib/permissions";
-import { formatBaht } from "@/lib/money";
-import { formatDateShort, scopeRooms } from "@/lib/salesData";
-import { byBuildingThenRoom, isBooked, nextAppointment, sortPendingByMoveIn } from "@/lib/moveIns";
+import { scopeRooms } from "@/lib/salesData";
+import { byBuildingThenRoom, isBooked, sortPendingByMoveIn } from "@/lib/moveIns";
 import EmptyState from "./EmptyState";
+import RoomListRow from "./RoomListRow";
 
 interface Props {
   rooms: RoomView[];
@@ -52,58 +51,15 @@ function ReadyRoomsCard({ rooms, activeBuilding, onSelectRoom, onSeeAll, roles, 
     };
   }, [rooms, activeBuilding]);
 
-  const row = (r: RoomView) => {
-    const price = r.status === "ready" ? formatBaht(r.price) : "";
-    const outAt = r.status === "moveout" ? nextAppointment(r, "ย้ายออก") : null;
-    const inAt = r.status === "pending" ? nextAppointment(r, "ย้ายเข้า") : null;
-    // What the team wrote on the room wins over the generic line — for a
-    // booked room that is usually "who, and when they move in".
-    const fallback = r.status === "ready"
-      ? (r.needsCleaning ? "ต้องทำสะอาดก่อนเข้าอยู่" : "ว่าง พร้อมเข้าอยู่")
-      : r.status === "pending" ? "" : "แจ้งย้ายออกแล้ว";
-    const note = (r.note || "").trim() || fallback;
-    const who = r.status === "pending"
-      ? (showNames ? r.tenant?.trim() || "ยังไม่ได้ใส่ชื่อผู้จอง" : "จองแล้ว")
-      : null;
-    const end = r.status === "ready" ? price
-      : r.status === "moveout" ? (outAt ? `ย้ายออก ${formatDateShort(outAt)}` : "")
-      : inAt ? `เข้า ${formatDateShort(inAt)}` : null;
-    // The tint lives on the <li>: a booked room with no move-in date gets a
-    // SECOND button ("นัดวันเข้า") beside the row, and a button can't be
-    // nested inside the row's own button.
-    return (
-      <li key={`${r.building}|${r.room}`} className={`ac-ready-item ac-ready-item-${r.status}`}>
-        <button
-          type="button"
-          className="ac-ready-row"
-          onClick={() => onSelectRoom(r)}
-          title={`ห้อง ${r.room} อาคาร ${r.building} · ${STATUS_LABEL[r.status]}`}
-        >
-          <span className="ac-ready-num">{r.room}</span>
-          <span className="ac-ready-main">
-            <span className="ac-ready-where">
-              {who ? <>{who}<span className="ac-ready-where-sub"> · {r.building}</span></> : <>{r.building}{r.floor ? ` · ชั้น ${r.floor}` : ""}</>}
-            </span>
-            {note && <span className="ac-ready-note" title={note}>{note}</span>}
-          </span>
-          {end === null
-            ? !onScheduleMoveIn && <span className="ac-ready-end is-missing">ยังไม่นัดวันเข้า</span>
-            : <span className="ac-ready-end">{end}</span>}
-        </button>
-        {end === null && onScheduleMoveIn && (
-          <button
-            type="button"
-            className="ac-ready-schedule"
-            onClick={() => onScheduleMoveIn(r)}
-            title="ยังไม่มีนัดย้ายเข้า — กดเพื่อนัดวันเข้า"
-            aria-label={`ห้อง ${r.room} ยังไม่นัดวันเข้า — นัดวันย้ายเข้า`}
-          >
-            <Icon name="calendar" size={14} /> นัดวันเข้า
-          </button>
-        )}
-      </li>
-    );
-  };
+  const row = (r: RoomView) => (
+    <RoomListRow
+      key={`${r.building}|${r.room}`}
+      r={r}
+      showNames={showNames}
+      onSelect={onSelectRoom}
+      onScheduleMoveIn={onScheduleMoveIn}
+    />
+  );
 
   const seeAll = (view: SectionView, count: number) =>
     onSeeAll && count > 0 && canAccess(roles, view) && (

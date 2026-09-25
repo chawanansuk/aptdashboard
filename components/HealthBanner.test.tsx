@@ -6,7 +6,7 @@ vi.mock("next-auth/react", () => ({ useSession: () => ({ status: "authenticated"
 import HealthBanner, { HEALTH_RETRY_DELAY_MS } from "./HealthBanner";
 
 const TIMEOUT = { ok: false, error: "timeout", message: "Apps Script ไม่ตอบใน 20 วินาที", latencyMs: 20001 };
-const OK = { ok: true, version: "3.33.0", expectedVersion: "3.33.0", outdated: false, message: "", latencyMs: 900 };
+const OK = { ok: true, version: "3.34.0", expectedVersion: "3.34.0", outdated: false, message: "", latencyMs: 900 };
 const MISSING_ENV = { ok: false, error: "missing_env", message: "SHEET_WRITE_URL ไม่ได้ตั้งค่า" };
 
 function mockProbes(...bodies: unknown[]) {

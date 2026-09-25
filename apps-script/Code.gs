@@ -1,9 +1,19 @@
 /**
- * Code.gs v3.33.0 — Dashboard หอพัก
+ * Code.gs v3.34.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.34.0 (audit r36 — หมายเหตุห้อง):
+ *   - ปล่อยขาย (releaseRoom) ล้างหมายเหตุด้วย: ห้องเริ่มรอบใหม่ ข้อความของผู้จอง
+ *     คนก่อน ("คุณเอ เข้า 1 ต.ค.") ไม่ติดไปโผล่ในรายการ "พร้อมให้เช่า" — ข้อความเดิม
+ *     ยังอยู่ในบันทึกการแก้ไข (หมายเหตุ: เดิม → ∅)
+ *   - หมายเหตุหลายบรรทัดอ่านกลับได้หลายบรรทัด (normText_) — norm() เดิมยุบเป็นบรรทัดเดียว
+ *     ทำให้ค่าที่แอปเพิ่งบันทึกไม่ตรงกับที่อ่านกลับ
+ *   - เซลล์หมายเหตุตั้งรูปแบบเป็นข้อความ (@) ก่อนเขียน: "1/10/2026" ไม่กลายเป็นวันที่,
+ *     "0812345678" ไม่หลุดเลข 0, และข้อความขึ้นต้นด้วย = ไม่ถูกรันเป็นสูตร (ชั้นที่สอง
+ *     ต่อจากฝั่งเว็บที่ใส่ ' นำหน้าให้แล้ว)
  *
  * NEW v3.33.0:
  *   - หมายเหตุห้องบันทึกได้จริง: คอลัมน์ "หมายเหตุ" ในชีตห้อง (สร้างให้เองครั้งแรกที่มี
@@ -276,6 +286,19 @@ function norm(v) {
   return String(v).replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// v3.34.0 — เหมือน norm แต่เก็บการขึ้นบรรทัดไว้ (ช่องหมายเหตุเป็น textarea).
+// ใช้กับข้อความอิสระที่ต้องอ่านกลับได้เท่าที่คนพิมพ์; คีย์/สถานะ/ชื่อยังใช้ norm.
+function normText_(v) {
+  if (v === null || v === undefined) return '';
+  return String(v)
+    .replace(/\u00A0/g, ' ')
+    .replace(/\r\n?/g, '\n')
+    .split('\n').map(function (line) { return line.replace(/[ \t]+/g, ' ').trim(); })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function fmtDate_(v) {
   if (v instanceof Date) {
     return Utilities.formatDate(v, Session.getScriptTimeZone() || 'Asia/Bangkok', 'yyyy-MM-dd');
@@ -435,12 +458,15 @@ function doPost(e) {
       // FORCED here server-side from a fixed template: this action can
       // only ERASE tenant fields, never write attacker-chosen values,
       // which keeps the #252 security split intact.
+      // v3.34.0: the note goes too — it belonged to the tenant/booker who
+      // just left ("คุณเอ เข้า 1 ต.ค."), and it kept showing on the released
+      // room in the app's "พร้อมให้เช่า" list. The audit row keeps the text.
       case 'releaseRoom':      return ok_(withWriteLock_(function () {
         return updateRoomStatus_({
           building: body.building, room: body.room,
           status: body.status || 'ว่าง',
-          tenant: '', phone: '', contractEnd: '',
-          note: body.note, creator: body.creator,
+          tenant: '', phone: '', contractEnd: '', note: '',
+          creator: body.creator,
         });
       }));
       case 'addEquipment':     return ok_(loggedWrite_('addEquipment', 'equipment', body.id || (body.building + '|' + body.room), body, addEquipment_));
@@ -494,7 +520,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.33.0';
+var BACKEND_VERSION = '3.34.0';
 
 function doGet() {
   // v3.32 (audit r35): เมื่อเปิด SHARED_SECRET แล้ว GET ไม่ผ่านด่านลับ — ไม่ควรบอก
@@ -1172,7 +1198,7 @@ function getRooms_() {
       contractEnd: iCntr   >= 0 ? fmtDate_(r[iCntr]) : '',
       price:       iPrice  >= 0 ? norm(r[iPrice])  : '',
       images:      iImages >= 0 ? norm(r[iImages]) : '',
-      note:        iNote   >= 0 ? norm(r[iNote])   : '',
+      note:        iNote   >= 0 ? normText_(r[iNote]) : '', // v3.34: keep line breaks
     });
   }
   return rows;
@@ -1520,7 +1546,7 @@ function updateRoomStatus_(b, opts) {
       // หมายเหตุที่มีอยู่. ไม่มีคอลัมน์ → สร้างหัว "หมายเหตุ" ต่อท้าย เฉพาะเมื่อมี
       // ข้อความจะเก็บจริง (ไม่งอกคอลัมน์ว่างจากการบันทึกที่ไม่ได้พิมพ์อะไร).
       let idxNote = cols.note;
-      const oldNote = idxNote >= 0 ? norm(data[i][idxNote]) : '';
+      const oldNote = idxNote >= 0 ? normText_(data[i][idxNote]) : '';
 
       if (b.status      !== undefined) sh.getRange(i+1, idxStatus+1).setValue(b.status);
       if (b.tenant      !== undefined && idxTenant >= 0) sh.getRange(i+1, idxTenant+1).setValue(b.tenant);
@@ -1528,11 +1554,16 @@ function updateRoomStatus_(b, opts) {
       if (b.contractEnd !== undefined && idxCntr   >= 0) sh.getRange(i+1, idxCntr+1).setValue(b.contractEnd);
       if (b.price       !== undefined && idxPrice  >= 0) sh.getRange(i+1, idxPrice+1).setValue(b.price);
       if (b.note !== undefined) {
-        if (idxNote < 0 && norm(b.note) !== '') {
+        if (idxNote < 0 && normText_(b.note) !== '') {
           idxNote = sh.getLastColumn();            // 0-based index of the next empty column
           sh.getRange(1, idxNote + 1).setValue('หมายเหตุ');
+          // v3.34: ทั้งคอลัมน์เป็นข้อความตั้งแต่เกิด — ดูข้างล่าง
+          sh.getRange(2, idxNote + 1, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat('@');
         }
-        if (idxNote >= 0) sh.getRange(i+1, idxNote+1).setValue(b.note);
+        // v3.34: ตั้งรูปแบบเซลล์เป็นข้อความ (@) ก่อนเขียน ไม่งั้น Sheets แปลงเอง —
+        // "1/10/2026" กลายเป็นวันที่ (อ่านกลับเป็น "Thu Oct 01 2026 …"),
+        // "0812345678" กลายเป็นตัวเลขแล้วเลข 0 หาย, และ "=…" ถูกรันเป็นสูตร.
+        if (idxNote >= 0) sh.getRange(i+1, idxNote+1).setNumberFormat('@').setValue(b.note);
       }
       clearRoomsCache_();
 
@@ -1555,7 +1586,7 @@ function updateRoomStatus_(b, opts) {
       if (b.price !== undefined && idxPrice >= 0 && norm(b.price) !== oldPrice) {
         diffs.push('ค่าเช่า: ' + (oldPrice || '∅') + ' → ' + (norm(b.price) || '∅'));
       }
-      if (b.note !== undefined && idxNote >= 0 && norm(b.note) !== oldNote) {
+      if (b.note !== undefined && idxNote >= 0 && normText_(b.note) !== oldNote) {
         diffs.push('หมายเหตุ: ' + (oldNote || '∅') + ' → ' + (norm(b.note) || '∅'));
       }
       if (diffs.length > 0) {
