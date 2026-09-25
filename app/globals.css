@@ -2124,6 +2124,7 @@ html.dark .ac-ready-card { background: var(--color-surface-2); }
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
+.ac-tasks-count-overdue { color: var(--status-moveout-ink); font-weight: var(--font-weight-semibold); }
 .ac-tasks-seeall:hover { background: var(--color-brand-soft); }
 .ac-tasks-seeall:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 @media (pointer: coarse) {
