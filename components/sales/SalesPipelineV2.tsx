@@ -8,6 +8,8 @@ import {
   buildAppointmentsTrend,
 } from "@/lib/salesData";
 import KpiRow from "./KpiRow";
+import { useKpiHistory } from "@/lib/useKpiHistory";
+import { trendsFor } from "@/lib/kpiSnapshot";
 import RoomBoard, { type ViewMode } from "./RoomBoard";
 import AppointmentsRail from "./AppointmentsRail";
 import RoomDetailDrawer from "./RoomDetailDrawer";
@@ -68,10 +70,16 @@ export default function SalesPipelineV2({
   // เลยนัด — open sales tasks that slipped past their date (last 14 days).
   const overdueAppts = useMemo(() => buildOverdueAppointments(tasks, activeBuilding), [tasks, activeBuilding]);
   const kpis = useMemo(() => buildKpis(scopedRooms, appointments), [scopedRooms, appointments]);
-  // Real backwards-looking trend for the appointments KPI only — room
-  // status counts need daily snapshots we don't have, so those three
-  // cards stay on the placeholder until a snapshot endpoint exists.
+  // Real backwards-looking trends. Appointments come from the tasks sheet;
+  // the three room cards from the daily counts this page reports and reads
+  // back (lib/kpiSnapshot) — until a previous day exists they show the
+  // number only.
   const apptTrend = useMemo(() => buildAppointmentsTrend(tasks, activeBuilding), [tasks, activeBuilding]);
+  const kpiHistory = useKpiHistory(rooms);
+  const trends = useMemo(() => ({
+    ...trendsFor(kpiHistory, activeBuilding, kpis),
+    appointments: apptTrend,
+  }), [kpiHistory, activeBuilding, kpis, apptTrend]);
   // Occupancy strip always lists every building (so a user can switch
   // away from the current filter), so it reads from the full room list.
   function selectByRoom(building: string, room: string) {
@@ -100,7 +108,7 @@ export default function SalesPipelineV2({
       {/* Section 2 — KPI row */}
       <KpiRow
         kpis={kpis}
-        trends={{ appointments: apptTrend }}
+        trends={trends}
         onAvailable={onChangeView ? () => onChangeView("ready") : undefined}
         onPending={onChangeView ? () => onChangeView("pending") : undefined}
         onMoveout={onChangeView ? () => onChangeView("moveout") : undefined}
