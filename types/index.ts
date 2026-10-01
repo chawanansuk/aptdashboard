@@ -16,6 +16,12 @@ export interface SheetRow {
   createdAt?: string;
   /** v3.10.0 — ค่าใช้จ่าย (THB). 0 หรือ undefined = ไม่ระบุ */
   cost?: number;
+  /** v3.36 — repair category ("หมวด", lib/repairCategories). ซ่อม tasks only. */
+  category?: string;
+  /** v3.36 — who did the work ("ใครซ่อม"); creator stays whoever typed it in. */
+  doneBy?: string;
+  /** v3.36 — when the task was closed, "yyyy-MM-dd HH:mm" Bangkok. Empty while open. */
+  doneAt?: string;
 }
 
 export type TaskType = "ทำสะอาด" | "ย้ายเข้า" | "ย้ายออก" | "ชมห้อง";
