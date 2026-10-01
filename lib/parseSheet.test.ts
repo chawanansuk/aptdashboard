@@ -99,6 +99,16 @@ describe("parseRoomsCSV (rooms sheet)", () => {
     expect(row.note).toBe("เข้า 1 ต.ค. โอนมัดจำแล้ว");
   });
 
+  it("drops the formula-guard apostrophe a v3.34 note cell may have kept", () => {
+    const csv = [
+      "ตึก,ห้อง,หมายเหตุ",
+      "A,104,'-แอร์เสีย",
+      "A,105,'=ห้อง!E5",
+      "A,106,'ชื่อเล่น",
+    ].join("\n");
+    expect(parseRoomsCSV(csv).map((r) => r.note)).toEqual(["-แอร์เสีย", "=ห้อง!E5", "'ชื่อเล่น"]);
+  });
+
   it("resolves alias headers (อาคาร→building, เลขห้อง→room)", () => {
     const csv = ["อาคาร,เลขห้อง", "C,303"].join("\n");
     const [row] = parseRoomsCSV(csv);

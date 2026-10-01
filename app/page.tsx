@@ -56,7 +56,7 @@ const EditTaskModal = lazy(() => import("@/components/EditTaskModal"));
 import { buildNotifications } from "@/lib/notifications";
 import BulkActionBar from "@/components/BulkActionBar";
 import SkeletonLoader from "@/components/SkeletonLoader";
-import { parseThaiDate, isTaskDatedToday, isTaskOverdue, bangkokTodayYmd } from "@/lib/dateUtils";
+import { parseThaiDate, isTaskDatedToday, isTaskOverdue, bangkokTodayYmd, getBangkokNow } from "@/lib/dateUtils";
 import { loadPresets, addPreset, removePreset, type FilterPreset } from "@/lib/presets";
 import { VIEW_LABEL, VIEW_TO_TASK_TYPE, isClosedStatus } from "@/lib/constants";
 import { hasOpenPrepTask } from "@/lib/moveoutTasks";
@@ -109,8 +109,10 @@ const ReportsView     = lazy(() => import("@/components/ReportsView"));
  *  so the two can never disagree about what counts as today's work. A
  *  daily view that hid overdue made the "งานเลยกำหนด" notification land on
  *  an empty page; parseThaiDate handles both dd/MM/yyyy and the ISO
- *  yyyy-MM-dd that Apps Script emits. */
-function isOpenDueByToday(t: SheetRow, now: Date = new Date()): boolean {
+ *  yyyy-MM-dd that Apps Script emits. "Today" is Bangkok's day — the
+ *  same clock the hero and the card's own urgency buckets use; the device
+ *  clock here let the three disagree on a phone not set to Thai time. */
+function isOpenDueByToday(t: SheetRow, now: Date = getBangkokNow()): boolean {
   if (isClosedStatus(t.status)) return false;
   const td = parseThaiDate(t.date);
   if (!td) return false;

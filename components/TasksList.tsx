@@ -296,8 +296,14 @@ function TasksList({ tasks, title, emptyText, onChanged, onOptimisticStatus, com
     return (
       <section className="ac-tasks ac-tasks-compact" aria-label={title}>
         <header className="ac-tasks-head">
+          {/* Split, not one total: the hero's "งานวันนี้" counts today only
+              (overdue is its sub-line), so a bare (7) next to its 2 read as
+              two different numbers for the same thing. */}
           <h3 className="ac-tasks-title">
-            {title} <span className="ac-tasks-count">({visible.length})</span>
+            {title}{" "}
+            <span className="ac-tasks-count">
+              (วันนี้ {todayCount}{overdueCount > 0 && <> · <span className="ac-tasks-count-overdue">เลยกำหนด {overdueCount}</span></>})
+            </span>
           </h3>
           {onSeeAll && (
             <button type="button" className="ac-tasks-seeall" onClick={onSeeAll}>

@@ -1,9 +1,17 @@
 /**
- * Code.gs v3.34.0 — Dashboard หอพัก
+ * Code.gs v3.35.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.35.0:
+ *   - ฝั่งเว็บใส่ ' นำหน้าข้อความที่ขึ้นต้นด้วย = + - @ (กันสูตร, v3.34 เว็บ) — ตัว '
+ *     ไม่ได้อยู่ในเซลล์ แต่ Apps Script เอาไปเทียบตรงๆ: เพิ่มงานที่หมายเหตุขึ้นต้นด้วย
+ *     "-" แล้วกดซ้ำ กันงานซ้ำไม่ได้ และบันทึกการแก้ไขขึ้นหมายเหตุ "เปลี่ยน" ทั้งที่ไม่ได้แก้.
+ *     unmark_() ถอด ' ก่อนเทียบ
+ *   - หมายเหตุห้องเขียนเป็นข้อความตรงตัว (rich text) — เซลล์ที่ตั้งเป็นข้อความ (@)
+ *     อาจเก็บ ' ไว้ให้เห็นจริง; อ่านกลับก็ถอด ' ที่ค้างจาก v3.34 ให้ด้วย
  *
  * NEW v3.34.0 (audit r36 — หมายเหตุห้อง):
  *   - ปล่อยขาย (releaseRoom) ล้างหมายเหตุด้วย: ห้องเริ่มรอบใหม่ ข้อความของผู้จอง
@@ -286,6 +294,15 @@ function norm(v) {
   return String(v).replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// v3.35.0 — ฝั่งเว็บ (lib/sheetText) ใส่ ' นำหน้าข้อความที่ขึ้นต้นด้วย = + - @
+// เพื่อไม่ให้ Sheets รันเป็นสูตร. ตัว ' เป็นแค่เครื่องหมาย "นี่คือข้อความ" — ไม่อยู่
+// ในค่าที่เซลล์เก็บ — ฉะนั้นเวลาเทียบกับของในชีต (กันงานซ้ำ, บันทึกการแก้ไข)
+// หรือเขียนแบบข้อความตรงตัว ต้องถอดออกก่อน. ถอดเฉพาะ ' ที่ตามด้วย = + - @.
+function unmark_(v) {
+  const s = v === null || v === undefined ? '' : String(v);
+  return /^'[=+\-@]/.test(s) ? s.slice(1) : s;
+}
+
 // v3.34.0 — เหมือน norm แต่เก็บการขึ้นบรรทัดไว้ (ช่องหมายเหตุเป็น textarea).
 // ใช้กับข้อความอิสระที่ต้องอ่านกลับได้เท่าที่คนพิมพ์; คีย์/สถานะ/ชื่อยังใช้ norm.
 function normText_(v) {
@@ -520,7 +537,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.34.0';
+var BACKEND_VERSION = '3.35.0';
 
 function doGet() {
   // v3.32 (audit r35): เมื่อเปิด SHARED_SECRET แล้ว GET ไม่ผ่านด่านลับ — ไม่ควรบอก
@@ -1198,7 +1215,7 @@ function getRooms_() {
       contractEnd: iCntr   >= 0 ? fmtDate_(r[iCntr]) : '',
       price:       iPrice  >= 0 ? norm(r[iPrice])  : '',
       images:      iImages >= 0 ? norm(r[iImages]) : '',
-      note:        iNote   >= 0 ? normText_(r[iNote]) : '', // v3.34: keep line breaks
+      note:        iNote   >= 0 ? unmark_(normText_(r[iNote])) : '', // v3.34 line breaks; v3.35 drop a stray '
     });
   }
   return rows;
@@ -1269,8 +1286,8 @@ function addTask_(b) {
     // (กดซ้ำเร็วๆ ของเดิม) ยังกันได้เหมือนเดิม.
     const digits = function (v) { return String(v || '').replace(/\D/g, ''); };
     const inPhone = digits(b.phone);
-    const inCust  = norm(b.customer);
-    const inNote  = norm(b.note);
+    const inCust  = norm(unmark_(b.customer)); // v3.35: ' จากเว็บไม่อยู่ในเซลล์
+    const inNote  = norm(unmark_(b.note));
     for (let i = 0; i < existingRows.length; i++) {
       const rowVals = sh.getRange(existingRows[i], 1, 1, TASK_COL.STATUS).getValues()[0];
       const existingStatus = norm(rowVals[TASK_COL.STATUS - 1]);
@@ -1546,7 +1563,7 @@ function updateRoomStatus_(b, opts) {
       // หมายเหตุที่มีอยู่. ไม่มีคอลัมน์ → สร้างหัว "หมายเหตุ" ต่อท้าย เฉพาะเมื่อมี
       // ข้อความจะเก็บจริง (ไม่งอกคอลัมน์ว่างจากการบันทึกที่ไม่ได้พิมพ์อะไร).
       let idxNote = cols.note;
-      const oldNote = idxNote >= 0 ? normText_(data[i][idxNote]) : '';
+      const oldNote = idxNote >= 0 ? unmark_(normText_(data[i][idxNote])) : '';
 
       if (b.status      !== undefined) sh.getRange(i+1, idxStatus+1).setValue(b.status);
       if (b.tenant      !== undefined && idxTenant >= 0) sh.getRange(i+1, idxTenant+1).setValue(b.tenant);
@@ -1563,7 +1580,14 @@ function updateRoomStatus_(b, opts) {
         // v3.34: ตั้งรูปแบบเซลล์เป็นข้อความ (@) ก่อนเขียน ไม่งั้น Sheets แปลงเอง —
         // "1/10/2026" กลายเป็นวันที่ (อ่านกลับเป็น "Thu Oct 01 2026 …"),
         // "0812345678" กลายเป็นตัวเลขแล้วเลข 0 หาย, และ "=…" ถูกรันเป็นสูตร.
-        if (idxNote >= 0) sh.getRange(i+1, idxNote+1).setNumberFormat('@').setValue(b.note);
+        if (idxNote >= 0) {
+          // v3.35: ข้อความตรงตัว (rich text) — ไม่ถูกแปลงเป็นสูตร/วันที่/ตัวเลข และไม่มี '
+          // ค้างให้เห็น (เซลล์รูปแบบ @ อาจเก็บ ' ที่เว็บใส่มาไว้เป็นตัวอักษรจริง)
+          const noteText = unmark_(b.note);
+          const noteCell = sh.getRange(i+1, idxNote+1).setNumberFormat('@');
+          if (noteText === '') noteCell.setValue('');
+          else noteCell.setRichTextValue(SpreadsheetApp.newRichTextValue().setText(noteText).build());
+        }
       }
       clearRoomsCache_();
 
@@ -1586,8 +1610,8 @@ function updateRoomStatus_(b, opts) {
       if (b.price !== undefined && idxPrice >= 0 && norm(b.price) !== oldPrice) {
         diffs.push('ค่าเช่า: ' + (oldPrice || '∅') + ' → ' + (norm(b.price) || '∅'));
       }
-      if (b.note !== undefined && idxNote >= 0 && normText_(b.note) !== oldNote) {
-        diffs.push('หมายเหตุ: ' + (oldNote || '∅') + ' → ' + (norm(b.note) || '∅'));
+      if (b.note !== undefined && idxNote >= 0 && normText_(unmark_(b.note)) !== oldNote) {
+        diffs.push('หมายเหตุ: ' + (oldNote || '∅') + ' → ' + (norm(unmark_(b.note)) || '∅'));
       }
       if (diffs.length > 0) {
         // Choose the action label by what dominated the edit so the
