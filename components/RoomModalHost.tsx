@@ -5,16 +5,12 @@ import { useSession } from "next-auth/react";
 import type { RoomView, SheetRow } from "@/types";
 import RoomModal from "@/components/RoomModal";
 import RoomJourneyPanel from "@/components/RoomJourneyPanel";
+import { RepairLogForm } from "@/components/RepairLogModal";
 import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { autoCreateMoveoutPrep } from "@/lib/dashboardActions";
 import { canEditTenant, canAddEngTask } from "@/lib/permissions";
-import { todayThaiDate } from "@/lib/moveoutTasks";
-import { isTaskDatedToday } from "@/lib/dateUtils";
-import { appendRepairLog } from "@/lib/repairLog";
-import { fileRequisitionLines } from "@/lib/partsRequisition";
 import { resilientPost } from "@/lib/resilientWrite";
-import { isClosedStatus } from "@/lib/constants";
 import { roomBookmarkKey } from "@/lib/useRoomBookmarks";
 import type { JourneyAction } from "@/lib/roomJourney";
 import { executeJourneyAction } from "@/lib/journeyActions";
@@ -48,6 +44,8 @@ interface Props {
   visibleRooms: RoomView[];
   /** Live tasks — dup-guard for the auto moveout-prep bridge. */
   tasks: SheetRow[];
+  /** Shows a repair logged from the บันทึกซ่อม tab before the refetch lands. */
+  optimisticAddTask: (t: SheetRow) => void;
   defaultTab: "info" | "equipment";
   onClose: () => void;
   /** Navigate to another room (prev/next arrows). */
@@ -78,107 +76,15 @@ interface Props {
 }
 
 export default function RoomModalHost({
-  room, rooms, visibleRooms, tasks, defaultTab,
+  room, rooms, visibleRooms, tasks, optimisticAddTask, defaultTab,
   onClose, onNavigate, optimisticUpdateRoom, refresh, optimisticUpdateTask,
   onAddTaskHere, onMoveoutInspect, onMoveoutClean, onMoveinClean, onMoveinSchedule,
   onConfirmBooking, bookmarks,
 }: Props) {
   const [saving, setSaving] = useState(false);
-  const [repairing, setRepairing] = useState(false);
   const { data: session } = useSession();
   const canEditTenantPii = canEditTenant(session?.user?.roles);
   const canLogRepair = canAddEngTask(session?.user?.roles);
-
-  /**
-   * Quick repair log — file an already-done ซ่อม task for THIS room
-   * (any status, occupied included) so the work shows in the room's
-   * ประวัติงาน without hunting for it on the engineer board.
-   *
-   * Normal path is one write (addTask with status "เสร็จ" — closed rows
-   * don't block each other, so several repairs a day each get a row).
-   * BUT addTask_'s dedup guard skips the append when an OPEN ซ่อม task
-   * for this room exists dated today — and still returns ok:true with
-   * `skipped: 'duplicate-open'`. Treating that as success silently lost
-   * the entry. In that case we append the resolution onto the OPEN
-   * task's note instead (same repairLog format the drawer uses), which
-   * is also the semantically right home for it.
-   */
-  async function quickRepair(
-    resolution: string,
-    parts?: { partId: string; quantity: number }[],
-  ) {
-    if (!room) return;
-    const note = resolution.trim();
-    if (!note) return;
-    setRepairing(true);
-    try {
-      const today = todayThaiDate();
-      // audit r33: งานที่ส่งเป็น "เสร็จ" อยู่นอกตัวกันซ้ำของ Apps Script (กันเฉพาะ
-      // งานที่ยังเปิด) → ห้าม retry อัตโนมัติ ไม่งั้นเน็ตสะดุดได้ซ่อม 2 รายการ.
-      // `data.skipped` must stay visible — the duplicate-open branch
-      // below turns it into a note-append instead of a drop.
-      const { res, data } = await resilientPost("/api/sheet/update", {
-        action: "addTask",
-        date: today,
-        type: "ซ่อม",
-        building: room.building,
-        room: room.room,
-        note,
-        status: "เสร็จ",
-      }, { retries: 0 });
-      if (res.status === 504) {
-        toast.warning(String(data.error || "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว"), {
-          description: "รีเฟรชแล้วดูประวัติงานของห้องก่อน ถ้ายังไม่ขึ้นค่อยบันทึกใหม่",
-          duration: 10000,
-        });
-        refresh();
-        return;
-      }
-      if (!data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-
-      if (data.skipped === "duplicate-open") {
-        // An open ซ่อม task for this room today blocked the append.
-        // Attach the log to that task instead of dropping it.
-        // Date match must be format-agnostic: we SENT dd/MM/yyyy but the
-        // sheet echoes ISO yyyy-MM-dd when the cell got coerced to a real
-        // Date — a raw `t.date === today` compare never matched those, so
-        // the fallback threw instead of appending (audit round 3).
-        const blocker = tasks.find((t) =>
-          t.type === "ซ่อม" && t.building === room.building &&
-          t.room === room.room && isTaskDatedToday(t.date) && !isClosedStatus(t.status),
-        );
-        if (!blocker) {
-          // Local task list doesn't have the blocker (stale) — surface
-          // the truth rather than a false success.
-          throw new Error("ห้องนี้มีงานซ่อมค้างอยู่วันนี้ — เปิดงานนั้นในกระดานช่างแล้วบันทึกที่งานโดยตรง");
-        }
-        const { res: upRes, data: upData } = await resilientPost("/api/sheet/update", {
-          action: "updateTask",
-          id: blocker.id || undefined, // v3.21
-          match: { date: blocker.date, type: blocker.type, building: blocker.building, room: blocker.room },
-          note: appendRepairLog(blocker.note || "", note),
-        }, { retries: 0 });
-        if (!upData.ok) throw new Error(upData.error || `HTTP ${upRes.status}`);
-        toast.success("ต่อท้ายบันทึกในงานซ่อมที่เปิดอยู่ของห้องนี้แล้ว");
-      } else {
-        toast.success("บันทึกการซ่อมแล้ว");
-      }
-
-      // Parts used — shared requisition flow (lib/partsRequisition):
-      // repair already saved; failures warn, never roll back; clamped
-      // withdrawals surfaced honestly.
-      await fileRequisitionLines(parts, {
-        building: room.building, room: room.room, jobNote: note,
-      });
-
-      publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
-      refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? `บันทึกการซ่อมไม่สำเร็จ: ${e.message}` : "Network error");
-    } finally {
-      setRepairing(false);
-    }
-  }
 
   const [editStatus, setEditStatus] = useState("");
   const [editTenant, setEditTenant] = useState("");
@@ -350,8 +256,17 @@ export default function RoomModalHost({
       }}
       onClose={onClose}
       onSave={handleSave}
-      onQuickRepair={canLogRepair ? quickRepair : undefined}
-      repairing={repairing}
+      repairForm={canLogRepair ? (
+        <RepairLogForm
+          rooms={rooms}
+          tasks={tasks}
+          roles={session?.user?.roles}
+          fixedRoom={{ building: room.building, room: room.room }}
+          refresh={refresh}
+          optimisticAddTask={optimisticAddTask}
+          embedded
+        />
+      ) : undefined}
       onAddTaskHere={() => onAddTaskHere(room.building, room.room)}
       onMoveoutInspect={() => onMoveoutInspect(room.building, room.room)}
       onMoveoutClean={() => onMoveoutClean(room.building, room.room)}

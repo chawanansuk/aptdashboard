@@ -81,7 +81,7 @@ interface Props {
   defaultType?: string;
   onClose: () => void;
   /** Called with validated form values when user submits successfully */
-  onSubmit: (values: TaskFormValues) => Promise<void> | void;
+  onSubmit: (values: TaskFormValues) => Promise<void | { saved?: boolean }> | void | { saved?: boolean };
 }
 
 /** Local "today" as yyyy-MM-dd. NOT toISOString() — that's UTC, so a
@@ -277,8 +277,11 @@ export default function AddTaskModal({
    * ถูกใช้ตอนซ่อมห้องนั้น".
    */
   const wrappedSubmit = useCallback(async (values: TaskFormValues) => {
-    await onSubmit(values);
+    const result = await onSubmit(values);
     if (usedParts.length === 0) return;
+    // v3.36: parts leave the stock only when a task row was written — a
+    // duplicate the server skipped used to withdraw them anyway.
+    if (result && (result as { saved?: boolean }).saved === false) return;
     const isCommon = values.room.startsWith(COMMON_AREA_PREFIX);
     const reqBuilding = values.building;
     const reqRoom = isCommon ? values.room : values.room;

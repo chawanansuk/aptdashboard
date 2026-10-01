@@ -103,6 +103,7 @@ const LeadsView       = lazy(() => import("@/components/LeadsView"));
 const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
 const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 const ReportsView     = lazy(() => import("@/components/ReportsView"));
+const RepairLogModal  = lazy(() => import("@/components/RepairLogModal"));
 
 /** "งานวันนี้" = open tasks dated today OR earlier (still overdue).
  *  Shared by the full today view and the overview card (V2 Direction B)
@@ -295,6 +296,7 @@ export default function Home() {
 
   // ---- Add task ----
   const [showAddTask, setShowAddTask] = useState(false);
+  const [showRepairLog, setShowRepairLog] = useState(false);
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
@@ -602,6 +604,7 @@ export default function Home() {
   // status via visibleRooms) instead of a task list keyed on a task TYPE
   // that often doesn't exist (badge showed N but the task list was empty).
   const showTasksView = activeView === "today";
+  const fabLogsRepair = modeConfig.mode === "engineer" || activeView === "maintlog" || activeView === "engineerkanban";
   const showCustomView = isCustomView(activeView);
   const showRoomGrid = !showTasksView && !showCustomView && !(isInitial && rooms.length === 0);
 
@@ -1059,8 +1062,11 @@ export default function Home() {
     }
   }
 
-  async function handleAddTask(values: import("@/lib/taskSchema").TaskFormValues) {
+  async function handleAddTask(values: import("@/lib/taskSchema").TaskFormValues): Promise<{ saved: boolean }> {
     setSavingTask(true);
+    // Tells AddTaskModal whether a row was written — parts are withdrawn
+    // from stock only then (a server-skipped duplicate used to withdraw them).
+    let saved = false;
     let retryToast: string | number | undefined;
     try {
       const costNum = values.cost ? parseCostInput(values.cost) : 0;
@@ -1109,6 +1115,7 @@ export default function Home() {
         toast.dismiss(checking);
         if (landed) {
           toast.success("บันทึกแล้ว — Google ตอบช้าแต่รายการเข้าแล้ว");
+          saved = true;
           publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
           setShowAddTask(false);
           setTCustomer(""); setTPhone(""); setTNote(""); setTRoom(""); setTCost("");
@@ -1132,6 +1139,7 @@ export default function Home() {
         refresh();
       } else if (data.ok) {
         toast.success("เพิ่มงานแล้ว — รีเฟรชข้อมูล");
+        saved = true;
         publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
         // Show the new task immediately — the dashboard cache can lag the
         // write, so without this the list "doesn't update" until it expires.
@@ -1164,6 +1172,7 @@ export default function Home() {
         { description: "ลองใหม่หลายครั้งแล้วยังไม่ผ่าน — ข้อมูลในฟอร์มยังอยู่ กดบันทึกอีกครั้งได้เลย" },
       );
     } finally { setSavingTask(false); }
+    return { saved };
   }
 
   // ---- Preset helpers ----
@@ -1272,7 +1281,11 @@ export default function Home() {
           activeView={activeView}
           roles={roles}
           onNavigate={(v: BottomNavView) => setActiveView(v)}
-          onAddTask={() => setShowAddTask(true)}
+          // The phone's + logs a finished job where that is the job at hand
+          // (engineer mode, the ซ่อมบำรุง log, the kanban) — it used to open
+          // the new-appointment form, which left an OPEN task behind for a
+          // repair that was already done. Elsewhere it is still "new task".
+          onAddTask={() => (fabLogsRepair ? setShowRepairLog(true) : setShowAddTask(true))}
           todayCount={sidebarCounts.today}
         />
       }
@@ -1581,6 +1594,20 @@ export default function Home() {
 
     </AppShell>
 
+      {showRepairLog && (
+        <Suspense fallback={null}>
+          <RepairLogModal
+            rooms={rooms}
+            tasks={tasks}
+            roles={roles}
+            initialBuilding={activeBuilding !== "ทั้งหมด" ? activeBuilding : undefined}
+            refresh={refresh}
+            optimisticAddTask={optimisticAddTask}
+            onClose={() => setShowRepairLog(false)}
+          />
+        </Suspense>
+      )}
+
       {cmdk.open && (
         <Suspense fallback={null}>
           <CommandPalette
@@ -1634,6 +1661,7 @@ export default function Home() {
           rooms={rooms}
           visibleRooms={visibleRooms}
           tasks={tasks}
+          optimisticAddTask={optimisticAddTask}
           defaultTab={modeConfig.roomModalDefaultTab}
           onClose={() => setSelectedRoom(null)}
           onNavigate={setSelectedRoom}

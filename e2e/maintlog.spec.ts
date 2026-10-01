@@ -74,21 +74,23 @@ test("log modal: prefills header building and can backdate the work date", async
   await page.locator(".ac-mlog").getByRole("button", { name: "+ ลงบันทึกงาน", exact: true }).click();
 
   const modal = page.locator(".ac-modal");
-  await expect(modal.locator("#mlog-bld")).toHaveValue("กลางเมือง");
+  // v3.36 form: building and room are chips, the date sits under "ลงย้อนหลัง"
+  await expect(modal.getByRole("radiogroup", { name: "ตึก" }).getByRole("button", { name: "กลางเมือง" })).toHaveAttribute("aria-pressed", "true");
 
   // วันที่ทำ default วันนี้ แล้วถอยเป็นเมื่อวานได้
-  const today = await modal.locator("#mlog-date").inputValue();
+  await modal.getByText("ลงย้อนหลัง / ยังไม่เสร็จ").click();
+  const today = await modal.locator("#rlog-date").inputValue();
   expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   const y = new Date(Date.now() - 864e5);
   const yesterday = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
-  await modal.locator("#mlog-date").fill(yesterday);
-  await modal.locator("#mlog-room").fill("201");
-  await modal.locator("#mlog-note").fill("เก็บงานค้างของเมื่อวาน");
+  await modal.locator("#rlog-date").fill(yesterday);
+  await modal.getByRole("radiogroup", { name: "เลือกห้อง" }).getByRole("button", { name: "201", exact: true }).click();
+  await modal.locator("#rlog-note").fill("เก็บงานค้างของเมื่อวาน");
   await modal.getByRole("button", { name: "บันทึก" }).click();
   await expect(modal).toBeHidden();
 
   const add = posted.find((p) => p.action === "addTask");
-  expect(add).toMatchObject({ building: "กลางเมือง", room: "201", date: yesterday });
+  expect(add).toMatchObject({ building: "กลางเมือง", room: "201", date: yesterday, status: "เสร็จ", category: "อื่นๆ" });
 });
 
 test("log modal: Google timeout (504) warns 'may be saved', posts once, keeps the form", async ({ page }) => {
@@ -102,10 +104,10 @@ test("log modal: Google timeout (504) warns 'may be saved', posts once, keeps th
   await page.locator('.ac-nav button:has-text("กลางเมือง")').first().evaluate((el) => (el as HTMLElement).click());
   await page.locator(".ac-mlog").getByRole("button", { name: "+ ลงบันทึกงาน", exact: true }).click();
   const modal = page.locator(".ac-modal");
-  await modal.locator("#mlog-room").fill("201");
-  await modal.locator("#mlog-note").fill("งานที่ Google ตอบช้า");
+  await modal.getByRole("radiogroup", { name: "เลือกห้อง" }).getByRole("button", { name: "201", exact: true }).click();
+  await modal.locator("#rlog-note").fill("งานที่ Google ตอบช้า");
   await modal.getByRole("button", { name: "บันทึก" }).click();
   await expect(page.locator("[data-sonner-toast]").filter({ hasText: "อาจบันทึกไปแล้ว" })).toBeVisible();
-  await expect(modal.locator("#mlog-note")).toHaveValue("งานที่ Google ตอบช้า"); // ฟอร์มยังอยู่
+  await expect(modal.locator("#rlog-note")).toHaveValue("งานที่ Google ตอบช้า"); // ฟอร์มยังอยู่
   expect(posts).toBe(1); // ไม่ยิงซ้ำ
 });

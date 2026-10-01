@@ -10899,6 +10899,26 @@ html.dark .ac-mlog-cost { color: #94A3B8; }
 /* Log modal bits */
 .ac-mlog-areatoggle { display: flex; gap: 8px; }
 .ac-mlog-areatoggle .ac-btn { flex: 1; }
+/* ===== RepairLogForm (รอบ 1 งานซ่อมจุกจิก) — tap, don't type ===== */
+.ac-rlog { display: flex; flex-direction: column; gap: 12px; }
+.ac-rlog-label { display: block; font-size: var(--text-sm); font-weight: var(--font-weight-semibold); margin-bottom: 6px; }
+.ac-rlog-guess { font-weight: var(--font-weight-medium); color: var(--color-text-muted); }
+.ac-rlog-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ac-rlog-rooms { max-height: 184px; overflow-y: auto; padding: 2px; }
+.ac-rlog-roomchip { min-width: 56px; justify-content: center; font-variant-numeric: tabular-nums; }
+.ac-rlog-more > summary { cursor: pointer; font-size: var(--text-sm); color: var(--color-text-muted); }
+.ac-rlog-more[open] > summary { margin-bottom: 8px; }
+.ac-rlog-dup {
+  padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--status-repair-soft); color: var(--status-repair-ink);
+  border: 1px solid var(--status-repair-border); font-size: var(--text-sm);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ac-rlog-dup-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.ac-rlog-actions { display: flex; justify-content: flex-end; }
+.ac-rlog-embedded .ac-rlog-actions .ac-btn { min-width: 160px; }
+@media (pointer: coarse) { .ac-rlog-chips .ac-chip { min-height: 40px; } }
+
 .ac-mlog-donechk {
   display: flex; align-items: center; gap: 8px;
   font-size: 13px; color: #334155; cursor: pointer;
