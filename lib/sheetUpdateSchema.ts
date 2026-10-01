@@ -62,6 +62,9 @@ export const AddTaskSchema = z.object({
   status: OptText(40),
   /** Optional THB amount; integer is fine, decimals tolerated. */
   cost: z.number().nonnegative().optional(),
+  /** v3.36 — repair category / who did the work (lib/repairCategories). */
+  category: OptText(40),
+  doneBy: OptText(80),
 }).strip();
 
 /**
@@ -103,6 +106,9 @@ export const UpdateTaskSchema = z.object({
   note: OptText(500),
   status: OptText(40),
   cost: z.number().nonnegative().optional(),
+  /** v3.36 — repair category / who did the work (lib/repairCategories). */
+  category: OptText(40),
+  doneBy: OptText(80),
 }).strip().refine(
   (b) =>
     b.id !== undefined ||
@@ -127,6 +133,8 @@ export const UpdateTaskStatusSchema = z.object({
   building: Building,
   room: Room,
   status: z.string().max(40),
+  /** v3.36 — who did the work, when closing from the board. */
+  doneBy: OptText(80),
 }).strip();
 
 /**

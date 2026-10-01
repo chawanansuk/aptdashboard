@@ -1,6 +1,7 @@
 import type { SheetRow } from "@/types";
 import { isCancelledStatus, isDoneStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { taskActivityDay } from "@/lib/taskDates";
 import { isCommonAreaTask, commonAreaSpot, COMMON_AREA_BARE } from "@/lib/taskLocation";
 import { markerKey, MOVEOUT_INSPECT_NOTE, QC_CHECKLIST_NOTE } from "@/lib/moveoutTasks";
 
@@ -143,12 +144,13 @@ export function buildMaintDigest(tasks: SheetRow[], period: Period): MaintDigest
     if (!(MAINT_TYPES as readonly string[]).includes(t.type)) continue;
     if (isCancelledStatus(t.status)) continue;
     if (isTurnoverChecklist(t)) continue;
-    const d = parseThaiDate(t.date);
+    const done = isDoneStatus(t.status);
+    // v3.36: a finished job counts on the day it was closed (lib/taskDates).
+    const d = parseThaiDate(taskActivityDay(t));
     if (!d) continue;
     const time = startOfDay(d).getTime();
     if (time < period.start || time >= period.end) continue;
 
-    const done = isDoneStatus(t.status);
     if (done) {
       doneCount++;
       counts.set(t.type, (counts.get(t.type) || 0) + 1);

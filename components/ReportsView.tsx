@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import type { RoomView, SheetRow } from "@/types";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { taskActivityDay } from "@/lib/taskDates";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { exportCsv } from "@/lib/csvExport";
 import { toast } from "@/lib/toast";
@@ -87,7 +88,8 @@ export default function ReportsView({ rooms, tasks }: Props) {
     const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
     return (tasks || []).filter((t) => {
       if (building !== "ทั้งหมด" && t.building !== building) return false;
-      const d = parseThaiDate(t.date);
+      // v3.36: a finished task belongs to the day it was closed (lib/taskDates)
+      const d = parseThaiDate(taskActivityDay(t));
       if (!d) return false;
       return d.getTime() >= cutoff.getTime();
     });
@@ -151,7 +153,7 @@ export default function ReportsView({ rooms, tasks }: Props) {
       // Normalize via the parser — raw ISO-dated rows (Date-typed sheet
       // cells) never matched the dd/MM/yyyy seed keys, silently missing
       // from the per-day chart (audit r5).
-      const d = parseThaiDate(t.date);
+      const d = parseThaiDate(taskActivityDay(t));
       if (!d) continue;
       const key = dmy(d);
       if (counts.has(key)) counts.set(key, (counts.get(key) || 0) + 1);

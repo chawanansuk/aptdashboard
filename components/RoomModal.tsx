@@ -2,6 +2,7 @@
 
 import { Icon } from "@/lib/icons";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import type { RoomView } from "@/types";
 import { STATUS_LABEL, STATUS_DOT, RAW_STATUS_OPTIONS, TASK_TYPE_COLOR } from "@/lib/constants";
@@ -10,7 +11,7 @@ import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseThaiDate } from "@/lib/dateUtils";
 import { relativeThaiDate } from "@/lib/relativeDate";
 import { parseRepairLog } from "@/lib/repairLog";
-import { RepairPartsPicker, RoomPartsUsed, type RepairPartLine } from "./RoomRepairParts";
+import { RoomPartsUsed } from "./RoomRepairParts";
 import { sumCompletedCosts } from "@/lib/taskCost";
 import { formatBaht } from "@/lib/money";
 import { sheetPhoneDigits } from "@/lib/phoneFormat";
@@ -43,9 +44,8 @@ interface Props {
   onSave: () => void;
   /** Quick repair log — file an already-done ซ่อม task for this room.
    *  Hidden when omitted (e.g. a role that can't add engineer tasks). */
-  onQuickRepair?: (resolution: string, parts?: { partId: string; quantity: number }[]) => void | Promise<void>;
+  repairForm?: ReactNode;
   /** True while a quickRepair write is in flight. */
-  repairing?: boolean;
   onAddTaskHere: () => void;
   /** Mode-specific initial tab ("info" or "equipment"). Defaults to "info". */
   defaultTab?: "info" | "equipment" | "vehicles";
@@ -149,7 +149,7 @@ function validate(values: { price: string; phone: string; contractEnd: string })
 
 export default function RoomModal({
   room, saving, status, tenant, phone, contractEnd, note, price,
-  onChange, onClose, onSave, onQuickRepair, repairing, onAddTaskHere, defaultTab,
+  onChange, onClose, onSave, repairForm, onAddTaskHere, defaultTab,
   journeySlot,
   onMoveoutInspect, onMoveoutClean,
   onMoveinClean, onMoveinSchedule, onConfirmBooking,
@@ -191,8 +191,6 @@ export default function RoomModal({
   // backend (null → fullPastTasks returns room.pastTasks).
   const serverHistory = useRoomHistory(room.building, room.room);
   const pastTasks = fullPastTasks(room, serverHistory);
-  const [repairText, setRepairText] = useState("");
-  const [repairParts, setRepairParts] = useState<RepairPartLine[]>([]);
 
   // Validation state — same UX as the redesigned add modals (PR #31)
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -204,8 +202,6 @@ export default function RoomModal({
     setTouched(new Set());
     setTab(defaultTab || "info");
     setShowHistory(false);
-    setRepairText("");
-    setRepairParts([]);
   }, [room.building, room.room, defaultTab]);
 
   // Unsaved-changes guard (#9). Snapshot the form values at the moment
@@ -446,7 +442,7 @@ export default function RoomModal({
             className={`ac-modal-tab ${tab === "vehicles" ? "is-active" : ""}`}
             onClick={() => setTab("vehicles")}
           >ยานพาหนะ</button>
-          {onQuickRepair && (
+          {repairForm && (
             <button
               role="tab"
               aria-selected={tab === "repair"}
@@ -793,8 +789,11 @@ export default function RoomModal({
                               <div className="ac-room-history-line1">
                                 <strong>{t.type}</strong>
                                 <span className="ac-room-history-date">· {t.date}</span>
-                                {t.creator && (
-                                  <span className="ac-room-history-by">· โดย {t.creator}</span>
+                                {t.category && (
+                                  <span className="ac-room-history-cat">· {t.category}</span>
+                                )}
+                                {(t.doneBy || t.creator) && (
+                                  <span className="ac-room-history-by">· โดย {t.doneBy || t.creator}</span>
                                 )}
                                 {canSeeCost && typeof t.cost === "number" && t.cost > 0 && (
                                   <span className="ac-room-history-cost">
@@ -851,37 +850,11 @@ export default function RoomModal({
             </Suspense>
           )}
 
-          {tab === "repair" && onQuickRepair && (
+          {tab === "repair" && repairForm && (
             <div className="ac-room-repair">
               <div className="ac-form-section-label"><Icon name="maintenance" /> บันทึกการซ่อม</div>
-              <textarea
-                className="ac-room-repair-input ac-room-repair-input-block"
-                rows={3}
-                placeholder="ซ่อมอะไรไป? เช่น ก๊อกอ่างล้างหน้า / เปลี่ยนสายน้ำดีฝักบัว / ลอกท่อน้ำทิ้ง"
-                value={repairText}
-                onChange={(e) => setRepairText(e.target.value)}
-                disabled={repairing}
-              />
-              <RepairPartsPicker
-                lines={repairParts}
-                onChange={setRepairParts}
-                disabled={repairing}
-              />
-              <button
-                type="button"
-                className="ac-btn ac-btn-primary ac-room-repair-submit"
-                disabled={repairing || !repairText.trim()}
-                onClick={async () => {
-                  const parts = repairParts.filter((l) => l.partId && l.quantity > 0);
-                  await onQuickRepair(repairText, parts);
-                  setRepairText("");
-                  setRepairParts([]);
-                }}
-              >
-                {repairing && <span className="ac-btn-spinner" aria-hidden />}
-                {repairing ? "กำลังบันทึก…" : "+ บันทึกการซ่อม"}
-              </button>
-              <span className="ac-field-hint">บันทึกเป็นงานซ่อมสถานะ “เสร็จ” ลงวันที่วันนี้ — ดูได้ในแท็บ “ข้อมูล” › ประวัติงาน</span>
+              {repairForm}
+              <span className="ac-field-hint">บันทึกเป็นงานซ่อมของห้องนี้ — ดูได้ในแท็บ “ข้อมูล” › ประวัติงาน และหน้าซ่อมบำรุง</span>
               <RoomPartsUsed building={room.building} room={room.room} />
             </div>
           )}

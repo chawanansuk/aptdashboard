@@ -17,6 +17,7 @@ import LoadingState from "./LoadingState";
 import ErrorBanner from "./ErrorBanner";
 import EmptyState from "./EmptyState";
 import PageHeader from "./PageHeader";
+import { logEquipmentRepair } from "@/lib/logEquipmentRepair";
 
 const FacilitiesView = lazy(() => import("./FacilitiesView"));
 const MaintenanceView = lazy(() => import("./MaintenanceView"));
@@ -178,6 +179,15 @@ export default function MaintenanceHub({
       });
       const j = await res.json().catch(() => ({ ok: false }));
       if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      // v3.36: a "ซ่อมแล้ว" (not a routine cycle reset) is a repair — file it
+      // in the งาน sheet so the log and the reports see it.
+      if (item.broken) {
+        void logEquipmentRepair({
+          building: item.building,
+          room: item.source === "facility" ? formatCommonArea(item.label) : item.room,
+          what: item.label,
+        });
+      }
       if (item.source === "facility") {
         invalidateFacilityCache();
         bustCachedFetch("/api/facilities");

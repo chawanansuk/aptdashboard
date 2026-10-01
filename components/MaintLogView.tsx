@@ -1,28 +1,22 @@
 "use client";
 import { Icon } from "@/lib/icons";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { parseThaiDate, bangkokTodayYmd } from "@/lib/dateUtils";
+import { useEffect, useMemo, useState } from "react";
+import { parseThaiDate } from "@/lib/dateUtils";
 import type { Role } from "@/auth";
 import EmptyState from "./EmptyState";
 import type { Part, Requisition, RoomView, SheetRow } from "@/types";
 import {
-  buildPeriods, buildMaintDigest, digestToMarkdown, shortDate, groupLabel,
-  COMMON_AREA_ROOM, MAINT_TYPES, type Period,
+  buildPeriods, buildMaintDigest, digestToMarkdown, shortDate, groupLabel, type Period,
 } from "@/lib/maintLog";
 import { TASK_TYPE_COLOR } from "@/lib/constants";
 import { canViewFinancials, canAccess } from "@/lib/permissions";
 import { formatBaht } from "@/lib/money";
-import { parseCostInput } from "@/lib/taskCost";
-import { resilientPost } from "@/lib/resilientWrite";
 import { toast } from "@/lib/toast";
-import { publishBusEvent } from "@/lib/realtimeBus";
-import { formatCommonArea } from "@/lib/taskLocation";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-import { RepairPartsPicker, type RepairPartLine } from "@/components/RoomRepairParts";
-import { fileRequisitionLines } from "@/lib/partsRequisition";
 import AiReportModal from "./AiReportModal";
 import PageHeader from "./PageHeader";
+import RepairLogModal from "./RepairLogModal";
 
 /**
  * บันทึกซ่อมบำรุง — the engineer section's week/month story:
@@ -321,8 +315,10 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
         onClose={() => setReportOpen(false)}
       />
       {logOpen && (
-        <LogModal
+        <RepairLogModal
           rooms={rooms}
+          tasks={tasks}
+          roles={roles}
           initialBuilding={activeBuilding !== "ทั้งหมด" ? activeBuilding : undefined}
           onClose={() => setLogOpen(false)}
           refresh={refresh}
@@ -330,227 +326,5 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
         />
       )}
     </section>
-  );
-}
-
-/* ====================================================================
- * LogModal — quick maintenance entry: a room OR a common area.
- * Common-area convention: room column = "ส่วนกลาง", the spot goes at
- * the head of the note ("[โถงชั้น 1] เปลี่ยนหลอดไฟ").
- * ==================================================================== */
-
-function LogModal({ rooms, initialBuilding, onClose, refresh, optimisticAddTask }: {
-  rooms: RoomView[];
-  /** Prefill จากฟิลเตอร์ตึกบน header (r23). */
-  initialBuilding?: string;
-  onClose: () => void;
-  refresh: () => void;
-  optimisticAddTask: (t: SheetRow) => void;
-}) {
-  const buildings = useMemo(
-    () => Array.from(new Set(rooms.map((r) => r.building))),
-    [rooms],
-  );
-  const [area, setArea] = useState<"room" | "common">("room");
-  const [building, setBuilding] = useState(
-    initialBuilding && buildings.includes(initialBuilding) ? initialBuilding : (buildings[0] || "")
-  );
-  // r23: ลงบันทึกย้อนหลังได้ — ช่างชอบมาลงงานของเมื่อวานตอนเช้า เดิม
-  // ระบบประทับ "วันนี้" เสมอ ทำให้วันที่ในรายงานผิด. ค่าเริ่มต้นวันนี้.
-  const [workDate, setWorkDate] = useState<string>(() => bangkokTodayYmd());
-  const [room, setRoom] = useState("");
-  const [spot, setSpot] = useState("");
-  const [type, setType] = useState<string>("ซ่อม");
-  const [note, setNote] = useState("");
-  const [cost, setCost] = useState("");
-  const [doneAlready, setDoneAlready] = useState(true);
-  const [parts, setParts] = useState<RepairPartLine[]>([]);
-  const [saving, setSaving] = useState(false);
-  // A11y parity with every other modal: focus trap + Esc-to-close.
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(true, dialogRef);
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !saving) onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, saving]);
-
-  const roomOptions = useMemo(
-    () => rooms.filter((r) => r.building === building).map((r) => r.room),
-    [rooms, building],
-  );
-
-  async function submit() {
-    const detail = note.trim();
-    if (!detail) { toast.error("กรอกรายละเอียดงานก่อน"); return; }
-    if (area === "room" && !room.trim()) { toast.error("เลือกห้องก่อน"); return; }
-    // Unified encoding (audit r8 bug #2): common areas use the SAME
-    // "ส่วนกลาง:<spot>" form as AddTaskModal/kanban, so the board's
-    // ส่วนกลาง filter and this digest both see them. Bare "ส่วนกลาง"
-    // when no spot given. The spot lives in the room field, not the note.
-    const finalRoom = area === "room"
-      ? room.trim()
-      : (spot.trim() ? formatCommonArea(spot.trim()) : COMMON_AREA_ROOM);
-    const finalNote = detail;
-    const costNum = cost ? parseCostInput(cost) : 0;
-    const dateOut = workDate || bangkokTodayYmd();
-    const body = {
-      action: "addTask",
-      date: dateOut,
-      type,
-      building,
-      room: finalRoom,
-      note: finalNote,
-      ...(doneAlready ? { status: "เสร็จ" } : {}),
-      ...(costNum > 0 ? { cost: costNum } : {}),
-    };
-    setSaving(true);
-    try {
-      // audit r33: งานที่ส่งเป็น "เสร็จ" อยู่นอกตัวกันซ้ำของ Apps Script (กันเฉพาะงาน
-      // ที่ยังเปิด) → ห้าม retry อัตโนมัติ ไม่งั้นเน็ตสะดุดได้ 2 แถว ต้นทุนนับซ้ำ
-      const { res, data } = await resilientPost("/api/sheet/update", body, { retries: doneAlready ? 0 : 3 });
-      if (res.status === 504) {
-        toast.warning(String(data.error || "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว"), {
-          description: "รีเฟรชแล้วดูในบันทึกก่อน ถ้ายังไม่ขึ้นค่อยลงใหม่",
-          duration: 10000,
-        });
-        refresh();
-        return;
-      }
-      if (!data.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
-      if (data.skipped) {
-        toast.info("มีงานแบบเดียวกันของวันนั้นอยู่แล้ว — ไม่บันทึกซ้ำ");
-      } else {
-        toast.success("ลงบันทึกแล้ว");
-        optimisticAddTask({
-          date: dateOut, type, building, room: finalRoom,
-          customer: "", phone: "", note: finalNote,
-          status: doneAlready ? "เสร็จ" : "",
-          ...(costNum > 0 ? { cost: costNum } : {}),
-        });
-      }
-      // Parts used — shared requisition flow (stock decremented +
-      // clamped withdrawals surfaced; failures warn, never roll back).
-      await fileRequisitionLines(parts, {
-        building, room: finalRoom, jobNote: finalNote,
-      });
-      publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
-      refresh();
-      onClose();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ", {
-        description: "ข้อมูลในฟอร์มยังอยู่ ลองกดบันทึกอีกครั้ง",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="ac-modal-backdrop" onClick={onClose}>
-      <div ref={dialogRef} className="ac-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="ลงบันทึกงานซ่อมบำรุง">
-        <header className="ac-modal-head">
-          <div className="ac-modal-title"><Icon name="note" /> ลงบันทึกงานซ่อมบำรุง</div>
-          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด"><Icon name="close" /></button>
-        </header>
-        <div className="ac-modal-body">
-          {/* Area toggle */}
-          <div className="ac-mlog-areatoggle" role="radiogroup" aria-label="พื้นที่">
-            <button
-              type="button"
-              className={`ac-btn ${area === "room" ? "ac-btn-primary" : "ac-btn-ghost"}`}
-              onClick={() => setArea("room")}
-              aria-pressed={area === "room"}
-            ><Icon name="doorOpen" /> ห้องพัก</button>
-            <button
-              type="button"
-              className={`ac-btn ${area === "common" ? "ac-btn-primary" : "ac-btn-ghost"}`}
-              onClick={() => setArea("common")}
-              aria-pressed={area === "common"}
-            ><Icon name="facilities" /> ส่วนกลาง</button>
-          </div>
-
-          <div className="ac-field">
-            <label htmlFor="mlog-bld">ตึก</label>
-            <select id="mlog-bld" value={building} onChange={(e) => setBuilding(e.target.value)}>
-              {buildings.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </div>
-
-          {area === "room" ? (
-            <div className="ac-field">
-              <label htmlFor="mlog-room">ห้อง</label>
-              <input
-                id="mlog-room" list="mlog-room-list" value={room}
-                onChange={(e) => setRoom(e.target.value)} placeholder="เช่น 204"
-              />
-              <datalist id="mlog-room-list">
-                {roomOptions.map((r) => <option key={r} value={r} />)}
-              </datalist>
-            </div>
-          ) : (
-            <div className="ac-field">
-              <label htmlFor="mlog-spot">จุด/บริเวณ (ไม่บังคับ)</label>
-              <input
-                id="mlog-spot" value={spot} onChange={(e) => setSpot(e.target.value)}
-                placeholder="เช่น โถงชั้น 1, ลานจอดรถ, ดาดฟ้า"
-              />
-            </div>
-          )}
-
-          <div className="ac-field">
-            <label htmlFor="mlog-date">วันที่ทำ</label>
-            <input
-              id="mlog-date" type="date" value={workDate}
-              max={bangkokTodayYmd()}
-              onChange={(e) => setWorkDate(e.target.value)}
-            />
-          </div>
-
-          <div className="ac-field">
-            <label htmlFor="mlog-type">ประเภท</label>
-            <select id="mlog-type" value={type} onChange={(e) => setType(e.target.value)}>
-              {MAINT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          <div className="ac-field">
-            <label htmlFor="mlog-note">ทำอะไรไป *</label>
-            <textarea
-              id="mlog-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)}
-              placeholder="เช่น เปลี่ยนหลอดไฟทางเดิน 2 หลอด / ล้างแอร์ / เติมน้ำยาถังดับเพลิง / ทาสีรั้ว"
-            />
-          </div>
-
-          {/* อะไหล่ที่ใช้ — same picker as the repair tab; hidden
-              automatically when the inventory isn't reachable. */}
-          <RepairPartsPicker lines={parts} onChange={setParts} disabled={saving} />
-
-          <div className="ac-field">
-            <label htmlFor="mlog-cost">ค่าใช้จ่าย (บาท ไม่บังคับ)</label>
-            <input
-              id="mlog-cost" inputMode="numeric" value={cost}
-              onChange={(e) => setCost(e.target.value)} placeholder="เช่น 350"
-            />
-          </div>
-
-          <label className="ac-mlog-donechk">
-            <input
-              type="checkbox" checked={doneAlready}
-              onChange={(e) => setDoneAlready(e.target.checked)}
-            />
-            <span>งานเสร็จแล้ว (ติ๊กออกถ้าเพิ่งเริ่ม/ยังไม่เสร็จ)</span>
-          </label>
-        </div>
-        <footer className="ac-modal-foot">
-          <button className="ac-btn ac-btn-ghost" onClick={onClose} disabled={saving}>ยกเลิก</button>
-          <button className="ac-btn ac-btn-primary" onClick={() => void submit()} disabled={saving}>
-            {saving ? "กำลังบันทึก…" : "บันทึก"}
-          </button>
-        </footer>
-      </div>
-    </div>
   );
 }
