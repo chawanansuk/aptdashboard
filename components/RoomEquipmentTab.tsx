@@ -19,6 +19,7 @@ import {
 } from "@/lib/equipmentCache";
 import { bustCachedFetch } from "@/lib/cachedFetchJson";
 import { bangkokTodayYmd } from "@/lib/dateUtils";
+import { logEquipmentRepair } from "@/lib/logEquipmentRepair";
 import AddEquipmentModal from "./AddEquipmentModal";
 
 interface Props {
@@ -205,6 +206,8 @@ export default function RoomEquipmentTab({ building, room, pastTasks }: Props) {
       if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
       invalidateEquipmentCache(building, room);
       bustCachedFetch("/api/maintenance-plan");
+      // v3.36: the repair goes in the งาน sheet too (log + reports).
+      void logEquipmentRepair({ building, room, what: `${eq.type}${eq.brand ? " " + eq.brand : ""}` });
       await load({ force: true });
     } catch (e) {
       setRows(snapshot);

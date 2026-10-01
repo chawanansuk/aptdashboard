@@ -143,12 +143,15 @@ export function buildMaintDigest(tasks: SheetRow[], period: Period): MaintDigest
     if (!(MAINT_TYPES as readonly string[]).includes(t.type)) continue;
     if (isCancelledStatus(t.status)) continue;
     if (isTurnoverChecklist(t)) continue;
-    const d = parseThaiDate(t.date);
+    const done = isDoneStatus(t.status);
+    // v3.36: a finished job counts on the day it was closed (doneAt); the
+    // task date is the day it was scheduled. Rows older than the column
+    // have no doneAt and keep using their date.
+    const d = parseThaiDate(done && t.doneAt ? t.doneAt.slice(0, 10) : t.date);
     if (!d) continue;
     const time = startOfDay(d).getTime();
     if (time < period.start || time >= period.end) continue;
 
-    const done = isDoneStatus(t.status);
     if (done) {
       doneCount++;
       counts.set(t.type, (counts.get(t.type) || 0) + 1);

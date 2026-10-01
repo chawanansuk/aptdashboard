@@ -58,7 +58,7 @@ interface Props {
  *   pending     — column 1 "รอเริ่ม"   (blank or unknown status)
  *   in_progress — column 2 "กำลังทำ"   (status === "กำลังทำ")
  *   blocked     — column 3 "ติดขัด"    (status === "ติดขัด")
- *   done        — column 4 "เสร็จวันนี้" (date === today)
+ *   done        — column 4 "เสร็จวันนี้" (closed today: doneAt, else date)
  *
  * Non-engineer tasks (ย้ายเข้า/ย้ายออก/ชมห้อง) are filtered out — those
  * belong on the Sales Pipeline view.
@@ -113,9 +113,12 @@ export function groupTasksForKanban(
       // the working columns. Parse-based compare: the sheet returns ISO
       // yyyy-MM-dd for Date-typed cells, dd/MM/yyyy for text cells; a
       // raw string equality misses one of the two (audit round 3).
-      const d = parseThaiDate(t.date);
+      // v3.36: closing no longer moves the task's date — "done today" is
+      // the day it was closed (doneAt); rows older than the column fall
+      // back to their date.
+      const doneDay = t.doneAt ? t.doneAt.slice(0, 10) : t.date;
       const todayD = parseThaiDate(todayStr);
-      if (d && todayD && isTaskDatedToday(t.date, todayD)) buckets.done.push(t);
+      if (todayD && isTaskDatedToday(doneDay, todayD)) buckets.done.push(t);
       continue;
     }
     if (c === "in_progress") { buckets.in_progress.push(t); continue; }
