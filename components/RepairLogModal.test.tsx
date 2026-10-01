@@ -107,6 +107,25 @@ describe("<RepairLogForm>", () => {
     await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
   });
 
+  it("an open job skipped as a duplicate writes nothing: no parts withdrawn, the form stays", async () => {
+    const { fileRequisitionLines } = await import("@/lib/partsRequisition");
+    const partsCallsBefore = vi.mocked(fileRequisitionLines).mock.calls.length; // module mock, shared across tests
+    postMock.mockResolvedValue({ res: { status: 200 }, data: { ok: true, skipped: "duplicate-open" } });
+    const onSaved = vi.fn();
+    const { getByRole, getByText } = render(<RepairLogForm {...base} onSaved={onSaved} />);
+    fireEvent.click(getByRole("button", { name: "102" }));
+    fireEvent.change(getByRole("textbox", { name: /ทำอะไรไป/ }), { target: { value: "ก๊อกรั่ว" } });
+    // "ยังไม่เสร็จ" → an OPEN task, the server's own dedup applies
+    fireEvent.click(getByText("ลงย้อนหลัง / ยังไม่เสร็จ"));
+    fireEvent.click(getByRole("checkbox"));
+    fireEvent.click(getByRole("button", { name: "เพิ่มงานค้าง" }));
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(base.refresh).toHaveBeenCalled());
+    expect(vi.mocked(fileRequisitionLines).mock.calls.length).toBe(partsCallsBefore);
+    expect(onSaved).not.toHaveBeenCalled();
+    expect((getByRole("textbox", { name: /ทำอะไรไป/ }) as HTMLTextAreaElement).value).toBe("ก๊อกรั่ว"); // still here
+  });
+
   it("a room window knows its room: no pickers, the category chips are still there", () => {
     const { queryByRole, getByRole } = render(
       <RepairLogForm {...base} fixedRoom={{ building: "มั่งมี", room: "101" }} embedded />,

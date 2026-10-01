@@ -1,6 +1,7 @@
 import type { SheetRow } from "@/types";
 import { isCancelledStatus, isDoneStatus } from "@/lib/constants";
 import { parseThaiDate } from "@/lib/dateUtils";
+import { taskActivityDay } from "@/lib/taskDates";
 import { isCommonAreaTask, commonAreaSpot, COMMON_AREA_BARE } from "@/lib/taskLocation";
 import { markerKey, MOVEOUT_INSPECT_NOTE, QC_CHECKLIST_NOTE } from "@/lib/moveoutTasks";
 
@@ -144,10 +145,8 @@ export function buildMaintDigest(tasks: SheetRow[], period: Period): MaintDigest
     if (isCancelledStatus(t.status)) continue;
     if (isTurnoverChecklist(t)) continue;
     const done = isDoneStatus(t.status);
-    // v3.36: a finished job counts on the day it was closed (doneAt); the
-    // task date is the day it was scheduled. Rows older than the column
-    // have no doneAt and keep using their date.
-    const d = parseThaiDate(done && t.doneAt ? t.doneAt.slice(0, 10) : t.date);
+    // v3.36: a finished job counts on the day it was closed (lib/taskDates).
+    const d = parseThaiDate(taskActivityDay(t));
     if (!d) continue;
     const time = startOfDay(d).getTime();
     if (time < period.start || time >= period.end) continue;

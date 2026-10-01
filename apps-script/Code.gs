@@ -600,12 +600,12 @@ function taskRowToObj_(r, cols) {
     note:      norm(r[6]),
     status:    norm(r[7]),
     creator:   norm(r[8]),
-    createdAt: norm(r[9]),
+    createdAt: fmtDateTimeBkk_(r[9]), // v3.36: a Date-coerced cell used to stringify as "Wed Oct 01 …"
     cost:      isFinite(costNum) && costNum > 0 ? costNum : 0,
     id:        idRaw, // v3.21 — '' for rows predating the backfill
     category:  cols >= 13 ? norm(r[12]) : '',          // v3.36
     doneBy:    cols >= 14 ? norm(r[13]) : '',          // v3.36
-    doneAt:    cols >= 15 ? fmtDateTime_(r[14]) : '', // v3.36
+    doneAt:    cols >= 15 ? fmtDateTimeBkk_(r[14]) : '', // v3.36
   };
 }
 
@@ -631,7 +631,10 @@ function getTasks_() {
     const isClosed = status === 'เสร็จ' || status === 'ยกเลิก' || status === 'done'
       || status === 'ปิดแล้ว' || status === 'cancelled' || status === 'ไม่สนใจ';
     if (isClosed) {
-      const ts = taskDayTime_(r[0]);
+      // v3.36: closing no longer moves DATE to today, so an old overdue task
+      // closed this morning is windowed by the day it was CLOSED (DONE_AT)
+      // — else it would vanish from the feed the moment it was finished.
+      const ts = taskDayTime_(cols >= 15 && r[14] ? r[14] : r[0]);
       if (ts !== null && ts < cutoff) continue;
     }
     const obj = taskRowToObj_(r, cols);
@@ -1092,16 +1095,24 @@ function ensureTaskExtraColumns_(sh) {
   }
 }
 
-/** Wall-clock minutes (Bangkok) of a createdAt/doneAt cell — Date or
- *  "yyyy-MM-dd HH:mm" text. Good enough to ask "within the last N minutes"
- *  without caring what timezone the script project is set to. */
+/** Minutes-since-epoch of a createdAt/doneAt cell — Date or "yyyy-MM-dd
+ *  HH:mm" text in Bangkok wall time. Both sides of a "within N minutes"
+ *  question go through the same conversion, so the script's timezone
+ *  setting cancels out; month boundaries are real, not 31-day guesses. */
 function wallMinutes_(v) {
   const s = v instanceof Date
     ? Utilities.formatDate(v, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm')
     : norm(v);
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
   if (!m) return null;
-  return (((+m[1] * 12 + +m[2]) * 31 + +m[3]) * 24 + +m[4]) * 60 + +m[5];
+  return Math.round(new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() / 60000);
+}
+
+/** createdAt / doneAt as the canonical "yyyy-MM-dd HH:mm" (Bangkok) whether
+ *  the cell is still text or Sheets coerced it into a Date. */
+function fmtDateTimeBkk_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+  return norm(v);
 }
 
 /* ========== TASK IDs (v3.21) ==========
@@ -1340,7 +1351,7 @@ function addTask_(b) {
         // v3.36: งานที่ส่งมาเป็น "เสร็จ" (บันทึกซ่อมจุกจิก) เคยอยู่นอกตัวกันซ้ำนี้ —
         // กดบันทึกสองรอบ/เน็ตสะดุด = สองแถว ต้นทุนนับซ้ำ. แถวที่เสร็จแล้ว หมายเหตุ
         // เดียวกัน และเพิ่งสร้างไม่เกิน 10 นาที = รายการเดิม ไม่ใช่ซ่อมรอบใหม่
-        if (inIsDone && existingStatus === 'เสร็จ' && inNote === norm(rowVals[TASK_COL.NOTE - 1])) {
+        if (inIsDone && existingStatus !== 'ยกเลิก' && inNote === norm(rowVals[TASK_COL.NOTE - 1])) {
           const createdMin = wallMinutes_(rowVals[TASK_COL.CREATED_AT - 1]);
           if (createdMin !== null && nowMin !== null && nowMin - createdMin <= 10) {
             return { appended: false, skipped: 'duplicate-recent', row: existingRows[i] };
@@ -1516,31 +1527,15 @@ function updateTaskStatus_(b) {
   autoBackfillTaskIds_();
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   const status = b.status || 'เสร็จ';
-  // v3.23 (audit r8 bug #3): closing an OVERDUE task also moves its date
-  // to today. Without this the done row failed the kanban's
-  // "เสร็จวันนี้" date check and vanished from the board with no trace,
-  // and the daily done-KPI under-counted. Only past dates move — closing
-  // a future-dated task early keeps its scheduled date.
   const isDoneWrite = status === 'เสร็จ' || status === 'done' || status === 'ปิดแล้ว';
-  // v3.31 (audit r33): เดิม dd/MM/yyyy — จุดเดียวในไฟล์ที่ไม่ใช่ ISO; ชีทที่ locale
-  // ไม่ใช่วัน-เดือน-ปี ตีความ 11/09 เป็น 9 พ.ย. งานกระโดดไปสองเดือน
-  const todayStr = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
   const idRow = findTaskRowById_(b.id);
   // v3.31 (audit r33): id ที่ส่งมาแต่หาไม่เจอ (แถวถูกลบ/รวมไปแล้ว) ห้ามถอยไปใช้
   // key รวม — จะไปปิดงาน "แฝด" ของลูกค้าอีกคน (updateTask_ กันไว้แล้ว ที่นี่ยังไม่)
   if (b.id && idRow < 0) throw new Error('task not found (id หมดอายุ — รีเฟรชแล้วลองใหม่)');
-  let rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
-  if (rows.length === 0 && isDoneWrite && !b.id) {
-    // v3.31 (audit r33): ปิดงานค้างเก่า → รอบแรกอาจสำเร็จและ "ย้ายวันเป็นวันนี้"
-    // แล้ว Vercel retry ด้วยวันเดิม → หาไม่เจอ → error ทั้งที่ปิดไปแล้ว. ลองหา
-    // ด้วยวันนี้ ถ้าเจอและปิดแล้ว = สำเร็จ
-    const movedRows = findAllTaskRows_({ date: todayStr, type: b.type, building: b.building, room: b.room });
-    const allDone = movedRows.length > 0 && movedRows.every(function (r) {
-      const s = norm(sh.getRange(r, TASK_COL.STATUS).getValue());
-      return s === 'เสร็จ' || s === 'done' || s === 'ปิดแล้ว';
-    });
-    if (allDone) return { updated: true, rows: movedRows, count: movedRows.length, alreadyDone: true };
-  }
+  // (v3.31's "look for the row re-dated to today" retry fallback is gone with
+  // v3.36: dates no longer move, and matching today's unrelated done task of
+  // the same type/room would have reported a false "already done".)
+  const rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
   if (rows.length === 0) throw new Error('task not found');
   // Flip every duplicate sharing this key, not just the first — see
   // findAllTaskRows_. Prevents the "close → pops back open" bounce.

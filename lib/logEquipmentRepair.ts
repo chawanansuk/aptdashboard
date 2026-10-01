@@ -16,7 +16,7 @@ import { categoryForEquipment } from "@/lib/repairCategories";
 export async function logEquipmentRepair(p: { building: string; room: string; what: string; doneBy?: string }): Promise<void> {
   const what = p.what.trim();
   try {
-    const { data } = await resilientPost("/api/sheet/update", {
+    const { res, data } = await resilientPost("/api/sheet/update", {
       action: "addTask",
       date: bangkokTodayYmd(),
       type: "ซ่อม",
@@ -27,6 +27,15 @@ export async function logEquipmentRepair(p: { building: string; room: string; wh
       category: categoryForEquipment(what),
       ...(p.doneBy ? { doneBy: p.doneBy } : {}),
     }, { retries: 0 });
+    if (res.status === 504) {
+      // Google timed out but usually wrote the row — say so, don't send the
+      // user off to log it again (that made two rows).
+      toast.warning("หลังบ้าน Google ตอบช้า — บันทึกงานซ่อมอาจเข้าแล้ว", {
+        description: "รีเฟรชแล้วดูในหน้าซ่อมบำรุงก่อน ถ้ายังไม่ขึ้นค่อยลงเอง",
+        duration: 10000,
+      });
+      return;
+    }
     if (!data.ok) throw new Error(data.error || "addTask failed");
     if (!(data as { skipped?: string }).skipped) {
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });

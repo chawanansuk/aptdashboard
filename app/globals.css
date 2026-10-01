@@ -10917,7 +10917,7 @@ html.dark .ac-mlog-cost { color: #94A3B8; }
 .ac-rlog-dup-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .ac-rlog-actions { display: flex; justify-content: flex-end; }
 .ac-rlog-embedded .ac-rlog-actions .ac-btn { min-width: 160px; }
-@media (pointer: coarse) { .ac-rlog-chips .ac-chip { min-height: 40px; } }
+@media (pointer: coarse) { .ac-rlog-chips .ac-chip { min-height: 44px; } }
 
 .ac-mlog-donechk {
   display: flex; align-items: center; gap: 8px;

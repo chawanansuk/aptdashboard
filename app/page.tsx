@@ -72,6 +72,9 @@ import { parseCostInput } from "@/lib/taskCost";
 import { getModeConfig, type GreetingStats } from "@/lib/modeConfig";
 import WelcomeHero from "@/components/WelcomeHero";
 import ReadyRoomsCard from "@/components/ReadyRoomsCard";
+// Static, not lazy: RoomModalHost already pulls this module into the main
+// chunk for its บันทึกซ่อม tab, so a lazy() here only added a blank flash.
+import RepairLogModal from "@/components/RepairLogModal";
 import {
   SalesPipelineSkeleton,
   EngineerKanbanSkeleton,
@@ -103,7 +106,6 @@ const LeadsView       = lazy(() => import("@/components/LeadsView"));
 const MaintenanceTodaySection = lazy(() => import("@/components/MaintenanceTodaySection"));
 const SummaryDrawer   = lazy(() => import("@/components/SummaryDrawer"));
 const ReportsView     = lazy(() => import("@/components/ReportsView"));
-const RepairLogModal  = lazy(() => import("@/components/RepairLogModal"));
 
 /** "งานวันนี้" = open tasks dated today OR earlier (still overdue).
  *  Shared by the full today view and the overview card (V2 Direction B)
@@ -1595,17 +1597,15 @@ export default function Home() {
     </AppShell>
 
       {showRepairLog && (
-        <Suspense fallback={null}>
-          <RepairLogModal
-            rooms={rooms}
-            tasks={tasks}
-            roles={roles}
-            initialBuilding={activeBuilding !== "ทั้งหมด" ? activeBuilding : undefined}
-            refresh={refresh}
-            optimisticAddTask={optimisticAddTask}
-            onClose={() => setShowRepairLog(false)}
-          />
-        </Suspense>
+        <RepairLogModal
+          rooms={rooms}
+          tasks={tasks}
+          roles={roles}
+          initialBuilding={activeBuilding !== "ทั้งหมด" ? activeBuilding : undefined}
+          refresh={refresh}
+          optimisticAddTask={optimisticAddTask}
+          onClose={() => setShowRepairLog(false)}
+        />
       )}
 
       {cmdk.open && (

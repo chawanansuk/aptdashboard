@@ -18,9 +18,8 @@ import { REPAIR_CATEGORIES, suggestRepairCategory, type RepairCategory } from "@
 import { RepairPartsPicker, type RepairPartLine } from "@/components/RoomRepairParts";
 import { fileRequisitionLines } from "@/lib/partsRequisition";
 import { floorSortKey } from "@/lib/salesData";
-
-/** Types a maintenance log entry can be. */
-export const MAINT_LOG_TYPES = ["ซ่อม", "ทำสะอาด", "อื่นๆ"] as const;
+import { MAINT_TYPES } from "@/lib/maintLog";
+import { taskKey } from "@/lib/taskKey";
 
 /** Two reports of the same text on the same room this close together are
  *  one job, not two — the server refuses (Code.gs duplicate-recent); the
@@ -43,6 +42,8 @@ export interface RepairLogFormProps {
   onCancel?: () => void;
   /** Inside another panel (room window tab): no dialog chrome, no cancel. */
   embedded?: boolean;
+  /** The dialog wrapper listens so Esc / backdrop can't close mid-save. */
+  onSavingChange?: (saving: boolean) => void;
 }
 
 function myName(session: ReturnType<typeof useSession>["data"]): string {
@@ -91,7 +92,7 @@ export function findRecentDuplicate(
  * ซ่อมบำรุง log, the room window's บันทึกซ่อม tab, and the phone's +.
  */
 export function RepairLogForm({
-  rooms, tasks, roles, initialBuilding, fixedRoom, refresh, optimisticAddTask, onSaved, onCancel, embedded,
+  rooms, tasks, roles, initialBuilding, fixedRoom, refresh, optimisticAddTask, onSaved, onCancel, embedded, onSavingChange,
 }: RepairLogFormProps) {
   const { data: session } = useSession();
   const me = myName(session);
@@ -118,7 +119,8 @@ export function RepairLogForm({
   const [cost, setCost] = useState("");
   const [doneAlready, setDoneAlready] = useState(true);
   const [workDate, setWorkDate] = useState<string>(() => bangkokTodayYmd());
-  const [saving, setSaving] = useState(false);
+  const [saving, setSavingState] = useState(false);
+  const setSaving = (v: boolean) => { setSavingState(v); onSavingChange?.(v); };
   const [dup, setDup] = useState<{ minutesAgo: number } | null>(null);
 
   // The engineer's name arrives with the session a tick after mount.
@@ -197,6 +199,9 @@ export function RepairLogForm({
       if (!data.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
 
       const skipped = (data as { skipped?: string }).skipped;
+      // `written`: a row was added or a fix was appended — only then do parts
+      // leave the stock and the form count as saved.
+      let written = false;
       if (skipped === "duplicate-recent") {
         toast.info("เพิ่งบันทึกรายการเดียวกันไปเมื่อสักครู่ — ไม่บันทึกซ้ำ");
       } else if (skipped === "duplicate-open" && doneAlready) {
@@ -215,10 +220,20 @@ export function RepairLogForm({
           ...(finalWho ? { doneBy: finalWho } : {}),
         }, { retries: 0 });
         if (!upData.ok) throw new Error(upData.error || `HTTP ${upRes.status}`);
+        written = true;
         toast.success("ต่อท้ายบันทึกในงานที่เปิดอยู่ของห้องนี้แล้ว");
       } else if (skipped) {
-        toast.info("มีงานแบบเดียวกันของวันนั้นอยู่แล้ว — ไม่บันทึกซ้ำ");
+        // An open job with this text already exists for that day and the
+        // user is adding another open one — nothing was written; keep the
+        // form so they can change the text or the date.
+        toast.warning("ยังไม่ได้บันทึก — มีงานค้างแบบเดียวกันของวันนั้นอยู่แล้ว", {
+          description: "แก้ข้อความหรือวันที่ แล้วบันทึกอีกครั้ง",
+          duration: 8000,
+        });
+        refresh();
+        return;
       } else {
+        written = true;
         toast.success(doneAlready ? "ลงบันทึกแล้ว" : "เพิ่มงานค้างแล้ว");
         optimisticAddTask({
           date: dateOut, type, building, room: finalRoom,
@@ -232,10 +247,10 @@ export function RepairLogForm({
       }
       // Parts leave the stock only when a job was actually written — a
       // skipped duplicate used to withdraw them a second time.
-      if (!skipped || skipped === "duplicate-open") {
+      if (written) {
         await fileRequisitionLines(parts, {
           building, room: finalRoom, jobNote: detail,
-          taskKey: `${dateOut}|${building}|${finalRoom}|${type}`,
+          taskKey: taskKey({ date: dateOut, building, room: finalRoom, type }),
         });
       }
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
@@ -303,7 +318,7 @@ export function RepairLogForm({
           <div className="ac-field">
             <span className="ac-rlog-label">ประเภท</span>
             <div className="ac-rlog-chips" role="radiogroup" aria-label="ประเภทงาน">
-              {MAINT_LOG_TYPES.map((t) => (
+              {MAINT_TYPES.map((t) => (
                 <button key={t} type="button" className={chip(type === t)} aria-pressed={type === t} onClick={() => setType(t)}>{t}</button>
               ))}
             </div>
@@ -389,21 +404,31 @@ export function RepairLogForm({
 export default function RepairLogModal(props: Omit<RepairLogFormProps, "embedded" | "onCancel"> & { onClose: () => void }) {
   const { onClose, ...form } = props;
   const dialogRef = useRef<HTMLDivElement>(null);
+  // Esc / backdrop must not drop the form mid-save: the request would
+  // finish against an unmounted form and "ข้อมูลในฟอร์มยังอยู่" would be false.
+  const busyRef = useRef(false);
+  const close = () => { if (!busyRef.current) onClose(); };
   useFocusTrap(true, dialogRef);
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") close(); }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
   return (
-    <div className="ac-modal-backdrop" onClick={onClose}>
+    <div className="ac-modal-backdrop" onClick={close}>
       <div ref={dialogRef} className="ac-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="ลงบันทึกงานซ่อมบำรุง">
         <header className="ac-modal-head">
           <div className="ac-modal-title"><Icon name="maintenance" /> ลงบันทึกงานซ่อมบำรุง</div>
-          <button type="button" className="ac-modal-close" onClick={onClose} aria-label="ปิด"><Icon name="close" /></button>
+          <button type="button" className="ac-modal-close" onClick={close} aria-label="ปิด"><Icon name="close" /></button>
         </header>
         <div className="ac-modal-body">
-          <RepairLogForm {...form} onCancel={onClose} onSaved={() => { form.onSaved?.(); onClose(); }} />
+          <RepairLogForm
+            {...form}
+            onCancel={close}
+            onSavingChange={(b) => { busyRef.current = b; }}
+            onSaved={() => { form.onSaved?.(); onClose(); }}
+          />
         </div>
       </div>
     </div>

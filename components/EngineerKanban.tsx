@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { applyAutoRoomStatus } from "@/lib/applyAutoRoomStatus";
 import { publishTurnoverStepDone } from "@/lib/turnoverNotifications";
 import { parseThaiDate, isTaskDatedToday } from "@/lib/dateUtils";
+import { taskActivityDay } from "@/lib/taskDates";
 import {
   TASK_STATUS,
   categorizeStatus,
@@ -114,11 +115,9 @@ export function groupTasksForKanban(
       // yyyy-MM-dd for Date-typed cells, dd/MM/yyyy for text cells; a
       // raw string equality misses one of the two (audit round 3).
       // v3.36: closing no longer moves the task's date — "done today" is
-      // the day it was closed (doneAt); rows older than the column fall
-      // back to their date.
-      const doneDay = t.doneAt ? t.doneAt.slice(0, 10) : t.date;
+      // the day it was closed (lib/taskDates).
       const todayD = parseThaiDate(todayStr);
-      if (todayD && isTaskDatedToday(doneDay, todayD)) buckets.done.push(t);
+      if (todayD && isTaskDatedToday(taskActivityDay(t), todayD)) buckets.done.push(t);
       continue;
     }
     if (c === "in_progress") { buckets.in_progress.push(t); continue; }
