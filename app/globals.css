@@ -11065,8 +11065,9 @@ html.dark .ac-kanban-card-badge.is-warn { background: #78350F; color: #FDE68A; }
 .ac-maint-hub { display: flex; flex-direction: column; gap: 12px; }
 .ac-recurring-auto {
   margin: 0; padding: 10px 12px; border-radius: var(--radius-md);
-  font-size: var(--text-sm); display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  font-size: var(--text-sm); display: flex; align-items: flex-start; gap: 8px;
 }
+.ac-recurring-auto > .lucide { flex: none; margin-top: 2px; }
 .ac-recurring-auto.is-on  { background: var(--status-ready-soft);  color: var(--status-ready-ink); }
 .ac-recurring-auto.is-off { background: var(--status-repair-soft); color: var(--status-repair-ink); }
 .ac-recurring-bar {

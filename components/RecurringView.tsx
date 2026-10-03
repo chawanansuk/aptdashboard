@@ -185,13 +185,19 @@ export default function RecurringView({ buildings }: Props) {
           second PageHeader here stacked two titles (audit r36). */}
       {auto && (auto.recurringDaily ? (
         <p className="ac-recurring-auto is-on" role="status">
-          <Icon name="check" /> สร้างงานให้เองทุกเช้า ~06:00
-          {auto.lastRecurringRun ? ` · รอบล่าสุด ${auto.lastRecurringRun.at} สร้าง ${auto.lastRecurringRun.created} งาน` : ""}
+          <Icon name="check" />
+          <span>
+            สร้างงานให้เองทุกเช้า ~06:00
+            {auto.lastRecurringRun ? ` · รอบล่าสุด ${auto.lastRecurringRun.at} สร้าง ${auto.lastRecurringRun.created} งาน` : ""}
+          </span>
         </p>
       ) : (
         <p className="ac-recurring-auto is-off" role="status">
-          <Icon name="clock" /> ยังไม่ได้เปิดสร้างอัตโนมัติ — งานจะเกิดเมื่อมีคนกด &quot;ตรวจและสร้าง&quot; เท่านั้น.
-          เปิดได้ครั้งเดียวจบ: เปิด Google Sheet › เมนู <b>🏠 หอพัก</b> › <b>⚙️ อัปเดตระบบ + เปิดงานประจำอัตโนมัติ</b> (บัญชีเจ้าของชีต)
+          <Icon name="clock" />
+          <span>
+            ยังไม่ได้เปิดสร้างอัตโนมัติ — งานจะเกิดเมื่อมีคนกด &quot;ตรวจและสร้าง&quot; เท่านั้น.
+            เปิดได้ครั้งเดียวจบ: เปิด Google Sheet › เมนู <b>🏠 หอพัก</b> › <b>⚙️ อัปเดตระบบ + เปิดงานประจำอัตโนมัติ</b> (บัญชีเจ้าของชีต)
+          </span>
         </p>
       ))}
       <div className="ac-recurring-bar">
