@@ -27,18 +27,24 @@ describe("stripTenantPii", () => {
     note: "คุณเอ เข้า 1 ต.ค. โทร 0812345678",
   };
 
-  it("blanks tenant/phone, keeps the note with its phone masked, keeps contractEnd", () => {
-    const [out] = stripTenantPii([row]);
+  it("read-only roles: blanks tenant/phone, keeps the note with its phone masked, keeps contractEnd", () => {
+    const [out] = stripTenantPii([row], { maskNotePhones: true });
     expect(out.tenant).toBe("");
     expect(out.phone).toBe("");
     expect(out.contractEnd).toBe("31/12/2026");
     expect(out.note).toBe("คุณเอ เข้า 1 ต.ค. โทร 081-xxx-xxxx");
   });
 
+  it("roles that can edit the note get it as stored — a masked note saved back would destroy the number", () => {
+    const [out] = stripTenantPii([row], { maskNotePhones: false });
+    expect(out.tenant).toBe("");
+    expect(out.note).toBe("คุณเอ เข้า 1 ต.ค. โทร 0812345678");
+  });
+
   it("does not invent a note field on rows that have none", () => {
     const { note: _n, ...noNote } = row;
     void _n;
-    const [out] = stripTenantPii([noNote as RoomRow]);
+    const [out] = stripTenantPii([noNote as RoomRow], { maskNotePhones: true });
     expect(out).not.toHaveProperty("note");
   });
 });

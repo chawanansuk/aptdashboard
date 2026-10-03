@@ -8,11 +8,12 @@ import type { RoomRow } from "@/types";
  * needs to know which rooms are expiring without knowing who lives there.
  *
  * The free-text `note` stays too: it is how sales tells the people who
- * PREPARE the room what to do ("ลูกค้าขอเข้าช่วงเย็น เตรียมห้องให้ทันบ่าย"),
- * and those people are exactly the engineers this strips for. What must
- * not travel in it is a phone number, so anything shaped like a Thai
- * number is masked to its prefix. Names have their own field (already
- * blanked); a first name someone typed into the note is the team's call.
+ * PREPARE the room what to do ("ลูกค้าขอเข้าช่วงเย็น เตรียมห้องให้ทันบ่าย").
+ * For roles that can only READ the note (engineers) phone numbers in it
+ * are masked to their prefix. Roles that can EDIT it (sales) get it as
+ * stored: a masked note saved back would overwrite the real number with
+ * "081-xxx-xxxx" for good (audit r37). Names have their own field
+ * (already blanked); a first name typed into the note is the team's call.
  *
  * Server-side enforcement is mandatory: even if the UI hides the section,
  * a direct fetch to /api/dashboard/rooms must never leak PII.
@@ -31,11 +32,11 @@ export function maskPhones(text: string): string {
   });
 }
 
-export function stripTenantPii(rows: RoomRow[]): RoomRow[] {
+export function stripTenantPii(rows: RoomRow[], opts: { maskNotePhones: boolean }): RoomRow[] {
   return rows.map((r) => ({
     ...r,
     tenant: "",
     phone: "",
-    ...(r.note ? { note: maskPhones(r.note) } : {}),
+    ...(r.note && opts.maskNotePhones ? { note: maskPhones(r.note) } : {}),
   }));
 }

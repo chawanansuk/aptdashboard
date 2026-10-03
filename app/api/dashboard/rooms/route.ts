@@ -12,7 +12,7 @@ import {
   setRoomsCacheIfCurrent,
   tryBeginRoomsRevalidation,
 } from "@/lib/dashboardCache";
-import { canViewTenant } from "@/lib/permissions";
+import { canViewTenant, canPerform } from "@/lib/permissions";
 import type { RoomRow } from "@/types";
 import { makeEtag, timing } from "@/lib/apiTiming";
 import {
@@ -148,7 +148,7 @@ export async function GET(req: Request) {
   // Single permission check at handler entry — applied to every response
   // body below via `project()` which strips PII for non-admins.
   const canTenant = canViewTenant(session.user.roles);
-  const project = (rows: RoomRow[]): RoomRow[] => (canTenant ? rows : stripTenantPii(rows));
+  const project = (rows: RoomRow[]): RoomRow[] => (canTenant ? rows : stripTenantPii(rows, { maskNotePhones: !canPerform(session.user.roles, "room.editStatus") }));
 
   // L1 miss (cold start / cross-instance invalidation) → try the shared
   // Redis L2 before the origin CSV. Seeded with the origin timestamp so

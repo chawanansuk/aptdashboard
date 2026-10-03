@@ -3,6 +3,8 @@ import {
   mergeRoomsAndTasks,
   applyOptimisticRoomPatches,
   applyOptimisticTasks,
+  pendingAddKey,
+  rowKey,
   applyOptimisticTaskStatus,
   dedupTasks,
   describeFetchError,
@@ -370,6 +372,41 @@ describe("applyOptimisticRoomPatches", () => {
     const out = applyOptimisticRoomPatches(server, map, now, TTL);
     expect(out[0].status).toBe("รอสัญญา");
     expect(out[1].status).toBe("occupied");
+  });
+});
+
+describe("same room, same day, several repairs (audit r37)", () => {
+  const rep = (over: Partial<SheetRow>): SheetRow => ({
+    date: "2026-10-01", type: "ซ่อม", building: "A", room: "101",
+    customer: "", phone: "", note: "", status: "เสร็จ", ...over,
+  });
+
+  it("dedupTasks keeps rows with different sheet ids — they are different jobs", () => {
+    const a = rep({ id: "u1", note: "เปลี่ยนหลอดไฟ", cost: 80 });
+    const b = rep({ id: "u2", note: "ก๊อกรั่ว", cost: 350 });
+    expect(dedupTasks([a, b])).toEqual([a, b]);
+    expect(dedupTasks([a, a])).toEqual([a]); // the same row twice is still one
+  });
+
+  it("a second optimistic repair is not 'confirmed' by the first one's server row", () => {
+    const now = Date.now();
+    const second = rep({ note: "ก๊อกรั่ว" });
+    const map = new Map<string, OptimisticTask>([[pendingAddKey(second), { task: second, at: now }]]);
+    const out = applyOptimisticTasks([rep({ id: "u1", note: "เปลี่ยนหลอดไฟ" })], map, now, 5 * 60_000);
+    expect(out.map((t) => t.note)).toEqual(["ก๊อกรั่ว", "เปลี่ยนหลอดไฟ"]);
+    // …and is confirmed once its own row arrives
+    applyOptimisticTasks([rep({ id: "u1", note: "เปลี่ยนหลอดไฟ" }), rep({ id: "u2", note: "ก๊อกรั่ว" })], map, now, 5 * 60_000);
+    expect(map.size).toBe(0);
+  });
+
+  it("closing one of two same-key rows patches only that row", () => {
+    const now = Date.now();
+    const a = rep({ id: "u1", status: "" });
+    const b = rep({ id: "u2", status: "" });
+    const pending = new Map([[rowKey(a), { status: "เสร็จ", at: now, doneAt: "2026-10-01 09:00" }]]);
+    const out = applyOptimisticTaskStatus([a, b], pending, now, 5 * 60_000);
+    expect(out.map((t) => t.status)).toEqual(["เสร็จ", ""]);
+    expect(out[0].doneAt).toBe("2026-10-01 09:00");
   });
 });
 

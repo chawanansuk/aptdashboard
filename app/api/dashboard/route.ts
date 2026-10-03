@@ -14,7 +14,7 @@ import {
   tryBeginRevalidation,
 } from "@/lib/dashboardCache";
 import { appsScriptCall } from "@/lib/appsScriptFetch";
-import { canViewTenant, canViewTaskCustomer } from "@/lib/permissions";
+import { canViewTenant, canViewTaskCustomer, canPerform } from "@/lib/permissions";
 import type { RoomRow, SheetRow } from "@/types";
 import { setRoomsCache, setTasksCache } from "@/lib/dashboardCache";
 import {
@@ -203,7 +203,7 @@ export async function GET() {
   }
   const authMs = Date.now() - handlerStart;
   const canTenant = canViewTenant(session.user.roles);
-  const projectRooms = (rs: RoomRow[]) => (canTenant ? rs : stripTenantPii(rs));
+  const projectRooms = (rs: RoomRow[]) => (canTenant ? rs : stripTenantPii(rs, { maskNotePhones: !canPerform(session.user.roles, "room.editStatus") }));
   // Tasks ก็ต้อง strip PII ต่อ role เหมือน /api/dashboard/tasks — เดิม
   // endpoint รวมนี้ส่ง customer+phone ดิบให้ทุก role (audit r22, MED-HIGH):
   // ช่างที่ curl ตรงมาที่นี่อ่านชื่อ/เบอร์ลูกค้าได้ทั้งที่ endpoint แยก strip

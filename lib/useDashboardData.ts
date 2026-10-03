@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RoomRow, RoomStatus, RoomView, SheetRow } from "@/types";
 import { loadCache, saveCache } from "@/lib/cacheData";
-import { isClosedStatus } from "@/lib/constants";
+import { isClosedStatus, isDoneStatus } from "@/lib/constants";
 import { subscribeBus } from "@/lib/realtimeBus";
 import { roomKey, taskKey } from "@/lib/taskKey";
 import { normalizeRoomStatus, isKnownRoomStatus } from "@/lib/roomStatus";
-import { parseSheetDate } from "@/lib/dateUtils";
+import { bangkokTodayYmd, parseSheetDate } from "@/lib/dateUtils";
 import { sameRowArray } from "@/lib/sameArray";
 
 /**
@@ -131,6 +131,20 @@ export { taskKey };
  * nothing. Each pending task is dropped once the server list already
  * contains its key (write landed) or after a safety TTL.
  */
+/** Identity of a pending optimistic add: the composite key PLUS the note.
+ *  Several repairs in one room on one day share the composite key (audit
+ *  r37); keyed on taskKey alone, the second one was "confirmed" by the
+ *  first one's server row and vanished until the next refetch. */
+export function pendingAddKey(t: SheetRow): string {
+  return `${taskKey(t)}|${(t.note || "").replace(/\s+/g, " ").trim()}`;
+}
+
+/** Row identity for de-duplication and status patches: the sheet's id
+ *  when the row has one (v3.21+), else the composite key. */
+export function rowKey(t: Pick<SheetRow, "date" | "building" | "room" | "type" | "id">): string {
+  return t.id ? `id:${t.id}` : taskKey(t);
+}
+
 export function applyOptimisticTasks(
   serverTasks: SheetRow[],
   pending: Map<string, OptimisticTask>,
@@ -138,9 +152,9 @@ export function applyOptimisticTasks(
   ttlMs: number,
 ): SheetRow[] {
   if (pending.size === 0) return serverTasks;
-  const serverKeys = new Set(serverTasks.map(taskKey));
+  const serverKeys = new Set(serverTasks.map(pendingAddKey));
   for (const [k, v] of pending) {
-    if (now - v.at > ttlMs || serverKeys.has(k)) pending.delete(k);
+    if (now - v.at > ttlMs || serverKeys.has(pendingAddKey(v.task))) pending.delete(k);
   }
   if (pending.size === 0) return serverTasks;
   return [...Array.from(pending.values(), (v) => v.task), ...serverTasks];
@@ -149,11 +163,19 @@ export function applyOptimisticTasks(
 export interface OptimisticTaskStatus {
   status: string;
   at: number;
+  /** Set with a close so the row stays in "เสร็จวันนี้" (lib/taskDates)
+   *  until the server row carries its own doneAt. */
+  doneAt?: string;
 }
 
 /**
- * Drop duplicate task rows that share the same `taskKey`
- * (`date|building|room|type`).
+ * Drop duplicate task rows: the same sheet id, or — for rows without an
+ * id (pre-v3.21 / optimistic) — the same `taskKey` (`date|building|room|type`).
+ *
+ * audit r37: rows with DIFFERENT ids are different jobs even when the
+ * composite key matches — two repairs in one room on one day are normal
+ * since the repair log files one row per fix. Collapsing them dropped the
+ * second repair (and its cost) from the log, reports and kanban.
  *
  * The งาน sheet has no stable id column and the composite key is unique
  * by construction (no two tasks of the same type happen in the same
@@ -175,7 +197,7 @@ export function dedupTasks(rows: SheetRow[]): SheetRow[] {
   const info = (t: SheetRow) =>
     (t.customer || "").length + (t.phone || "").length + (t.note || "").length;
   for (const t of rows) {
-    const k = taskKey(t);
+    const k = rowKey(t);
     const existing = indexByKey.get(k);
     if (existing === undefined) {
       indexByKey.set(k, out.length);
@@ -212,17 +234,18 @@ export function applyOptimisticTaskStatus(
   // the first reconciled row would unmask an open twin and pop the task
   // back open — so keep suppressing until every matching row has flipped.
   const stillOpen = new Set<string>();
+  const entryFor = (t: SheetRow) => pending.get(rowKey(t)) ?? pending.get(taskKey(t));
+  const keyFor = (t: SheetRow) => (pending.has(rowKey(t)) ? rowKey(t) : taskKey(t));
   for (const t of serverTasks) {
-    const k = taskKey(t);
-    const entry = pending.get(k);
-    if (entry && (t.status || "") !== entry.status) stillOpen.add(k);
+    const entry = entryFor(t);
+    if (entry && (t.status || "") !== entry.status) stillOpen.add(keyFor(t));
   }
   for (const k of Array.from(pending.keys())) {
     if (!stillOpen.has(k)) pending.delete(k);
   }
   return serverTasks.map((t) => {
-    const entry = pending.get(taskKey(t));
-    return entry ? { ...t, status: entry.status } : t;
+    const entry = entryFor(t);
+    return entry ? { ...t, status: entry.status, ...(entry.doneAt !== undefined ? { doneAt: entry.doneAt } : {}) } : t;
   });
 }
 
@@ -760,17 +783,22 @@ export function useDashboardData(): DashboardState {
   const optimisticAddTask = useCallback((task: SheetRow) => {
     const now = Date.now();
     lastOptimisticAtRef.current = now;
-    pendingTasksRef.current.set(taskKey(task), { task, at: now });
+    pendingTasksRef.current.set(pendingAddKey(task), { task, at: now });
     setTasks((prev) => [task, ...prev]);
   }, []);
 
   const optimisticUpdateTask = useCallback(
-    (task: Pick<SheetRow, "date" | "building" | "room" | "type">, status: string) => {
+    (task: Pick<SheetRow, "date" | "building" | "room" | "type" | "id">, status: string) => {
       const now = Date.now();
       lastOptimisticAtRef.current = now;
-      const key = taskKey(task);
-      pendingTaskStatusRef.current.set(key, { status, at: now });
-      setTasks((prev) => prev.map((t) => (taskKey(t) === key ? { ...t, status } : t)));
+      // The id pins THIS row; two same-day repairs in one room share the
+      // composite key and closing one used to flip both (audit r37).
+      const key = rowKey(task);
+      // A close is "done today" right away (lib/taskDates) — without doneAt
+      // an overdue task dropped out of every kanban column until refetch.
+      const doneAt = isDoneStatus(status) ? `${bangkokTodayYmd()} ${new Date().toTimeString().slice(0, 5)}` : "";
+      pendingTaskStatusRef.current.set(key, { status, at: now, doneAt });
+      setTasks((prev) => prev.map((t) => (rowKey(t) === key ? { ...t, status, doneAt } : t)));
     },
     [],
   );
