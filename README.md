@@ -21,10 +21,12 @@
 5. เปิดไฟล์ `.env.local` แล้ววาง URL:
 
 ```env
-NEXT_PUBLIC_SHEET_CSV_URL=https://docs.google.com/spreadsheets/d/xxx/pub?output=csv
+SHEET_ROOMS_CSV_URL=https://docs.google.com/spreadsheets/d/xxx/pub?gid=<gid ของ tab ห้อง>&output=csv
+SHEET_WRITE_URL=https://script.google.com/macros/s/xxx/exec
 ```
 
-> **หมายเหตุ:** ถ้า Sheet มีหลาย tab ต้องเพิ่ม `&gid=0` (หรือ gid ของ tab นั้น) ต่อท้าย URL
+> **หมายเหตุ:** publish เฉพาะ tab `ห้อง` (ใส่ `&gid=` ของ tab นั้น). งานและข้อมูลอื่นทั้งหมดอ่าน/เขียนผ่าน
+> Apps Script (`SHEET_WRITE_URL`) — `NEXT_PUBLIC_SHEET_CSV_URL` ไม่ใช้แล้ว. ตัวแปรครบชุดดู `.env.example`
 
 ---
 
@@ -39,7 +41,9 @@ NEXT_PUBLIC_SHEET_CSV_URL=https://docs.google.com/spreadsheets/d/xxx/pub?output=
 | ลูกค้า | คุณศศิพิม |
 | เบอร์ | 098-748-8334 |
 | หมายเหตุ | เช็คตู้เย็น |
-| สถานะ | ว่าง / เสร็จ |
+| สถานะ | (ว่าง) / กำลังทำ / ติดขัด / เสร็จ / ยกเลิก |
+
+> ชุดคอลัมน์เต็ม (A–O รวม ค่าใช้จ่าย / id / หมวด / ใครซ่อม / เสร็จเมื่อ) ดู `apps-script/README.md`
 
 ---
 
@@ -64,8 +68,8 @@ npm run dev
 1. สมัคร vercel.com (ฟรี)
 2. กด **Add New Project** → เลือก Git repo นี้
 3. ในหน้า **Environment Variables** เพิ่ม:
-   - Key: `NEXT_PUBLIC_SHEET_CSV_URL`
-   - Value: URL ของ Google Sheet CSV
+   - ตัวแปรตาม `.env.example` (อย่างน้อย `SHEET_ROOMS_CSV_URL`, `SHEET_WRITE_URL`, `APPS_SCRIPT_SECRET`,
+     `AUTH_SECRET`, `AUTH_GOOGLE_ID/SECRET`, `ALLOWED_USERS`)
 4. กด **Deploy** รอสักครู่
 
 ### Deploy ซ้ำหลังแก้โค้ด

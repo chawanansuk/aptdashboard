@@ -12,9 +12,12 @@
 
 ## ไฟล์ในโฟลเดอร์
 
-- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน v3.6.0)
+- `Code.gs` — Web App backend + setup helpers (ปัจจุบัน **v3.38.0** — ค่าจริงคือตัวแปร `BACKEND_VERSION` ในไฟล์ ต้องตรงกับ `lib/backendVersion.ts`)
 
 ### Version history
+
+> รายการด้านล่างหยุดที่ v3.6.0 (เก็บไว้เป็นประวัติ). ตั้งแต่ v3.7 ประวัติแต่ละเวอร์ชันอยู่ใน comment
+> `NEW vX.Y.Z` ที่หัวไฟล์ `Code.gs` (เรียงใหม่ไปเก่า) และในคำอธิบาย PR ที่แก้ไฟล์นั้น
 
 - **v3.6.0** (current) — tab `อุปกรณ์` (auto-create) สำหรับ Engineer mode: track AC / เครื่องซักผ้า / ตู้เย็น / เครื่องทำน้ำอุ่น / อื่นๆ ของแต่ละห้อง. Actions ใหม่ `getRoomEquipment` / `addEquipment` / `updateEquipment` + cache 60s
 - **v3.4.3** — `getRooms_/getRoomsCached_` action ใหม่: อ่านชีต `ห้อง` real-time แทน CSV publish (CSV publish มี Google cache ~5 นาที ทำให้ updateRoomStatus ไม่เห็นผลทันที). `clearRoomsCache_` ใน `updateRoomStatus_` + `onEdit`
@@ -25,7 +28,7 @@
 
 ## Sheet schema ที่ Code.gs คาดหวัง
 
-ชีต `งาน` (10 คอลัมน์):
+ชีต `งาน` (15 คอลัมน์ — K–O แอปสร้างหัวให้เองตอนเขียนครั้งแรก หรือกดเมนู "อัปเดตระบบ"):
 
 | Col | ชื่อ | ตัวอย่าง |
 |---|---|---|
@@ -36,11 +39,16 @@
 | E | ลูกค้า | มิณทร์ |
 | F | เบอร์ | 065-9096997 |
 | G | หมายเหตุ | (free text) |
-| H | สถานะ | ว่าง / pending / กำลังทำ / เสร็จ / ยกเลิก |
-| I | **ผู้สร้าง** (NEW v3.4.0) | ชื่อจาก localStorage ของ browser ผู้กรอก |
-| J | **วันที่สร้าง** (NEW v3.4.0) | dd/MM/yyyy HH:mm (Asia/Bangkok) |
+| H | สถานะ | (ว่าง) / pending / กำลังทำ / ติดขัด / เสร็จ / ยกเลิก / ไม่สนใจ |
+| I | ผู้สร้าง | อีเมลของคนที่บันทึก (เซิร์ฟเวอร์ใส่จาก session ที่ล็อกอิน) |
+| J | วันที่สร้าง | yyyy-MM-dd HH:mm (Asia/Bangkok) |
+| K | ค่าใช้จ่าย (v3.10) | ตัวเลขบาท ว่าง = ไม่ระบุ |
+| L | id (v3.21) | UUID — ระบุแถวแน่นอน (key รวม วันที่/ตึก/ห้อง/ประเภท ซ้ำกันได้) |
+| M | หมวด (v3.36) | ไฟฟ้า / ประปา / แอร์ / … (`lib/repairCategories.ts`) |
+| N | ใครซ่อม (v3.36) | คนที่ทำงานจริง (อาจไม่ใช่คนบันทึก) |
+| O | เสร็จเมื่อ (v3.36) | yyyy-MM-dd HH:mm ตอนปิดงาน ว่าง = ยังเปิด; การปิดงานไม่ย้าย "วันที่" (A) อีก |
 
-ชีต `ห้อง` ต้องมี header: `ตึก`, `ห้อง`, `สถานะ`, (optional) `ผู้เช่า`, `เบอร์`, `สัญญา`
+ชีต `ห้อง` ต้องมี header: `ตึก`, `ห้อง`, `สถานะ`, (optional) `ชั้น`, `ผู้เช่า`, `เบอร์`, `สัญญา`, `ค่าเช่า`, `รูป`, `หมายเหตุ` — อ่านตามชื่อหัว (ดู `roomHeaderCols_`) ลำดับคอลัมน์ไม่สำคัญ
 
 ชีต `อุปกรณ์` (NEW v3.6.0 — auto-create เมื่อ engineer/management กด "+ เพิ่ม" ครั้งแรก):
 
@@ -60,7 +68,12 @@
 
 ## Deploy — ขั้นตอน (user ทำเอง)
 
-> Path เดียวกันทุก version: paste ทับ → Save → Manage deployments → New version → Deploy
+> Path เดียวกันทุก version: paste ทับ → Save → Manage deployments → **แก้ deployment เดิม** (รูปดินสอ)
+> → New version → Deploy. อย่ากด "New deployment" — จะได้ URL ใหม่ แต่ Vercel ยังเรียก URL เก่า
+>
+> **หลัง deploy ทุกครั้ง:** เปิด Google Sheet → เมนู **🏠 หอพัก › ⚙️ อัปเดตระบบ + เปิดงานประจำอัตโนมัติ**
+> (v3.38+ — รันซ้ำได้: ติดตั้ง trigger งานประจำ 06:00, อัปเดต dropdown สถานะงาน/ห้อง, สร้างคอลัมน์ที่ขาด)
+> แล้วรีเฟรชแอป — แบนเนอร์ "เวอร์ชันไม่ตรง" ต้องหายไป
 
 ### 1. เพิ่ม column ในชีต `งาน` (เฉพาะ first-time deploy v3.4.0+)
 
@@ -105,11 +118,8 @@
 
 ใน `Code.gs` แก้ค่า:
 
-- 30 = แทบ real-time, hit rate ต่ำ
-- 60 = แนะนำ (default)
-- 300 = เร็วสุด แต่ถ้ามีคนแก้ในชีตโดยตรง (ไม่ผ่านแอป) จะเห็นช้า 5 นาที
-
-cache invalidate อัตโนมัติเมื่อแก้ผ่านแอป (addTask/updateTask/updateTaskStatus/deleteTask + onEdit ตอนเปลี่ยน room status)
+ปัจจุบัน `TASKS_CACHE_TTL_SEC = 240` (v3.20) — ไม่ต้องปรับ เพราะ cache ถูกล้างทันทีทุกครั้งที่เขียน:
+ทุก action ที่เขียนผ่านแอป และ `onEdit` เมื่อมีคนแก้เซลล์ในชีต `งาน`/`ห้อง` โดยตรง (v3.32)
 
 ## Workflow ครั้งหน้า
 
