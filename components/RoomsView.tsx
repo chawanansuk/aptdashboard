@@ -17,7 +17,7 @@ import RoomQuickActions from "./RoomQuickActions";
 import RoomListRow from "./RoomListRow";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { MQ } from "@/lib/breakpoints";
-import { isBooked, sortPendingByMoveIn } from "@/lib/moveIns";
+import { isBooked, nextAppointment, sortPendingByMoveIn } from "@/lib/moveIns";
 
 /**
  * Format relative time (วันนี้ / พรุ่งนี้ / X วันที่แล้ว) — Thai.
@@ -163,17 +163,14 @@ const RoomCard = memo(function RoomCard({
       {/* "วันเข้า" hint for pending rooms — nearest upcoming ย้ายเข้า,
           falls back to ชมห้อง if no move-in scheduled yet. */}
       {r.status === "pending" && (() => {
-        const allUpcoming = [...(r.upcomingTasks || []), ...(r.todayTasks || [])];
-        let bestMovein: Date | null = null;
+        // nextAppointment counts an overdue move-in nobody closed as still
+        // scheduled (same rule as the list and the bell — audit r37).
+        const bestMovein = nextAppointment(r, "ย้ายเข้า");
         let bestView: Date | null = null;
-        for (const t of allUpcoming) {
+        for (const t of [...(r.upcomingTasks || []), ...(r.todayTasks || [])]) {
+          if (t.type !== "ชมห้อง") continue;
           const d = parseThaiDate(t.date);
-          if (!d) continue;
-          if (t.type === "ย้ายเข้า") {
-            if (!bestMovein || d.getTime() < bestMovein.getTime()) bestMovein = d;
-          } else if (t.type === "ชมห้อง") {
-            if (!bestView || d.getTime() < bestView.getTime()) bestView = d;
-          }
+          if (d && (!bestView || d.getTime() < bestView.getTime())) bestView = d;
         }
         const target = bestMovein ?? bestView;
         if (!target) {
@@ -588,6 +585,8 @@ function RoomsView({
                     onSelect={onSelectRoom}
                     onScheduleMoveIn={onScheduleMoveIn}
                     onOpenQuick={openQuick}
+                    veh={vehicleCountByRoom?.(r.building, r.room) ?? 0}
+                    eq={equipmentCountByRoom?.(r.building, r.room) ?? 0}
                   />
                 ))}
               </ul>
