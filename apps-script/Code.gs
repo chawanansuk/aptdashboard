@@ -8,7 +8,8 @@
  * NEW v3.38.0:
  *   - งานประจำสร้างเองทุกเช้า ~06:00 (runRecurringDaily) — เปิดครั้งเดียวจากเมนูในชีต
  *     "🏠 หอพัก › ⚙️ อัปเดตระบบ + เปิดงานประจำอัตโนมัติ" (เมนูเดียวกันนี้อัปเดต dropdown
- *     สถานะงานให้มี "ติดขัด" และสร้างคอลัมน์ M–O ถ้ายังไม่มี). แอปแสดงสถานะผ่าน
+ *     สถานะงานให้มี "ติดขัด", dropdown สถานะห้องให้ตรงกับแอป (เดิมมี "จอง" ที่แอปไม่รู้จัก
+ *     ห้องเลยขึ้นเป็นไม่ได้ใช้งาน) และสร้างคอลัมน์ M–O ถ้ายังไม่มี). แอปแสดงสถานะผ่าน
  *     getAutomationStatus
  *   - ปิดงานในชีทโดยตรง (เปลี่ยนสถานะเป็น "เสร็จ" หรือเมนู "ปิดงานวันนี้ที่เลือก") ประทับ
  *     "เสร็จเมื่อ" ด้วย — เดิมเฉพาะปิดจากแอป
@@ -208,7 +209,9 @@ const SHEET_NAMES = {
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
 const STATUS_OPTIONS = ['ว่าง', 'pending', 'กำลังทำ', 'ติดขัด', 'เสร็จ', 'ยกเลิก']; // v3.38: + ติดขัด (แอปใช้มาตลอด)
-const ROOM_STATUS    = ['ว่าง', 'มีผู้เช่า', 'จอง', 'ซ่อม', 'ไม่ได้ใช้งาน'];
+// v3.38: same list the app's room window offers (lib/constants RAW_STATUS_OPTIONS).
+// The old one had "จอง", which the app didn't know → the room showed as ไม่ได้ใช้งาน.
+const ROOM_STATUS    = ['มีคนอยู่', 'ว่าง', 'รอสัญญา', 'แจ้งย้ายออก', 'ปรับปรุง', 'ไม่ได้ใช้งาน'];
 const EQUIPMENT_TYPES  = ['แอร์', 'เครื่องซักผ้า', 'ตู้เย็น', 'เครื่องทำน้ำอุ่น', 'โทรทัศน์', 'ไมโครเวฟ', 'อื่นๆ'];
 const EQUIPMENT_STATUS = ['ปกติ', 'ต้องซ่อม', 'กำลังซ่อม', 'ใช้ไม่ได้'];
 const FACILITY_TYPES   = ['รอบล้างแอร์', 'รอบล้างเครื่องซักผ้า', 'ปั๊มน้ำ', 'ไฟส่วนกลาง', 'ต้นไม้', 'ทางเดินส่วนกลาง', 'อื่นๆ'];
@@ -861,6 +864,20 @@ function updateSystem() {
       SpreadsheetApp.newDataValidation().requireValueInList(STATUS_OPTIONS, true).setAllowInvalid(true).build()
     );
     done.push('dropdown สถานะงานมี "ติดขัด"');
+  }
+  const roomSh = ss.getSheetByName(SHEET_NAMES.ROOM);
+  if (roomSh) {
+    const hdr = roomSh.getRange(1, 1, 1, roomSh.getLastColumn()).getValues()[0].map(norm);
+    const iStatus = roomHeaderCols_(hdr).status;
+    if (iStatus >= 0) {
+      const lastRoomRow = Math.max(roomSh.getMaxRows(), 1000);
+      roomSh.getRange(2, iStatus + 1, lastRoomRow - 1, 1).setDataValidation(
+        SpreadsheetApp.newDataValidation().requireValueInList(ROOM_STATUS, true).setAllowInvalid(true).build()
+      );
+      done.push('dropdown สถานะห้องตรงกับแอป');
+    }
+  }
+  if (taskSh) {
     try {
       ensureTaskCostColumn_(taskSh);
       ensureTaskIdColumn_(taskSh);

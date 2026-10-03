@@ -35,6 +35,9 @@ export const STATUS_FROM_ROOM: Record<string, RoomStatus> = {
   // pending (waiting move-in / contract)
   "รอสัญญา": "pending",
   "รอย้ายเข้า": "pending",
+  // The sheet's own dropdown offered "จอง" (Code.gs ROOM_STATUS before
+  // v3.38) — it fell into the unknown bucket and showed as ไม่ได้ใช้งาน.
+  "จอง": "pending",
   // moveout
   "แจ้งย้ายออก": "moveout",
   "รอย้ายออก": "moveout",
