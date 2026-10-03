@@ -8,11 +8,13 @@ type History = { date: string; snapshot: DaySnapshot | null }[];
 
 /** Re-report at most this often while the page stays open. */
 const REPORT_EVERY_MS = 10 * 60_000;
+/** Quiet time after the last change before reporting (fresh data settles). */
+const SETTLE_MS = 5_000;
 
 /**
  * Sales page ↔ /api/kpi-snapshot: reads the previous days once, and
- * reports today's counts (on first real data, then at most every 10 min
- * while they change). Fails silent: no history → the cards show numbers
+ * reports today's counts once they settle, then at most every 10 min
+ * (always the latest) while they change. Fails silent: no history → the cards show numbers
  * only, exactly as before.
  */
 export function useKpiHistory(rooms: RoomView[]): History {
@@ -29,21 +31,38 @@ export function useKpiHistory(rooms: RoomView[]): History {
 
   const snapshot = useMemo(() => (rooms.length > 0 ? buildDaySnapshot(rooms) : null), [rooms]);
   const serialized = snapshot ? JSON.stringify(snapshot) : "";
-  const last = useRef<{ body: string; at: number } | null>(null);
+  const latest = useRef("");
+  const lastSent = useRef<{ body: string; at: number } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Report the LATEST counts, settled: the first rooms a page sees are
+  // often the 24h browser cache or rooms that arrived before tasks (room
+  // status depends on tasks), and the right numbers land a second later.
+  // So wait SETTLE_MS after the last change, and never more often than
+  // REPORT_EVERY_MS — but always send what's current when that window
+  // ends instead of dropping it (audit r37: the stored point used to be
+  // the first, wrong one).
   useEffect(() => {
     if (!serialized) return;
-    const now = Date.now();
-    const prev = last.current;
-    if (prev && (prev.body === serialized || now - prev.at < REPORT_EVERY_MS)) return;
-    last.current = { body: serialized, at: now };
-    fetch("/api/kpi-snapshot", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: `{"snapshot":${serialized}}`,
-      keepalive: true,
-    }).catch(() => {});
+    latest.current = serialized;
+    if (timer.current) clearTimeout(timer.current);
+    const since = lastSent.current ? Date.now() - lastSent.current.at : Infinity;
+    const wait = Math.max(SETTLE_MS, REPORT_EVERY_MS - since);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      const body = latest.current;
+      if (!body || lastSent.current?.body === body) return;
+      lastSent.current = { body, at: Date.now() };
+      fetch("/api/kpi-snapshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: `{"snapshot":${body}}`,
+        keepalive: true,
+      }).catch(() => {});
+    }, wait);
   }, [serialized]);
+
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   return history;
 }

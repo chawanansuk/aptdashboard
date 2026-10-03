@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import type { Role } from "@/auth";
 import type { RoomView, SheetRow } from "@/types";
 import { Icon } from "@/lib/icons";
-import { bangkokTodayYmd, isTaskDatedToday } from "@/lib/dateUtils";
+import { bangkokTodayYmd, parseThaiDate } from "@/lib/dateUtils";
 import { isClosedStatus } from "@/lib/constants";
 import { parseCostInput } from "@/lib/taskCost";
 import { resilientPost } from "@/lib/resilientWrite";
@@ -13,13 +13,13 @@ import { toast } from "@/lib/toast";
 import { publishBusEvent } from "@/lib/realtimeBus";
 import { formatCommonArea, COMMON_AREA_BARE } from "@/lib/taskLocation";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-import { appendRepairLog } from "@/lib/repairLog";
 import { REPAIR_CATEGORIES, suggestRepairCategory, type RepairCategory } from "@/lib/repairCategories";
 import { RepairPartsPicker, type RepairPartLine } from "@/components/RoomRepairParts";
 import { fileRequisitionLines } from "@/lib/partsRequisition";
 import { floorSortKey } from "@/lib/salesData";
 import { MAINT_TYPES } from "@/lib/maintLog";
 import { taskKey } from "@/lib/taskKey";
+import { taskTypeDenied } from "@/lib/taskTypePermission";
 
 /** Two reports of the same text on the same room this close together are
  *  one job, not two — the server refuses (Code.gs duplicate-recent); the
@@ -96,7 +96,16 @@ export function RepairLogForm({
 }: RepairLogFormProps) {
   const { data: session } = useSession();
   const me = myName(session);
-  const isEngineer = (roles || []).includes("engineer");
+  // "It was me" is the default only for someone whose job IS the repairs
+  // (primary role engineer). A manager who also holds the engineer role is
+  // usually logging the engineer's work (audit r37).
+  const primaryEngineer = (roles || [])[0] === "engineer";
+  // Types this user may file (a sales user can't add ซ่อม — the server
+  // would 403 the form's old default).
+  const allowedTypes = useMemo(
+    () => MAINT_TYPES.filter((t) => !taskTypeDenied(t, roles)),
+    [roles],
+  );
 
   const buildings = useMemo(() => Array.from(new Set(rooms.map((r) => r.building))), [rooms]);
   const [area, setArea] = useState<"room" | "common">("room");
@@ -107,13 +116,13 @@ export function RepairLogForm({
   const [room, setRoom] = useState(fixedRoom?.room || "");
   const [spot, setSpot] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
-  const [type, setType] = useState<string>("ซ่อม");
+  const [type, setType] = useState<string>(() => allowedTypes[0] ?? "ซ่อม");
   const [note, setNote] = useState("");
   const [category, setCategory] = useState<RepairCategory | "">("");
   const [categoryTouched, setCategoryTouched] = useState(false);
   // Who did the work. One in-house engineer today: if that's who is
   // typing, it's them; someone logging on their behalf taps "ช่าง".
-  const [who, setWho] = useState<string>(isEngineer ? me : "ช่าง");
+  const [who, setWho] = useState<string>(primaryEngineer ? me : "ช่าง");
   const [whoCustom, setWhoCustom] = useState(false);
   const [parts, setParts] = useState<RepairPartLine[]>([]);
   const [cost, setCost] = useState("");
@@ -122,9 +131,13 @@ export function RepairLogForm({
   const [saving, setSavingState] = useState(false);
   const setSaving = (v: boolean) => { setSavingState(v); onSavingChange?.(v); };
   const [dup, setDup] = useState<{ minutesAgo: number } | null>(null);
+  // The last save timed out (Google may have written it). If the retry is
+  // then refused as a duplicate, that duplicate IS this entry — finish the
+  // save (parts included) instead of dropping it (audit r37).
+  const maybeSavedRef = useRef(false);
 
   // The engineer's name arrives with the session a tick after mount.
-  useEffect(() => { if (isEngineer && me) setWho((w) => (w === "ช่าง" || w === "" ? me : w)); }, [isEngineer, me]);
+  useEffect(() => { if (primaryEngineer && me) setWho((w) => (w === "ช่าง" || w === "" ? me : w)); }, [primaryEngineer, me]);
 
   // Guess the category from the text until the user picks one themselves.
   useEffect(() => {
@@ -133,6 +146,7 @@ export function RepairLogForm({
     setCategory(s ?? "");
   }, [note, type, categoryTouched]);
 
+  const buildingRoomCount = useMemo(() => rooms.filter((r) => r.building === building).length, [rooms, building]);
   const roomChips = useMemo(() => {
     const list = rooms.filter((r) => r.building === building);
     const q = roomFilter.trim();
@@ -146,11 +160,11 @@ export function RepairLogForm({
 
   const whoOptions = useMemo(() => {
     const opts = [] as { key: string; label: string; value: string }[];
-    if (me) opts.push({ key: "me", label: isEngineer ? `${me} (ฉัน)` : `ฉัน (${me})`, value: me });
-    if (!isEngineer || !me) opts.push({ key: "eng", label: "ช่าง", value: "ช่าง" });
+    if (me) opts.push({ key: "me", label: primaryEngineer ? `${me} (ฉัน)` : `ฉัน (${me})`, value: me });
+    if (!primaryEngineer || !me) opts.push({ key: "eng", label: "ช่าง", value: "ช่าง" });
     opts.push({ key: "ext", label: "ช่างนอก", value: "ช่างนอก" });
     return opts;
-  }, [me, isEngineer]);
+  }, [me, primaryEngineer]);
 
   async function submit(force = false) {
     const detail = note.trim();
@@ -163,6 +177,9 @@ export function RepairLogForm({
     const finalWho = who.trim();
     const costNum = cost ? parseCostInput(cost) : 0;
     const dateOut = workDate || bangkokTodayYmd();
+    // Logged as done on the day it was done: a back-dated entry belongs to
+    // that day, not to today (Code.gs v3.37 stamps เสร็จเมื่อ only for today).
+    const doneToday = dateOut === bangkokTodayYmd();
 
     if (!force) {
       const recent = findRecentDuplicate(tasks, { building, room: finalRoom, type, note: detail });
@@ -181,6 +198,9 @@ export function RepairLogForm({
       ...(costNum > 0 ? { cost: costNum } : {}),
       ...(finalCategory ? { category: finalCategory } : {}),
       ...(finalWho ? { doneBy: finalWho } : {}),
+      // "ใช่ บันทึกอีกรายการ": the user confirmed a genuine second identical
+      // job — skip the server's 10-minute duplicate guard too.
+      ...(force ? { allowRecentDuplicate: true } : {}),
     };
     setSaving(true);
     try {
@@ -189,6 +209,7 @@ export function RepairLogForm({
       // not become two rows.
       const { res, data } = await resilientPost("/api/sheet/update", body, { retries: doneAlready ? 0 : 3 });
       if (res.status === 504) {
+        maybeSavedRef.current = true;
         toast.warning(String(data.error || "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว"), {
           description: "รีเฟรชแล้วดูในบันทึกก่อน ถ้ายังไม่ขึ้นค่อยลงใหม่",
           duration: 10000,
@@ -202,26 +223,50 @@ export function RepairLogForm({
       // `written`: a row was added or a fix was appended — only then do parts
       // leave the stock and the form count as saved.
       let written = false;
-      if (skipped === "duplicate-recent") {
+      if (skipped === "duplicate-recent" && maybeSavedRef.current) {
+        // The timed-out save did land — this is that row.
+        written = true;
+        toast.success("รายการที่ Google ตอบช้าเมื่อกี้บันทึกเข้าแล้ว");
+      } else if (skipped === "duplicate-recent") {
         toast.info("เพิ่งบันทึกรายการเดียวกันไปเมื่อสักครู่ — ไม่บันทึกซ้ำ");
       } else if (skipped === "duplicate-open" && doneAlready) {
-        // An OPEN job of this type exists on the room today: the fix belongs
-        // on it (the kanban drawer's repair-log format), not in a new row.
-        const blocker = tasks.find((t) =>
-          t.type === type && t.building === building && t.room === finalRoom &&
-          isTaskDatedToday(t.date) && !isClosedStatus(t.status));
-        if (!blocker) throw new Error("ห้องนี้มีงานค้างแบบเดียวกันวันนี้ — เปิดงานนั้นในกระดานช่างแล้วบันทึกที่งานโดยตรง");
-        const { res: upRes, data: upData } = await resilientPost("/api/sheet/update", {
-          action: "updateTask",
-          id: blocker.id || undefined,
-          match: { date: blocker.date, type: blocker.type, building: blocker.building, room: blocker.room },
-          note: appendRepairLog(blocker.note || "", detail),
+        // The server found an OPEN job with this exact text on this day —
+        // the same job, now finished. Close THAT one (with the cost, category
+        // and who) instead of filing a second row. Matched the way the server
+        // matched: same day as the entry, same text (audit r37).
+        const wantDay = parseThaiDate(dateOut);
+        const blocker = tasks.find((t) => {
+          const d = parseThaiDate(t.date);
+          return t.type === type && t.building === building && t.room === finalRoom &&
+            !isClosedStatus(t.status) && !!d && !!wantDay &&
+            d.getFullYear() === wantDay.getFullYear() && d.getMonth() === wantDay.getMonth() && d.getDate() === wantDay.getDate() &&
+            normText(t.note || "") === normText(detail);
+        });
+        if (!blocker) throw new Error("มีงานค้างข้อความเดียวกันของวันนั้นอยู่แล้ว — ปิดงานนั้นในกระดานช่างแทน");
+        const extras = {
+          ...(costNum > 0 ? { cost: costNum } : {}),
           ...(finalCategory ? { category: finalCategory } : {}),
           ...(finalWho ? { doneBy: finalWho } : {}),
+        };
+        if (Object.keys(extras).length > 0) {
+          const { res: upRes, data: upData } = await resilientPost("/api/sheet/update", {
+            action: "updateTask",
+            id: blocker.id || undefined,
+            match: { date: blocker.date, type: blocker.type, building: blocker.building, room: blocker.room },
+            ...extras,
+          }, { retries: 0 });
+          if (!upData.ok) throw new Error(upData.error || `HTTP ${upRes.status}`);
+        }
+        const { res: stRes, data: stData } = await resilientPost("/api/sheet/update", {
+          action: "updateTaskStatus",
+          id: blocker.id || undefined,
+          date: blocker.date, type: blocker.type, building: blocker.building, room: blocker.room,
+          status: "เสร็จ",
+          ...(finalWho ? { doneBy: finalWho } : {}),
         }, { retries: 0 });
-        if (!upData.ok) throw new Error(upData.error || `HTTP ${upRes.status}`);
+        if (!stData.ok) throw new Error(stData.error || `HTTP ${stRes.status}`);
         written = true;
-        toast.success("ต่อท้ายบันทึกในงานที่เปิดอยู่ของห้องนี้แล้ว");
+        toast.success("ปิดงานค้างที่ตรงกันให้แล้ว (ไม่สร้างรายการซ้ำ)");
       } else if (skipped) {
         // An open job with this text already exists for that day and the
         // user is adding another open one — nothing was written; keep the
@@ -242,7 +287,7 @@ export function RepairLogForm({
           ...(costNum > 0 ? { cost: costNum } : {}),
           ...(finalCategory ? { category: finalCategory } : {}),
           ...(finalWho ? { doneBy: finalWho } : {}),
-          ...(doneAlready ? { doneAt: `${bangkokTodayYmd()} ${new Date().toTimeString().slice(0, 5)}` } : {}),
+          ...(doneAlready && doneToday ? { doneAt: `${bangkokTodayYmd()} ${new Date().toTimeString().slice(0, 5)}` } : {}),
         });
       }
       // Parts leave the stock only when a job was actually written — a
@@ -255,6 +300,7 @@ export function RepairLogForm({
       }
       publishBusEvent({ kind: "data-changed", source: "task", ts: Date.now() });
       refresh();
+      maybeSavedRef.current = false;
       setNote(""); setParts([]); setCost(""); setCategory(""); setCategoryTouched(false);
       onSaved?.();
     } catch (e) {
@@ -272,7 +318,7 @@ export function RepairLogForm({
     <div className={`ac-rlog ${embedded ? "ac-rlog-embedded" : ""}`}>
       {!fixedRoom && (
         <>
-          <div className="ac-rlog-chips" role="radiogroup" aria-label="พื้นที่">
+          <div className="ac-rlog-chips" role="group" aria-label="พื้นที่">
             <button type="button" className={chip(area === "room")} aria-pressed={area === "room"} onClick={() => setArea("room")}>
               <Icon name="doorOpen" /> ห้องพัก
             </button>
@@ -283,22 +329,25 @@ export function RepairLogForm({
 
           <div className="ac-field">
             <span className="ac-rlog-label">ตึก</span>
-            <div className="ac-rlog-chips" role="radiogroup" aria-label="ตึก">
+            <div className="ac-rlog-chips" role="group" aria-label="ตึก">
               {buildings.map((b) => (
                 <button key={b} type="button" className={chip(building === b)} aria-pressed={building === b}
-                  onClick={() => { setBuilding(b); setRoom(""); }}>{b}</button>
+                  onClick={() => { setBuilding(b); setRoom(""); setRoomFilter(""); }}>{b}</button>
               ))}
             </div>
           </div>
 
           {area === "room" ? (
             <div className="ac-field">
-              <label htmlFor="rlog-room-filter" className="ac-rlog-label">ห้อง{room ? ` — ${room}` : ""}</label>
-              {roomChips.length + (roomFilter ? 1 : 0) > 24 && (
-                <input id="rlog-room-filter" inputMode="numeric" value={roomFilter}
+              <span className="ac-rlog-label">ห้อง{room ? ` — ${room}` : ""}</span>
+              {/* Shown by the BUILDING's room count, not the filtered one —
+                  keyed on the filtered list it vanished after one digit and
+                  left the filter stuck (audit r37). */}
+              {buildingRoomCount > 24 && (
+                <input id="rlog-room-filter" aria-label="กรองเลขห้อง" inputMode="numeric" value={roomFilter}
                   onChange={(e) => setRoomFilter(e.target.value)} placeholder="พิมพ์เลขห้องเพื่อกรอง" />
               )}
-              <div className="ac-rlog-chips ac-rlog-rooms" role="radiogroup" aria-label="เลือกห้อง">
+              <div className="ac-rlog-chips ac-rlog-rooms" role="group" aria-label="เลือกห้อง">
                 {roomChips.map((r) => (
                   <button key={`${r.building}|${r.room}`} type="button"
                     className={chip(room === r.room, "ac-rlog-roomchip")} aria-pressed={room === r.room}
@@ -317,8 +366,8 @@ export function RepairLogForm({
 
           <div className="ac-field">
             <span className="ac-rlog-label">ประเภท</span>
-            <div className="ac-rlog-chips" role="radiogroup" aria-label="ประเภทงาน">
-              {MAINT_TYPES.map((t) => (
+            <div className="ac-rlog-chips" role="group" aria-label="ประเภทงาน">
+              {allowedTypes.map((t) => (
                 <button key={t} type="button" className={chip(type === t)} aria-pressed={type === t} onClick={() => setType(t)}>{t}</button>
               ))}
             </div>
@@ -335,7 +384,7 @@ export function RepairLogForm({
       {type === "ซ่อม" && (
         <div className="ac-field">
           <span className="ac-rlog-label">หมวด{!categoryTouched && category ? <span className="ac-rlog-guess"> · เดาจากข้อความ</span> : null}</span>
-          <div className="ac-rlog-chips" role="radiogroup" aria-label="หมวดงานซ่อม">
+          <div className="ac-rlog-chips" role="group" aria-label="หมวดงานซ่อม">
             {REPAIR_CATEGORIES.map((c) => (
               <button key={c} type="button" className={chip(category === c)} aria-pressed={category === c}
                 onClick={() => { setCategory(c); setCategoryTouched(true); }}>{c}</button>
@@ -346,7 +395,7 @@ export function RepairLogForm({
 
       <div className="ac-field">
         <span className="ac-rlog-label">ใครทำ</span>
-        <div className="ac-rlog-chips" role="radiogroup" aria-label="ใครทำ">
+        <div className="ac-rlog-chips" role="group" aria-label="ใครทำ">
           {whoOptions.map((o) => (
             <button key={o.key} type="button" className={chip(!whoCustom && who === o.value)} aria-pressed={!whoCustom && who === o.value}
               onClick={() => { setWho(o.value); setWhoCustom(false); }}>{o.label}</button>
@@ -382,8 +431,8 @@ export function RepairLogForm({
         <div className="ac-rlog-dup" role="alert">
           <div>เพิ่งบันทึกข้อความเดียวกันของห้องนี้ไปเมื่อ {dup.minutesAgo === 0 ? "สักครู่" : `${dup.minutesAgo} นาทีก่อน`} — ซ่อมอีกรอบจริงไหม?</div>
           <div className="ac-rlog-dup-actions">
-            <button type="button" className="ac-btn ac-btn-ghost ac-btn-sm" onClick={() => setDup(null)}>ไม่ใช่ ยกเลิก</button>
-            <button type="button" className="ac-btn ac-btn-secondary ac-btn-sm" onClick={() => void submit(true)}>ใช่ บันทึกอีกรายการ</button>
+            <button type="button" className="ac-btn ac-btn-ghost" onClick={() => setDup(null)}>ไม่ใช่ ยกเลิก</button>
+            <button type="button" className="ac-btn ac-btn-secondary" onClick={() => void submit(true)}>ใช่ บันทึกอีกรายการ</button>
           </div>
         </div>
       )}

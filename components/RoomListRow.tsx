@@ -21,6 +21,26 @@ interface Props {
   onScheduleMoveIn?: (r: RoomView) => void;
   /** The ⋯ quick-actions popover, anchored to the row. */
   onOpenQuick?: (e: React.MouseEvent, r: RoomView) => void;
+  /** Vehicle / equipment counts — the same badges the grid tile shows. */
+  veh?: number;
+  eq?: number;
+}
+
+function daysFromToday(d: Date): number {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.floor((d.getTime() - today.getTime()) / 86_400_000);
+}
+
+/** Nearest open ชมห้อง today or later. */
+function nextViewing(r: RoomView): Date | null {
+  let best: Date | null = null;
+  for (const t of r.upcomingTasks || []) {
+    if (t.type !== "ชมห้อง") continue;
+    const d = parseThaiDate(t.date);
+    if (d && (!best || d < best)) best = d;
+  }
+  return best;
 }
 
 /**
@@ -31,11 +51,18 @@ interface Props {
  * gets a SECOND button beside the row, and a button can't be nested
  * inside the row's own button.
  */
-export default function RoomListRow({ r, showNames, showBuilding = true, onSelect, onScheduleMoveIn, onOpenQuick }: Props) {
+export default function RoomListRow({ r, showNames, showBuilding = true, onSelect, onScheduleMoveIn, onOpenQuick, veh = 0, eq = 0 }: Props) {
   const where = showBuilding ? r.building : (r.floor ? `ชั้น ${r.floor}` : "");
   const outAt = r.status === "moveout" ? nextAppointment(r, "ย้ายออก") : null;
   const inAt = r.status === "pending" ? nextAppointment(r, "ย้ายเข้า") : null;
-  const contractAt = r.status === "occupied" && r.contractEnd ? parseThaiDate(r.contractEnd) : null;
+  // A ว่าง room with only a viewing shows as "pending" too — say when.
+  const viewAt = r.status === "pending" && !inAt ? nextViewing(r) : null;
+  // Contract end: shown only to roles that see tenants (the grid's rule),
+  // coloured when it's within 30 days.
+  const contractAt = r.status === "occupied" && showNames && r.contractEnd ? parseThaiDate(r.contractEnd) : null;
+  const contractDays = contractAt ? daysFromToday(contractAt) : null;
+  const contractTone = contractDays === null || contractDays > 30 ? ""
+    : contractDays < 0 ? "is-expired" : contractDays <= 7 ? "is-soon" : "is-warn";
   const repair = r.status === "repair"
     ? [...(r.todayTasks || []), ...(r.upcomingTasks || []), ...(r.pastTasks || [])].find((t) => t.type === "ซ่อม")
     : undefined;
@@ -45,7 +72,7 @@ export default function RoomListRow({ r, showNames, showBuilding = true, onSelec
   const fallback =
     r.status === "ready" ? (r.needsCleaning ? "ต้องทำสะอาดก่อนเข้าอยู่" : "ว่าง พร้อมเข้าอยู่")
     : r.status === "moveout" ? "แจ้งย้ายออกแล้ว"
-    : r.status === "repair" ? ((repair?.note || "").trim() || "งานซ่อม")
+    : r.status === "repair" ? (repair ? (repair.note || "").trim() || "งานซ่อม" : "ยังไม่มีใบงานซ่อม — สร้างงานซ่อมให้ช่างรู้ว่าต้องทำอะไร")
     : r.status === "qc" && r.needsCleaning ? "ต้องทำสะอาด"
     : "";
   const note = (r.note || "").trim() || fallback;
@@ -63,7 +90,7 @@ export default function RoomListRow({ r, showNames, showBuilding = true, onSelec
     r.status === "ready" ? formatBaht(r.price)
     : r.status === "moveout" ? (outAt ? `ย้ายออก ${formatDateShort(outAt)}` : "")
     : r.status === "occupied" ? (contractAt ? `สัญญาถึง ${formatDateShort(contractAt)}` : "")
-    : r.status === "pending" ? (inAt ? `เข้า ${formatDateShort(inAt)}` : isBooked(r) ? null : "")
+    : r.status === "pending" ? (inAt ? `เข้า ${formatDateShort(inAt)}` : isBooked(r) ? null : viewAt ? `นัดชม ${formatDateShort(viewAt)}` : "")
     : "";
 
   return (
@@ -74,18 +101,30 @@ export default function RoomListRow({ r, showNames, showBuilding = true, onSelec
         onClick={() => onSelect(r)}
         title={`ห้อง ${r.room} อาคาร ${r.building} · ${STATUS_LABEL[r.status]}`}
       >
-        <span className="ac-ready-num">{r.room}</span>
+        <span className="ac-ready-num">
+          {r.room}
+          {r.today && <span className="ac-ready-today" title="มีงานวันนี้" />}
+        </span>
+        {/* Visible text is the accessible name; the status rides along for
+            screen readers (it is the row's colour for everyone else). */}
+        <span className="ac-sr-only">{STATUS_LABEL[r.status]}{r.today ? " มีงานวันนี้" : ""}</span>
         <span className="ac-ready-main">
           <span className="ac-ready-where">
             {who
               ? <>{who}{where && <span className="ac-ready-where-sub"> · {where}</span>}</>
               : <>{where}{showBuilding && r.floor ? ` · ชั้น ${r.floor}` : ""}</>}
           </span>
-          {note && <span className="ac-ready-note" title={note}>{note}</span>}
+          {note && <span className={`ac-ready-note${r.status === "repair" && !repair ? " is-missing" : ""}`} title={note}>{note}</span>}
+          {(veh > 0 || eq > 0) && (
+            <span className="ac-ready-badges">
+              {veh > 0 && <span title={`ยานพาหนะ ${veh} คัน`}><Icon name="vehicle" size={12} /> {veh}</span>}
+              {eq > 0 && <span title={`อุปกรณ์ ${eq} ชิ้น`}><Icon name="maintenance" size={12} /> {eq}</span>}
+            </span>
+          )}
         </span>
         {end === null
           ? !onScheduleMoveIn && <span className="ac-ready-end is-missing">ยังไม่นัดวันเข้า</span>
-          : end && <span className="ac-ready-end">{end}</span>}
+          : end && <span className={`ac-ready-end${r.status === "occupied" && contractTone ? ` ac-ready-contract ${contractTone}` : ""}`}>{end}</span>}
       </button>
       {end === null && onScheduleMoveIn && (
         <button

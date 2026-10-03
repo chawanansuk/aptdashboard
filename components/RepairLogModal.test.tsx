@@ -126,6 +126,57 @@ describe("<RepairLogForm>", () => {
     expect((getByRole("textbox", { name: /ทำอะไรไป/ }) as HTMLTextAreaElement).value).toBe("ก๊อกรั่ว"); // still here
   });
 
+  it("the room filter stays while typing and clears when the building changes", () => {
+    const many = [
+      ...Array.from({ length: 30 }, (_, i) => room({ room: String(101 + i), floor: "1" })),
+      room({ building: "KL", room: "901", floor: "9" }),
+    ];
+    const { getByRole, getByLabelText, queryByRole } = render(<RepairLogForm {...base} rooms={many} />);
+    const filter = getByLabelText("กรองเลขห้อง") as HTMLInputElement;
+    fireEvent.change(filter, { target: { value: "12" } }); // 6 rooms left — box must NOT vanish
+    expect(getByLabelText("กรองเลขห้อง")).toBeTruthy();
+    expect(queryByRole("button", { name: "101" })).toBeNull();
+    fireEvent.click(getByRole("button", { name: "KL" }));
+    expect(getByRole("button", { name: "901" })).toBeTruthy(); // filter reset, KL's room shows
+  });
+
+  it("a manager who is also an engineer defaults 'who' to ช่าง, not to themselves", () => {
+    const { getByRole } = render(<RepairLogForm {...base} roles={["management", "engineer"] as Role[]} />);
+    expect(getByRole("button", { name: "ช่าง" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("an open job with the same text that day is CLOSED with cost/category/who — no second row", async () => {
+    const open = task({ id: "u9", room: "102", date: "2026-10-01", note: "ก๊อกรั่ว", status: "" });
+    postMock
+      .mockResolvedValueOnce({ res: { status: 200 }, data: { ok: true, skipped: "duplicate-open" } })
+      .mockResolvedValue({ res: { status: 200 }, data: { ok: true } });
+    const onSaved = vi.fn();
+    const { getByRole, getByText, getByLabelText } = render(<RepairLogForm {...base} tasks={[open]} onSaved={onSaved} />);
+    fireEvent.click(getByRole("button", { name: "102" }));
+    fireEvent.change(getByRole("textbox", { name: /ทำอะไรไป/ }), { target: { value: "ก๊อกรั่ว" } });
+    fireEvent.change(getByLabelText("ค่าใช้จ่าย (บาท ไม่บังคับ)"), { target: { value: "350" } });
+    fireEvent.click(getByText("ลงย้อนหลัง / ยังไม่เสร็จ"));
+    fireEvent.change(getByLabelText("วันที่ทำ"), { target: { value: "2026-10-01" } });
+    fireEvent.click(getByRole("button", { name: "บันทึก" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    const bodies = postMock.mock.calls.map((c) => c[1] as Record<string, unknown>);
+    expect(bodies.map((b) => b.action)).toEqual(["addTask", "updateTask", "updateTaskStatus"]);
+    expect(bodies[1]).toMatchObject({ id: "u9", cost: 350, category: "ประปา" });
+    expect(bodies[2]).toMatchObject({ id: "u9", status: "เสร็จ" });
+  });
+
+  it("'ใช่ บันทึกอีกรายการ' tells the server to skip its 10-minute guard too", async () => {
+    const tasks = [task({ room: "102", note: "เปลี่ยนหลอดไฟ", createdAt: createdAgo(2) })];
+    const { getByRole } = render(<RepairLogForm {...base} tasks={tasks} />);
+    fireEvent.click(getByRole("button", { name: "102" }));
+    fireEvent.change(getByRole("textbox", { name: /ทำอะไรไป/ }), { target: { value: "เปลี่ยนหลอดไฟ" } });
+    fireEvent.click(getByRole("button", { name: "บันทึก" }));
+    await waitFor(() => expect(getByRole("button", { name: /บันทึกอีกรายการ/ })).toBeTruthy());
+    fireEvent.click(getByRole("button", { name: /บันทึกอีกรายการ/ }));
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    expect(postMock.mock.calls[0][1]).toMatchObject({ allowRecentDuplicate: true });
+  });
+
   it("a room window knows its room: no pickers, the category chips are still there", () => {
     const { queryByRole, getByRole } = render(
       <RepairLogForm {...base} fixedRoom={{ building: "มั่งมี", room: "101" }} embedded />,

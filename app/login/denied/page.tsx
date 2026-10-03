@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { signOut } from "@/auth";
+import ClearClientCaches from "@/components/ClearClientCaches";
 
 // title หลุดจาก layout กลาง (แดชบอร์ดตั้ง <title> ต่อหน้าเอง — audit r22)
 export const metadata: Metadata = { title: "ไม่มีสิทธิ์เข้าใช้งาน · APARTCLOUD" };
@@ -7,6 +8,7 @@ export const metadata: Metadata = { title: "ไม่มีสิทธิ์เ
 export default function DeniedPage() {
   return (
     <div className="ac-login-shell">
+      <ClearClientCaches />
       <div className="ac-login-card">
         <div className="ac-login-logo">
           <div className="ac-login-logo-icon ac-login-logo-icon-warn">!</div>

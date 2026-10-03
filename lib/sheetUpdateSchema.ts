@@ -65,6 +65,9 @@ export const AddTaskSchema = z.object({
   /** v3.36 — repair category / who did the work (lib/repairCategories). */
   category: OptText(40),
   doneBy: OptText(80),
+  /** v3.37 — the user confirmed a genuine second identical job within 10
+   *  minutes; Code.gs skips its duplicate-recent guard for this one. */
+  allowRecentDuplicate: z.boolean().optional(),
 }).strip();
 
 /**

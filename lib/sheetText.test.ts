@@ -17,11 +17,11 @@ describe("asSheetText", () => {
 });
 
 describe("neutralizeFormulas", () => {
-  it("walks nested objects/arrays but never touches row identity (id, match*)", () => {
+  it("walks nested objects/arrays; only match* (row lookup) is left raw", () => {
     const out = neutralizeFormulas({
       note: "=ห้อง!E5",
       items: [{ name: "=1+1", qty: 2 }],
-      id: "=keep",
+      id: "=IMAGE(\"https://evil/\")",
       matchNote: "=keep",
       match: { date: "=keep" },
       cost: -5,
@@ -30,11 +30,13 @@ describe("neutralizeFormulas", () => {
     expect(out).toEqual({
       note: "'=ห้อง!E5",
       items: [{ name: "'=1+1", qty: 2 }],
-      id: "=keep",
+      id: "'=IMAGE(\"https://evil/\")",
       matchNote: "=keep",
       match: { date: "=keep" },
       cost: -5,
       done: true,
     });
+    // a real id (UUID) is untouched
+    expect(neutralizeFormulas({ id: "3f1c9a2e-7b44-4c1e-9d0a-0c6f2b8e1a11" })).toEqual({ id: "3f1c9a2e-7b44-4c1e-9d0a-0c6f2b8e1a11" });
   });
 });

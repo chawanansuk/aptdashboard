@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { canPerform } from "@/lib/permissions";
 import { AI_MODEL, describeAiError, getAnthropic, loadPattern } from "@/lib/ai/patterns";
+import { aiCallAllowed, AI_LIMIT_MESSAGE } from "@/lib/aiRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
   if (!canPerform(session.user.roles, "part.edit")) {
     return bad("ไม่มีสิทธิ์บันทึกการซื้อ", 403);
   }
+  if (!(await aiCallAllowed(session.user.email))) return bad(AI_LIMIT_MESSAGE, 429);
   // audit r35: reject oversized uploads BEFORE buffering the body — the
   // post-parse guard below only runs after the whole payload is in memory.
   const declared = Number(req.headers.get("content-length") || 0);

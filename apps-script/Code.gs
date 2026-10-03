@@ -1,9 +1,17 @@
 /**
- * Code.gs v3.36.0 — Dashboard หอพัก
+ * Code.gs v3.37.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.37.0 (audit r37):
+ *   - ลงงานซ่อมย้อนหลังเป็น "เสร็จ": ไม่ประทับ "เสร็จเมื่อ" เป็นวันนี้ (เดิมงานของเดือนก่อน
+ *     ที่มาลงวันนี้ไปนับในวันนี้/เดือนนี้ทั้งบันทึกซ่อมบำรุง รายงาน และกระดานช่าง)
+ *   - addTask_ รับ allowRecentDuplicate: ผู้ใช้ยืนยันแล้วว่าซ่อมซ้ำจริงภายใน 10 นาที
+ *     → ข้ามตัวกัน duplicate-recent (เดิมกด "ใช่ บันทึกอีกรายการ" แล้วไม่เกิดอะไร)
+ *   - ensureTaskExtraColumns_: ถ้าคอลัมน์ M–O ของชีทงานมีหัวอื่นอยู่ (คนเพิ่มคอลัมน์เอง)
+ *     หยุดพร้อมบอกให้ย้าย แทนที่จะเขียนหมวด/เสร็จเมื่อทับข้อมูลของคนอื่น
  *
  * NEW v3.36.0 (งานซ่อมจุกจิก รอบ 1):
  *   - ชีทงานเพิ่ม 3 คอลัมน์ท้ายสุด (สร้างหัวให้เองครั้งแรกที่เขียน): M หมวด (ไฟฟ้า/ประปา/
@@ -550,7 +558,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.36.0';
+var BACKEND_VERSION = '3.37.0';
 
 function doGet() {
   // v3.32 (audit r35): เมื่อเปิด SHARED_SECRET แล้ว GET ไม่ผ่านด่านลับ — ไม่ควรบอก
@@ -1086,12 +1094,19 @@ function ensureTaskCostColumn_(sh) {
 /** v3.36: columns M–O (หมวด / ใครซ่อม / เสร็จเมื่อ). Idempotent; fills only
  *  a blank header so a tab someone already extended by hand is left alone. */
 function ensureTaskExtraColumns_(sh) {
-  if (sh.getLastColumn() >= TASK_COL.DONE_AT &&
-      norm(sh.getRange(1, TASK_COL.DONE_AT).getValue()) !== '') return;
   const heads = [[TASK_COL.CATEGORY, 'หมวด'], [TASK_COL.DONE_BY, 'ใครซ่อม'], [TASK_COL.DONE_AT, 'เสร็จเมื่อ']];
+  const current = sh.getRange(1, TASK_COL.CATEGORY, 1, 3).getValues()[0].map(norm);
+  // v3.37: a header that is neither blank nor ours means someone put their
+  // own column here — writing หมวด/เสร็จเมื่อ into it would corrupt their
+  // data (and getTasks_ would read their values back as ours). Stop and say so.
   for (let i = 0; i < heads.length; i++) {
-    const cell = sh.getRange(1, heads[i][0]);
-    if (norm(cell.getValue()) === '') cell.setValue(heads[i][1]).setFontWeight('bold');
+    if (current[i] !== '' && current[i] !== heads[i][1]) {
+      throw new Error('ชีทงาน คอลัมน์ ' + String.fromCharCode(64 + heads[i][0]) + ' มีหัว "' + current[i] +
+        '" อยู่แล้ว — แอปต้องใช้ M หมวด / N ใครซ่อม / O เสร็จเมื่อ: ย้ายคอลัมน์นั้นไปทางขวาแล้วลองใหม่');
+    }
+  }
+  for (let i = 0; i < heads.length; i++) {
+    if (current[i] === '') sh.getRange(1, heads[i][0]).setValue(heads[i][1]).setFontWeight('bold');
   }
 }
 
@@ -1351,7 +1366,7 @@ function addTask_(b) {
         // v3.36: งานที่ส่งมาเป็น "เสร็จ" (บันทึกซ่อมจุกจิก) เคยอยู่นอกตัวกันซ้ำนี้ —
         // กดบันทึกสองรอบ/เน็ตสะดุด = สองแถว ต้นทุนนับซ้ำ. แถวที่เสร็จแล้ว หมายเหตุ
         // เดียวกัน และเพิ่งสร้างไม่เกิน 10 นาที = รายการเดิม ไม่ใช่ซ่อมรอบใหม่
-        if (inIsDone && existingStatus !== 'ยกเลิก' && inNote === norm(rowVals[TASK_COL.NOTE - 1])) {
+        if (inIsDone && !b.allowRecentDuplicate && existingStatus !== 'ยกเลิก' && inNote === norm(rowVals[TASK_COL.NOTE - 1])) {
           const createdMin = wallMinutes_(rowVals[TASK_COL.CREATED_AT - 1]);
           if (createdMin !== null && nowMin !== null && nowMin - createdMin <= 10) {
             return { appended: false, skipped: 'duplicate-recent', row: existingRows[i] };
@@ -1393,7 +1408,10 @@ function addTask_(b) {
   const newId = Utilities.getUuid(); // v3.21 — stable identity
   row.push(newId);
   // v3.36 — หมวด / ใครซ่อม / เสร็จเมื่อ (a task filed as done is done NOW)
-  row.push(norm(b.category), norm(b.doneBy), inIsDone ? nowStr : '');
+  // v3.37: เสร็จเมื่อ = now only when the job's date IS today. A job logged
+  // back-dated as done belongs to its own day (blank → readers use DATE).
+  const isTodayJob = taskDayTime_(b.date) === bkkToday_().getTime();
+  row.push(norm(b.category), norm(b.doneBy), inIsDone && isTodayJob ? nowStr : '');
   sh.appendRow(row);
   clearTasksCache_();
   return { appended: true, row: sh.getLastRow(), id: newId };

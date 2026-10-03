@@ -159,6 +159,21 @@ export async function redisSetJson(
   );
 }
 
+/**
+ * Fixed-window rate limit (audit r37 M4 — the AI routes call a paid model
+ * on every request). INCR the window's counter; the first hit sets its
+ * expiry. Returns true when the call is allowed. Without Redis (or on any
+ * Redis error) it allows — the limit is a guard against runaway use, not
+ * something worth breaking the feature over.
+ */
+export async function redisRateLimit(key: string, limit: number, windowSec: number): Promise<boolean> {
+  if (!redisEnabled()) return true;
+  const n = await command<number>(["INCR", key]);
+  if (n === null) return true;
+  if (n === 1) void keepAlive(command(["EXPIRE", key, windowSec]));
+  return n <= limit;
+}
+
 /** DELETE keys — called on writes so every instance sees fresh data. */
 export async function redisDel(...keys: string[]): Promise<void> {
   if (keys.length === 0) return;

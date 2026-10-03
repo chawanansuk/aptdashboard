@@ -2179,6 +2179,23 @@ html.dark .ac-ready-card { background: var(--color-surface-2); }
 .ac-ready-item-ready   { --rr-soft: var(--status-ready-soft);   --rr-border: var(--status-ready-border);   --rr-ink: var(--status-ready-ink); }
 .ac-ready-item-moveout { --rr-soft: var(--status-moveout-soft); --rr-border: var(--status-moveout-border); --rr-ink: var(--status-moveout-ink); }
 .ac-ready-item-pending { --rr-soft: var(--status-pending-soft); --rr-border: var(--status-pending-border); --rr-ink: var(--status-pending-ink); }
+.ac-ready-num { position: relative; }
+.ac-ready-today {
+  position: absolute; top: -3px; right: -3px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--status-moveout); box-shadow: 0 0 0 2px var(--color-surface);
+}
+.ac-ready-badges { display: inline-flex; gap: 8px; font-size: var(--text-xs); color: var(--color-text-muted); }
+.ac-ready-badges > span { display: inline-flex; align-items: center; gap: 2px; }
+.ac-ready-note.is-missing { color: var(--status-repair-ink); }
+.ac-ready-contract { padding: 2px 8px; border-radius: 999px; font-size: var(--text-xs); }
+.ac-ready-contract.is-warn    { background: var(--status-repair-soft);  color: var(--status-repair-ink); }
+.ac-ready-contract.is-soon,
+.ac-ready-contract.is-expired { background: var(--status-moveout-soft); color: var(--status-moveout-ink); }
+.ac-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 .ac-ready-item-occupied { --rr-soft: var(--status-occupied-soft); --rr-border: var(--status-occupied-border); --rr-ink: var(--status-occupied-ink); }
 .ac-ready-item-qc       { --rr-soft: var(--status-qc-soft);       --rr-border: var(--status-qc-border);       --rr-ink: var(--status-qc-ink); }
 .ac-ready-item-repair   { --rr-soft: var(--status-repair-soft);   --rr-border: var(--status-repair-border);   --rr-ink: var(--status-repair-ink); }
@@ -10918,6 +10935,16 @@ html.dark .ac-mlog-cost { color: #94A3B8; }
 .ac-rlog-actions { display: flex; justify-content: flex-end; }
 .ac-rlog-embedded .ac-rlog-actions .ac-btn { min-width: 160px; }
 @media (pointer: coarse) { .ac-rlog-chips .ac-chip { min-height: 44px; } }
+/* The form is long on a phone — keep Save in reach (it sits inside the
+   scrolling modal body, so it has to stick). */
+.ac-rlog > .ac-modal-foot {
+  position: sticky; bottom: 0; z-index: 1;
+  margin: 4px calc(-1 * var(--space-5)) calc(-1 * var(--space-4));
+  padding: 12px var(--space-5) calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--color-surface); border-top: 1px solid var(--color-border);
+}
+.ac-rlog-more > summary { min-height: 44px; display: flex; align-items: center; }
+.ac-rlog-actions .ac-btn, .ac-rlog-dup-actions .ac-btn { min-height: 44px; }
 
 .ac-mlog-donechk {
   display: flex; align-items: center; gap: 8px;

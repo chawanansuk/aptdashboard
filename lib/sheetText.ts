@@ -12,8 +12,10 @@
  * and returns the text without it. Plain numbers ("-3", "+66 81 234
  * 5678") are left alone so numeric fields keep their current behaviour.
  *
- * `match*` keys and `id` locate an EXISTING row by its stored values, so
- * they are passed through untouched.
+ * `match*` keys locate an EXISTING row by its stored values, so they are
+ * passed through untouched. `id` is NOT exempt (audit r37 M1): several
+ * routes forward a client body whose `id` lands in the audit sheet via
+ * appendRow; real ids are UUIDs, which never start with = + - @.
  */
 
 const FORMULA_START = /^[=+\-@]/;
@@ -24,7 +26,7 @@ export function asSheetText(v: string): string {
 }
 
 function isIdentityKey(key: string): boolean {
-  return key === "id" || key.startsWith("match");
+  return key.startsWith("match");
 }
 
 export function neutralizeFormulas<T>(value: T): T {

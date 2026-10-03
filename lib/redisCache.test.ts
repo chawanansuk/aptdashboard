@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  redisEnabled, redisGetJson, redisSetJson, redisDel, isCachedSlice,
+  redisEnabled, redisGetJson, redisSetJson, redisDel, isCachedSlice, redisRateLimit,
 } from "./redisCache";
 
 const fetchMock = vi.fn();
@@ -117,5 +117,28 @@ describe("isCachedSlice", () => {
     expect(isCachedSlice({ rows: [] })).toBe(false);
     expect(isCachedSlice({ at: "old", rows: [] })).toBe(false);
     expect(isCachedSlice({ at: 1, rows: "not-array" })).toBe(false);
+  });
+});
+
+describe("redisRateLimit (audit r37 — AI routes)", () => {
+  const reply = (n: number) => ({ ok: true, status: 200, json: async () => ({ result: n }) } as Response);
+
+  it("allows up to the limit, then refuses; the window's first hit sets the expiry", async () => {
+    fetchMock.mockResolvedValueOnce(reply(1)).mockResolvedValueOnce(reply(1)); // INCR → 1, EXPIRE
+    expect(await redisRateLimit("k", 2, 3600)).toBe(true);
+    const sent = fetchMock.mock.calls.map((c) => JSON.parse((c[1] as RequestInit).body as string));
+    expect(sent[0]).toEqual(["INCR", "k"]);
+    expect(sent[1]).toEqual(["EXPIRE", "k", 3600]);
+    fetchMock.mockResolvedValueOnce(reply(2));
+    expect(await redisRateLimit("k", 2, 3600)).toBe(true);
+    fetchMock.mockResolvedValueOnce(reply(3));
+    expect(await redisRateLimit("k", 2, 3600)).toBe(false);
+  });
+
+  it("fails open: no Redis, or Redis down, never blocks the feature", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("down"));
+    expect(await redisRateLimit("k", 1, 60)).toBe(true);
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    expect(await redisRateLimit("k", 0, 60)).toBe(true);
   });
 });
