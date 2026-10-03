@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canAccess } from "@/lib/permissions";
 import { AI_MODEL, describeAiError, getAnthropic, loadPattern } from "@/lib/ai/patterns";
+import { aiCallAllowed, AI_LIMIT_MESSAGE } from "@/lib/aiRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.email) return bad("unauthenticated", 401);
   if (!canAccess(session.user.roles, "maintlog")) return bad("ไม่มีสิทธิ์ดูบันทึกซ่อมบำรุง", 403);
+  if (!(await aiCallAllowed(session.user.email))) return bad(AI_LIMIT_MESSAGE, 429);
 
   let body: { periodLabel?: unknown; digestMarkdown?: unknown };
   try {

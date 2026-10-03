@@ -5,6 +5,7 @@ import { auth, signIn } from "@/auth";
 // ตั้งของตัวเองที่นี่.
 export const metadata: Metadata = { title: "เข้าสู่ระบบ · APARTCLOUD" };
 import { redirect } from "next/navigation";
+import ClearClientCaches from "@/components/ClearClientCaches";
 
 interface PageProps {
   searchParams: Promise<{ callbackUrl?: string }>;
@@ -21,6 +22,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
 
   return (
     <div className="ac-login-shell">
+      <ClearClientCaches />
       <div className="ac-login-card">
         <div className="ac-login-logo">
           <div className="ac-login-logo-icon">A</div>

@@ -12,6 +12,7 @@ import { isManagement } from "@/lib/permissions";
 import NotificationDropdown from "./NotificationDropdown";
 import QuickActionMenu, { type QuickAction } from "./QuickActionMenu";
 import type { NotificationItem } from "@/lib/notifications";
+import { clearClientCaches } from "@/lib/cacheData";
 
 interface Props {
   buildings: string[]; // includes "ทั้งหมด" first
@@ -449,7 +450,7 @@ export default function AppHeader({
                   className="ac-user-signout"
                   onClick={() => {
                     closeMenu();
-                    signOut({ callbackUrl: "/login" });
+                    void clearClientCaches().finally(() => signOut({ callbackUrl: "/login" }));
                   }}
                 >
                   ออกจากระบบ

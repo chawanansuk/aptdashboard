@@ -6,6 +6,7 @@ import { canAddCleanTask, canAddEngTask, canAddSalesTask } from "@/lib/permissio
 import { AI_MODEL, describeAiError, getAnthropic, loadPattern } from "@/lib/ai/patterns";
 import { cleanParsedTask, TASK_TYPES_ALL } from "@/lib/ai/taskParse";
 import { bangkokTodayYmd } from "@/lib/dateUtils";
+import { aiCallAllowed, AI_LIMIT_MESSAGE } from "@/lib/aiRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
   if (!canAddSalesTask(roles) && !canAddEngTask(roles) && !canAddCleanTask(roles)) {
     return bad("ไม่มีสิทธิ์เพิ่มงาน", 403);
   }
+  if (!(await aiCallAllowed(session.user.email))) return bad(AI_LIMIT_MESSAGE, 429);
 
   let body: { text?: unknown; buildings?: unknown; rooms?: unknown };
   try {
@@ -56,11 +58,15 @@ export async function POST(req: Request) {
   const text = typeof body.text === "string" ? body.text.trim() : "";
   if (!text) return bad("ใส่ข้อความก่อน");
   if (text.length > 4000) return bad("ข้อความยาวเกินไป (เกิน 4,000 ตัวอักษร)");
+  // audit r37 M4: the list goes into the prompt — cap it so it can't be
+  // used to send an arbitrarily large input past the 4,000-char text cap.
   const buildings = Array.isArray(body.buildings)
-    ? (body.buildings as unknown[]).filter((b): b is string => typeof b === "string" && b.trim() !== "" && b !== "ทั้งหมด")
+    ? (body.buildings as unknown[])
+        .filter((b): b is string => typeof b === "string" && b.trim() !== "" && b !== "ทั้งหมด")
+        .slice(0, 50).map((b) => b.slice(0, 40))
     : [];
   const rooms = Array.isArray(body.rooms)
-    ? (body.rooms as { building?: unknown; room?: unknown }[])
+    ? (body.rooms as { building?: unknown; room?: unknown }[]).slice(0, 2000)
         .filter((r) => typeof r?.building === "string" && typeof r?.room === "string")
         .map((r) => ({ building: String(r.building), room: String(r.room) }))
     : [];

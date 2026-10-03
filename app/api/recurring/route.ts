@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canAddEngTask } from "@/lib/permissions";
+import { isTaskType, taskTypeDenied } from "@/lib/taskTypePermission";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { SwrSlot, serveCachedRows } from "@/lib/serverSwr";
 import { invalidateTasksCache } from "@/lib/dashboardCache";
@@ -79,6 +80,11 @@ export async function POST(req: Request) {
     const interval = Number(body.intervalDays);
     if (!name) return bad("name required");
     if (!type) return bad("type required");
+    // audit r37 L2: a template creates a task of this type every cycle —
+    // the same type gate as adding the task by hand.
+    if (!isTaskType(type)) return bad(`ประเภทงาน "${type}" ไม่มีในระบบ`);
+    const denied = taskTypeDenied(type, session.user.roles);
+    if (denied) return bad(denied, 403);
     if (!Number.isFinite(interval) || interval <= 0) {
       return bad("intervalDays must be a positive number");
     }

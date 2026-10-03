@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import type { Role } from "@/auth";
 import { canPerform, canViewTaskCustomer, type Action } from "@/lib/permissions";
+import { taskTypeDenied } from "@/lib/taskTypePermission";
 import { invalidateDashboardCache } from "@/lib/dashboardCache";
 import { redisBumpEpoch, redisDel, REDIS_ROOMS_KEY, REDIS_TASKS_KEY } from "@/lib/redisCache";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
@@ -33,10 +34,6 @@ const IDEMPOTENT_WRITE_ACTIONS = new Set([
 /** r32: ข้อความตอน Google ตอบช้าจนหมดเวลา — บอกตรงๆ ว่าอาจเข้าแล้ว ไม่ใช่ "write failed" */
 const WRITE_TIMEOUT_MESSAGE =
   "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว รีเฟรชดูก่อน ถ้ายังไม่ขึ้นค่อยกดใหม่";
-
-const SALES_TYPES = new Set(["ย้ายเข้า", "ย้ายออก", "ชมห้อง"]);
-const CLEAN_TYPES = new Set(["ทำสะอาด"]);
-const ENG_TYPES   = new Set(["ซ่อม"]);
 
 /** Map Apps Script action → permission Action. Null = not authorized. */
 function actionToPermission(action: SheetUpdateBody["action"]): Action | null {
@@ -76,17 +73,7 @@ function checkTaskTypePermission(
   // pass the same gate as creating one. An unchanged type is not a change.
   if (action !== "addTask" && !(action === "updateTask" && type !== originalType)) return null;
   if (!type) return null; // ปล่อย Apps Script ตรวจ schema เอง
-  const label = (roles || []).join("+") || "none";
-  if (SALES_TYPES.has(type) && !canPerform(roles, "task.add.sales")) {
-    return `role "${label}" ไม่มีสิทธิ์เพิ่มงานประเภท "${type}" (งานฝ่ายเซลส์)`;
-  }
-  if (CLEAN_TYPES.has(type) && !canPerform(roles, "task.add.clean")) {
-    return `role "${label}" ไม่มีสิทธิ์เพิ่มงานประเภท "${type}" (งานทำสะอาด)`;
-  }
-  if (ENG_TYPES.has(type) && !canPerform(roles, "task.add.eng")) {
-    return `role "${label}" ไม่มีสิทธิ์เพิ่มงานประเภท "${type}" (งานฝ่ายช่าง)`;
-  }
-  return null;
+  return taskTypeDenied(type, roles);
 }
 
 export async function POST(req: Request) {
