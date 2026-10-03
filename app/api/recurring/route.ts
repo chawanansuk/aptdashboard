@@ -33,6 +33,12 @@ export const maxDuration = 60;
  * the slot so the next read reflects the change.
  */
 
+interface AutomationStatus {
+  recurringDaily: boolean;
+  emailDaily: boolean;
+  lastRecurringRun: { at: string; created: number; skipped: number } | null;
+}
+
 // Server-side SWR slot for the recurring template list.
 const recurringSlot = new SwrSlot<RecurringTemplate[]>();
 
@@ -53,6 +59,16 @@ export async function GET(req: Request) {
   if (!session?.user?.email) return bad("unauthenticated", 401);
   if (!canAddEngTask(session.user.roles)) {
     return bad("ไม่มีสิทธิ์ดูงานประจำ", 403);
+  }
+  // v3.38: ?status=1 → is the daily auto-run on, and how did it last go.
+  // An older backend without the action answers ok:false → "unknown".
+  if (new URL(req.url).searchParams.get("status") === "1") {
+    try {
+      const j = await appsScriptCall<AutomationStatus>("getAutomationStatus", {}, { idempotent: true, timeoutMs: 15_000 });
+      return NextResponse.json(j.ok && j.result ? { ok: true, ...j.result } : { ok: false });
+    } catch {
+      return NextResponse.json({ ok: false });
+    }
   }
   return serveCachedRows(recurringSlot, fetchRecurring, "ดึงงานประจำไม่สำเร็จ", { req, etagTag: "recurring", epoch: "recurring" });
 }
