@@ -1,5 +1,8 @@
 # Apartment Dashboard - Progress Tracker
 
+> **เอกสารประวัติ — หยุดอัปเดตที่ Phase 3.2 / Code.gs v3.2.1.** สถานะปัจจุบันดูที่: คำอธิบาย PR บน GitHub
+> (แต่ละรอบ audit/ฟีเจอร์), comment `NEW vX` หัว `apps-script/Code.gs`, และ `CHANGELOG.md`
+
 ## Current Status
 
 ### Phase 3.1 (DONE)

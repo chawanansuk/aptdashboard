@@ -6,6 +6,10 @@ import {
 } from "./roomStatus";
 
 describe("normalizeRoomStatus (Task 11+31)", () => {
+  it("'จอง' — the sheet's old dropdown value — is a booking, not ไม่ได้ใช้งาน", () => {
+    expect(normalizeRoomStatus("จอง")).toBe("pending");
+  });
+
   describe("occupied aliases coalesce to 'occupied'", () => {
     it("'มีผู้เช่า' (canonical)", () => {
       expect(normalizeRoomStatus("มีผู้เช่า")).toBe("occupied");

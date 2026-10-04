@@ -43,9 +43,11 @@
 
 | ชื่อ | ค่า |
 |---|---|
-| `NEXT_PUBLIC_SHEET_CSV_URL` | URL CSV ของชีต "งาน" |
-| `NEXT_PUBLIC_SHEET_ROOMS_CSV_URL` | URL CSV ของชีต "ห้อง" |
-| `SHEET_WRITE_URL` | URL ของ Apps Script Web App (ดูขั้น 4) |
+| `SHEET_ROOMS_CSV_URL` | URL CSV ของชีต "ห้อง" (ชื่อเก่า `NEXT_PUBLIC_SHEET_ROOMS_CSV_URL` ยังใช้ได้ แต่ควรเปลี่ยน) |
+| `SHEET_WRITE_URL` | URL ของ Apps Script Web App (ดูขั้น 4) — งานและข้อมูลอื่นอ่าน/เขียนผ่านตัวนี้ |
+| `APPS_SCRIPT_SECRET` | ความลับเดียวกับ Script Property `SHARED_SECRET` |
+
+> `NEXT_PUBLIC_SHEET_CSV_URL` (CSV ชีต "งาน") **ไม่ใช้แล้ว** — ไม่ต้องตั้ง. ตัวแปรครบชุดดู `.env.example`
 
 โปรด redeploy 1 รอบหลังตั้งค่า
 

@@ -1,9 +1,18 @@
 /**
- * Code.gs v3.37.0 — Dashboard หอพัก
+ * Code.gs v3.38.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.38.0:
+ *   - งานประจำสร้างเองทุกเช้า ~06:00 (runRecurringDaily) — เปิดครั้งเดียวจากเมนูในชีต
+ *     "🏠 หอพัก › ⚙️ อัปเดตระบบ + เปิดงานประจำอัตโนมัติ" (เมนูเดียวกันนี้อัปเดต dropdown
+ *     สถานะงานให้มี "ติดขัด", dropdown สถานะห้องให้ตรงกับแอป (เดิมมี "จอง" ที่แอปไม่รู้จัก
+ *     ห้องเลยขึ้นเป็นไม่ได้ใช้งาน) และสร้างคอลัมน์ M–O ถ้ายังไม่มี). แอปแสดงสถานะผ่าน
+ *     getAutomationStatus
+ *   - ปิดงานในชีทโดยตรง (เปลี่ยนสถานะเป็น "เสร็จ" หรือเมนู "ปิดงานวันนี้ที่เลือก") ประทับ
+ *     "เสร็จเมื่อ" ด้วย — เดิมเฉพาะปิดจากแอป
  *
  * NEW v3.37.0 (audit r37):
  *   - ลงงานซ่อมย้อนหลังเป็น "เสร็จ": ไม่ประทับ "เสร็จเมื่อ" เป็นวันนี้ (เดิมงานของเดือนก่อน
@@ -199,8 +208,10 @@ const SHEET_NAMES = {
 };
 
 const TYPE_OPTIONS   = ['ย้ายเข้า', 'ย้ายออก', 'ทำสะอาด', 'ชมห้อง', 'ซ่อม', 'อื่นๆ'];
-const STATUS_OPTIONS = ['ว่าง', 'pending', 'กำลังทำ', 'เสร็จ', 'ยกเลิก'];
-const ROOM_STATUS    = ['ว่าง', 'มีผู้เช่า', 'จอง', 'ซ่อม', 'ไม่ได้ใช้งาน'];
+const STATUS_OPTIONS = ['ว่าง', 'pending', 'กำลังทำ', 'ติดขัด', 'เสร็จ', 'ยกเลิก']; // v3.38: + ติดขัด (แอปใช้มาตลอด)
+// v3.38: same list the app's room window offers (lib/constants RAW_STATUS_OPTIONS).
+// The old one had "จอง", which the app didn't know → the room showed as ไม่ได้ใช้งาน.
+const ROOM_STATUS    = ['มีคนอยู่', 'ว่าง', 'รอสัญญา', 'แจ้งย้ายออก', 'ปรับปรุง', 'ไม่ได้ใช้งาน'];
 const EQUIPMENT_TYPES  = ['แอร์', 'เครื่องซักผ้า', 'ตู้เย็น', 'เครื่องทำน้ำอุ่น', 'โทรทัศน์', 'ไมโครเวฟ', 'อื่นๆ'];
 const EQUIPMENT_STATUS = ['ปกติ', 'ต้องซ่อม', 'กำลังซ่อม', 'ใช้ไม่ได้'];
 const FACILITY_TYPES   = ['รอบล้างแอร์', 'รอบล้างเครื่องซักผ้า', 'ปั๊มน้ำ', 'ไฟส่วนกลาง', 'ต้นไม้', 'ทางเดินส่วนกลาง', 'อื่นๆ'];
@@ -543,6 +554,7 @@ function doPost(e) {
       case 'addRecurring':     return ok_(withWriteLock_(function () { return addRecurring_(body); }));
       case 'deleteRecurring':  return ok_(withWriteLock_(function () { return deleteRecurring_(body); }));
       case 'runRecurringCheck':return ok_(withWriteLock_(function () { return runRecurringCheck_(body); }));
+      case 'getAutomationStatus': return ok_({ result: getAutomationStatus_() }); // v3.38
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -558,7 +570,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.37.0';
+var BACKEND_VERSION = '3.38.0';
 
 function doGet() {
   // v3.32 (audit r35): เมื่อเปิด SHARED_SECRET แล้ว GET ไม่ผ่านด่านลับ — ไม่ควรบอก
@@ -793,6 +805,109 @@ function setupDailyEmailReminder() {
   ScriptApp.newTrigger('sendMaintenanceReminderEmail')
     .timeBased().everyDays(1).atHour(7).create();
   return 'ตั้งแจ้งเตือนรายวัน ~07:00 แล้ว → ' + emailRecipients_();
+}
+
+/* ========== AUTOMATION (v3.38) ==========
+ * งานประจำเคยสร้างก็ต่อเมื่อมีคนกด "ตรวจและสร้าง" ในแอป — วันไหนไม่มีใครกด งานล้างแอร์/
+ * เช็คปั๊มก็ไม่เกิด. ตอนนี้ trigger รายวันรันให้เองตอนเช้า. ติดตั้งครั้งเดียวจากเมนู
+ * "⚙️ อัปเดตระบบ" (ต้องเป็นเจ้าของชีท — Google ให้สร้าง trigger ได้เฉพาะเจ้าของ).
+ */
+var RECURRING_AUTO_PROP = 'RECURRING_LAST_AUTO';
+
+/** Time-trigger handler: create today's recurring tasks. Retries once if a
+ *  user happens to be saving at that moment (write lock busy). */
+function runRecurringDaily() {
+  let res;
+  try {
+    res = withWriteLock_(function () { return runRecurringCheck_({ user: 'auto' }); });
+  } catch (e) {
+    if (!/busy/.test(String(e && e.message))) throw e;
+    Utilities.sleep(15000);
+    res = withWriteLock_(function () { return runRecurringCheck_({ user: 'auto' }); });
+  }
+  PropertiesService.getScriptProperties().setProperty(RECURRING_AUTO_PROP, JSON.stringify({
+    at: Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm'),
+    created: res.created, skipped: res.skipped,
+  }));
+  return res;
+}
+
+/** What runs by itself — shown in the app's งานประจำ tab. */
+function getAutomationStatus_() {
+  const handlers = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
+  let last = null;
+  try { last = JSON.parse(PropertiesService.getScriptProperties().getProperty(RECURRING_AUTO_PROP) || 'null'); }
+  catch (e) { last = null; }
+  return {
+    recurringDaily: handlers.indexOf('runRecurringDaily') >= 0,
+    emailDaily: handlers.indexOf('sendMaintenanceReminderEmail') >= 0,
+    lastRecurringRun: last,
+  };
+}
+
+/** Menu "⚙️ อัปเดตระบบ + เปิดงานประจำอัตโนมัติ" — the one step to run after a
+ *  redeploy. Idempotent: re-running replaces the trigger, re-applies the
+ *  status dropdown, adds missing task columns. */
+function updateSystem() {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'runRecurringDaily') ScriptApp.deleteTrigger(triggers[i]);
+  }
+  ScriptApp.newTrigger('runRecurringDaily').timeBased().everyDays(1).atHour(6).create();
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const done = ['งานประจำ: สร้างเองทุกเช้า ~06:00'];
+  const taskSh = ss.getSheetByName(SHEET_NAMES.TASK);
+  if (taskSh) {
+    const lastRow = Math.max(taskSh.getMaxRows(), 1000);
+    taskSh.getRange(2, TASK_COL.STATUS, lastRow - 1, 1).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireValueInList(STATUS_OPTIONS, true).setAllowInvalid(true).build()
+    );
+    done.push('dropdown สถานะงานมี "ติดขัด"');
+  }
+  const roomSh = ss.getSheetByName(SHEET_NAMES.ROOM);
+  if (roomSh) {
+    const hdr = roomSh.getRange(1, 1, 1, roomSh.getLastColumn()).getValues()[0].map(norm);
+    const iStatus = roomHeaderCols_(hdr).status;
+    if (iStatus >= 0) {
+      const lastRoomRow = Math.max(roomSh.getMaxRows(), 1000);
+      roomSh.getRange(2, iStatus + 1, lastRoomRow - 1, 1).setDataValidation(
+        SpreadsheetApp.newDataValidation().requireValueInList(ROOM_STATUS, true).setAllowInvalid(true).build()
+      );
+      done.push('dropdown สถานะห้องตรงกับแอป');
+    }
+  }
+  if (taskSh) {
+    try {
+      ensureTaskCostColumn_(taskSh);
+      ensureTaskIdColumn_(taskSh);
+      ensureTaskExtraColumns_(taskSh);
+      done.push('คอลัมน์ หมวด/ใครซ่อม/เสร็จเมื่อ พร้อม');
+    } catch (e) {
+      done.push('⚠ ' + e.message);
+    }
+  }
+  const msg = 'อัปเดตระบบ v' + BACKEND_VERSION + ' แล้ว ✅\n• ' + done.join('\n• ');
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { /* run from the editor: no UI */ }
+  return msg;
+}
+
+/** Stamp/clear DONE_AT for rows closed or reopened directly in the sheet
+ *  (onEdit / the menu) — the app's updateTaskStatus_ does it for its own
+ *  writes. Never throws: a sheet edit must not fail over this. */
+function stampDoneAtFromSheet_(sh, startRow, numRows, status) {
+  try {
+    if (sh.getLastColumn() < TASK_COL.DONE_AT) ensureTaskExtraColumns_(sh);
+    const isDone = status === 'เสร็จ' || status === 'done' || status === 'ปิดแล้ว';
+    const isCancel = status === 'ยกเลิก' || status === 'cancelled' || status === 'ไม่สนใจ';
+    if (isCancel) return;
+    const rng = sh.getRange(startRow, TASK_COL.DONE_AT, numRows, 1);
+    if (!isDone) { rng.setValue(''); return; }
+    const nowStr = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
+    const cur = rng.getValues();
+    for (let i = 0; i < cur.length; i++) if (norm(cur[i][0]) === '') cur[i][0] = nowStr; // keep an earlier stamp
+    rng.setValues(cur);
+  } catch (e) { /* foreign column / no access — leave it */ }
 }
 
 /* ========== DEFECT PHOTOS (v3.25.0) ==========
@@ -2883,7 +2998,7 @@ function getAllAudit_(b) {
  *   11:ผู้สร้าง  12:วันที่สร้าง
  *
  * Run policy:
- *   - User calls runRecurringCheck (manual button or daily)
+ *   - runRecurringDaily (time trigger ~06:00, v3.38) or the app's "ตรวจและสร้าง" button
  *   - For each active template with nextRunDate <= today:
  *       1. Create task row in งาน sheet (today's date)
  *       2. Update template's lastRunDate=today, nextRunDate=today+interval
@@ -3116,7 +3231,7 @@ function setup() {
   setConditionalFormatting_(ss);
   fixDates_(ss);
   setupFilterViews_(ss);
-  SpreadsheetApp.getActive().toast('Setup v3.10.0 เสร็จ ✅', 'หอพัก', 5);
+  SpreadsheetApp.getActive().toast('Setup v' + BACKEND_VERSION + ' เสร็จ ✅', 'หอพัก', 5);
 }
 
 function freezeAll_(ss) {
@@ -3289,6 +3404,10 @@ function onEdit(e) {
   if (name === SHEET_NAMES.ROOM) clearRoomsCache_();
   if (name !== SHEET_NAMES.TASK) return;
   if (e.range.getColumn() !== TASK_COL.STATUS) return;
+  // v3.38: closing/reopening by hand in the sheet stamps/clears เสร็จเมื่อ too
+  if (e.range.getNumRows() === 1 && e.range.getRow() >= 2) {
+    stampDoneAtFromSheet_(sh, e.range.getRow(), 1, norm(e.value));
+  }
   if (e.value !== 'เสร็จ') return;
   const row = e.range.getRow();
   const taskRow = sh.getRange(row, 1, 1, 8).getValues()[0];
@@ -3337,6 +3456,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🏠 หอพัก')
     .addItem('▶ ตั้งค่าทุกอย่าง (รันครั้งเดียว)', 'setup')
+    .addItem('⚙️ อัปเดตระบบ + เปิดงานประจำอัตโนมัติ', 'updateSystem')
     .addSeparator()
     .addItem('✅ ปิดงานวันนี้ที่เลือก', 'markSelectedDone')
     .addItem('📋 คัดลอก template เป็นงานวันนี้', 'copyTemplateToToday')
@@ -3361,6 +3481,7 @@ function markSelectedDone() {
   const numRows = sel.getNumRows();
   if (startRow < 2) return;
   sh.getRange(startRow, TASK_COL.STATUS, numRows, 1).setValue('เสร็จ');
+  stampDoneAtFromSheet_(sh, startRow, numRows, 'เสร็จ'); // v3.38
   clearTasksCache_(); // v3.32: setValue จากเมนูไม่ยิง onEdit — ล้างเอง
 }
 

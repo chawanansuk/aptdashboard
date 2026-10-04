@@ -27,11 +27,18 @@ interface Props {
   buildings: string[];
 }
 
+interface AutoStatus {
+  recurringDaily: boolean;
+  lastRecurringRun: { at: string; created: number } | null;
+}
+
 export default function RecurringView({ buildings }: Props) {
   const [rows, setRows] = useState<RecurringTemplate[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  // v3.38: does the backend create these by itself every morning?
+  const [auto, setAuto] = useState<AutoStatus | null>(null);
 
   // Add-form state — inline at top of list
   const [showAdd, setShowAdd] = useState(false);
@@ -57,6 +64,15 @@ export default function RecurringView({ buildings }: Props) {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/recurring?status=1", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => { if (alive && j?.ok) setAuto({ recurringDaily: !!j.recurringDaily, lastRecurringRun: j.lastRecurringRun ?? null }); })
+      .catch(() => {});
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {
@@ -167,6 +183,23 @@ export default function RecurringView({ buildings }: Props) {
     <section className="ac-recurring" aria-label="งานประจำ">
       {/* A tab inside the ซ่อมบำรุง hub, which owns the page's <h1> — a
           second PageHeader here stacked two titles (audit r36). */}
+      {auto && (auto.recurringDaily ? (
+        <p className="ac-recurring-auto is-on" role="status">
+          <Icon name="check" />
+          <span>
+            สร้างงานให้เองทุกเช้า ~06:00
+            {auto.lastRecurringRun ? ` · รอบล่าสุด ${auto.lastRecurringRun.at} สร้าง ${auto.lastRecurringRun.created} งาน` : ""}
+          </span>
+        </p>
+      ) : (
+        <p className="ac-recurring-auto is-off" role="status">
+          <Icon name="clock" />
+          <span>
+            ยังไม่ได้เปิดสร้างอัตโนมัติ — งานจะเกิดเมื่อมีคนกด &quot;ตรวจและสร้าง&quot; เท่านั้น.
+            เปิดได้ครั้งเดียวจบ: เปิด Google Sheet › เมนู <b>🏠 หอพัก</b> › <b>⚙️ อัปเดตระบบ + เปิดงานประจำอัตโนมัติ</b> (บัญชีเจ้าของชีต)
+          </span>
+        </p>
+      ))}
       <div className="ac-recurring-bar">
         <p className="ac-page-sub">
           เทมเพลตงานที่สร้างซ้ำตามรอบ{rows ? ` (${rows.length})` : ""} — กด &quot;ตรวจและสร้าง&quot; เพื่อรันให้ครบกำหนด

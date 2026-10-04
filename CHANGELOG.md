@@ -82,13 +82,15 @@ Total: **314 tests, 26 files** (เริ่มต้น session ~258 tests)
 
 ### Deferred / Not done
 
-- Audit log (Task 18) — needs new sheet
-- LINE Notify (Task 20) — needs LINE token
+(อัปเดต 2026-10 — รายการที่ทำไปแล้วหลังจากนั้นขีดไว้)
+
+- ~~Audit log (Task 18)~~ — ทำแล้ว (ชีท `audit_log` v3.17, หน้า /admin/audit)
+- LINE Notify (Task 20) — ยังไม่ทำ (LINE Notify ปิดบริการแล้ว — ทางต่อไปคือ LINE Messaging API)
 - Sentry (Task 17) — needs DSN
-- Scheduled cron (Task 40) — Vercel Hobby plan blocks
-- PWA / Workbox (Task 14) — architectural
+- ~~Scheduled cron (Task 40)~~ — งานประจำรันเองทุกเช้าด้วย Apps Script time trigger (v3.38)
+- ~~PWA / Workbox (Task 14)~~ — ทำแล้ว (`public/sw.js`, PWAClient)
 - i18n (Task 16) — too big for sprint
-- Lead CRM (Task 26) — needs storage design
+- ~~Lead CRM (Task 26)~~ — ทำแล้ว (ชีท `ลูกค้าสนใจ` v3.15, หน้าผู้สนใจเช่า)
 - Public link + QR (Task 25) — security review needed
 - Drag-drop Kanban (Task 13) — declined by user
-- URL routing refactor (Task 22) — too invasive
+- ~~URL routing refactor (Task 22)~~ — ทำแล้ว (`?view=&building=&room=`, lib/urlState)
