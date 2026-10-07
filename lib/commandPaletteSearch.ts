@@ -177,6 +177,7 @@ const VIEW_CATALOG: ViewDef[] = [
   { route: "facilities",  label: "ซ่อมบำรุง · ส่วนกลาง", hint: "ล้างแอร์ / ปั๊มน้ำ / ส่วนกลาง" },
   { route: "recurring",   label: "ซ่อมบำรุง · งานประจำ", hint: "งานสร้างอัตโนมัติตามรอบ" },
   { route: "income",      label: "รายได้",         hint: "สรุปรายได้รายเดือน" },
+  { route: "billing",     label: "บิลค่าเช่า",      hint: "จดมิเตอร์ / บิลรายเดือน / ใครจ่ายแล้ว" },
 ];
 
 export function searchViews(

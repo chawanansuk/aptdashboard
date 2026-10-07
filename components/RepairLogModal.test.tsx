@@ -177,6 +177,27 @@ describe("<RepairLogForm>", () => {
     expect(postMock.mock.calls[0][1]).toMatchObject({ allowRecentDuplicate: true });
   });
 
+  it("the same fault in the same room within 90 days is flagged while the repair is written down", async () => {
+    const ago = (days: number) => {
+      const d = new Date(Date.now() - days * 864e5);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} 10:00`;
+    };
+    const tasks = [
+      task({ room: "102", note: "หลอดไฟห้องน้ำขาด", category: "ไฟฟ้า", doneAt: ago(12) }),
+      task({ room: "102", note: "ไฟดับ", category: "ไฟฟ้า", doneAt: ago(200) }), // too old
+      task({ room: "101", note: "ไฟดับ", category: "ไฟฟ้า", doneAt: ago(5) }),   // another room
+    ];
+    const { getByRole, queryByRole } = render(<RepairLogForm {...base} tasks={tasks} />);
+    fireEvent.click(getByRole("button", { name: "102" }));
+    fireEvent.change(getByRole("textbox", { name: /ทำอะไรไป/ }), { target: { value: "ก๊อกรั่ว" } });
+    await waitFor(() => expect(getByRole("button", { name: "ประปา" }).getAttribute("aria-pressed")).toBe("true"));
+    expect(queryByRole("status")).toBeNull(); // plumbing never broke here
+    fireEvent.change(getByRole("textbox", { name: /ทำอะไรไป/ }), { target: { value: "หลอดไฟห้องน้ำขาดอีกแล้ว" } });
+    const warn = await waitFor(() => getByRole("status"));
+    expect(warn.textContent).toContain("ซ่อมมาแล้ว 1 ครั้งใน 90 วัน");
+    expect(warn.textContent).toContain("หลอดไฟห้องน้ำขาด");
+  });
+
   it("a room window knows its room: no pickers, the category chips are still there", () => {
     const { queryByRole, getByRole } = render(
       <RepairLogForm {...base} fixedRoom={{ building: "มั่งมี", room: "101" }} embedded />,

@@ -91,6 +91,7 @@ import { formatTurnoverToast, isTurnoverEventRelevant } from "@/lib/turnoverNoti
 
 // Heavy views — lazy-loaded so the default 'overview' page ships less JS
 const IncomeView      = lazy(() => import("@/components/IncomeView"));
+const BillingView     = lazy(() => import("@/components/BillingView"));
 const TenantsView     = lazy(() => import("@/components/TenantsView"));
 const SalesPipelineView = lazy(() => import("@/components/sales/SalesPipelineV2"));
 const EngineerKanban    = lazy(() => import("@/components/EngineerKanban"));
@@ -1504,6 +1505,13 @@ export default function Home() {
             <ErrorBoundary level="route" label="รายงาน">
               <Suspense fallback={<IncomeSkeleton />}>
                 <ReportsView rooms={rooms} tasks={tasks} />
+              </Suspense>
+            </ErrorBoundary>
+          )}
+          {activeView === "billing" && (
+            <ErrorBoundary level="route" label="บิลค่าเช่า">
+              <Suspense fallback={<IncomeSkeleton />}>
+                <BillingView rooms={rooms} roles={roles} activeBuilding={activeBuilding} />
               </Suspense>
             </ErrorBoundary>
           )}
