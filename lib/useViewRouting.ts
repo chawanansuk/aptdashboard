@@ -31,13 +31,13 @@ import { toast } from "@/lib/toast";
 export type ActiveView =
   | "overview" | "today" | RoomStatus
   | "income" | "tenants" | "calendar" | "maintenance" | "facilities"
-  | "parts" | "vehicles" | "pets" | "leads" | "recurring" | "maintlog"
+  | "parts" | "vehicles" | "pets" | "leads" | "recurring" | "maintlog" | "billing"
   | "salespipeline" | "engineerkanban" | "reports";
 
 export const VALID_VIEWS: ActiveView[] = [
   "overview", "today", "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive",
   "income", "tenants", "calendar", "maintenance", "facilities", "parts", "vehicles", "pets", "leads", "recurring",
-  "maintlog", "salespipeline", "engineerkanban", "reports",
+  "maintlog", "salespipeline", "engineerkanban", "reports", "billing",
 ];
 
 /**
@@ -50,7 +50,7 @@ export const VALID_VIEWS: ActiveView[] = [
 const CUSTOM_VIEWS: Record<Exclude<ActiveView, "overview" | "today" | RoomStatus>, true> = {
   income: true, tenants: true, calendar: true, maintenance: true, facilities: true,
   parts: true, vehicles: true, pets: true, leads: true, recurring: true, maintlog: true,
-  salespipeline: true, engineerkanban: true, reports: true,
+  salespipeline: true, engineerkanban: true, reports: true, billing: true,
 };
 
 export function isCustomView(view: string): boolean {

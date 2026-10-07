@@ -77,6 +77,17 @@ describe("billMessage", () => {
     expect(text).toContain("5 พ.ย. 2569");
     expect(text).toContain("กรุงไทย 043-0-24123-2");
   });
+
+  it("an amount typed into the sheet by hand is sent plain, without a sum that doesn't add up", () => {
+    const bill = { ...computeBill(input, RATE), elecCost: 500, total: 5108 };
+    const text = billMessage({
+      month: "2026-10", room: "104", apartmentName: "หอ", input, bill, rate: RATE,
+      bank: { bank: "กรุงไทย", accountNo: "1", accountName: "ก" },
+    });
+    expect(text).toContain("ค่าไฟ 500 บาท");
+    expect(text).not.toContain("× 8");
+    expect(text).toContain("หน่วย × 18"); // water still adds up → working shown
+  });
 });
 
 describe("summarize", () => {

@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { canAccess, canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import {
-  computeBill, isMonthKey,
+  computeBill, isMonthKey, rateFor,
   type BillingRate, type MeterRow,
 } from "@/lib/billing";
 
@@ -83,14 +83,6 @@ async function fetchBilling(month: string, forWrite = false): Promise<BillingDat
     forWrite ? { idempotent: true, timeoutMs: 15_000, maxRetries: 0 } : { idempotent: true, timeoutMs: 20_000 });
   if (!j.ok || !j.result) throw new Error(j.error || "backend error");
   return j.result;
-}
-
-/** Building match: exact, then case-insensitive ("KL" vs "Kl"). */
-export function rateFor(rates: BillingRate[], building: string): BillingRate | null {
-  const b = building.trim();
-  return rates.find((r) => r.building === b)
-    ?? rates.find((r) => r.building.toLowerCase() === b.toLowerCase())
-    ?? null;
 }
 
 function stripMoney(d: BillingData): BillingData {

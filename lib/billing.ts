@@ -128,6 +128,14 @@ export function computeBill(input: BillInput, rate: BillingRate | null): BillRes
   return { elecUnits, elecCost, waterUnits, waterCost, total, problems };
 }
 
+/** A building's rate: exact name, then case-insensitive ("KL" vs "Kl"). */
+export function rateFor(rates: BillingRate[], building: string): BillingRate | null {
+  const b = building.trim();
+  return rates.find((r) => r.building === b)
+    ?? rates.find((r) => r.building.toLowerCase() === b.toLowerCase())
+    ?? null;
+}
+
 /* ---------------------------------------------------------------- months */
 
 const MONTH_RE = /^(\d{4})-(\d{2})$/;
@@ -191,14 +199,21 @@ export function billMessage(p: BillMessageInput): string {
   const { input, bill, rate } = p;
   const lines = [`🧾 บิลรอบ ${monthLabel(p.month)} — ห้อง ${p.room}`, p.apartmentName, ""];
   if (input.rent !== null) lines.push(`ค่าเช่า ${baht(input.rent)} บาท`);
+  // The working ("56 หน่วย × 8 = 448") is shown only when it adds up to
+  // the amount on the bill — a figure the owner typed into the sheet by
+  // hand is sent as a plain amount instead of a sum that doesn't match.
   if (bill.elecCost !== null) {
-    lines.push(rate.elecRate === 0 || bill.elecUnits === null
+    const showWork = rate.elecRate > 0 && bill.elecUnits !== null && input.elecPrev !== null && input.elecCur !== null
+      && Math.round(bill.elecUnits * rate.elecRate) === bill.elecCost;
+    lines.push(!showWork
       ? `ค่าไฟ ${baht(bill.elecCost)} บาท`
-      : `ค่าไฟ ${num(input.elecPrev!)} → ${num(input.elecCur!)} = ${num(bill.elecUnits)} หน่วย × ${num(rate.elecRate)} = ${baht(bill.elecCost)} บาท`);
+      : `ค่าไฟ ${num(input.elecPrev!)} → ${num(input.elecCur!)} = ${num(bill.elecUnits!)} หน่วย × ${num(rate.elecRate)} = ${baht(bill.elecCost)} บาท`);
   }
   if (bill.waterCost !== null) {
-    const flat = rate.waterRate === 0 || bill.waterUnits === null;
-    const minNote = !flat && rate.waterMin > 0 && bill.waterCost === rate.waterMin ? ` (ขั้นต่ำ ${baht(rate.waterMin)})` : "";
+    const byUnits = bill.waterUnits !== null ? Math.round(bill.waterUnits * rate.waterRate) : null;
+    const flat = rate.waterRate === 0 || byUnits === null || input.waterPrev === null || input.waterCur === null
+      || Math.max(rate.waterMin, byUnits) !== bill.waterCost;
+    const minNote = !flat && rate.waterMin > 0 && byUnits! < rate.waterMin ? ` (ขั้นต่ำ ${baht(rate.waterMin)})` : "";
     lines.push(flat
       ? `ค่าน้ำ ${baht(bill.waterCost)} บาท`
       : `ค่าน้ำ ${num(input.waterPrev!)} → ${num(input.waterCur!)} = ${num(bill.waterUnits!)} หน่วย × ${num(rate.waterRate)} = ${baht(bill.waterCost)} บาท${minNote}`);
