@@ -65,6 +65,7 @@ const ROUTE_DESC: Record<Route, string> = {
   vehicles: "ยานพาหนะ (Vehicles per room)",
   pets: "สัตว์เลี้ยงทั้งหอ (รูปแมวประจำห้อง ไว้เทียบตัวตอนหลุด)",
   leads: "ผู้สนใจเช่า",
+  billing: "บิลค่าเช่า — จดมิเตอร์ (ทุก role) · ยอดเงิน/รับชำระ/อัตรา (ผู้จัดการ)",
   recurring: "งานประจำ (Recurring tasks)",
   income: "รายได้",
   reports: "รายงาน",
