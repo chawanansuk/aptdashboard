@@ -12,6 +12,7 @@ import {
 import { TASK_TYPE_COLOR } from "@/lib/constants";
 import { canViewFinancials, canAccess } from "@/lib/permissions";
 import { formatBaht } from "@/lib/money";
+import { REPEAT_WINDOW_DAYS, repairRecords, repeatFaults } from "@/lib/repairInsights";
 import { toast } from "@/lib/toast";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import AiReportModal from "./AiReportModal";
@@ -103,6 +104,15 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
   // (sales operates the app for engineers). Audit r8 bug #1.
   const canLog = canAccess(roles, "maintlog");
   const digest = useMemo(() => buildMaintDigest(scopedTasks, period), [scopedTasks, period]);
+  // รอบ 2: rooms whose fault came back (last 90 days, whatever the period).
+  const repeatsByRoom = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const g of repeatFaults(repairRecords(scopedTasks))) {
+      const k = `${g.building}|${g.room}`;
+      m.set(k, [...(m.get(k) ?? []), `${g.category} ×${g.records.length}`]);
+    }
+    return m;
+  }, [scopedTasks]);
 
   // รายการที่โชว์ = digest กรองตามการ์ดสถิติ + ช่องค้นหา. สถิติด้านบนคง
   // ตัวเลขรวมของช่วงเสมอ (การ์ดคือ "ปุ่มกรอง" ไม่ใช่ผลลัพธ์ของตัวกรอง);
@@ -149,6 +159,11 @@ export default function MaintLogView({ tasks, rooms, roles, activeBuilding = "�
     <div key={`${g.building}|${g.room}`} className="ac-mlog-room">
       <div className="ac-mlog-room-head">
         <span className="ac-mlog-room-name">{groupLabel(g)}</span>
+        {repeatsByRoom.has(`${g.building}|${g.room}`) && (
+          <span className="ac-mlog-repeat" title={`หมวดเดิมเสียซ้ำใน ${REPEAT_WINDOW_DAYS} วัน — ลองหาต้นเหตุ`}>
+            <Icon name="warning" /> เสียซ้ำ: {repeatsByRoom.get(`${g.building}|${g.room}`)!.join(", ")}
+          </span>
+        )}
         {canCost && g.cost > 0 && (
           <span className="ac-mlog-room-cost">{formatBaht(String(g.cost), { suffix: " ฿" })}</span>
         )}
