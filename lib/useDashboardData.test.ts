@@ -412,7 +412,7 @@ describe("same room, same day, several repairs (audit r37)", () => {
 
 describe("dedupTasks", () => {
   it("returns the input untouched when nothing is duplicated", () => {
-    const a = task({ date: "06/06/2026", room: "407", type: "ย้ายเข้า", customer: "สาธินี" });
+    const a = task({ date: "06/06/2026", room: "407", type: "ย้ายเข้า", customer: "สมศรี" });
     const b = task({ date: "06/06/2026", room: "403", type: "ย้ายเข้า", customer: "ออม" });
     expect(dedupTasks([a, b])).toEqual([a, b]);
   });
@@ -421,7 +421,7 @@ describe("dedupTasks", () => {
     // The screenshot bug: same (date,building,room,type,customer,phone) twice.
     const t = task({
       date: "06/06/2026", building: "มีทอง", room: "407", type: "ย้ายเข้า",
-      customer: "สาธินี เทพไชย", phone: "092-3804052",
+      customer: "สมศรี ใจดี", phone: "089-9990003",
     });
     const other = task({ date: "10/06/2026", room: "605", type: "ย้ายเข้า" });
     const out = dedupTasks([t, t, other]);
@@ -439,7 +439,7 @@ describe("dedupTasks", () => {
     });
     const rich = task({
       date: "06/06/2026", building: "มีทอง", room: "407", type: "ย้ายเข้า",
-      customer: "สาธินี", phone: "092-3804052", note: "เข้าบ่าย",
+      customer: "สมศรี", phone: "089-9990003", note: "เข้าบ่าย",
     });
     expect(dedupTasks([stub, rich])).toEqual([rich]);
     expect(dedupTasks([rich, stub])).toEqual([rich]);

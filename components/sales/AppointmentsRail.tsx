@@ -36,8 +36,8 @@ function ApptCard({
   const akVars = km
     ? ({ "--ak-base": km.base, "--ak-tint": km.tint } as React.CSSProperties)
     : undefined;
-  // Sheets strips the leading 0 from numeric phone cells (0624705817 →
-  // 624705817) — that number both DISPLAYS wrong and fails to dial.
+  // Sheets strips the leading 0 from numeric phone cells (0611110002 →
+  // 611110002) — that number both DISPLAYS wrong and fails to dial.
   const tel = sheetPhoneDigits(a.task.phone || "");
   const phoneLabel = formatSheetPhone(a.task.phone || "");
   return (

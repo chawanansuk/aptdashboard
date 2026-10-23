@@ -89,7 +89,7 @@ export default function BookingConfirmModal({
   const [apartmentName, setApartmentName] = useState(apartmentNameFor(building));
   const [tenant, setTenant] = useState(defaultTenant || "");
   // Phone state = raw digits only; the input DISPLAYS the dashed form
-  // (092-4561642) via formatThaiPhone. Raw digits stay safe for tel:
+  // (081-234-5678) via formatThaiPhone. Raw digits stay safe for tel:
   // links and lead phone-matching.
   const [phone, setPhone] = useState(phoneDigits(defaultPhone || ""));
   const [moveInIso, setMoveInIso] = useState(todayIso());
@@ -378,7 +378,7 @@ export default function BookingConfirmModal({
                 <div className="ac-field">
                   <label htmlFor="ac-bk-phone">เบอร์ติดต่อ</label>
                   <input id="ac-bk-phone" type="tel" value={formatThaiPhone(phone)}
-                    onChange={(e) => setPhone(phoneDigits(e.target.value))} placeholder="092-4561642" />
+                    onChange={(e) => setPhone(phoneDigits(e.target.value))} placeholder="081-234-5678" />
                 </div>
               </div>
               <div className="ac-field">

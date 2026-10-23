@@ -67,7 +67,7 @@ describe("billMessage", () => {
     const text = billMessage({
       month: "2026-10", room: "104", apartmentName: "หอพักมั่งมีทวีสุข",
       input: { ...input, parking: 200 }, bill, rate: RATE,
-      bank: { bank: "กรุงไทย", accountNo: "043-0-24123-2", accountName: "นายทดสอบ" },
+      bank: { bank: "กรุงไทย", accountNo: "123-4-56789-0", accountName: "นายทดสอบ" },
     });
     expect(text).toContain("บิลรอบ ต.ค. 2569 — ห้อง 104");
     expect(text).toContain("ค่าเช่า 4,500 บาท");
@@ -75,7 +75,7 @@ describe("billMessage", () => {
     expect(text).toContain("ค่าจอดรถ 200 บาท");
     expect(text).toContain("รวม 5,256 บาท");
     expect(text).toContain("5 พ.ย. 2569");
-    expect(text).toContain("กรุงไทย 043-0-24123-2");
+    expect(text).toContain("กรุงไทย 123-4-56789-0");
   });
 
   it("an amount typed into the sheet by hand is sent plain, without a sum that doesn't add up", () => {
