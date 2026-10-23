@@ -1,9 +1,17 @@
 /**
- * Code.gs v3.38.0 — Dashboard หอพัก
+ * Code.gs v3.39.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.39.0 (บิลค่าเช่า — มิเตอร์ → บิล → การจ่าย):
+ *   - getBilling {month}: แถวของเดือนนั้นในชีต "มิเตอร์" + มิเตอร์ใหม่ของเดือนก่อน (เป็นค่าเดิม
+ *     ของเดือนนี้) + อัตราค่าบริการรายตึก. อ่านคอลัมน์ตามชื่อหัว (โครง 18 คอลัมน์ใน SHEET_GUIDE)
+ *   - saveMeterReadings {month, items[]}: เขียนเฉพาะช่องที่ส่งมา ไม่แตะเซลล์ที่เป็นสูตร (ชีตที่ใส่สูตร
+ *     คำนวณเองไว้ยังทำงานเหมือนเดิม); แถวใหม่ใช้แถวว่างที่มีสูตรลากไว้ก่อน แล้วค่อยต่อท้าย
+ *   - setBillPaid {month, building, room, paidDate}: ช่อง "วันที่โอน" ('' = ยกเลิก)
+ *   - setRate {building, elecRate, waterRate, waterMin, dueDay}: ชีตใหม่ "อัตราค่าบริการ"
  *
  * NEW v3.38.0:
  *   - งานประจำสร้างเองทุกเช้า ~06:00 (runRecurringDaily) — เปิดครั้งเดียวจากเมนูในชีต
@@ -555,6 +563,11 @@ function doPost(e) {
       case 'deleteRecurring':  return ok_(withWriteLock_(function () { return deleteRecurring_(body); }));
       case 'runRecurringCheck':return ok_(withWriteLock_(function () { return runRecurringCheck_(body); }));
       case 'getAutomationStatus': return ok_({ result: getAutomationStatus_() }); // v3.38
+      // v3.39 — billing
+      case 'getBilling':         return ok_({ result: getBilling_(body) });
+      case 'saveMeterReadings':  return ok_(loggedWrite_('saveMeterReadings', 'billing', body.month || '', body, saveMeterReadings_));
+      case 'setBillPaid':        return ok_(loggedWrite_('setBillPaid', 'billing', (body.month || '') + '|' + (body.building || '') + '|' + (body.room || ''), body, setBillPaid_));
+      case 'setRate':            return ok_(loggedWrite_('setRate', 'billing', body.building || '', body, setRate_));
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -570,7 +583,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.38.0';
+var BACKEND_VERSION = '3.39.0';
 
 function doGet() {
   // v3.32 (audit r35): เมื่อเปิด SHARED_SECRET แล้ว GET ไม่ผ่านด่านลับ — ไม่ควรบอก
@@ -805,6 +818,254 @@ function setupDailyEmailReminder() {
   ScriptApp.newTrigger('sendMaintenanceReminderEmail')
     .timeBased().everyDays(1).atHour(7).create();
   return 'ตั้งแจ้งเตือนรายวัน ~07:00 แล้ว → ' + emailRecipients_();
+}
+
+/* ========== BILLING (v3.39) ==========
+ * ชีต "มิเตอร์" (มีอยู่แล้ว ลูกน้องกรอกมือมาตลอด): 1 แถว = เดือน × ห้อง. แอปอ่าน/เขียนชีตเดียวกัน
+ * คอลัมน์หาตามชื่อหัว — ลำดับไม่สำคัญ, คอลัมน์ที่ไม่มีก็ข้าม. เซลล์ที่เป็นสูตรไม่ถูกเขียนทับ
+ * (เจ้าของใส่สูตรคำนวณยูนิต/ค่าไฟ/ยอดรวมไว้ตาม SHEET_GUIDE ส่วนที่ 5 ได้ — สูตรชนะ).
+ * จำนวนเงินคำนวณที่แอป (lib/billing.ts) แล้วส่งมาเขียนเฉพาะช่องที่ไม่มีสูตร.
+ */
+var METER_HEADERS = ['เดือน', 'ตึก', 'ห้อง', 'มิเตอร์ไฟเดิม', 'มิเตอร์ไฟใหม่', 'ยูนิตไฟ', 'ค่าไฟ',
+  'มิเตอร์น้ำเดิม', 'มิเตอร์น้ำใหม่', 'ยูนิตน้ำ', 'ค่าน้ำ', 'ค่าเช่า', 'กุญแจสำรอง', 'จอดรถ',
+  'อื่นๆ', 'ยอดรวม', 'วันที่โอน', 'หมายเหตุ'];
+var METER_ALIASES = {
+  month: ['เดือน', 'รอบบิล'], building: ['ตึก', 'อาคาร'], room: ['ห้อง', 'เลขห้อง'],
+  elecPrev: ['มิเตอร์ไฟเดิม', 'ไฟเดิม'], elecCur: ['มิเตอร์ไฟใหม่', 'ไฟใหม่'],
+  elecUnits: ['ยูนิตไฟ', 'หน่วยไฟ'], elecCost: ['ค่าไฟ'],
+  waterPrev: ['มิเตอร์น้ำเดิม', 'น้ำเดิม'], waterCur: ['มิเตอร์น้ำใหม่', 'น้ำใหม่'],
+  waterUnits: ['ยูนิตน้ำ', 'หน่วยน้ำ'], waterCost: ['ค่าน้ำ'],
+  rent: ['ค่าเช่า', 'ค่าห้อง'], keyFee: ['กุญแจสำรอง'], parking: ['จอดรถ', 'ค่าจอดรถ'],
+  other: ['อื่นๆ', 'ค่าอื่นๆ'], total: ['ยอดรวม', 'รวม'],
+  paidDate: ['วันที่โอน', 'วันที่จ่าย', 'วันที่ชำระ'], note: ['หมายเหตุ'],
+};
+var METER_NUMERIC = ['elecPrev', 'elecCur', 'elecUnits', 'elecCost', 'waterPrev', 'waterCur',
+  'waterUnits', 'waterCost', 'rent', 'keyFee', 'parking', 'other', 'total'];
+var RATE_SHEET = 'อัตราค่าบริการ';
+var RATE_HEADERS = ['ตึก', 'ค่าไฟต่อหน่วย', 'ค่าน้ำต่อหน่วย', 'ค่าน้ำขั้นต่ำ', 'ครบกำหนดวันที่', 'อัปเดตเมื่อ', 'ผู้แก้ไข'];
+
+function meterSheet_(create) {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEET_NAMES.METER);
+  if (!sh && create) {
+    sh = ss.insertSheet(SHEET_NAMES.METER);
+    sh.getRange(1, 1, 1, METER_HEADERS.length).setValues([METER_HEADERS]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    sh.getRange('A:A').setNumberFormat('@');
+  }
+  return sh;
+}
+
+function meterCols_(headerRow) {
+  const headers = headerRow.map(norm);
+  const cols = {};
+  for (var f in METER_ALIASES) {
+    cols[f] = -1;
+    for (let a = 0; a < METER_ALIASES[f].length; a++) {
+      const i = headers.indexOf(METER_ALIASES[f][a]);
+      if (i >= 0) { cols[f] = i; break; }
+    }
+  }
+  if (cols.month < 0 || cols.building < 0 || cols.room < 0) {
+    throw new Error('ชีต "มิเตอร์" ต้องมีหัวคอลัมน์ เดือน / ตึก / ห้อง');
+  }
+  return cols;
+}
+
+/** A month cell → yyyy-MM. Accepts text "2026-10", "10/2026", or a Date
+ *  (Sheets turns a typed 2026-10 into 1 Oct 2026). */
+function monthKey_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone() || 'Asia/Bangkok', 'yyyy-MM');
+  const s = norm(v);
+  let m = s.match(/^(\d{4})-(\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2);
+  m = s.match(/^(\d{1,2})\/(\d{4})$/);
+  if (m) return m[2] + '-' + ('0' + m[1]).slice(-2);
+  return s;
+}
+
+function prevMonthKey_(month) {
+  const m = String(month).match(/^(\d{4})-(\d{2})$/);
+  if (!m) throw new Error('month ต้องเป็น yyyy-MM');
+  const idx = +m[1] * 12 + (+m[2] - 1) - 1;
+  return Math.floor(idx / 12) + '-' + ('0' + ((idx % 12) + 1)).slice(-2);
+}
+
+function meterNum_(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  const n = Number(String(v).replace(/,/g, '').trim());
+  return isFinite(n) ? n : null;
+}
+
+function meterRowObj_(r, cols) {
+  const o = {};
+  for (var f in cols) {
+    const i = cols[f];
+    if (i < 0) { o[f] = METER_NUMERIC.indexOf(f) >= 0 ? null : ''; continue; }
+    if (f === 'month') o[f] = monthKey_(r[i]);
+    else if (f === 'paidDate') o[f] = r[i] instanceof Date ? fmtDate_(r[i]) : norm(r[i]);
+    else if (METER_NUMERIC.indexOf(f) >= 0) o[f] = meterNum_(r[i]);
+    else o[f] = norm(r[i]);
+  }
+  return o;
+}
+
+function getRates_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(RATE_SHEET);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const data = sh.getRange(2, 1, sh.getLastRow() - 1, 5).getValues();
+  const out = [];
+  for (let i = 0; i < data.length; i++) {
+    const b = norm(data[i][0]);
+    if (!b) continue;
+    out.push({
+      building: b,
+      elecRate: meterNum_(data[i][1]) || 0,
+      waterRate: meterNum_(data[i][2]) || 0,
+      waterMin: meterNum_(data[i][3]) || 0,
+      dueDay: meterNum_(data[i][4]) || 5,
+    });
+  }
+  return out;
+}
+
+function getBilling_(b) {
+  const month = String(b.month || '');
+  const prev = prevMonthKey_(month);
+  const sh = meterSheet_(false);
+  const rows = [], prevRows = [];
+  if (sh && sh.getLastRow() >= 2) {
+    const data = sh.getDataRange().getValues();
+    const cols = meterCols_(data[0]);
+    for (let i = 1; i < data.length; i++) {
+      const mk = monthKey_(data[i][cols.month]);
+      if (mk !== month && mk !== prev) continue;
+      if (!norm(data[i][cols.building]) || !norm(data[i][cols.room])) continue;
+      const o = meterRowObj_(data[i], cols);
+      if (mk === month) rows.push(o);
+      else prevRows.push({ building: o.building, room: o.room, elecCur: o.elecCur, waterCur: o.waterCur });
+    }
+  }
+  return { month: month, rows: rows, prevRows: prevRows, rates: getRates_() };
+}
+
+/** A value about to be written back unchanged: text that starts like a
+ *  formula must stay text (setValues would turn "=x" into a formula). */
+function keepCell_(v) {
+  return (typeof v === 'string' && /^[=+\-@]/.test(v)) ? "'" + v : v;
+}
+
+function saveMeterReadings_(b) {
+  const month = String(b.month || '');
+  prevMonthKey_(month); // validates
+  const items = Array.isArray(b.items) ? b.items : [];
+  if (items.length === 0) return { saved: 0 };
+  const sh = meterSheet_(true);
+  const lastCol = Math.max(sh.getLastColumn(), METER_HEADERS.length);
+  const range = sh.getRange(1, 1, Math.max(sh.getLastRow(), 1), lastCol);
+  const data = range.getValues();
+  const formulas = range.getFormulas();
+  const cols = meterCols_(data[0]);
+  const used = {};
+  let saved = 0, appended = 0;
+  for (let k = 0; k < items.length; k++) {
+    const it = items[k] || {};
+    const bld = norm(it.building), room = norm(it.room);
+    if (!bld || !room) continue;
+    // 1) this month's row for the room, 2) a blank row (formulas dragged
+    // down but no month/building/room yet — keeps those formulas), 3) a new row.
+    let i = -1;
+    for (let r = 1; r < data.length; r++) {
+      if (norm(data[r][cols.building]) === bld && norm(data[r][cols.room]) === room &&
+          monthKey_(data[r][cols.month]) === month) { i = r; break; }
+    }
+    if (i < 0) {
+      for (let r = 1; r < data.length; r++) {
+        if (used[r]) continue;
+        if (norm(data[r][cols.month]) === '' && norm(data[r][cols.building]) === '' && norm(data[r][cols.room]) === '') { i = r; break; }
+      }
+    }
+    if (i < 0) {
+      i = data.length;
+      data.push(new Array(lastCol).fill(''));
+      formulas.push(new Array(lastCol).fill(''));
+      appended++;
+    }
+    used[i] = true;
+    const changes = {};
+    changes[cols.month] = month;
+    changes[cols.building] = bld;
+    changes[cols.room] = room;
+    for (var f in METER_ALIASES) {
+      if (f === 'month' || f === 'building' || f === 'room') continue;
+      if (it[f] === undefined || cols[f] < 0) continue;
+      changes[cols[f]] = it[f] === null ? '' : it[f];
+    }
+    // Write one contiguous span per row; formula cells are written back as
+    // their formula, untouched cells as their value.
+    const idxs = Object.keys(changes).map(Number);
+    const lo = Math.min.apply(null, idxs), hi = Math.max.apply(null, idxs);
+    const rowOut = [];
+    for (let c = lo; c <= hi; c++) {
+      if (formulas[i][c]) rowOut.push(formulas[i][c]);
+      else if (Object.prototype.hasOwnProperty.call(changes, c)) rowOut.push(changes[c]);
+      else rowOut.push(keepCell_(data[i][c]));
+    }
+    sh.getRange(i + 1, cols.month + 1).setNumberFormat('@');
+    sh.getRange(i + 1, lo + 1, 1, hi - lo + 1).setValues([rowOut]);
+    for (let c = lo; c <= hi; c++) if (!formulas[i][c] && Object.prototype.hasOwnProperty.call(changes, c)) data[i][c] = changes[c];
+    saved++;
+  }
+  return { saved: saved, appended: appended };
+}
+
+function setBillPaid_(b) {
+  const month = String(b.month || '');
+  prevMonthKey_(month);
+  const sh = meterSheet_(false);
+  if (!sh) throw new Error('ไม่พบชีต "มิเตอร์"');
+  const data = sh.getDataRange().getValues();
+  const cols = meterCols_(data[0]);
+  if (cols.paidDate < 0) throw new Error('ชีต "มิเตอร์" ไม่มีคอลัมน์ "วันที่โอน"');
+  const bld = norm(b.building), room = norm(b.room);
+  for (let r = 1; r < data.length; r++) {
+    if (norm(data[r][cols.building]) === bld && norm(data[r][cols.room]) === room &&
+        monthKey_(data[r][cols.month]) === month) {
+      const cell = sh.getRange(r + 1, cols.paidDate + 1);
+      if (cell.getFormula()) throw new Error('ช่อง "วันที่โอน" ของแถวนี้เป็นสูตร — แก้ในชีตแทน');
+      const paid = norm(b.paidDate);
+      cell.setNumberFormat('@').setValue(paid);
+      return { updated: true, row: r + 1, paidDate: paid };
+    }
+  }
+  throw new Error('ไม่พบบิลของห้อง ' + bld + ' ' + room + ' เดือน ' + month + ' — จดมิเตอร์ก่อน');
+}
+
+function setRate_(b) {
+  const bld = norm(b.building);
+  if (!bld) throw new Error('building required');
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(RATE_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(RATE_SHEET);
+    sh.getRange(1, 1, 1, RATE_HEADERS.length).setValues([RATE_HEADERS]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  const row = [bld, meterNum_(b.elecRate) || 0, meterNum_(b.waterRate) || 0, meterNum_(b.waterMin) || 0,
+    meterNum_(b.dueDay) || 5, Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm'), norm(b.creator)];
+  const last = sh.getLastRow();
+  if (last >= 2) {
+    const names = sh.getRange(2, 1, last - 1, 1).getValues();
+    for (let i = 0; i < names.length; i++) {
+      if (norm(names[i][0]) === bld) {
+        sh.getRange(i + 2, 1, 1, row.length).setValues([row]);
+        return { updated: true };
+      }
+    }
+  }
+  sh.appendRow(row);
+  return { added: true };
 }
 
 /* ========== AUTOMATION (v3.38) ==========

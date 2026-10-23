@@ -58,14 +58,14 @@ describe("useViewRouting — basics", () => {
     expect(VALID_VIEWS).toContain("engineerkanban");
     expect(VALID_VIEWS).toContain("maintlog");
     expect(VALID_VIEWS).toContain("pets");
-    expect(VALID_VIEWS.length).toBe(23);
+    expect(VALID_VIEWS.length).toBe(24);
   });
 
   it("isCustomView: pages with their own screen vs the room grid / task list", () => {
     const grid = ["overview", "today", "occupied", "ready", "pending", "moveout", "qc", "repair", "inactive"];
     for (const v of grid) expect(isCustomView(v), v).toBe(false);
     const custom = VALID_VIEWS.filter((v) => !grid.includes(v));
-    expect(custom).toHaveLength(14);
+    expect(custom).toHaveLength(15);
     for (const v of custom) expect(isCustomView(v), v).toBe(true);
     expect(isCustomView("toString")).toBe(false); // own keys only
   });

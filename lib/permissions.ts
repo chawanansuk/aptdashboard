@@ -59,6 +59,8 @@ export type Route =
   | "vehicles"
   | "pets"
   | "leads"
+  // meter readings for everyone; amounts/payments gated by finance.view
+  | "billing"
   // management-only
   | "income" | "reports";
 
@@ -102,6 +104,10 @@ export const ROUTE_ALLOW: Record<Route, Role[]> = {
   // Lead CRM: sales pipeline data. Sales + management; engineer doesn't
   // need it (different workflow).
   leads:       ["sales", "management"],
+  // Billing (v3.39): whoever walks the building reads the meters — every
+  // role can open the page and record readings. Amounts, payments and
+  // rates inside it need finance.view (management).
+  billing:     ["sales", "engineer", "management"],
   // management-only
   income:      ["management"],
   reports:     ["management"],

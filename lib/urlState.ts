@@ -79,6 +79,7 @@ export const VIEW_TITLES: Record<string, string> = {
   repair: "รอเข้าซ่อม",
   inactive: "ไม่ได้ใช้งาน",
   income: "รายได้",
+  billing: "บิลค่าเช่า",
   tenants: "ผู้เช่า",
   calendar: "ปฏิทิน",
   maintenance: "ซ่อมบำรุง",

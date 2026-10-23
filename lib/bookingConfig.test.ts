@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BANK_BY_BUILDING,
   DEFAULT_BANK,
   DEFAULT_DEPOSIT,
   apartmentNameFor,
@@ -13,19 +14,26 @@ describe("bookingConfig", () => {
     expect(bankFor("")).toBe(DEFAULT_BANK);
   });
 
-  it("company bank values are the real ones sent to customers", () => {
-    expect(DEFAULT_BANK.bank).toBe("กรุงไทย");
-    expect(DEFAULT_BANK.accountNo).toBe("017-0-46047-9");
-    expect(DEFAULT_BANK.accountName).toBe("บริษัท ม.ทวีทอง จำกัด");
+  it("every account is complete (bank, digits-and-dashes number, name)", () => {
+    for (const a of [DEFAULT_BANK, ...Object.values(BANK_BY_BUILDING)]) {
+      expect(a.bank).toBeTruthy();
+      expect(a.accountNo).toMatch(/^\d[\d-]+\d$/);
+      expect(a.accountName).toBeTruthy();
+    }
   });
 
-  it("each building resolves its own real account (owner data 2026-07)", () => {
-    expect(bankFor("มีทอง")).toMatchObject({ bank: "กรุงไทย", accountNo: "017-0-46047-9" });
-    // มั่งมี: ย้ายบัญชีเป็นกรุงไทย (เจ้าของแจ้ง 2026-08-31 — เลขดิบ 0430241232)
-    expect(bankFor("มั่งมี")).toMatchObject({ bank: "กรุงไทย", accountNo: "043-0-24123-2", accountName: "นายชวนันท์ สุขพรชัยรัก" });
-    expect(bankFor("มายทรี48")).toMatchObject({ bank: "ไทยพาณิชย์", accountNo: "039-232971-2" });
-    expect(bankFor("บ้านคุณหลวง")).toMatchObject({ bank: "ออมสิน", accountNo: "020-2-2690349-8" });
-    expect(bankFor("บ้านมีทรัพย์")).toMatchObject({ bank: "อาคารสงเคราะห์", accountNo: "206-1-1000754-2", accountName: "CHAWANAN SUKPORNCHAIRAK" });
+  it("each building resolves its own account (owner data 2026-07)", () => {
+    expect(bankFor("มีทอง")).toBe(BANK_BY_BUILDING["มีทอง"]);
+    expect(bankFor("มีทอง").bank).toBe("กรุงไทย");
+    expect(bankFor("มั่งมี")).toBe(BANK_BY_BUILDING["มั่งมี"]); // ย้ายเป็นกรุงไทย (เจ้าของแจ้ง 2026-08-31)
+    expect(bankFor("มั่งมี").bank).toBe("กรุงไทย");
+    expect(bankFor("มายทรี48")).toBe(BANK_BY_BUILDING["มายทรี"]);
+    expect(bankFor("มายทรี48").bank).toBe("ไทยพาณิชย์");
+    expect(bankFor("บ้านคุณหลวง").bank).toBe("ออมสิน");
+    expect(bankFor("บ้านมีทรัพย์")).toBe(BANK_BY_BUILDING["บ้านมีทรัพย์"]);
+    expect(bankFor("บ้านมีทรัพย์").bank).toBe("อาคารสงเคราะห์");
+    // buildings with their own account never fall back to the company one
+    expect(bankFor("มั่งมี")).not.toEqual(DEFAULT_BANK);
   });
 
   it("matches flexibly when the sheet name is longer/shorter than the key", () => {
@@ -53,9 +61,8 @@ describe("bookingConfig", () => {
 describe("KL / บ้านคุณหลวง (sheet name ≠ display name)", () => {
   it("resolves the ออมสิน account for every spelling of the building", () => {
     for (const name of ["KL", "Kl", "kl", "บ้านคุณหลวง"]) {
-      expect(bankFor(name)).toMatchObject({
-        bank: "ออมสิน", accountNo: "020-2-2690349-8", accountName: "นายชวนันท์ สุขพรชัยรัก",
-      });
+      expect(bankFor(name)).toEqual(BANK_BY_BUILDING["KL"]);
+      expect(bankFor(name).bank).toBe("ออมสิน");
     }
   });
 

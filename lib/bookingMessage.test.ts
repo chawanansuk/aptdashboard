@@ -38,7 +38,7 @@ describe("formatBookingMessage", () => {
     apartmentName: "มีทอง เรสซิเด้นท์",
     room: "410",
     tenant: "คุณพู",
-    phone: "091-6554938",
+    phone: "089-9990004",
     moveInDate: new Date(2026, 4, 30),
     moveInTime: "09:00",
     calc,
@@ -51,7 +51,7 @@ describe("formatBookingMessage", () => {
     expect(msg).toContain("มีทอง เรสซิเด้นท์ ห้อง 410");
   });
   it("contains tenant + phone + move-in line", () => {
-    expect(msg).toContain("🙍 คุณ คุณพู | 091-6554938");
+    expect(msg).toContain("🙍 คุณ คุณพู | 089-9990004");
     expect(msg).toContain("📅 เข้าพัก: เสาร์ที่ 30 พฤษภาคม 2569 (09:00)");
   });
   it("contains the money breakdown matching the real confirmation", () => {
@@ -113,8 +113,8 @@ function mkInput(over: Partial<BookingMessageInputV2> = {}): BookingMessageInput
   return {
     apartmentName: "มีทอง เรสซิเด้นท์",
     room: "401",
-    tenant: "กุ๊กไก่",
-    phone: "092-4561642",
+    tenant: "สมใจ",
+    phone: "089-9990001",
     moveInDate: new Date(2026, 6, 30),
     moveInTime: "10:30",
     calc,
@@ -156,9 +156,9 @@ describe("bankBlockLines", () => {
   it("renders the full transfer block", () => {
     expect(bankBlockLines(DEFAULT_BANK)).toEqual([
       "🏦 ช่องทางการโอนเงิน",
-      "ธนาคาร: กรุงไทย",
-      "เลขบัญชี: 017-0-46047-9",
-      "ชื่อบัญชี: บริษัท ม.ทวีทอง จำกัด",
+      `ธนาคาร: ${DEFAULT_BANK.bank}`,
+      `เลขบัญชี: ${DEFAULT_BANK.accountNo}`,
+      `ชื่อบัญชี: ${DEFAULT_BANK.accountName}`,
     ]);
   });
 });
@@ -169,15 +169,15 @@ describe("โหมด A — ขอมัดจำ", () => {
   it("matches the spec template exactly", () => {
     expect(msg).toBe([
       "📌 จองห้องพัก : มีทอง เรสซิเด้นท์ (ห้อง 401) ราคา 5,200 บาท",
-      "เพื่อให้การจองสมบูรณ์ รบกวนคุณ กุ๊กไก่ โอนมัดจำจองไว้ก่อนนะคะ",
+      "เพื่อให้การจองสมบูรณ์ รบกวนคุณ สมใจ โอนมัดจำจองไว้ก่อนนะคะ",
       "",
       "💰 ยอดมัดจำ: 5,200 บาท",
       "(ยอดนี้จะนำไปหักลบกับค่าใช้จ่ายวันเข้าพักค่ะ)",
       "",
       "🏦 ช่องทางการโอนเงิน",
-      "ธนาคาร: กรุงไทย",
-      "เลขบัญชี: 017-0-46047-9",
-      "ชื่อบัญชี: บริษัท ม.ทวีทอง จำกัด",
+      `ธนาคาร: ${DEFAULT_BANK.bank}`,
+      `เลขบัญชี: ${DEFAULT_BANK.accountNo}`,
+      `ชื่อบัญชี: ${DEFAULT_BANK.accountName}`,
       "",
       "รบกวนส่งสลิปยืนยันเพื่อล็อคห้องพักให้ทันทีนะคะ",
     ].join("\n"));
@@ -185,7 +185,7 @@ describe("โหมด A — ขอมัดจำ", () => {
 
   it("uses the nickname when provided (falls back to tenant)", () => {
     expect(formatDepositRequestMessage(mkInput({ nickname: "ไก่" }))).toContain("รบกวนคุณ ไก่ โอนมัดจำ");
-    expect(msg).toContain("รบกวนคุณ กุ๊กไก่ โอนมัดจำ");
+    expect(msg).toContain("รบกวนคุณ สมใจ โอนมัดจำ");
   });
 
   it("never shows total/remaining (no money received yet)", () => {
@@ -200,7 +200,7 @@ describe("โหมด B — ยืนยันการจอง (V2)", () => {
   it("keeps every line of the legacy template", () => {
     expect(msg).toContain("✅ ยืนยันการจองเรียบร้อยค่ะ");
     expect(msg).toContain("มีทอง เรสซิเด้นท์ ห้อง 401");
-    expect(msg).toContain("🙍 คุณ กุ๊กไก่ | 092-4561642");
+    expect(msg).toContain("🙍 คุณ สมใจ | 089-9990001");
     expect(msg).toContain("📅 เข้าพัก: พฤหัสบดีที่ 30 กรกฎาคม 2569 (10:30)");
     expect(msg).toContain("💰 สรุปยอดวันเข้าพัก");
     expect(msg).toContain("• ค่าห้องรายเดือนสิงหาคม: 5,200 บาท");
@@ -244,7 +244,7 @@ describe("โหมด C — สิ่งที่ต้องเตรียม
       "2. ยอดโอนส่วนที่เหลือ 10,335 บาท",
       "",
       "โอนยอดส่วนที่เหลือเข้าบัญชีเดิมได้เลยค่ะ",
-      "🏦 กรุงไทย: 017-0-46047-9 บริษัท ม.ทวีทอง จำกัด",
+      `🏦 ${DEFAULT_BANK.bank}: ${DEFAULT_BANK.accountNo} ${DEFAULT_BANK.accountName}`,
       "",
       "⏰ ก่อนถึงวันเข้าพัก รบกวนแจ้งเวลาที่สะดวกล่วงหน้า 1 วันนะคะ",
       "",

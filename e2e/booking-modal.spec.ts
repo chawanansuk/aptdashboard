@@ -1,6 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { storageStatePath } from "./paths";
 import { mockDashboard, room } from "./fixtures";
+import { bankFor } from "../lib/bookingConfig";
+
+// The account comes from lib/bookingConfig (the only place real numbers live).
+const BANK = bankFor("มีทอง");
 
 test.use({ storageState: storageStatePath("management") });
 
@@ -33,10 +37,10 @@ test("booking P0: prefill, modes, dirty edit, phone format, copy gating", async 
   await expect(modal.getByRole("button", { name: "คัดลอกข้อความนี้" })).toBeDisabled();
 
   // P0-3: phone formats live
-  await modal.locator("#ac-bk-tenant").fill("กุ๊กไก่");
-  await modal.locator("#ac-bk-phone").pressSequentially("0924561642");
-  await expect(modal.locator("#ac-bk-phone")).toHaveValue("092-4561642");
-  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/คุณ กุ๊กไก่ \| 092-4561642/);
+  await modal.locator("#ac-bk-tenant").fill("สมใจ");
+  await modal.locator("#ac-bk-phone").pressSequentially("0899990001");
+  await expect(modal.locator("#ac-bk-phone")).toHaveValue("089-9990001");
+  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/คุณ สมใจ \| 089-9990001/);
 
   // = ค่าเช่า 1 เดือน shortcut
   await modal.getByRole("button", { name: "= ค่าเช่า 1 เดือน" }).click();
@@ -44,11 +48,11 @@ test("booking P0: prefill, modes, dirty edit, phone format, copy gating", async 
 
   // P0-5: mode A has the bank block
   await modal.getByRole("tab", { name: "ขอมัดจำ" }).click();
-  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/เลขบัญชี: 017-0-46047-9/);
+  await expect(modal.locator("#ac-bk-msg")).toHaveValue(new RegExp(`เลขบัญชี: ${BANK.accountNo}`));
   await expect(modal.locator("#ac-bk-msg")).toHaveValue(/📌 จองห้องพัก/);
   // mode C too
   await modal.getByRole("tab", { name: "สิ่งที่ต้องเตรียม" }).click();
-  await expect(modal.locator("#ac-bk-msg")).toHaveValue(/🏦 กรุงไทย: 017-0-46047-9/);
+  await expect(modal.locator("#ac-bk-msg")).toHaveValue(new RegExp(`🏦 ${BANK.bank}: ${BANK.accountNo}`));
 
   // P0-2: hand edit survives a field change AND a mode switch
   await modal.getByRole("tab", { name: "ยืนยันการจอง" }).click();
@@ -94,8 +98,8 @@ test("booking P2: save note, Ctrl+Enter, copy indicator, dirty-close guard", asy
   await page.getByRole("button", { name: "รับจอง (มัดจำ)" }).first().click();
 
   const modal = page.locator(".ac-booking-modal");
-  await modal.locator("#ac-bk-tenant").fill("กุ๊กไก่");
-  await modal.locator("#ac-bk-phone").pressSequentially("0924561642");
+  await modal.locator("#ac-bk-tenant").fill("สมใจ");
+  await modal.locator("#ac-bk-phone").pressSequentially("0899990001");
 
   // Copy indicator: starts un-copied → ✓ after copy → reverts on edit
   const indicator = modal.locator(".ac-booking-copied");
@@ -114,7 +118,7 @@ test("booking P2: save note, Ctrl+Enter, copy indicator, dirty-close guard", asy
   await page.keyboard.press("Control+Enter");
   await expect(modal).toBeHidden();
   const book = posted.find((p) => p.action === "bookRoom");
-  expect(book).toMatchObject({ building: "มีทอง", room: "401", status: "รอสัญญา", tenant: "กุ๊กไก่", phone: "0924561642" });
+  expect(book).toMatchObject({ building: "มีทอง", room: "401", status: "รอสัญญา", tenant: "สมใจ", phone: "0899990001" });
   const task = posted.find((p) => p.action === "addTask");
   expect(task).toBeTruthy();
   const note = String(task!.note);
@@ -139,8 +143,8 @@ test("booking P1: deposit radio, vaccine, chips, discount, auto-tick", async ({ 
   await page.getByRole("button", { name: "รับจอง (มัดจำ)" }).first().click();
 
   const modal = page.locator(".ac-booking-modal");
-  await modal.locator("#ac-bk-tenant").fill("กุ๊กไก่");
-  await modal.locator("#ac-bk-phone").pressSequentially("0924561642");
+  await modal.locator("#ac-bk-tenant").fill("สมใจ");
+  await modal.locator("#ac-bk-phone").pressSequentially("0899990001");
 
   // Radio "ยังไม่โอน" → auto-switch to mode S (สรุปยอด — step ① of the
   // sequence, full amount with no deposit deduction) + save disabled

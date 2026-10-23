@@ -14,6 +14,7 @@ import { publishBusEvent } from "@/lib/realtimeBus";
 import { formatCommonArea, COMMON_AREA_BARE } from "@/lib/taskLocation";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { REPAIR_CATEGORIES, suggestRepairCategory, type RepairCategory } from "@/lib/repairCategories";
+import { REPEAT_WINDOW_DAYS, dayMonth, priorSameFault } from "@/lib/repairInsights";
 import { RepairPartsPicker, type RepairPartLine } from "@/components/RoomRepairParts";
 import { fileRequisitionLines } from "@/lib/partsRequisition";
 import { floorSortKey } from "@/lib/salesData";
@@ -165,6 +166,14 @@ export function RepairLogForm({
     opts.push({ key: "ext", label: "ช่างนอก", value: "ช่างนอก" });
     return opts;
   }, [me, primaryEngineer]);
+
+  // รอบ 2: this fault came back — say so while the repair is being written
+  // down, so the fix this time goes for the cause (or the part gets replaced).
+  const priorFaults = useMemo(() => {
+    if (type !== "ซ่อม" || !category) return [];
+    const r = area === "room" ? room.trim() : (spot.trim() ? formatCommonArea(spot.trim()) : COMMON_AREA_BARE);
+    return priorSameFault(tasks, { building, room: r, category });
+  }, [tasks, type, category, area, room, spot, building]);
 
   async function submit(force = false) {
     const detail = note.trim();
@@ -390,6 +399,20 @@ export function RepairLogForm({
                 onClick={() => { setCategory(c); setCategoryTouched(true); }}>{c}</button>
             ))}
           </div>
+          {priorFaults.length > 0 && (
+            <div className="ac-rlog-repeat" role="status">
+              <Icon name="warning" />
+              <div>
+                <strong>เสียซ้ำ — {category} ที่นี่ซ่อมมาแล้ว {priorFaults.length} ครั้งใน {REPEAT_WINDOW_DAYS} วัน</strong>
+                <ul>
+                  {priorFaults.slice(0, 3).map((r, i) => (
+                    <li key={i}>{dayMonth(r.time)} · {(r.task.note || "").trim() || "ซ่อม"}{r.done ? "" : " (ยังค้าง)"}</li>
+                  ))}
+                </ul>
+                <span>ลองหาต้นเหตุ หรือเปลี่ยนชิ้นใหม่แทนการซ่อมซ้ำ</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

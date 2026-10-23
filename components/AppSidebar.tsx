@@ -9,7 +9,7 @@ import { canAccess, type Route } from "@/lib/permissions";
 import { Icon, type IconName } from "@/lib/icons";
 import { cachedFetchJson } from "@/lib/cachedFetchJson";
 
-export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports" | "parts" | "vehicles" | "pets" | "leads" | "recurring" | "maintlog";
+export type SidebarView = "overview" | "today" | RoomStatus | "income" | "tenants" | "calendar" | "maintenance" | "facilities" | "salespipeline" | "engineerkanban" | "reports" | "parts" | "vehicles" | "pets" | "leads" | "recurring" | "maintlog" | "billing";
 
 interface Props {
   isOpen: boolean;
@@ -145,6 +145,7 @@ function buildGroups(
   const dataItems: NavItem[] = [];
   if (has("calendar")) dataItems.push({ key: "calendar", label: "ปฏิทิน", icon: icon("calendar") });
   if (has("tenants"))  dataItems.push({ key: "tenants",  label: "ผู้เช่า",  icon: icon("tenants") });
+  if (has("billing"))  dataItems.push({ key: "billing",  label: "บิลค่าเช่า", icon: icon("receipt") });
   if (has("income"))   dataItems.push({ key: "income",   label: "รายได้",  icon: icon("income") });
   if (has("reports"))  dataItems.push({ key: "reports",  label: "รายงาน",   icon: icon("summary") });
 

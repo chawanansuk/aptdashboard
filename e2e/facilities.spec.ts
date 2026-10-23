@@ -10,9 +10,14 @@ import { mockDashboard, room } from "./fixtures";
  */
 test.use({ storageState: storageStatePath("engineer"), viewport: { width: 1280, height: 950 } });
 
+// f3 is the "not due" pump: serviced 10 days ago, so it stays far from its
+// 120-day cycle whatever day the suite runs (a fixed date here turned into
+// "due soon" in Oct 2026 and broke the counts).
+const RECENT = new Date(Date.now() - 10 * 864e5).toISOString().slice(0, 10);
+
 const FACILITIES = [
   { id: "f1", building: "มีทอง", type: "ปั๊มน้ำ", name: "ปั๊มหน้าตึก", installDate: "2025-01-10", lastService: "2026-03-20", status: "ใช้งานได้", note: "", creator: "a@b.c", createdAt: "", intervalDays: 120 },
-  { id: "f3", building: "มั่งมี", type: "ปั๊มน้ำ", name: "", installDate: "2025-02-14", lastService: "2026-07-01", status: "ใช้งานได้", note: "", creator: "a@b.c", createdAt: "", intervalDays: 120 },
+  { id: "f3", building: "มั่งมี", type: "ปั๊มน้ำ", name: "", installDate: "2025-02-14", lastService: RECENT, status: "ใช้งานได้", note: "", creator: "a@b.c", createdAt: "", intervalDays: 120 },
 ];
 const EQUIPMENT = [
   { id: "e1", building: "มีทอง", room: "204", type: "แอร์", brand: "Daikin", installDate: "2024-05-01", lastService: "2025-12-20", status: "ปกติ", note: "", creator: "a@b.c", createdAt: "", intervalDays: 180 },

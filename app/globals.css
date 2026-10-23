@@ -8140,6 +8140,23 @@ html.dark .ac-rc[data-tooltip]:focus-visible::after {
   font-size: var(--text-sm);
 }
 
+/* งานซ่อม รอบ 2 — repair section of the report */
+.ac-reports-section { font-size: var(--text-lg); margin: var(--space-4) 0 0; }
+.ac-reports-subtitle { margin-top: var(--space-4); }
+.ac-reports-hint { font-size: var(--text-sm); color: var(--color-text-muted); margin: var(--space-2) 0 0; }
+.ac-reports-chart .ac-table tfoot th { border-top: 1px solid var(--color-border); }
+.ac-repeat-faults { border-color: color-mix(in srgb, var(--status-moveout) 40%, var(--color-border)); }
+.ac-repeat-faults .ac-reports-chart-title { display: flex; align-items: center; gap: 6px; color: var(--status-moveout-ink); margin-bottom: var(--space-1); }
+.ac-repeat-list, .ac-frequent-rooms { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ac-repeat-list li, .ac-frequent-rooms li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: var(--text-sm); }
+.ac-repeat-cat {
+  font-size: var(--text-xs); font-weight: 600; padding: 1px 8px; border-radius: 999px;
+  background: var(--status-moveout-soft); color: var(--status-moveout-ink);
+}
+.ac-repeat-notes, .ac-frequent-cats { flex-basis: 100%; color: var(--color-text-muted); font-size: var(--text-xs); }
+.ac-frequent-count { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ac-frequent-cost { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--color-text-muted); }
+
 .ac-reports-foot {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
@@ -10932,6 +10949,22 @@ html.dark .ac-mlog-cost { color: #94A3B8; }
   display: flex; flex-direction: column; gap: 8px;
 }
 .ac-rlog-dup-actions { display: flex; gap: 8px; justify-content: flex-end; }
+/* Sits right after the room name; the cost stays on the right. */
+.ac-mlog-room-head:has(.ac-mlog-repeat) { flex-wrap: wrap; justify-content: flex-start; }
+.ac-mlog-room-head:has(.ac-mlog-repeat) .ac-mlog-room-cost { margin-left: auto; }
+.ac-mlog-repeat {
+  display: inline-flex; align-items: center; gap: 4px; align-self: center;
+  font-size: var(--text-xs); font-weight: 600; padding: 1px 8px; border-radius: 999px;
+  background: var(--status-moveout-soft); color: var(--status-moveout-ink);
+}
+/* รอบ 2: the same fault came back in this room (lib/repairInsights). */
+.ac-rlog-repeat {
+  display: flex; gap: 8px; align-items: flex-start; margin-top: 8px;
+  padding: 8px 10px; border-radius: var(--radius-md); font-size: var(--text-sm);
+  background: var(--status-moveout-soft); color: var(--status-moveout-ink);
+}
+.ac-rlog-repeat ul { margin: 4px 0; padding-left: 18px; }
+.ac-rlog-repeat > svg { flex-shrink: 0; margin-top: 2px; }
 .ac-rlog-actions { display: flex; justify-content: flex-end; }
 .ac-rlog-embedded .ac-rlog-actions .ac-btn { min-width: 160px; }
 @media (pointer: coarse) { .ac-rlog-chips .ac-chip { min-height: 44px; } }
@@ -11186,3 +11219,128 @@ html.dark .ac-buy-down { color: #4ADE80; }
 .ac-ai-report-text { width: 100%; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
 .ac-ai-loading { text-align: center; padding: 20px; color: var(--color-accent); font-weight: 600; }
 .ac-ai-hint { font-size: 12px; margin: 0 0 6px; }
+
+/* ===== บิลค่าเช่า (v3.39) — จดมิเตอร์ / บิล & การจ่าย / อัตรา =====
+   Phone first: one room = three short lines (head, ไฟ, น้ำ), inputs big
+   enough to type into with a thumb, no row taller than it needs to be.
+   Pill colours reuse the status inks (contrast-checked in both themes):
+   green paid, yellow unpaid, red overdue, grey incomplete. */
+.ac-billing { display: flex; flex-direction: column; gap: 12px; }
+.ac-billing-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ac-billing-month { display: inline-flex; align-items: center; gap: 4px; }
+.ac-billing-month strong { min-width: 84px; text-align: center; font-variant-numeric: tabular-nums; }
+.ac-billing-month .ac-btn { padding: 4px 12px; font-size: 18px; line-height: 1; }
+.ac-billing-hint { font-size: var(--text-sm); color: var(--color-text-muted); margin: 0; }
+.ac-billing-notice {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0;
+  padding: 8px 12px; border-radius: var(--radius-md);
+  background: var(--status-repair-soft); color: var(--status-repair-ink); font-size: var(--text-sm);
+}
+.ac-billing-notice .ac-btn { margin-left: auto; }
+
+.ac-billing-progress { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }
+.ac-billing-progress-bar { flex: 1; max-width: 240px; height: 6px; border-radius: 999px; background: var(--color-surface-2); overflow: hidden; }
+.ac-billing-progress-bar > span { display: block; height: 100%; background: var(--status-ready); border-radius: 999px; }
+
+.ac-billing-rooms {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px;
+}
+.ac-billing-building { grid-column: 1 / -1; margin: 6px 0 0; }
+.ac-billing-building h3 { margin: 0; font-size: var(--text-base); }
+.ac-billing-room {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 8px 10px; border-radius: var(--radius-md);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+}
+.ac-billing-room.is-changed { border-color: var(--color-accent); }
+.ac-billing-room-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 24px; }
+.ac-billing-room-total { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ac-billing-tag {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--text-xs); font-weight: 600; padding: 1px 8px; border-radius: 999px;
+  background: var(--color-surface-2); color: var(--color-text-muted);
+}
+.ac-billing-tag.is-done { background: var(--status-ready-soft); color: var(--status-ready-ink); }
+.ac-billing-tag.is-changed { background: var(--status-repair-soft); color: var(--status-repair-ink); }
+.ac-billing-meter { display: grid; grid-template-columns: 52px minmax(0, 1fr) 14px minmax(0, 1fr) 72px; align-items: center; gap: 6px; }
+.ac-billing-meter-label { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); color: var(--color-text-muted); }
+.ac-billing-input {
+  width: 100%; min-width: 0; padding: 4px 8px; font-size: 16px; /* 16px: iOS doesn't zoom */
+  font-variant-numeric: tabular-nums; text-align: right;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface); color: var(--color-text);
+}
+.ac-billing-input:focus { outline: none; border-color: var(--color-accent); box-shadow: var(--shadow-focus); }
+.ac-billing-input.is-prev { background: var(--color-surface-2); }
+.ac-billing-input.is-invalid { border-color: var(--color-danger); }
+.ac-billing-prev {
+  text-align: right; padding: 6px 8px; font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted); border-radius: var(--radius-md);
+  border: 1px dashed transparent; background: none;
+}
+.ac-billing-prev:hover, .ac-billing-prev:focus-visible { border-color: var(--color-border-strong); }
+.ac-billing-arrow { color: var(--color-text-faint); text-align: center; }
+.ac-billing-units { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--color-text-muted); white-space: nowrap; }
+.ac-billing-problem { margin: 2px 0 0; font-size: var(--text-xs); color: var(--color-danger); display: flex; gap: 4px; align-items: flex-start; }
+
+.ac-billing-savebar {
+  position: sticky; bottom: 12px; z-index: 5;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: var(--radius-lg);
+  background: var(--color-surface); border: 1px solid var(--color-border-strong);
+  box-shadow: 0 6px 24px color-mix(in srgb, #000 18%, transparent);
+}
+.ac-billing-savebar > span { margin-right: auto; font-size: var(--text-sm); }
+
+.ac-billing-bills { display: flex; flex-direction: column; gap: 10px; }
+.ac-billing-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ac-billing-bill {
+  padding: 8px 10px; border-radius: var(--radius-md);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ac-billing-bill.is-overdue { border-color: color-mix(in srgb, var(--status-moveout) 45%, var(--color-border)); }
+.ac-billing-bill-main { display: flex; align-items: center; gap: 10px; }
+.ac-billing-bill-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ac-billing-bill-tenant { font-size: var(--text-xs); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-billing-bill-amount { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ac-billing-pill { font-size: var(--text-xs); font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.ac-billing-pill.is-paid { background: var(--status-ready-soft); color: var(--status-ready-ink); }
+.ac-billing-pill.is-unpaid { background: var(--status-repair-soft); color: var(--status-repair-ink); }
+.ac-billing-pill.is-overdue { background: var(--status-moveout-soft); color: var(--status-moveout-ink); }
+.ac-billing-pill.is-incomplete { background: var(--status-inactive-soft); color: var(--status-inactive-ink); }
+.ac-billing-bill-missing { margin: 0; font-size: var(--text-xs); color: var(--color-text-muted); }
+.ac-billing-bill-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.ac-billing-bill-actions .ac-btn { padding: 4px 10px; font-size: var(--text-sm); }
+.ac-billing-bill-actions .ac-billing-edit { margin-left: auto; }
+
+.ac-billing-extras { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; border-top: 1px solid var(--color-border); }
+.ac-billing-extras-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.ac-billing-extras-foot { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.ac-billing-extras-foot .ac-billing-hint { margin-right: auto; }
+
+.ac-billing-rates { display: flex; flex-direction: column; gap: 10px; }
+.ac-billing-rate-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.ac-billing-rate { padding: 10px 12px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 8px; }
+.ac-billing-rate h3 { margin: 0; font-size: var(--text-base); display: flex; align-items: center; gap: 8px; }
+.ac-billing-suffix { display: flex; align-items: center; gap: 6px; }
+.ac-billing-suffix em { font-style: normal; font-size: var(--text-xs); color: var(--color-text-muted); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .ac-billing-rooms, .ac-billing-rate-list { grid-template-columns: 1fr; }
+  .ac-billing-meter { grid-template-columns: 44px minmax(0, 1fr) 12px minmax(0, 1fr) 62px; gap: 4px; }
+  /* Above the fixed bottom tab bar. */
+  .ac-billing-savebar { bottom: calc(var(--tabbar-h) + 8px + env(safe-area-inset-bottom)); }
+  .ac-billing-bill-main { flex-wrap: wrap; row-gap: 2px; }
+  .ac-billing-edit > span { display: none; } /* pencil only — keeps the actions on one line */
+  /* The money summary is the point of this tab: a 2×2 grid you can read
+     at a glance, not the app's swipe track. */
+  .ac-overview-cards.ac-billing-summary {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+    overflow: visible; margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0;
+  }
+  .ac-billing-summary .ac-overview-card { min-width: 0; flex: none; padding: 8px 10px; }
+  .ac-billing-summary .ac-overview-card-value { font-size: var(--text-xl); }
+  .ac-billing-summary .ac-overview-card-sub { font-size: var(--text-xs); }
+}

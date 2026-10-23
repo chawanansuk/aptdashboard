@@ -14,6 +14,10 @@ import { taskActivityDay } from "@/lib/taskDates";
 import { isDoneStatus, isCancelledStatus } from "@/lib/constants";
 import { exportCsv } from "@/lib/csvExport";
 import { toast } from "@/lib/toast";
+import {
+  REPEAT_WINDOW_DAYS, dayMonth, frequentRooms, repairBreakdown, repairRecords, repeatFaults,
+} from "@/lib/repairInsights";
+import { groupLabel } from "@/lib/maintLog";
 import PageHeader from "./PageHeader";
 
 interface Props {
@@ -160,6 +164,20 @@ export default function ReportsView({ rooms, tasks }: Props) {
     }
     return Array.from(counts.entries()).map(([date, count]) => ({ date, count }));
   }, [filtered, days]);
+
+  // ---- งานซ่อม (รอบ 2): spend per category/building, rooms that keep
+  // breaking (this window), and repeat faults (always the last 90 days —
+  // an alert shouldn't vanish because the window was set to 7 days).
+  const repairs = useMemo(() => {
+    const inWindow = repairRecords(filtered);
+    const scoped = building === "ทั้งหมด" ? tasks : tasks.filter((t) => t.building === building);
+    return {
+      breakdown: repairBreakdown(inWindow),
+      rooms: frequentRooms(inWindow),
+      repeats: repeatFaults(repairRecords(scoped)),
+      guessed: inWindow.filter((r) => r.guessed).length,
+    };
+  }, [filtered, tasks, building]);
 
   // ---- Export CSV ----
   // papaparse (~45KB) is only needed the moment the user clicks Export,
@@ -330,6 +348,89 @@ export default function ReportsView({ rooms, tasks }: Props) {
                 />
               </LineChart>
             </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {/* งานซ่อม — รอบ 2 */}
+      <h2 className="ac-reports-section">งานซ่อม</h2>
+      {repairs.repeats.length > 0 && (
+        <div className="ac-reports-chart ac-repeat-faults" role="region" aria-label="เสียซ้ำ">
+          <h3 className="ac-reports-chart-title"><Icon name="warning" /> เสียซ้ำ — หมวดเดิม ห้องเดิม ใน {REPEAT_WINDOW_DAYS} วัน</h3>
+          <p className="ac-reports-hint">ซ่อมแล้วกลับมาเสียอีก มักแปลว่าแก้ที่อาการ ไม่ใช่ต้นเหตุ — ลองให้ช่างดูทั้งระบบ (สายไฟ/ท่อ/ตัวเครื่อง) หรือเปลี่ยนใหม่</p>
+          <ul className="ac-repeat-list">
+            {repairs.repeats.map((g) => (
+              <li key={`${g.building}|${g.room}|${g.category}`}>
+                <strong>{groupLabel(g)}</strong>
+                <span className="ac-repeat-cat">{g.category} × {g.records.length}</span>
+                <span className="ac-repeat-notes">
+                  {g.records.map((r) => `${dayMonth(r.time)} ${(r.task.note || "").trim() || "ซ่อม"}`).join(" · ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="ac-reports-row">
+        <div className="ac-reports-chart">
+          <h3 className="ac-reports-chart-title">ซ่อมตามหมวด · {days} วันล่าสุด</h3>
+          {repairs.breakdown.byCategory.length === 0 ? <EmptyChart /> : (
+            <div className="ac-table-wrap">
+              <table className="ac-table">
+                <thead><tr><th>หมวด</th><th className="num">ครั้ง</th><th className="num">ค่าใช้จ่าย</th></tr></thead>
+                <tbody>
+                  {repairs.breakdown.byCategory.map((c) => (
+                    <tr key={c.category}>
+                      <td>{c.category}</td>
+                      <td className="num">{c.count}</td>
+                      <td className="num">{c.cost > 0 ? `฿ ${fmtBaht(c.cost)}` : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr><th>รวม</th><th className="num">{repairs.breakdown.total.count}</th><th className="num">฿ {fmtBaht(repairs.breakdown.total.cost)}</th></tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+          {repairs.guessed > 0 && (
+            <p className="ac-reports-hint">{repairs.guessed} รายการไม่มีหมวดในชีต (บันทึกก่อนมีช่องหมวด) — จัดหมวดจากข้อความให้</p>
+          )}
+          {building === "ทั้งหมด" && repairs.breakdown.byBuilding.length > 0 && (
+            <>
+              <h3 className="ac-reports-chart-title ac-reports-subtitle">ซ่อมตามตึก</h3>
+              <div className="ac-table-wrap">
+                <table className="ac-table">
+                  <thead><tr><th>ตึก</th><th className="num">ครั้ง</th><th className="num">ค่าใช้จ่าย</th></tr></thead>
+                  <tbody>
+                    {repairs.breakdown.byBuilding.map((b) => (
+                      <tr key={b.building}>
+                        <td>{b.building}</td>
+                        <td className="num">{b.count}</td>
+                        <td className="num">{b.cost > 0 ? `฿ ${fmtBaht(b.cost)}` : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="ac-reports-chart">
+          <h3 className="ac-reports-chart-title">ห้องซ่อมบ่อย · {days} วันล่าสุด</h3>
+          {repairs.rooms.length === 0 ? (
+            <p className="ac-reports-hint">ยังไม่มีห้องที่ซ่อม 2 ครั้งขึ้นไปในช่วงนี้</p>
+          ) : (
+            <ol className="ac-frequent-rooms">
+              {repairs.rooms.map((r) => (
+                <li key={`${r.building}|${r.room}`}>
+                  <strong>{groupLabel(r)}</strong>
+                  <span className="ac-frequent-count">{r.count} ครั้ง</span>
+                  {r.cost > 0 && <span className="ac-frequent-cost">฿ {fmtBaht(r.cost)}</span>}
+                  <span className="ac-frequent-cats">{r.categories.map(([c, n]) => (n > 1 ? `${c} ×${n}` : c)).join(" · ")}</span>
+                </li>
+              ))}
+            </ol>
           )}
         </div>
       </div>
