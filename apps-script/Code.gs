@@ -1,9 +1,18 @@
 /**
- * Code.gs v3.39.0 — Dashboard หอพัก
+ * Code.gs v3.40.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.40.0 (ร่างสัญญา — ส่งให้ลูกค้าอ่านหลังจอง):
+ *   - ชีตใหม่ "แม่แบบสัญญา" (ตึก | ลิงก์ Google Docs): ถ้อยคำสัญญาอยู่ใน Google Docs ที่เจ้าของแก้เอง
+ *   - createContractTemplate {building, lessor}: สร้าง Google Docs ตัวอย่างพร้อมช่อง {{...}} ในโฟลเดอร์
+ *     "สัญญาหอพัก (แม่แบบ)" แล้วจดลงชีต (มีอยู่แล้ว = คืนลิงก์เดิม)
+ *   - draftContract {building, room, fields}: ก๊อปแม่แบบ เติมช่อง ประทับ "ฉบับร่าง" ส่ง PDF กลับ แล้วทิ้งไฟล์ก๊อป
+ *   - getContractTemplate {building}: ลิงก์แม่แบบของตึก (ไม่มี = null)
+ *   - ⚠️ ใช้ Google Docs ครั้งแรก: หลัง deploy ต้องรันเมนู "⚙️ อัปเดตระบบ" ในชีตหนึ่งครั้ง
+ *     เพื่อกดอนุญาตสิทธิ์ Google Docs ที่เพิ่มมา
  *
  * NEW v3.39.0 (บิลค่าเช่า — มิเตอร์ → บิล → การจ่าย):
  *   - getBilling {month}: แถวของเดือนนั้นในชีต "มิเตอร์" + มิเตอร์ใหม่ของเดือนก่อน (เป็นค่าเดิม
@@ -568,6 +577,10 @@ function doPost(e) {
       case 'saveMeterReadings':  return ok_(loggedWrite_('saveMeterReadings', 'billing', body.month || '', body, saveMeterReadings_));
       case 'setBillPaid':        return ok_(loggedWrite_('setBillPaid', 'billing', (body.month || '') + '|' + (body.building || '') + '|' + (body.room || ''), body, setBillPaid_));
       case 'setRate':            return ok_(loggedWrite_('setRate', 'billing', body.building || '', body, setRate_));
+      // v3.40 — contract draft (ร่างสัญญา)
+      case 'getContractTemplate':    return ok_({ result: getContractTemplate_(body) });
+      case 'createContractTemplate': return ok_(loggedWrite_('createContractTemplate', 'contract', body.building || '', body, createContractTemplate_));
+      case 'draftContract':          return ok_({ result: draftContract_(body) });
       default: throw new Error('unknown action: ' + body.action);
     }
   } catch (err) {
@@ -583,7 +596,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.39.0';
+var BACKEND_VERSION = '3.40.0';
 
 function doGet() {
   // v3.32 (audit r35): เมื่อเปิด SHARED_SECRET แล้ว GET ไม่ผ่านด่านลับ — ไม่ควรบอก
@@ -1066,6 +1079,280 @@ function setRate_(b) {
   }
   sh.appendRow(row);
   return { added: true };
+}
+
+/* ========== CONTRACT DRAFT (v3.40) ==========
+ * ร่างสัญญาให้ลูกค้าอ่านหลังจอง. ถ้อยคำสัญญาอยู่ใน Google Docs ของเจ้าของ หนึ่งไฟล์ต่อตึก
+ * (จดไว้ในชีต "แม่แบบสัญญา": ตึก | ลิงก์ Google Docs) — เจ้าของแก้ถ้อยคำเองได้ทุกเมื่อ.
+ * ช่องที่ระบบเติมเขียนแบบ {{ชื่อผู้เช่า}} (รายชื่อช่องอยู่ใน lib/contractDraft.ts ฝั่งเว็บ).
+ *
+ * draftContract: ก๊อปแม่แบบ → ลบย่อหน้าคำอธิบาย → เติมช่อง (แอปส่งค่าจากฟอร์มจอง; อัตรา
+ *   ค่าไฟ/น้ำเติมจากชีต "อัตราค่าบริการ") → ช่องที่ไม่รู้ค่าเป็นเส้นจุดให้เขียนมือ → ประทับ
+ *   "ฉบับร่าง" → ส่ง PDF กลับ → ทิ้งไฟล์ก๊อป (ไม่เก็บข้อมูลลูกค้าไว้ใน Drive)
+ * แม่แบบที่ยังมีย่อหน้า [ตัวอย่าง-ยังไม่ได้ตรวจ] = ยังเป็นข้อความตัวอย่างที่ระบบร่างให้:
+ *   PDF ประทับ "ตัวอย่างทดสอบ" และแอปเตือนห้ามส่งลูกค้าจริง จนกว่าเจ้าของจะแก้แล้วลบย่อหน้านั้น
+ * ย่อหน้าที่ขึ้นต้นด้วย [หมายเหตุแม่แบบ] เป็นคำอธิบายสำหรับเจ้าของ — ไม่ไปถึงลูกค้า
+ */
+var CONTRACT_SHEET = 'แม่แบบสัญญา';
+var CONTRACT_HEADERS = ['ตึก', 'Google Docs', 'อัปเดตเมื่อ', 'ผู้แก้ไข'];
+var CONTRACT_SAMPLE_MARK = '[ตัวอย่าง-ยังไม่ได้ตรวจ]';
+var CONTRACT_NOTE_MARK = '[หมายเหตุแม่แบบ]';
+var CONTRACT_BLANK = '……………………';
+var CONTRACT_FOLDER_NAME = 'สัญญาหอพัก (แม่แบบ)';
+
+function docIdFromUrl_(v) {
+  const s = norm(v);
+  const m = s.match(/\/d\/([A-Za-z0-9_-]{20,})/);
+  if (m) return m[1];
+  return /^[A-Za-z0-9_-]{20,}$/.test(s) ? s : '';
+}
+
+function docUrl_(id) { return 'https://docs.google.com/document/d/' + id + '/edit'; }
+
+function contractSheet_(create) {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(CONTRACT_SHEET);
+  if (!sh && create) {
+    sh = ss.insertSheet(CONTRACT_SHEET);
+    sh.getRange(1, 1, 1, CONTRACT_HEADERS.length).setValues([CONTRACT_HEADERS]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+/** The building's template: its row in แม่แบบสัญญา and a Doc that still exists. */
+function contractTemplateRow_(building) {
+  const want = norm(building).toLowerCase();
+  const sh = contractSheet_(false);
+  if (!want || !sh || sh.getLastRow() < 2) return null;
+  const data = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
+  for (let i = 0; i < data.length; i++) {
+    const name = norm(data[i][0]);
+    if (!name || name.toLowerCase() !== want) continue;
+    const id = docIdFromUrl_(data[i][1]);
+    if (!id) continue;
+    try { if (DriveApp.getFileById(id).isTrashed()) continue; } catch (e) { continue; }
+    return { building: name, docId: id, row: i + 2 };
+  }
+  return null;
+}
+
+function getContractTemplate_(b) {
+  const t = contractTemplateRow_(b.building);
+  return t ? { building: t.building, docUrl: docUrl_(t.docId) } : null;
+}
+
+/** Pinned by ID like the backup folder: a same-named folder someone shared
+ *  with us must never receive our templates. */
+function getOrCreateContractFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const savedId = props.getProperty('CONTRACT_FOLDER_ID');
+  if (savedId) {
+    try {
+      const f = DriveApp.getFolderById(savedId);
+      if (!f.isTrashed()) return f;
+    } catch (e) { /* gone — recreate */ }
+  }
+  const folder = DriveApp.createFolder(CONTRACT_FOLDER_NAME);
+  props.setProperty('CONTRACT_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+/** Starter wording for a building — a SAMPLE the owner rewrites. */
+function contractStarterParagraphs_(building, lessor) {
+  const H = 'H', T = 'T', P = 'P', N = 'N';
+  const who = norm(lessor) || CONTRACT_BLANK;
+  return [
+    [N, CONTRACT_NOTE_MARK + ' แม่แบบสัญญาของตึก ' + building + ' — แก้ถ้อยคำได้ตามต้องการ ย่อหน้าที่ขึ้นต้นด้วย ' + CONTRACT_NOTE_MARK + ' จะไม่ไปถึงลูกค้า'],
+    [N, CONTRACT_NOTE_MARK + ' ช่องที่ระบบเติมให้เอง (พิมพ์ให้ติดกันทั้งวงเล็บ): {{ชื่อหอ}} {{ตึก}} {{ห้อง}} {{ชื่อผู้เช่า}} {{เบอร์โทร}} {{ค่าเช่า}} {{ค่าเช่าตัวอักษร}} {{เงินประกัน}} {{เงินประกันตัวอักษร}} {{มัดจำที่รับแล้ว}} {{วันเริ่มสัญญา}} {{เงื่อนไขสัญญา}} {{สัตว์เลี้ยง}} {{ธนาคาร}} {{เลขบัญชี}} {{ชื่อบัญชี}} {{วันที่ทำร่าง}} {{ค่าไฟต่อหน่วย}} {{ค่าน้ำต่อหน่วย}} {{ค่าน้ำขั้นต่ำ}} {{ชำระภายในวันที่}} — ช่องที่ยังไม่รู้ค่าจะเป็นเส้นจุดให้เขียนมือ'],
+    [N, CONTRACT_SAMPLE_MARK + ' ข้อความด้านล่างเป็นตัวอย่างที่ระบบร่างไว้ ยังไม่ได้ผ่านการตรวจ — แก้ให้ตรงกับสัญญาจริงของหอ แล้วลบย่อหน้านี้ทิ้ง (ระหว่างที่ยังมีย่อหน้านี้ ร่างที่ได้จะประทับว่า "ตัวอย่างทดสอบ")'],
+    [T, 'สัญญาเช่าห้องพัก'],
+    [P, '{{ชื่อหอ}} ห้อง {{ห้อง}}'],
+    [P, 'ทำที่ {{ชื่อหอ}} เมื่อวันที่ ' + CONTRACT_BLANK],
+    [P, 'สัญญานี้ทำขึ้นระหว่าง ' + who + ' ซึ่งต่อไปในสัญญานี้เรียกว่า "ผู้ให้เช่า" ฝ่ายหนึ่ง กับ คุณ{{ชื่อผู้เช่า}} เลขประจำตัวประชาชน ' + CONTRACT_BLANK + ' ที่อยู่ ' + CONTRACT_BLANK + ' โทร {{เบอร์โทร}} ซึ่งต่อไปในสัญญานี้เรียกว่า "ผู้เช่า" อีกฝ่ายหนึ่ง ทั้งสองฝ่ายตกลงกันดังนี้'],
+    [H, 'ข้อ 1 ห้องที่เช่า'],
+    [P, 'ผู้ให้เช่าตกลงให้เช่า และผู้เช่าตกลงเช่าห้องพักเลขที่ {{ห้อง}} ของ {{ชื่อหอ}} เพื่อใช้เป็นที่อยู่อาศัยเท่านั้น พร้อมเฟอร์นิเจอร์และอุปกรณ์ตามรายการแนบท้ายสัญญา'],
+    [H, 'ข้อ 2 ระยะเวลาเช่า'],
+    [P, 'เริ่มตั้งแต่วันที่ {{วันเริ่มสัญญา}} เงื่อนไขระยะเวลา: {{เงื่อนไขสัญญา}}'],
+    [H, 'ข้อ 3 ค่าเช่าและการชำระ'],
+    [P, 'ค่าเช่าเดือนละ {{ค่าเช่า}} บาท ({{ค่าเช่าตัวอักษร}}) ชำระภายในวันที่ {{ชำระภายในวันที่}} ของทุกเดือน โดยโอนเข้าบัญชี {{ธนาคาร}} เลขที่ {{เลขบัญชี}} ชื่อบัญชี {{ชื่อบัญชี}}'],
+    [H, 'ข้อ 4 ค่าไฟฟ้าและค่าน้ำประปา'],
+    [P, 'คิดตามมิเตอร์ของห้อง ค่าไฟฟ้าหน่วยละ {{ค่าไฟต่อหน่วย}} บาท ค่าน้ำประปาหน่วยละ {{ค่าน้ำต่อหน่วย}} บาท (ขั้นต่ำเดือนละ {{ค่าน้ำขั้นต่ำ}} บาท) ชำระพร้อมค่าเช่า'],
+    [H, 'ข้อ 5 เงินประกันและมัดจำ'],
+    [P, 'ผู้เช่าวางเงินประกันจำนวน {{เงินประกัน}} บาท ({{เงินประกันตัวอักษร}}) ผู้ให้เช่าจะคืนเงินประกันเมื่อสัญญาสิ้นสุดและผู้เช่าส่งมอบห้องคืนเรียบร้อย หลังหักค่าเสียหายหรือค่าใช้จ่ายที่ค้างชำระ (ถ้ามี) มัดจำจองที่ชำระแล้ว {{มัดจำที่รับแล้ว}} บาท นำไปหักจากยอดที่ต้องชำระในวันเข้าพัก'],
+    [H, 'ข้อ 6 สัตว์เลี้ยง'],
+    [P, 'สัตว์เลี้ยงที่ตกลงกันไว้: {{สัตว์เลี้ยง}}'],
+    [H, 'ข้อ 7 การดูแลห้อง'],
+    [P, 'ผู้เช่าต้องดูแลรักษาห้องและอุปกรณ์เหมือนวิญญูชนพึงดูแลทรัพย์สินของตนเอง ไม่ดัดแปลงหรือต่อเติมห้องโดยไม่ได้รับอนุญาตเป็นหนังสือ และไม่ให้ผู้อื่นเช่าช่วง'],
+    [H, 'ข้อ 8 การเลิกสัญญา'],
+    [P, 'ฝ่ายที่ประสงค์จะเลิกสัญญาต้องแจ้งอีกฝ่ายเป็นหนังสือล่วงหน้าไม่น้อยกว่า 30 วัน'],
+    [H, 'ข้อ 9 ระเบียบหอพัก'],
+    [P, 'ผู้เช่ายอมรับปฏิบัติตามระเบียบของหอพักที่แนบท้ายสัญญานี้'],
+    [P, ''],
+    [P, 'ลงชื่อ ' + CONTRACT_BLANK + ' ผู้ให้เช่า'],
+    [P, 'ลงชื่อ ' + CONTRACT_BLANK + ' ผู้เช่า'],
+    [P, 'ลงชื่อ ' + CONTRACT_BLANK + ' พยาน'],
+  ];
+}
+
+function writeStarterContract_(body, building, lessor) {
+  const rows = contractStarterParagraphs_(building, lessor);
+  for (let i = 0; i < rows.length; i++) {
+    const kind = rows[i][0];
+    const p = body.appendParagraph(rows[i][1]);
+    if (kind === 'T') {
+      p.setHeading(DocumentApp.ParagraphHeading.TITLE).setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    } else if (kind === 'H') {
+      p.setHeading(DocumentApp.ParagraphHeading.HEADING3);
+    } else {
+      p.setHeading(DocumentApp.ParagraphHeading.NORMAL);
+      if (kind === 'N') p.editAsText().setForegroundColor('#B45309').setItalic(true);
+    }
+  }
+  // A new Doc starts with one empty paragraph — drop it (it's not the last).
+  const first = body.getChild(0);
+  if (body.getNumChildren() > 1 && first.getType() === DocumentApp.ElementType.PARAGRAPH
+      && first.asParagraph().getText() === '') body.removeChild(first);
+}
+
+function createContractTemplate_(b) {
+  const bld = norm(b.building);
+  if (!bld) throw new Error('building required');
+  const existing = contractTemplateRow_(bld);
+  if (existing) return { building: existing.building, docUrl: docUrl_(existing.docId), created: false };
+  const doc = DocumentApp.create('แม่แบบสัญญาเช่า — ' + bld);
+  writeStarterContract_(doc.getBody(), bld, b.lessor);
+  doc.saveAndClose();
+  DriveApp.getFileById(doc.getId()).moveTo(getOrCreateContractFolder_());
+  const url = docUrl_(doc.getId());
+  const sh = contractSheet_(true);
+  const row = [bld, url, Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm'), norm(b.creator)];
+  // A row whose Doc was deleted is reused instead of piling up duplicates.
+  const last = sh.getLastRow();
+  if (last >= 2) {
+    const names = sh.getRange(2, 1, last - 1, 1).getValues();
+    for (let i = 0; i < names.length; i++) {
+      if (norm(names[i][0]).toLowerCase() === bld.toLowerCase()) {
+        sh.getRange(i + 2, 1, 1, row.length).setValues([row]);
+        return { building: bld, docUrl: url, created: true };
+      }
+    }
+  }
+  sh.appendRow(row);
+  return { building: bld, docUrl: url, created: true };
+}
+
+function escapeRe_(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+/**
+ * Replace every {{key}} (or, with key null, any {{…}} left) by `value`.
+ * Literal on purpose: the new text is inserted after the blank and the
+ * blank deleted — replaceText() would read $ and \ in a tenant's name as
+ * regex syntax. `value` is never empty (an unknown value is CONTRACT_BLANK),
+ * so a Text element is never emptied mid-edit.
+ */
+function fillBlank_(container, key, value) {
+  const pattern = key === null ? '\\{\\{[^{}]*\\}\\}' : '\\{\\{\\s*' + escapeRe_(key) + '\\s*\\}\\}';
+  const text = String(value || CONTRACT_BLANK);
+  let found = container.findText(pattern);
+  let guard = 0;
+  while (found && guard++ < 1000) {
+    const t = found.getElement().asText();
+    const s = found.getStartOffset(), e = found.getEndOffsetInclusive();
+    if (e + 1 >= t.getText().length) t.appendText(text);
+    else t.insertText(e + 1, text);
+    t.deleteText(s, e);
+    found = container.findText(pattern);
+  }
+}
+
+/** Drop the owner-only paragraphs ([หมายเหตุแม่แบบ] / [ตัวอย่าง-ยังไม่ได้ตรวจ]). */
+function removeMarkedParagraphs_(body) {
+  for (let i = body.getNumChildren() - 1; i >= 0; i--) {
+    const el = body.getChild(i);
+    const type = el.getType();
+    let node = null;
+    if (type === DocumentApp.ElementType.PARAGRAPH) node = el.asParagraph();
+    else if (type === DocumentApp.ElementType.LIST_ITEM) node = el.asListItem();
+    if (!node) continue;
+    const s = node.getText().replace(/^\s+/, '');
+    if (s.indexOf(CONTRACT_NOTE_MARK) !== 0 && s.indexOf(CONTRACT_SAMPLE_MARK) !== 0) continue;
+    // Docs refuses to remove the last paragraph of a section — empty it instead.
+    if (i === body.getNumChildren() - 1) node.setText(' ');
+    else body.removeChild(el);
+  }
+}
+
+function stampDraft_(doc, sample) {
+  const label = sample
+    ? 'ตัวอย่างทดสอบ — ข้อความสัญญายังไม่ได้ตรวจ ห้ามใช้กับลูกค้าจริง'
+    : 'ฉบับร่าง — ส่งให้อ่านก่อนทำสัญญา ยังไม่มีผลจนกว่าทั้งสองฝ่ายลงนาม';
+  const p = doc.getBody().insertParagraph(0, label);
+  p.setHeading(DocumentApp.ParagraphHeading.NORMAL).setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  p.editAsText().setBold(true).setItalic(false).setForegroundColor('#B91C1C');
+  const footer = doc.getFooter() || doc.addFooter();
+  footer.appendParagraph((sample ? 'ตัวอย่างทดสอบ' : 'ฉบับร่าง') + ' · ทำเมื่อ '
+      + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy HH:mm'))
+    .setAlignment(DocumentApp.HorizontalAlignment.CENTER)
+    .editAsText().setForegroundColor('#B91C1C').setFontSize(9);
+}
+
+function rateForBuilding_(building) {
+  const want = norm(building).toLowerCase();
+  const rates = getRates_();
+  for (let i = 0; i < rates.length; i++) if (rates[i].building.toLowerCase() === want) return rates[i];
+  return null;
+}
+
+/** 8 → "8", 8.5 → "8.5", 1250 → "1,250". */
+function fmtRateNum_(n) {
+  const v = Math.round(Number(n || 0) * 100) / 100;
+  const parts = String(v).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts.join('.');
+}
+
+function draftContract_(b) {
+  const bld = norm(b.building);
+  const tpl = contractTemplateRow_(bld);
+  if (!tpl) throw new Error('NO_TEMPLATE: ยังไม่มีแม่แบบสัญญาของตึก ' + bld + ' — ให้ผู้จัดการกด "สร้างแม่แบบสัญญา" ก่อน');
+  // The web side marks text starting with = + - @ with a ' (anti-formula);
+  // nothing here goes into a sheet, so take the mark off again.
+  const fields = {};
+  const src = b.fields || {};
+  for (var k in src) {
+    const v = unmark_(src[k]).replace(/[{}]/g, '').trim();
+    if (v) fields[k] = v;
+  }
+  const rate = rateForBuilding_(bld);
+  if (rate) {
+    if (!fields['ค่าไฟต่อหน่วย']) fields['ค่าไฟต่อหน่วย'] = fmtRateNum_(rate.elecRate);
+    if (!fields['ค่าน้ำต่อหน่วย']) fields['ค่าน้ำต่อหน่วย'] = fmtRateNum_(rate.waterRate);
+    if (!fields['ค่าน้ำขั้นต่ำ']) fields['ค่าน้ำขั้นต่ำ'] = fmtRateNum_(rate.waterMin);
+    if (!fields['ชำระภายในวันที่']) fields['ชำระภายในวันที่'] = String(rate.dueDay);
+  }
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd-HHmmss');
+  const copy = DriveApp.getFileById(tpl.docId)
+    .makeCopy('ร่าง ' + bld + ' ' + norm(b.room) + ' ' + stamp, getOrCreateContractFolder_());
+  try {
+    const doc = DocumentApp.openById(copy.getId());
+    const body = doc.getBody();
+    const sample = body.getText().indexOf(CONTRACT_SAMPLE_MARK) >= 0;
+    removeMarkedParagraphs_(body);
+    const parts = [body, doc.getHeader(), doc.getFooter()];
+    for (let i = 0; i < parts.length; i++) {
+      if (!parts[i]) continue;
+      for (var key in fields) fillBlank_(parts[i], key, fields[key]);
+      fillBlank_(parts[i], null, CONTRACT_BLANK); // anything not known → a line to write on
+    }
+    stampDraft_(doc, sample);
+    doc.saveAndClose();
+    const pdf = copy.getAs('application/pdf');
+    return { pdfBase64: Utilities.base64Encode(pdf.getBytes()), sample: sample, docUrl: docUrl_(tpl.docId) };
+  } finally {
+    // The filled copy holds the customer's name and phone — never keep it.
+    try { copy.setTrashed(true); } catch (e) { /* already gone */ }
+  }
 }
 
 /* ========== AUTOMATION (v3.38) ==========
