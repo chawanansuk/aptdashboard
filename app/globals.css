@@ -11344,3 +11344,28 @@ html.dark .ac-buy-down { color: #4ADE80; }
   .ac-billing-summary .ac-overview-card-value { font-size: var(--text-xl); }
   .ac-billing-summary .ac-overview-card-sub { font-size: var(--text-xs); }
 }
+
+/* ===== ร่างสัญญา (v3.40) — inside the booking window, pilot buildings ===== */
+.ac-contract {
+  margin-top: 12px; padding: 10px 12px; border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-strong); background: var(--color-surface);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ac-contract-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ac-contract-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: var(--text-sm); }
+.ac-contract-edit { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); color: var(--color-accent); }
+.ac-contract-hint { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }
+.ac-contract-stale { color: var(--status-repair-ink); }
+.ac-contract-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ac-contract-ready {
+  display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border-radius: var(--radius-md);
+  background: var(--status-ready-soft); color: var(--status-ready-ink);
+}
+.ac-contract-ready.is-sample { background: var(--status-repair-soft); color: var(--status-repair-ink); }
+.ac-contract-ready p { margin: 0; display: flex; gap: 6px; align-items: flex-start; font-size: var(--text-sm); word-break: break-word; }
+.ac-contract-ready .ac-btn-ghost { color: var(--color-text); }
+.ac-contract a.ac-btn, .ac-contract-edit { text-decoration: none; }
+@media (pointer: coarse) {
+  .ac-contract .ac-btn { min-height: 44px; }
+  .ac-contract-edit { min-height: 44px; }
+}
