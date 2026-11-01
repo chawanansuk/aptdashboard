@@ -15,6 +15,8 @@ import { bookingWarnings, shouldAutoChargeNextMonth } from "@/lib/bookingWarning
 import { formatThaiPhone, phoneDigits } from "@/lib/phoneFormat";
 import { toast } from "@/lib/toast";
 import { parsePriceOr0 as parseMoney } from "@/lib/money";
+import type { ContractInput } from "@/lib/contractDraft";
+import ContractDraftPanel from "./ContractDraftPanel";
 
 /**
  * Booking confirmation (dashboard-first). Staff fill the booking once
@@ -290,6 +292,23 @@ export default function BookingConfirmModal({
   // P1-1: no confirmation card before the money — mode A is for asking,
   // saving the booking waits for the slip.
   const saveBlocked = depositStatus === "pending";
+
+  // ร่างสัญญา (pilot buildings): the same figures the LINE messages use.
+  const contractInput = useMemo((): ContractInput | null => {
+    if (!valid || !calc) return null;
+    return {
+      building, room,
+      apartmentName: apartmentName.trim() || building,
+      tenant: tenant.trim(),
+      phone,
+      rent: parseMoney(rent),
+      deposit: calc.deposit,
+      bookingPaid: calc.bookingPaid,
+      moveInIso,
+      contractTerms: contractTerms.trim(),
+      pet: pet.trim(),
+    };
+  }, [valid, calc, building, room, apartmentName, tenant, phone, rent, moveInIso, contractTerms, pet]);
 
   async function copyText(text: string, label: string, modes: BookingMessageMode[]) {
     try {
@@ -644,6 +663,7 @@ export default function BookingConfirmModal({
               rows={14}
               onChange={(e) => setOverrides((o) => ({ ...o, [msgMode]: e.target.value }))}
             />
+            <ContractDraftPanel building={building} input={contractInput} />
           </div>
         </div>
 
