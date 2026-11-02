@@ -216,7 +216,11 @@ export function RepairLogForm({
       // A job filed as done is outside the server's open-task dedup (it has
       // its own 10-minute guard) — never auto-retry it, a dropped reply must
       // not become two rows.
-      const { res, data } = await resilientPost("/api/sheet/update", body, { retries: doneAlready ? 0 : 3 });
+      let retried = false;
+      const { res, data } = await resilientPost("/api/sheet/update", body, {
+        retries: doneAlready ? 0 : 3,
+        onRetry: () => { retried = true; },
+      });
       if (res.status === 504) {
         maybeSavedRef.current = true;
         toast.warning(String(data.error || "หลังบ้าน Google ตอบช้า — รายการอาจบันทึกไปแล้ว"), {
@@ -276,10 +280,11 @@ export function RepairLogForm({
         if (!stData.ok) throw new Error(stData.error || `HTTP ${stRes.status}`);
         written = true;
         toast.success("ปิดงานค้างที่ตรงกันให้แล้ว (ไม่สร้างรายการซ้ำ)");
-      } else if (skipped) {
+      } else if (skipped && !(retried && skipped === "duplicate-open")) {
         // An open job with this text already exists for that day and the
         // user is adding another open one — nothing was written; keep the
-        // form so they can change the text or the date.
+        // form so they can change the text or the date. (After an automatic
+        // re-send, duplicate-open is our own first attempt — saved; r38.)
         toast.warning("ยังไม่ได้บันทึก — มีงานค้างแบบเดียวกันของวันนั้นอยู่แล้ว", {
           description: "แก้ข้อความหรือวันที่ แล้วบันทึกอีกครั้ง",
           duration: 8000,

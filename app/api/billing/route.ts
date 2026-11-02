@@ -4,9 +4,10 @@ import { auth } from "@/auth";
 import { canAccess, canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import {
-  computeBill, isMonthKey, rateFor,
+  billKey, computeBill, isMonthKey, listPriceOf, rateFor,
   type BillingRate, type MeterRow,
 } from "@/lib/billing";
+import { getRoomsCacheState, peekEmergencyRoomsCache } from "@/lib/dashboardCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,8 +48,10 @@ const ReadingItem = z.object({
   elecCur: Reading.optional(),
   waterPrev: Reading.optional(),
   waterCur: Reading.optional(),
-  /** The room's listed price — rent when the row has none yet. */
-  roomPrice: Money.nullable().optional(),
+  /** The room's listed price — rent when the row has none yet. Used only
+   *  for managers and only when the server has no price of its own; a bad
+   *  value is dropped instead of failing the whole round (audit r38). */
+  roomPrice: Money.nullable().optional().catch(undefined),
   // finance-only fields (ignored for other roles)
   rent: Money.nullable().optional(),
   keyFee: Money.nullable().optional(),
@@ -89,7 +92,8 @@ function stripMoney(d: BillingData): BillingData {
   return {
     ...d,
     rows: d.rows.map((r) => {
-      const o = { ...r, paidDate: "" } as MeterRow;
+      // note too: only finance users write it (audit r38)
+      const o = { ...r, paidDate: "", note: "" } as MeterRow;
       for (const f of MONEY_FIELDS) (o as unknown as Record<string, unknown>)[f] = null;
       return o;
     }),
@@ -145,10 +149,18 @@ export async function POST(req: Request) {
 
     // saveReadings — merge with what the sheet has, compute, write.
     const data = await fetchBilling(body.month, true);
-    const existing = new Map(data.rows.map((r) => [`${r.building}|${r.room}`, r]));
-    const prev = new Map(data.prevRows.map((r) => [`${r.building}|${r.room}`, r]));
+    const existing = new Map(data.rows.map((r) => [billKey(r.building, r.room), r]));
+    const prev = new Map(data.prevRows.map((r) => [billKey(r.building, r.room), r]));
+    // The room's price as the SERVER knows it (rooms cache). A client-sent
+    // roomPrice is trusted only from managers (audit r38: an engineer could
+    // write rent 1 for a room whose bill had no rent yet).
+    const rooms = getRoomsCacheState().data ?? peekEmergencyRoomsCache() ?? [];
+    const serverPrice = (b: string, r: string) => {
+      const row = rooms.find((x) => billKey(x.building, x.room) === billKey(b, r));
+      return row ? listPriceOf(row.price) : null;
+    };
     const items = body.items.map((it) => {
-      const key = `${it.building.trim()}|${it.room.trim()}`;
+      const key = billKey(it.building, it.room);
       const ex = existing.get(key);
       const pv = prev.get(key);
       const pick = (v: number | null | undefined, fallback: number | null | undefined): number | null =>
@@ -157,20 +169,33 @@ export async function POST(req: Request) {
       const waterPrev = pick(it.waterPrev, ex?.waterPrev ?? pv?.waterCur);
       const elecCur = pick(it.elecCur, ex?.elecCur);
       const waterCur = pick(it.waterCur, ex?.waterCur);
-      const rent = finance && it.rent !== undefined ? it.rent : (ex?.rent ?? it.roomPrice ?? null);
+      const rent = finance && it.rent !== undefined
+        ? it.rent
+        : (ex?.rent ?? serverPrice(it.building, it.room) ?? (finance ? it.roomPrice ?? null : null));
       const keyFee = finance && it.keyFee !== undefined ? it.keyFee : (ex?.keyFee ?? null);
       const parking = finance && it.parking !== undefined ? it.parking : (ex?.parking ?? null);
       const other = finance && it.other !== undefined ? it.other : (ex?.other ?? null);
       const bill = computeBill({ elecPrev, elecCur, waterPrev, waterCur, rent, keyFee, parking, other }, rateFor(data.rates, it.building));
-      // Only what we know: an amount we can't compute is NOT written (it
-      // would clear a figure someone put in the sheet by hand).
+      // When a reading or an amount was CHANGED, every figure derived from
+      // it is rewritten — an amount that can't be computed any more is
+      // cleared (audit r38: a corrected reading left the old units, cost and
+      // total in the sheet, and that wrong bill was what got copied to LINE).
+      // A plain "save the totals" round (nothing changed) only fills blanks,
+      // so a figure typed into the sheet by hand survives.
+      const readingsChanged = it.elecPrev !== undefined || it.elecCur !== undefined
+        || it.waterPrev !== undefined || it.waterCur !== undefined;
+      const moneyChanged = finance && (it.rent !== undefined || it.keyFee !== undefined
+        || it.parking !== undefined || it.other !== undefined);
+      const rewrite = readingsChanged || moneyChanged;
       const out: Record<string, unknown> = { building: it.building.trim(), room: it.room.trim(), elecPrev, waterPrev };
-      if (elecCur !== null) out.elecCur = elecCur;
-      if (waterCur !== null) out.waterCur = waterCur;
+      // an explicit null clears a mistyped reading (it used to be dropped silently)
+      if (elecCur !== null || it.elecCur === null) out.elecCur = elecCur;
+      if (waterCur !== null || it.waterCur === null) out.waterCur = waterCur;
       for (const [k, v] of Object.entries({
         elecUnits: bill.elecUnits, elecCost: bill.elecCost, waterUnits: bill.waterUnits,
-        waterCost: bill.waterCost, total: bill.total, rent,
-      })) if (v !== null) out[k] = v;
+        waterCost: bill.waterCost, total: bill.total,
+      })) if (v !== null || rewrite) out[k] = v;
+      if (rent !== null) out.rent = rent;
       if (finance) {
         if (it.keyFee !== undefined) out.keyFee = it.keyFee;
         if (it.parking !== undefined) out.parking = it.parking;

@@ -167,11 +167,30 @@ export async function redisSetJson(
  * something worth breaking the feature over.
  */
 export async function redisRateLimit(key: string, limit: number, windowSec: number): Promise<boolean> {
-  if (!redisEnabled()) return true;
+  // audit r38: without Redis (optional in .env) or on a Redis error this used
+  // to allow every call — an unlimited paid-model bill. Fall back to a
+  // per-instance counter: looser than the shared one, never unlimited.
+  if (!redisEnabled()) return memRateLimit(key, limit, windowSec);
   const n = await command<number>(["INCR", key]);
-  if (n === null) return true;
+  if (n === null) return memRateLimit(key, limit, windowSec);
   if (n === 1) void keepAlive(command(["EXPIRE", key, windowSec]));
   return n <= limit;
+}
+
+const memWindows = new Map<string, { n: number; until: number }>();
+
+/** Fixed window in this instance's memory. Exported for tests. */
+export function memRateLimit(key: string, limit: number, windowSec: number, now: number = Date.now()): boolean {
+  if (memWindows.size > 5000) {
+    for (const [k, w] of memWindows) if (w.until <= now) memWindows.delete(k);
+  }
+  const w = memWindows.get(key);
+  if (!w || w.until <= now) {
+    memWindows.set(key, { n: 1, until: now + windowSec * 1000 });
+    return limit >= 1;
+  }
+  w.n++;
+  return w.n <= limit;
 }
 
 /** DELETE keys — called on writes so every instance sees fresh data. */

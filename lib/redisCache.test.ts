@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  redisEnabled, redisGetJson, redisSetJson, redisDel, isCachedSlice, redisRateLimit,
+  redisEnabled, redisGetJson, redisSetJson, redisDel, isCachedSlice, redisRateLimit, memRateLimit,
 } from "./redisCache";
 
 const fetchMock = vi.fn();
@@ -135,10 +135,19 @@ describe("redisRateLimit (audit r37 — AI routes)", () => {
     expect(await redisRateLimit("k", 2, 3600)).toBe(false);
   });
 
-  it("fails open: no Redis, or Redis down, never blocks the feature", async () => {
+  it("no Redis / Redis down: falls back to a per-instance limit, never unlimited (audit r38)", async () => {
     fetchMock.mockRejectedValueOnce(new Error("down"));
-    expect(await redisRateLimit("k", 1, 60)).toBe(true);
+    expect(await redisRateLimit("down-key", 1, 60)).toBe(true);   // still works…
     vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
-    expect(await redisRateLimit("k", 0, 60)).toBe(true);
+    expect(await redisRateLimit("k2", 2, 60)).toBe(true);
+    expect(await redisRateLimit("k2", 2, 60)).toBe(true);
+    expect(await redisRateLimit("k2", 2, 60)).toBe(false);        // …but not forever
+  });
+
+  it("memRateLimit: fixed window that resets", () => {
+    const t0 = 1_000_000;
+    expect(memRateLimit("w", 1, 10, t0)).toBe(true);
+    expect(memRateLimit("w", 1, 10, t0 + 1)).toBe(false);
+    expect(memRateLimit("w", 1, 10, t0 + 10_001)).toBe(true);
   });
 });

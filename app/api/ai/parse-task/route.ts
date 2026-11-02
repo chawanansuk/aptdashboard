@@ -72,7 +72,10 @@ export async function POST(req: Request) {
     : [];
 
   const today = bangkokTodayYmd();
-  const weekday = THAI_DAYS[new Date(`${today}T00:00:00+07:00`).getDay()];
+  // audit r38: `new Date("…T00:00:00+07:00").getDay()` on a UTC server is the
+  // PREVIOUS day's weekday ("วันจันทร์นี้" landed a day off). Read the
+  // calendar date as UTC so no zone shifts it.
+  const weekday = THAI_DAYS[new Date(`${today}T00:00:00Z`).getUTCDay()];
 
   try {
     const client = getAnthropic();

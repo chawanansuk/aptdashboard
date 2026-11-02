@@ -14,7 +14,8 @@ import {
   tryBeginRevalidation,
 } from "@/lib/dashboardCache";
 import { appsScriptCall } from "@/lib/appsScriptFetch";
-import { canViewTenant, canViewTaskCustomer, canPerform } from "@/lib/permissions";
+import { canViewTenant, canPerform } from "@/lib/permissions";
+import { projectTasksForRoles } from "@/lib/taskProjection";
 import type { RoomRow, SheetRow } from "@/types";
 import { setRoomsCache, setTasksCache } from "@/lib/dashboardCache";
 import {
@@ -207,9 +208,7 @@ export async function GET() {
   // Tasks ก็ต้อง strip PII ต่อ role เหมือน /api/dashboard/tasks — เดิม
   // endpoint รวมนี้ส่ง customer+phone ดิบให้ทุก role (audit r22, MED-HIGH):
   // ช่างที่ curl ตรงมาที่นี่อ่านชื่อ/เบอร์ลูกค้าได้ทั้งที่ endpoint แยก strip
-  const canSeeCustomer = canViewTaskCustomer(session.user.roles);
-  const projectTasks = (ts: SheetRow[]): SheetRow[] =>
-    canSeeCustomer ? ts : ts.map((t) => ({ ...t, customer: "", phone: "" }));
+  const projectTasks = (ts: SheetRow[]): SheetRow[] => projectTasksForRoles(ts, session.user.roles);
 
   let cacheLookup = getDashboardCacheState();
   if (cacheLookup.state === "missing") {

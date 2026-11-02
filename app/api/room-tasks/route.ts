@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
-import { canViewTaskCustomer } from "@/lib/permissions";
+import { projectTasksForRoles } from "@/lib/taskProjection";
 import type { SheetRow } from "@/types";
 
 export const runtime = "nodejs";
@@ -40,8 +40,6 @@ export async function GET(req: Request) {
   if (!building || !room) return bad("building/room required");
   if (building.length > 40 || room.length > 60) return bad("invalid building/room");
 
-  const canSeeCustomer = canViewTaskCustomer(session.user.roles);
-
   try {
     const json = await appsScriptCall<{ rows?: SheetRow[] }>(
       "getRoomTasks", { building, room }, { idempotent: true, timeoutMs: 10_000 },
@@ -56,9 +54,7 @@ export async function GET(req: Request) {
       return bad(msg, 502);
     }
     const rows = (json.result?.rows || []) as SheetRow[];
-    const out = canSeeCustomer
-      ? rows
-      : rows.map((t) => ({ ...t, customer: "", phone: "" }));
+    const out = projectTasksForRoles(rows, session.user.roles);
     return NextResponse.json(
       { ok: true, rows: out },
       // Private per-role response; history changes rarely — small cache.

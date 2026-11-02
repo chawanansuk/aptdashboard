@@ -104,9 +104,13 @@ export default function EditTaskModal({ task, onClose, onSaved }: Props) {
   /** dd/MM/yyyy ↔ yyyy-MM-dd helpers — the sheet stores Thai-style
    *  dates but the native <input type="date"> wants ISO. */
   function dmyToIso(dmy: string): string {
-    const m = (dmy || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    const s = (dmy || "").trim();
+    // Most rows come back as yyyy-MM-dd already (the app and the sheet's
+    // date format write that) — the field used to show blank (audit r38).
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (!m) return "";
-    return `${m[3]}-${m[2]}-${m[1]}`;
+    return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
   }
   function isoToDmy(iso: string): string {
     const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);

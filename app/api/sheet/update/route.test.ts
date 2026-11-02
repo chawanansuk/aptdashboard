@@ -19,6 +19,12 @@ vi.mock("@/lib/appsScriptFetch", () => ({
     status = 502;
   },
 }));
+const cachedTasks = vi.fn((): { id: string; type: string }[] => []);
+vi.mock("@/lib/dashboardCache", () => ({
+  getTasksCacheState: () => ({ state: "fresh", data: cachedTasks(), ageMs: 0 }),
+  peekEmergencyTasksCache: () => null,
+  invalidateDashboardCache: vi.fn(),
+}));
 vi.mock("@/lib/redisCache", () => ({
   redisBumpEpoch: vi.fn(), redisDel: vi.fn(), REDIS_ROOMS_KEY: "r", REDIS_TASKS_KEY: "t",
 }));
@@ -78,5 +84,23 @@ describe("POST /api/sheet/update — updateTask guards", () => {
     as("engineer");
     const res = await post({ ...EDIT, type: "ย้ายเข้า" });
     expect(res.status).toBe(200);
+  });
+  it("the type the server knows wins over the matchType the client claims (audit r38)", async () => {
+    as("engineer");
+    cachedTasks.mockReturnValueOnce([{ id: "T-1", type: "ย้ายเข้า" }]);
+    // claims the task already was a ย้ายเข้า… it was, so this is unchanged → ok
+    expect((await post({ ...EDIT, type: "ย้ายเข้า" })).status).toBe(200);
+    // sales claims a ซ่อม task "was" ซ่อม while it is really a ย้ายเข้า → a re-type into ซ่อม
+    as("sales");
+    cachedTasks.mockReturnValueOnce([{ id: "T-1", type: "ย้ายเข้า" }]);
+    expect((await post({ ...EDIT, matchType: "ซ่อม", type: "ซ่อม" })).status).toBe(403);
+  });
+});
+
+describe("POST /api/sheet/update — reopen (audit r38)", () => {
+  it("an empty status from an old page is sent as 'pending', never '' (Apps Script read '' as done)", async () => {
+    as("engineer");
+    await post({ action: "updateTaskStatus", id: "T-1", date: "2026-09-24", type: "ซ่อม", building: "มั่งมี", room: "104", status: "" });
+    expect(callMock.mock.calls[0][1]).toMatchObject({ status: "pending" });
   });
 });

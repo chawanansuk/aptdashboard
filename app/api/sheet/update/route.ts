@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import type { Role } from "@/auth";
 import { canPerform, canViewTaskCustomer, type Action } from "@/lib/permissions";
 import { taskTypeDenied } from "@/lib/taskTypePermission";
-import { invalidateDashboardCache } from "@/lib/dashboardCache";
+import { getTasksCacheState, invalidateDashboardCache, peekEmergencyTasksCache } from "@/lib/dashboardCache";
 import { redisBumpEpoch, redisDel, REDIS_ROOMS_KEY, REDIS_TASKS_KEY } from "@/lib/redisCache";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import {
@@ -113,6 +113,11 @@ export async function POST(req: Request) {
   }
   const body = parsed.data;
   const action = body.action;
+  // audit r38: a page still running the old bundle sends '' for "คืน" —
+  // Apps Script before v3.41 reads '' as "close". Send the open status.
+  if (action === "updateTaskStatus" && typeof body.status === "string" && body.status.trim() === "") {
+    body.status = "pending";
+  }
 
   // 3. Role check (action-level) — via canPerform single source of truth
   const permAction = actionToPermission(action);
@@ -126,8 +131,14 @@ export async function POST(req: Request) {
 
   // 3b. Role check (task-type level) — sales ห้ามส่ง type="ซ่อม", ฯลฯ
   const typeForPerm = "type" in body && typeof body.type === "string" ? body.type : undefined;
+  // The type the task HAS — from the server's own copy when the row is known
+  // by id (audit r38: matchType comes from the client, so a sales user could
+  // claim the old type and re-type any task into one they can't create).
+  const cachedType = action === "updateTask" && "id" in body && body.id
+    ? (getTasksCacheState().data ?? peekEmergencyTasksCache() ?? []).find((t) => t.id === body.id)?.type
+    : undefined;
   const originalType = action === "updateTask"
-    ? (body.matchType ?? body.match?.type)
+    ? (cachedType ?? body.matchType ?? body.match?.type)
     : undefined;
   const typeError = checkTaskTypePermission(action, typeForPerm, roles, originalType);
   if (typeError) {

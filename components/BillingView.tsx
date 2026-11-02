@@ -7,10 +7,9 @@ import { Icon } from "@/lib/icons";
 import { toast } from "@/lib/toast";
 import { canPerform } from "@/lib/permissions";
 import { THAI_MONTHS, bangkokTodayYmd } from "@/lib/dateUtils";
-import { parsePriceOr0 } from "@/lib/money";
 import { apartmentNameFor, bankFor } from "@/lib/bookingConfig";
 import {
-  billMessage, computeBill, currentMonthKey, dueDateOf, monthLabel, parseReading, rateFor,
+  billKey, billMessage, computeBill, currentMonthKey, dueDateOf, listPriceOf, monthLabel, parseReading, rateFor,
   shiftMonth, summarize,
   type BillInput, type BillResult, type BillingRate, type MeterRow,
 } from "@/lib/billing";
@@ -80,7 +79,7 @@ interface BillState {
 }
 
 const ALL = "ทั้งหมด";
-const lineKey = (b: string, r: string) => `${b.trim()}|${r.trim()}`;
+const lineKey = billKey; // "KL" and "Kl" are one building (audit r38)
 const baht = (n: number) => `${n.toLocaleString("th-TH")} ฿`;
 const reading = (n: number | null) => (n === null ? "—" : n.toLocaleString("th-TH", { maximumFractionDigits: 2 }));
 const ymdOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -181,6 +180,10 @@ export default function BillingView({ rooms, roles, activeBuilding }: Props) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [openExtras, setOpenExtras] = useState<string | null>(null);
   const reqId = useRef(0);
+  // The month on screen right now — a save/paid answer that arrives after
+  // the month was changed must not reload or patch the wrong month (r38).
+  const monthRef = useRef(month);
+  monthRef.current = month;
 
   const load = useCallback(async (m: string) => {
     const id = ++reqId.current;
@@ -215,14 +218,14 @@ export default function BillingView({ rooms, roles, activeBuilding }: Props) {
     const add = (b: string, room: string, view?: RoomView) => {
       const k = lineKey(b, room);
       if (out.has(k)) return;
-      const p = view ? parsePriceOr0(view.price) : 0;
+      const p = view ? listPriceOf(view.price) : null;
       out.set(k, {
         key: k, building: b.trim(), room: room.trim(), view,
         row: rowsBy.get(k),
         prevElec: prevBy.get(k)?.elecCur ?? null,
         prevWater: prevBy.get(k)?.waterCur ?? null,
         rate: rateFor(data.rates, b),
-        listPrice: p > 0 ? p : null,
+        listPrice: p,
       });
     };
     // Today's occupancy only says who to bill for this month (or later);
@@ -237,7 +240,7 @@ export default function BillingView({ rooms, roles, activeBuilding }: Props) {
   }, [data, rooms, month, thisMonth]);
 
   const lines = useMemo(
-    () => (building === ALL ? allLines : allLines.filter((l) => l.building === building)),
+    () => (building === ALL ? allLines : allLines.filter((l) => l.building.toLowerCase() === building.trim().toLowerCase())),
     [allLines, building],
   );
 
@@ -274,25 +277,38 @@ export default function BillingView({ rooms, roles, activeBuilding }: Props) {
       return;
     }
     setSaving(true);
+    const savedMonth = month;
+    const sent: Record<string, Draft> = {};
     try {
       const items = dirty.map((l) => {
         const d = drafts[l.key]!;
+        sent[l.key] = d;
         const it: Record<string, unknown> = { building: l.building, room: l.room, roomPrice: l.listPrice };
         for (const f of changedFields(l, d)) it[f] = parseReading(d[f]);
         return it;
       });
-      const j = await postBilling({ action: "saveReadings", month, items });
+      const j = await postBilling({ action: "saveReadings", month: savedMonth, items });
       const results = (j.results as { room: string; problems: string[] }[] | undefined) ?? [];
       const backwards = results.filter((r) => r.problems.some((p) => p.includes("น้อยกว่าเดิม")));
-      setDrafts({});
-      setEditingPrev({});
+      // Drop only what was sent and not touched since — numbers typed while
+      // the save was running stay (audit r38: they were wiped).
+      setDrafts((cur) => {
+        const next = { ...cur };
+        for (const k of Object.keys(sent)) if (next[k] === sent[k]) delete next[k];
+        return next;
+      });
+      setEditingPrev((cur) => {
+        const next = { ...cur };
+        for (const k of Object.keys(sent)) delete next[k];
+        return next;
+      });
       toast.success(`บันทึกมิเตอร์ ${items.length} ห้องแล้ว`);
       if (backwards.length > 0) {
         toast.warning(`เลขใหม่น้อยกว่าเลขเดิม: ห้อง ${backwards.map((r) => r.room).join(", ")}`, {
           description: "บันทึกเลขไว้แล้วแต่ยังไม่คิดหน่วย — ตรวจตัวเลข หรือถ้าเปลี่ยนมิเตอร์ให้แก้ \"เลขเดิม\"",
         });
       }
-      await load(month);
+      if (monthRef.current === savedMonth) await load(savedMonth);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
     } finally {
@@ -338,14 +354,15 @@ export default function BillingView({ rooms, roles, activeBuilding }: Props) {
 
   const setPaid = async (l: Line, paidDate: string) => {
     setBusyKey(l.key);
+    const paidMonth = month;
     try {
-      await postBilling({ action: "setPaid", month, building: l.building, room: l.room, paidDate });
+      await postBilling({ action: "setPaid", month: paidMonth, building: l.building, room: l.room, paidDate });
       // The sheet is the truth, but a reload per tap is slow on a phone —
-      // patch the row; the next load brings the sheet's version anyway.
-      setData((d) => d && {
+      // patch the row (of THAT month only); the next load brings the sheet's version.
+      setData((d) => (d && d.month === paidMonth ? {
         ...d,
         rows: d.rows.map((r) => (lineKey(r.building, r.room) === l.key ? { ...r, paidDate } : r)),
-      });
+      } : d));
       toast.success(paidDate ? `ห้อง ${l.room} จ่ายแล้ว` : `ยกเลิกรับเงินห้อง ${l.room}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");

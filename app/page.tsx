@@ -65,7 +65,7 @@ import {
   bumpLeadOnViewingClosed,
   bumpLeadOnBookingConfirmed,
 } from "@/lib/dashboardActions";
-import { canAccess, canPerform } from "@/lib/permissions";
+import { canAccess, canPerform, canViewTenant } from "@/lib/permissions";
 import type { QuickAction } from "@/components/QuickActionMenu";
 import { useEffectiveRoles } from "@/lib/useEffectiveRoles";
 import { parseCostInput } from "@/lib/taskCost";
@@ -1053,8 +1053,13 @@ export default function Home() {
       // P2: prospect paid → the sales pipeline should say ทำสัญญา without
       // re-entry. Fire-and-forget (phone match; never regresses ปิดดีล).
       void bumpLeadOnBookingConfirmed(data.phone);
+      // Only fields this user gets back from the rooms API: sales never see
+      // tenant/phone there, so a patch with them could never be "confirmed"
+      // and pinned the room for 5 minutes, hiding everyone else's changes
+      // to it (audit r38).
       optimisticUpdateRoom(data.building, data.room, {
-        status: "รอสัญญา", tenant: data.tenant, phone: data.phone, price: String(data.monthlyRent),
+        status: "รอสัญญา", price: String(data.monthlyRent),
+        ...(canViewTenant(roles) ? { tenant: data.tenant, phone: data.phone } : {}),
       });
       setBookingRoom(null);
       refresh();
@@ -1071,6 +1076,9 @@ export default function Home() {
     // from stock only then (a server-skipped duplicate used to withdraw them).
     let saved = false;
     let retryToast: string | number | undefined;
+    // A re-send after a dropped answer: if the first try DID write the row,
+    // the server answers duplicate-open — that duplicate is this very task.
+    let retried = false;
     try {
       const costNum = values.cost ? parseCostInput(values.cost) : 0;
       // Resilient: addTask is server-deduped, so a re-send after a Sheets
@@ -1091,6 +1099,7 @@ export default function Home() {
         },
         {
           onRetry: (attempt, tot) => {
+            retried = true;
             retryToast = toast.info(`เซิร์ฟเวอร์ตอบช้า — กำลังลองใหม่ (${attempt}/${tot})`, {
               description: "ไม่ต้องกดซ้ำ ระบบส่งให้เองจนสำเร็จ",
             });
@@ -1129,7 +1138,10 @@ export default function Home() {
             description: "ข้อมูลในฟอร์มยังอยู่ กดบันทึกอีกครั้งได้เลย (ระบบกันงานซ้ำให้)",
           });
         }
-      } else if (data.ok && (data as { skipped?: string }).skipped === "duplicate-open") {
+      } else if (data.ok && (data as { skipped?: string }).skipped === "duplicate-open" && !retried) {
+        // (after an automatic re-send it's our own first attempt that landed —
+        //  that falls through to "saved" below; audit r38: staff were told to
+        //  change the name and save again, which created a real duplicate)
         // เซิร์ฟเวอร์กันงานซ้ำ (วันที่+ประเภท+ตึก+ห้อง เดิมยังเปิดอยู่) —
         // เดิมโชว์ "เพิ่มงานแล้ว" ทั้งที่แถวไม่ได้ถูกเพิ่มและโน้ตหายเงียบๆ
         // (audit r22). บอกตรงๆ และไม่ optimistic-insert แถวผี.

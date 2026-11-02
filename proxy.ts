@@ -2,7 +2,9 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 /**
- * Page-level auth gate.
+ * Page-level auth gate. (Next 16 renamed the "middleware" file convention
+ * to "proxy" — same code; see node_modules/next/dist/docs/01-app/
+ * 03-api-reference/03-file-conventions/proxy.md.)
  *
  * /api/* routes are NOT covered here — they perform their own auth() check
  * and return JSON 401/403 directly. Redirecting JSON requests to an HTML

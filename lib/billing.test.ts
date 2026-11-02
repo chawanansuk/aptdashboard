@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   billMessage, computeBill, currentMonthKey, dueDateOf, isMonthKey, monthLabel,
-  parseReading, shiftMonth, summarize, type BillingRate,
+  parseReading, shiftMonth, summarize, type BillingRate, billKey, listPriceOf,
 } from "./billing";
 
 const RATE: BillingRate = { building: "มั่งมี", elecRate: 8, waterRate: 18, waterMin: 100, dueDay: 5 };
@@ -97,5 +97,20 @@ describe("summarize", () => {
       { total: 4000, paidDate: "" },
       { total: null, paidDate: "" },
     ])).toEqual({ billed: 9000, collected: 5000, outstanding: 4000, rooms: 2, paidRooms: 1 });
+  });
+});
+
+describe("listPriceOf / billKey (audit r38)", () => {
+  it("the first number of the price text, never all digits glued together", () => {
+    expect(listPriceOf("3,500")).toBe(3500);
+    expect(listPriceOf("5.200")).toBe(5200);
+    expect(listPriceOf("3500/4000")).toBe(3500);
+    expect(listPriceOf("ห้องละ 3500 บาท")).toBe(3500);
+    expect(listPriceOf("")).toBeNull();
+    expect(listPriceOf("ติดต่อ")).toBeNull();
+    expect(listPriceOf(4500)).toBe(4500);
+  });
+  it("KL and Kl are one building", () => {
+    expect(billKey("KL", "201")).toBe(billKey(" Kl ", "201"));
   });
 });

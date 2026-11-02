@@ -5,6 +5,7 @@ import { canPerform } from "@/lib/permissions";
 import { appsScriptCall, AppsScriptError } from "@/lib/appsScriptFetch";
 import { bankFor } from "@/lib/bookingConfig";
 import { buildContractFields, contractFileName, isContractPilot } from "@/lib/contractDraft";
+import { getBangkokNow } from "@/lib/dateUtils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,7 +112,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ...j.result });
     }
 
-    const fields = buildContractFields(body);
+    // Bangkok's date (audit r38): the server runs UTC — before 07:00 the
+    // draft was stamped with yesterday.
+    const fields = buildContractFields(body, getBangkokNow());
     const j = await appsScriptCall<{ pdfBase64: string; sample: boolean }>("draftContract", {
       building: body.building, room: body.room, fields,
     }, { idempotent: true, timeoutMs: 50_000, maxRetries: 0 });

@@ -10,8 +10,11 @@
  */
 
 export const TASK_STATUS = {
-  /** No work started yet — the implicit default when status is blank. */
-  PENDING: "",
+  /** No work started yet. Blank cells also read as pending, but the app
+   *  WRITES "pending" (what Apps Script's addTask uses): Code.gs before
+   *  v3.41 turned an empty status into เสร็จ, so "คืน" and dragging a card
+   *  back to รอ used to close the job (audit r38). */
+  PENDING: "pending",
   /** Engineer has started the work. */
   IN_PROGRESS: "กำลังทำ",
   /** Stuck — waiting on parts/customer/permission. */

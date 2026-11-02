@@ -13,7 +13,7 @@ import {
   tryBeginTasksRevalidation,
 } from "@/lib/dashboardCache";
 import type { SheetRow } from "@/types";
-import { canViewTaskCustomer } from "@/lib/permissions";
+import { projectTasksForRoles } from "@/lib/taskProjection";
 import { makeEtag, timing } from "@/lib/apiTiming";
 import {
   redisGetJson, redisSetJson, redisGetEpoch, isCachedSlice,
@@ -129,9 +129,7 @@ export async function GET(req: Request) {
   // view it (engineer-only). The ETag is computed over the PROJECTED rows
   // so an engineer's 304 can't be satisfied by a sales user's cached body
   // (Cache-Control is already `private`, never CDN).
-  const canSeeCustomer = canViewTaskCustomer(session.user.roles);
-  const project = (rows: SheetRow[]): SheetRow[] =>
-    canSeeCustomer ? rows : rows.map((t) => ({ ...t, customer: "", phone: "" }));
+  const project = (rows: SheetRow[]): SheetRow[] => projectTasksForRoles(rows, session.user.roles);
 
   // ---- ?fresh=1 — ข้าม L1/L2/emergency ทุกชั้น (r32) ----
   // ใช้ตอน "Google ตอบช้าจนหมดเวลา" แล้วฝั่งเว็บอยากรู้ความจริงว่างานเข้าแล้วหรือยัง.
@@ -139,10 +137,14 @@ export async function GET(req: Request) {
   // ถ้าคำขอเช็คไปตกเครื่องอื่นที่แคชยังอุ่น จะตอบผิดว่า "ยังไม่ได้บันทึก" (audit r33).
   if (new URL(req.url).searchParams.get("fresh") === "1") {
     const fetchStart = Date.now();
+    // audit r38: like every other path — rows fetched before a write that
+    // landed mid-fetch must not go back into L1/L2 stamped as newer.
+    const freshGen = tasksCacheGeneration();
     try {
       const tasks = await fetchTasks(FRESH_TIMEOUT_MS);
-      setTasksCache(tasks);
-      void redisSetJson(REDIS_TASKS_KEY, { at: Date.now(), rows: tasks }, REDIS_SLICE_TTL_SEC);
+      if (setTasksCacheIfCurrent(tasks, freshGen, fetchStart)) {
+        void redisSetJson(REDIS_TASKS_KEY, { at: fetchStart, rows: tasks }, REDIS_SLICE_TTL_SEC);
+      }
       console.info("[dashboard/tasks] fresh bypass", { fetchMs: Date.now() - fetchStart });
       return NextResponse.json(
         { tasks: project(tasks), cached: false, cacheState: "fresh-bypass" },

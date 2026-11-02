@@ -4,6 +4,12 @@ const authMock = vi.fn();
 const callMock = vi.fn();
 
 vi.mock("@/auth", () => ({ auth: () => authMock() }));
+// The rooms the server already knows (its own price for a room).
+const roomsMock = vi.fn(() => [{ building: "มั่งมี", room: "101", price: "4,500" }]);
+vi.mock("@/lib/dashboardCache", () => ({
+  getRoomsCacheState: () => ({ state: "fresh", data: roomsMock(), ageMs: 0 }),
+  peekEmergencyRoomsCache: () => null,
+}));
 vi.mock("@/lib/appsScriptFetch", () => ({
   appsScriptCall: (...args: unknown[]) => callMock(...args),
   AppsScriptError: class AppsScriptError extends Error { status = 502; },
@@ -68,7 +74,7 @@ describe("POST saveReadings", () => {
   it("computes amounts server-side from the sheet's rates; previous reading comes from last month", async () => {
     as("engineer");
     const res = await post({ action: "saveReadings", month: "2026-10", items: [
-      { building: "มั่งมี", room: "101", elecCur: 1290, waterCur: 56, roomPrice: 4500,
+      { building: "มั่งมี", room: "101", elecCur: 1290, waterCur: 56, roomPrice: 1 /* ignored: rent comes from the server's room price */,
         rent: 1, total: 99999 /* not accepted from anyone */ },
     ] });
     expect(res.status).toBe(200);
@@ -91,22 +97,62 @@ describe("POST saveReadings", () => {
     callMock.mockClear();
     as("engineer");
     await post({ action: "saveReadings", month: "2026-10", items: [
-      { building: "มั่งมี", room: "101", elecCur: 1290, waterCur: 56, rent: 1, parking: 9999, roomPrice: 4500 },
+      { building: "มั่งมี", room: "101", elecCur: 1290, waterCur: 56, rent: 1, parking: 9999, roomPrice: 1 },
     ] });
     w = callMock.mock.calls.find((c) => c[0] === "saveMeterReadings")![1] as { items: Record<string, unknown>[] };
     expect(w.items[0]).toMatchObject({ rent: 4500, total: 5056 });
     expect(w.items[0]).not.toHaveProperty("parking");
   });
 
-  it("no rate for the building → readings and units are saved, amounts are not written", async () => {
+  it("no rate for the building → readings and units are saved, no amount (an old one is cleared)", async () => {
     as("management");
     await post({ action: "saveReadings", month: "2026-10", items: [
       { building: "KL", room: "201", elecPrev: 10, elecCur: 20, waterPrev: 1, waterCur: 2, roomPrice: 3000 },
     ] });
     const w = callMock.mock.calls.find((c) => c[0] === "saveMeterReadings")![1] as { items: Record<string, unknown>[] };
-    expect(w.items[0]).toMatchObject({ elecUnits: 10, waterUnits: 1 });
+    expect(w.items[0]).toMatchObject({ elecUnits: 10, waterUnits: 1, elecCost: null, total: null });
+  });
+
+  it("'save the totals' (nothing changed) only fills blanks — hand-typed amounts survive", async () => {
+    as("management");
+    await post({ action: "saveReadings", month: "2026-10", items: [{ building: "KL", room: "201", roomPrice: 3000 }] });
+    const w = callMock.mock.calls.find((c) => c[0] === "saveMeterReadings")![1] as { items: Record<string, unknown>[] };
     expect(w.items[0]).not.toHaveProperty("elecCost");
     expect(w.items[0]).not.toHaveProperty("total");
+  });
+
+  it("a corrected reading clears the old units/amounts instead of leaving the wrong bill (audit r38)", async () => {
+    as("engineer");
+    callMock.mockImplementation(async (action: string) => action === "getBilling"
+      ? { ok: true, result: { ...BILLING, rows: [row({ room: "101", elecPrev: 1000, elecCur: 1300, elecUnits: 300, elecCost: 2400, total: 6508 })] } }
+      : { ok: true, saved: 1 });
+    await post({ action: "saveReadings", month: "2026-10", items: [{ building: "มั่งมี", room: "101", elecCur: 30 }] });
+    const w = callMock.mock.calls.find((c) => c[0] === "saveMeterReadings")![1] as { items: Record<string, unknown>[] };
+    expect(w.items[0]).toMatchObject({ elecCur: 30, elecUnits: null, elecCost: null, total: null });
+  });
+
+  it("an explicit null clears a mistyped reading", async () => {
+    as("engineer");
+    await post({ action: "saveReadings", month: "2026-10", items: [{ building: "มั่งมี", room: "102", waterCur: null }] });
+    const w = callMock.mock.calls.find((c) => c[0] === "saveMeterReadings")![1] as { items: Record<string, unknown>[] };
+    expect(w.items[0]).toHaveProperty("waterCur", null);
+  });
+
+  it("'KL' and 'Kl' are one building: last month's reading is found", async () => {
+    as("management");
+    callMock.mockImplementation(async (action: string) => action === "getBilling"
+      ? { ok: true, result: { ...BILLING, rows: [], prevRows: [{ building: "KL", room: "201", elecCur: 500, waterCur: 10 }] } }
+      : { ok: true, saved: 1 });
+    await post({ action: "saveReadings", month: "2026-10", items: [{ building: "Kl", room: "201", elecCur: 510 }] });
+    const w = callMock.mock.calls.find((c) => c[0] === "saveMeterReadings")![1] as { items: Record<string, unknown>[] };
+    expect(w.items[0]).toMatchObject({ elecPrev: 500, elecUnits: 10, waterPrev: 10 });
+  });
+
+  it("an unusable room price doesn't fail the whole round", async () => {
+    as("management");
+    roomsMock.mockReturnValueOnce([]);
+    const res = await post({ action: "saveReadings", month: "2026-10", items: [{ building: "KL", room: "201", elecCur: 5, roomPrice: 35_004_000 }] });
+    expect(res.status).toBe(200);
   });
 });
 

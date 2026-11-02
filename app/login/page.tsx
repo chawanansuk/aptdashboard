@@ -14,7 +14,10 @@ interface PageProps {
 export default async function LoginPage({ searchParams }: PageProps) {
   const session = await auth();
   const params = await searchParams;
-  const callbackUrl = typeof params.callbackUrl === "string" ? params.callbackUrl : "/";
+  // Same-site paths only (audit r38): redirect() follows absolute URLs, so
+  // ?callbackUrl=https://evil.example bounced a signed-in user off-site.
+  const raw = typeof params.callbackUrl === "string" ? params.callbackUrl : "/";
+  const callbackUrl = raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/\\") ? raw : "/";
 
   if (session?.user) {
     redirect(callbackUrl);

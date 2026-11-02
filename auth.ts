@@ -128,11 +128,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.roles = roles;
           token.role = roles[0]; // primary role (backward compat)
         } else {
-          // No longer allowlisted — strip roles so every canPerform /
-          // canAccess gate fails closed. (signIn already blocks fresh
-          // logins; this closes the existing-session path.)
-          token.roles = [];
-          token.role = undefined;
+          // No longer allowlisted — end the session. Returning null makes
+          // Auth.js clear the cookie (audit r38: a token with roles=[] was
+          // kept alive and refreshed, and every route that only checks for
+          // a signed-in email — vehicles, photos, room tasks… — let the
+          // removed person keep reading and writing).
+          return null;
         }
       }
       return token;

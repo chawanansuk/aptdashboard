@@ -1,4 +1,5 @@
 import { THAI_MONTHS } from "@/lib/dateUtils";
+import { parsePriceOr0 } from "@/lib/money";
 
 /**
  * Monthly billing — meter readings → bill → payment (roadmap item 2).
@@ -126,6 +127,27 @@ export function computeBill(input: BillInput, rate: BillingRate | null): BillRes
     ? input.rent + elecCost + waterCost + extras
     : null;
   return { elecUnits, elecCost, waterUnits, waterCost, total, problems };
+}
+
+/** One key per room across sheets: "KL" in the meter sheet and "Kl" in the
+ *  rooms sheet are the same building (audit r38). */
+export function billKey(building: string, room: string): string {
+  return `${(building || "").trim().toLowerCase()}|${(room || "").trim()}`;
+}
+
+/**
+ * A room's listed rent from the rooms sheet's price text — the FIRST number
+ * ("3,500" → 3500, "5.200" → 5200, "3500/4000" → 3500, "ห้องละ 3500" → 3500).
+ * Gluing every digit together turned "3500/4000" into 35,004,000, which the
+ * API rejected and the whole round of readings failed (audit r38).
+ * Null when there's no plausible rent.
+ */
+export function listPriceOf(text: unknown): number | null {
+  if (typeof text === "number") return text > 0 && text <= 1_000_000 ? text : null;
+  const m = /\d[\d,.]*/.exec(String(text ?? ""));
+  if (!m) return null;
+  const n = parsePriceOr0(m[0].replace(/[.,]$/, ""));
+  return n > 0 && n <= 1_000_000 ? n : null;
 }
 
 /** A building's rate: exact name, then case-insensitive ("KL" vs "Kl"). */
