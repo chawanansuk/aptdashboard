@@ -1,9 +1,21 @@
 /**
- * Code.gs v3.40.0 — Dashboard หอพัก
+ * Code.gs v3.41.0 — Dashboard หอพัก
  * รวม: Phase 1 setup/UI + Web App backend สำหรับ Vercel
  *
  * ⚠️ เวอร์ชันจริงที่ระบบใช้เช็ก = ตัวแปร BACKEND_VERSION (ค้นหาในไฟล์)
  *    ป้ายชื่อบรรทัดนี้เป็นแค่ human label — แก้ให้ตรงกันทุกครั้งที่ bump
+ *
+ * NEW v3.41.0 (audit r38 — ตรวจระบบ):
+ *   - ปิด "คืน"/ลากกลับคอลัมน์รอ ไม่กลายเป็น "เสร็จ" อีก (เดิม status '' → เสร็จ)
+ *   - bookRoom: ห้องที่มีคนอื่นจองไว้แล้ว (รอสัญญา/จอง) จองทับไม่ได้ — คนเดิม (ชื่อ/เบอร์ตรง) ได้
+ *   - กันงาน/ลูกค้าซ้ำด้วยเบอร์ใช้ได้จริง: ชีตตัดเลข 0 หน้าเบอร์ (phoneKey_)
+ *   - งานที่เพิ่มจากเมนู template/พิมพ์ในชีต ได้ id เอง; ลบงานที่ไม่มี id ไม่ลบพ่วงงานแฝด
+ *   - งานประจำสองรายการห้องเดียวกันวันเดียวกัน ไม่ข้ามกันแล้ว (ดูจาก "จากงานประจำ: ชื่อ")
+ *   - ปิดงานย้ายเข้า/ออกในชีต: เปลี่ยนสถานะห้องเฉพาะสถานะที่ถูกต้อง + ลงบันทึกการแก้ไข
+ *   - แคช: การอ่านที่เริ่มก่อนการเขียน ไม่เก็บข้อมูลเก่าทับ
+ *   - ชีตมิเตอร์: เพิ่มแถว/คอลัมน์ให้เองเมื่อเต็ม, ชื่อตึกไม่สนตัวพิมพ์เล็ก/ใหญ่ (KL/Kl),
+ *     อัตราที่อ่านไม่ออก = ยังไม่ตั้ง (เดิมกลายเป็นค่าไฟฟรี)
+ *   - เมนูคัดลอก template อยู่ใต้ล็อกการเขียน
  *
  * NEW v3.40.0 (ร่างสัญญา — ส่งให้ลูกค้าอ่านหลังจอง):
  *   - ชีตใหม่ "แม่แบบสัญญา" (ตึก | ลิงก์ Google Docs): ถ้อยคำสัญญาอยู่ใน Google Docs ที่เจ้าของแก้เอง
@@ -270,16 +282,24 @@ function getCached_(key, ttlSec, producer) {
   if (cached) {
     try { return JSON.parse(cached); } catch (e) { /* cache เสีย — fall through */ }
   }
+  // v3.41 (audit r38): a write that clears the cache WHILE this read is
+  // building its result bumps the generation — then this (older) snapshot
+  // is returned but not stored, or it would be served for 4 minutes.
+  const gen = cache.get(key + ':gen');
   const fresh = producer();
   try {
-    cache.put(key, JSON.stringify(fresh), ttlSec);
+    if (cache.get(key + ':gen') === gen) cache.put(key, JSON.stringify(fresh), ttlSec);
   } catch (e) {
     // payload ใหญ่เกิน cache — ไม่ cache แต่ยังคืนค่า
   }
   return fresh;
 }
 function clearCache_(key) {
-  try { CacheService.getScriptCache().remove(key); } catch (e) {}
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove(key);
+    cache.put(key + ':gen', String(Date.now()) + Math.random(), 21600);
+  } catch (e) {}
 }
 
 function getTasksCached_() { return getCached_(TASKS_CACHE_KEY, TASKS_CACHE_TTL_SEC, getTasks_); }
@@ -347,6 +367,18 @@ function norm(v) {
 // เพื่อไม่ให้ Sheets รันเป็นสูตร. ตัว ' เป็นแค่เครื่องหมาย "นี่คือข้อความ" — ไม่อยู่
 // ในค่าที่เซลล์เก็บ — ฉะนั้นเวลาเทียบกับของในชีต (กันงานซ้ำ, บันทึกการแก้ไข)
 // หรือเขียนแบบข้อความตรงตัว ต้องถอดออกก่อน. ถอดเฉพาะ ' ที่ตามด้วย = + - @.
+/** v3.41 (audit r38): one comparable form of a Thai phone number. Sheets
+ *  turns a typed 0812345678 into the NUMBER 812345678 (leading zero gone),
+ *  so comparing raw digits never matched and every duplicate guard keyed
+ *  on the phone let the second row through. */
+function phoneKey_(v) {
+  let d = String(v === null || v === undefined ? '' : v).replace(/\D/g, '');
+  if (d.length === 11 && d.indexOf('66') === 0) d = '0' + d.slice(2);   // +66 81 234 5678
+  if (d.length === 9 && /^[689]/.test(d)) d = '0' + d;                  // mobile, zero eaten
+  else if (d.length === 8 && /^[2-7]/.test(d)) d = '0' + d;            // landline, zero eaten
+  return d;
+}
+
 function unmark_(v) {
   const s = v === null || v === undefined ? '' : String(v);
   return /^'[=+\-@]/.test(s) ? s.slice(1) : s;
@@ -596,7 +628,7 @@ function doPost(e) {
  * '3.10.0' for eleven feature versions, which is exactly why past
  * redeploys were impossible to verify from the app.
  */
-var BACKEND_VERSION = '3.40.0';
+var BACKEND_VERSION = '3.41.0';
 
 function doGet() {
   // v3.32 (audit r35): เมื่อเปิด SHARED_SECRET แล้ว GET ไม่ผ่านด่านลับ — ไม่ควรบอก
@@ -932,6 +964,9 @@ function getRates_() {
   for (let i = 0; i < data.length; i++) {
     const b = norm(data[i][0]);
     if (!b) continue;
+    // v3.41 (audit r38): a blank or "8 บาท" cell read as 0 = "not charged" →
+    // bills went out with free electricity. Unreadable = no rate (no amounts).
+    if (meterNum_(data[i][1]) === null || meterNum_(data[i][2]) === null) continue;
     out.push({
       building: b,
       elecRate: meterNum_(data[i][1]) || 0,
@@ -976,6 +1011,12 @@ function saveMeterReadings_(b) {
   if (items.length === 0) return { saved: 0 };
   const sh = meterSheet_(true);
   const lastCol = Math.max(sh.getLastColumn(), METER_HEADERS.length);
+  // v3.41 (audit r38): a sheet narrower than the 18 columns, or with every
+  // row used (formulas dragged to the bottom), made the read/append throw
+  // "outside the dimensions of the sheet" — after some rows were written.
+  if (sh.getMaxColumns() < lastCol) sh.insertColumnsAfter(sh.getMaxColumns(), lastCol - sh.getMaxColumns());
+  const spare = sh.getMaxRows() - sh.getLastRow();
+  if (spare < items.length) sh.insertRowsAfter(sh.getMaxRows(), items.length - spare);
   const range = sh.getRange(1, 1, Math.max(sh.getLastRow(), 1), lastCol);
   const data = range.getValues();
   const formulas = range.getFormulas();
@@ -986,11 +1027,12 @@ function saveMeterReadings_(b) {
     const it = items[k] || {};
     const bld = norm(it.building), room = norm(it.room);
     if (!bld || !room) continue;
+    const bldKey = bld.toLowerCase(); // v3.41: "KL" in one sheet, "Kl" in another
     // 1) this month's row for the room, 2) a blank row (formulas dragged
     // down but no month/building/room yet — keeps those formulas), 3) a new row.
     let i = -1;
     for (let r = 1; r < data.length; r++) {
-      if (norm(data[r][cols.building]) === bld && norm(data[r][cols.room]) === room &&
+      if (norm(data[r][cols.building]).toLowerCase() === bldKey && norm(data[r][cols.room]) === room &&
           monthKey_(data[r][cols.month]) === month) { i = r; break; }
     }
     if (i < 0) {
@@ -1008,7 +1050,8 @@ function saveMeterReadings_(b) {
     used[i] = true;
     const changes = {};
     changes[cols.month] = month;
-    changes[cols.building] = bld;
+    // keep the spelling the sheet already uses for this building
+    changes[cols.building] = i < data.length && norm(data[i][cols.building]) ? norm(data[i][cols.building]) : bld;
     changes[cols.room] = room;
     for (var f in METER_ALIASES) {
       if (f === 'month' || f === 'building' || f === 'room') continue;
@@ -1041,9 +1084,9 @@ function setBillPaid_(b) {
   const data = sh.getDataRange().getValues();
   const cols = meterCols_(data[0]);
   if (cols.paidDate < 0) throw new Error('ชีต "มิเตอร์" ไม่มีคอลัมน์ "วันที่โอน"');
-  const bld = norm(b.building), room = norm(b.room);
+  const bld = norm(b.building).toLowerCase(), room = norm(b.room);
   for (let r = 1; r < data.length; r++) {
-    if (norm(data[r][cols.building]) === bld && norm(data[r][cols.room]) === room &&
+    if (norm(data[r][cols.building]).toLowerCase() === bld && norm(data[r][cols.room]) === room &&
         monthKey_(data[r][cols.month]) === month) {
       const cell = sh.getRange(r + 1, cols.paidDate + 1);
       if (cell.getFormula()) throw new Error('ช่อง "วันที่โอน" ของแถวนี้เป็นสูตร — แก้ในชีตแทน');
@@ -1350,7 +1393,9 @@ function draftContract_(b) {
     const pdf = copy.getAs('application/pdf');
     return { pdfBase64: Utilities.base64Encode(pdf.getBytes()), sample: sample, docUrl: docUrl_(tpl.docId) };
   } finally {
-    // The filled copy holds the customer's name and phone — never keep it.
+    // The filled copy holds the customer's name and phone — straight to the
+    // owner's Drive trash (Drive empties it after 30 days; DriveApp has no
+    // permanent delete without enabling the Drive advanced service).
     try { copy.setTrashed(true); } catch (e) { /* already gone */ }
   }
 }
@@ -1836,13 +1881,14 @@ function findTaskRowById_(id) {
 
 /** Backfill core — stamps a UUID on every task row that lacks one.
  *  Returns how many were filled. Callers handle locking/flagging. */
-function backfillTaskIdsCore_() {
+function backfillTaskIdsCore_(fromRow) {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   if (!sh) return 0;
   ensureTaskIdColumn_(sh);
   const lastRow = sh.getLastRow();
-  if (lastRow < 2) return 0;
-  const range = sh.getRange(2, TASK_COL.ID, lastRow - 1, 1);
+  const first = Math.max(2, fromRow || 2);
+  if (lastRow < first) return 0;
+  const range = sh.getRange(first, TASK_COL.ID, lastRow - first + 1, 1);
   const vals = range.getValues();
   let filled = 0;
   for (let i = 0; i < vals.length; i++) {
@@ -1862,9 +1908,21 @@ function backfillTaskIdsCore_() {
  */
 function autoBackfillTaskIds_() {
   const props = PropertiesService.getScriptProperties();
-  if (props.getProperty('TASK_ID_BACKFILL_DONE')) return;
-  backfillTaskIdsCore_();
-  props.setProperty('TASK_ID_BACKFILL_DONE', '1');
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
+  const last = sh ? sh.getLastRow() : 0;
+  if (!props.getProperty('TASK_ID_BACKFILL_DONE')) {
+    backfillTaskIdsCore_();
+    props.setProperty('TASK_ID_BACKFILL_DONE', '1');
+    props.setProperty('TASK_ID_BACKFILL_ROWS', String(last));
+    return;
+  }
+  // v3.41 (audit r38): the one-time backfill left every row added later by
+  // the template menu or by hand without an id — and an id-less job is
+  // found (and closed/deleted) by date+type+room together with its twins.
+  // Fill only the rows added since the last check (one small read).
+  const seen = Number(props.getProperty('TASK_ID_BACKFILL_ROWS') || 0);
+  if (sh && last > seen && last >= 2) backfillTaskIdsCore_(Math.max(2, seen + 1));
+  if (last !== seen) props.setProperty('TASK_ID_BACKFILL_ROWS', String(last));
 }
 
 /** Optional manual variant (editor → Run) — same core, plus a toast.
@@ -2017,7 +2075,7 @@ function addTask_(b) {
     // นับเป็นซ้ำเฉพาะเมื่อ "ตัวตน" ตรงกันด้วย: เบอร์ (เฉพาะตัวเลข) หรือชื่อ
     // ลูกค้าตรงกัน และหมายเหตุตรงกัน. งานที่ไม่มีลูกค้า/หมายเหตุทั้งคู่
     // (กดซ้ำเร็วๆ ของเดิม) ยังกันได้เหมือนเดิม.
-    const digits = function (v) { return String(v || '').replace(/\D/g, ''); };
+    const digits = phoneKey_; // v3.41: the sheet drops the leading 0
     const inPhone = digits(b.phone);
     const inCust  = norm(unmark_(b.customer)); // v3.35: ' จากเว็บไม่อยู่ในเซลล์
     const inNote  = norm(unmark_(b.note));
@@ -2207,7 +2265,10 @@ function updateTaskStatus_(b) {
   // old flip-every-duplicate behaviour for pre-backfill rows.
   autoBackfillTaskIds_();
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
-  const status = b.status || 'เสร็จ';
+  // v3.41 (audit r38): only a MISSING status means "close it". The app's
+  // "คืน"/drag-back-to-รอ sent '' — `b.status || 'เสร็จ'` turned every
+  // reopen into เสร็จ (cancelled jobs ended up counted as done).
+  const status = b.status === undefined || b.status === null ? 'เสร็จ' : String(b.status);
   const isDoneWrite = status === 'เสร็จ' || status === 'done' || status === 'ปิดแล้ว';
   const idRow = findTaskRowById_(b.id);
   // v3.31 (audit r33): id ที่ส่งมาแต่หาไม่เจอ (แถวถูกลบ/รวมไปแล้ว) ห้ามถอยไปใช้
@@ -2249,6 +2310,12 @@ function deleteTask_(b) {
   if (b.id && idRow < 0) throw new Error('task not found (id หมดอายุ — รีเฟรชแล้วลองใหม่)');
   const rows = idRow >= 0 ? [idRow] : findAllTaskRows_(b);
   if (rows.length === 0) throw new Error('task not found');
+  // v3.41 (audit r38): without an id, two different jobs typed by hand on
+  // the same room+day ("ไฟดับ", "ก๊อกรั่ว") were BOTH deleted. They now get
+  // ids (autoBackfillTaskIds_ above) — refuse, and let a refresh pick one.
+  if (!b.id && rows.length > 1) {
+    throw new Error('มีงานนี้หลายรายการในวันเดียวกัน — รีเฟรชหน้าแล้วลบใหม่อีกครั้ง');
+  }
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.TASK);
   // Delete every duplicate row sharing this key, not just the first
   // (mirrors updateTaskStatus_ — the whole system treats this composite
@@ -2293,6 +2360,23 @@ function updateRoomStatus_(b, opts) {
       if (opts && opts.forBooking &&
           (oldStatus === 'มีผู้เช่า' || oldStatus === 'มีคนอยู่' || oldStatus === 'อยู่')) {
         throw new Error('ห้องนี้มีผู้เช่าอยู่ — จองทับไม่ได้ (ย้ายผู้เช่าออกก่อน)');
+      }
+      // v3.41 (audit r38): a room already booked for SOMEONE ELSE can't be
+      // booked again — two salespeople on a stale screen each "booked" the
+      // same ว่าง room and the second silently replaced the first customer,
+      // who had paid a deposit. Same customer (name or phone) = an edit or
+      // the route's own retry → allowed. To change customer: ปล่อยขาย first.
+      if (opts && opts.forBooking && (oldStatus === 'รอสัญญา' || oldStatus === 'จอง')) {
+        const prevTenant = idxTenant >= 0 ? norm(unmark_(data[i][idxTenant])) : '';
+        const prevPhone = idxPhone >= 0 ? phoneKey_(data[i][idxPhone]) : '';
+        const newTenant = norm(unmark_(b.tenant));
+        const newPhone = phoneKey_(b.phone);
+        const samePerson = (prevPhone && newPhone && prevPhone === newPhone)
+          || (prevTenant && newTenant && prevTenant === newTenant)
+          || (!prevTenant && !prevPhone);
+        if (!samePerson) {
+          throw new Error('ห้องนี้มีคนจองไว้แล้ว — รีเฟรชหน้าจอ (ถ้าจะเปลี่ยนผู้จอง กด "ปล่อยขาย" ก่อน)');
+        }
       }
       const oldTenant = idxTenant >= 0 ? norm(data[i][idxTenant]) : '';
       const oldPhone  = idxPhone  >= 0 ? norm(data[i][idxPhone])  : '';
@@ -3279,13 +3363,13 @@ function addLead_(b) {
   // v3.32 (audit r35): กันลูกค้าซ้ำด้วยเบอร์ที่นี่ (ใต้ล็อก) — ฝั่งเว็บเช็คจากรายการ
   // ที่แคชไว้ 90s สองนัดชมเบอร์เดียวกันในช่วงนั้นได้ 2 แถว แล้วขั้นตอน "จอง/ชมแล้ว"
   // ไปอัปเดตผิดแถว. เจอเบอร์เดิม → คืนรายการเดิม ไม่เพิ่ม
-  const inDigits = String(b.phone || '').replace(/\D/g, '');
+  const inDigits = phoneKey_(b.phone); // v3.41: the sheet drops the leading 0
   if (inDigits.length >= 9) {
     const lastRow = sh.getLastRow();
     if (lastRow >= 2) {
       const rows = sh.getRange(2, 1, lastRow - 1, 3).getValues(); // id, name, phone
       for (let i = 0; i < rows.length; i++) {
-        if (String(rows[i][2] || '').replace(/\D/g, '') === inDigits) {
+        if (phoneKey_(rows[i][2]) === inDigits) {
           return { appended: false, duplicate: true, id: norm(rows[i][0]), name: norm(rows[i][1]), row: i + 2 };
         }
       }
@@ -3642,6 +3726,17 @@ function deleteRecurring_(b) {
  *
  * Returns { created: N, skipped: M } so the UI can show progress.
  */
+/** A task on this date/type/room created by the recurring template `name`. */
+function recurringTaskExists_(taskSh, key, name) {
+  const rows = findAllTaskRows_(key);
+  const marker = 'จากงานประจำ: ' + name;
+  for (let i = 0; i < rows.length; i++) {
+    const note = norm(taskSh.getRange(rows[i], TASK_COL.NOTE).getValue());
+    if (note === marker || note.slice(-(marker.length + 3)) === ' · ' + marker) return true;
+  }
+  return false;
+}
+
 function runRecurringCheck_(b) {
   const recurringSh = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.RECURRING);
   if (!recurringSh) return { created: 0, skipped: 0 };
@@ -3725,7 +3820,10 @@ function runRecurringCheck_(b) {
     // 101) never advanced nextRunDate — it stayed "due" and was skipped
     // on EVERY run, forever. Treat the existing task as this cycle's
     // occurrence and move on to the next cycle.
-    if (findTaskRow_({ date: taskDateStr, type: type, building: building, room: room }) >= 0) {
+    // v3.41 (audit r38): only THIS template's task counts (its note marker) —
+    // two templates on one room/type falling due together used to skip the
+    // second one every cycle, forever.
+    if (recurringTaskExists_(taskSh, { date: taskDateStr, type: type, building: building, room: room }, name)) {
       const dupNext = new Date(today.getTime() + interval * 24 * 60 * 60 * 1000);
       recurringSh.getRange(i + 2, 7).setValue(todayStr); // lastRunDate
       recurringSh.getRange(i + 2, 8).setValue(
@@ -3951,6 +4049,19 @@ function onEdit(e) {
   if (name === SHEET_NAMES.TASK) clearTasksCache_();
   if (name === SHEET_NAMES.ROOM) clearRoomsCache_();
   if (name !== SHEET_NAMES.TASK) return;
+  // v3.41 (audit r38): a job typed straight into the sheet gets an id as
+  // soon as it has a date/type, so the app can tell it from its twins.
+  try {
+    if (e.range.getRow() >= 2 && e.range.getNumRows() <= 200 && sh.getLastColumn() >= TASK_COL.ID) {
+      const r0 = e.range.getRow(), n = e.range.getNumRows();
+      const vals = sh.getRange(r0, 1, n, TASK_COL.ID).getValues();
+      for (let k = 0; k < n; k++) {
+        if ((vals[k][0] !== '' || norm(vals[k][1])) && !norm(vals[k][TASK_COL.ID - 1])) {
+          sh.getRange(r0 + k, TASK_COL.ID).setValue(Utilities.getUuid());
+        }
+      }
+    }
+  } catch (err) { /* never block the edit */ }
   if (e.range.getColumn() !== TASK_COL.STATUS) return;
   // v3.38: closing/reopening by hand in the sheet stamps/clears เสร็จเมื่อ too
   if (e.range.getNumRows() === 1 && e.range.getRow() >= 2) {
@@ -3979,8 +4090,17 @@ function onEdit(e) {
   if (iBld < 0 || iRoom < 0 || iStatus < 0) return;
   for (let i = 1; i < roomData.length; i++) {
     if (norm(roomData[i][iBld]) === norm(building) && norm(roomData[i][iRoom]) === norm(roomNum)) {
-      const newStatus = (type === 'ย้ายออก') ? 'ว่าง' : (type === 'ย้ายเข้า') ? 'มีผู้เช่า' : null;
+      // v3.41 (audit r38): same rule as the app (lib/autoRoomStatus) — closing
+      // an OLD ย้ายออก used to free a room already booked by the next
+      // customer, erasing their name and phone, with no audit row.
+      const cur = norm(roomData[i][iStatus]);
+      const occupied = cur === 'มีผู้เช่า' || cur === 'มีคนอยู่' || cur === 'อยู่' || cur === 'แจ้งย้ายออก';
+      const vacantOrBooked = cur === '' || cur === 'ว่าง' || cur === 'รอสัญญา' || cur === 'จอง';
+      const newStatus = (type === 'ย้ายออก' && occupied) ? 'ว่าง'
+        : (type === 'ย้ายเข้า' && vacantOrBooked) ? 'มีผู้เช่า' : null;
       if (newStatus) {
+        logAudit_('autoRoomStatus', 'room', norm(building) + '|' + norm(roomNum),
+          'ปิดงาน' + type + 'ในชีต: ' + (cur || '∅') + ' → ' + newStatus, 'sheet');
         roomSh.getRange(i + 1, iStatus + 1).setValue(newStatus);
         // ย้ายออก → ว่าง must ALSO blank the old tenant identity, same
         // as the app's releaseRoom template — otherwise the "available"
@@ -4046,7 +4166,15 @@ function copyTemplateToToday() {
   }
   const today = new Date();
   data.forEach(function (r) { r[0] = today; });
-  task.getRange(task.getLastRow()+1, 1, data.length, 8).setValues(data);
+  // v3.41 (audit r38): under the write lock (an app save at the same moment
+  // could land on the same row), and every copied job gets its own id.
+  withWriteLock_(function () {
+    ensureTaskIdColumn_(task);
+    const start = task.getLastRow() + 1;
+    task.getRange(start, 1, data.length, 8).setValues(data);
+    task.getRange(start, TASK_COL.ID, data.length, 1)
+      .setValues(data.map(function () { return [Utilities.getUuid()]; }));
+  });
   clearTasksCache_(); // v3.32: setValues จากเมนูไม่ยิง onEdit — ล้างเอง
   SpreadsheetApp.getActive().toast('คัดลอก ' + data.length + ' รายการแล้ว ✅', 'หอพัก', 5);
 }
